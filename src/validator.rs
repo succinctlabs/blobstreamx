@@ -187,19 +187,51 @@ pub(crate) mod tests {
             config::{GenericConfig, PoseidonGoldilocksConfig},
         },
     };
-    use plonky2_field::types::Field;
+    use plonky2_field::types::{Field, PrimeField64};
 
     use crate::{
         u32::U32Target,
         validator::{I64Target, TendermintMarshaller},
     };
 
+    use super::Ed25519PubkeyTarget;
+
+    type C = PoseidonGoldilocksConfig;
+    type F = <C as GenericConfig<D>>::F;
+    const D: usize = 2;
+
+    fn f_bits_to_bytes(bits: &[F]) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        let nb_bytes = if bits.len() % 8 == 0 {
+            bits.len() / 8
+        } else {
+            bits.len() / 8 + 1
+        };
+        for i in 0..nb_bytes {
+            let mut byte = 0;
+            for j in 0..8 {
+                if i * 8 + j >= bits.len() {
+                    break;
+                }
+                byte |= (bits[i * 8 + j].to_canonical_u64() << j) as u8;
+            }
+            bytes.push(byte);
+        }
+        bytes
+    }
+
+    fn bytes_to_le_f_bits(bytes: &[u8]) -> Vec<F> {
+        let mut bits = Vec::new();
+        for byte in bytes {
+            for i in 0..8 {
+                bits.push(F::from_bool((byte >> i) & 1 == 1));
+            }
+        }
+        bits
+    }
+
     #[test]
     fn test_marshal_int64_varint() {
-        type C = PoseidonGoldilocksConfig;
-        type F = <C as GenericConfig<D>>::F;
-        const D: usize = 2;
-
         // These are test cases generated from `celestia-core`.
         //
         // allZerosPubkey := make(ed25519.PubKey, ed25519.PubKeySize)
@@ -209,7 +241,7 @@ pub(crate) mod tests {
         //
         // The tuples hold the form: (voting_power_i64, voting_power_varint_bytes).
         let test_cases = [
-            (1i64, vec![1u64]),
+            (1i64, vec![1u8]),
             (1234567890i64, vec![210, 133, 216, 204, 4]),
             (38957235239i64, vec![167, 248, 160, 144, 145, 1]),
             (9999999999999i64, vec![255, 191, 202, 243, 132, 163, 2]),
@@ -247,45 +279,72 @@ pub(crate) mod tests {
             let data = builder.build::<C>();
             let proof = data.prove(pw).unwrap();
 
-            println!("Voting Power: {:?}", test_case.0);
-            println!("Expected Varint Encoding (Bytes): {:?}", test_case.1);
-            println!("Produced Varint Encoding (Bits): {:?}", proof.public_inputs);
+            let marshalled_bytes = f_bits_to_bytes(&proof.public_inputs);
+            let expected_bytes = test_case.1;
 
-            let mut base = F::ONE;
-            let mut byte = F::ZERO;
-            for i in 0..proof.public_inputs.len() {
-                // If we've gone past the expected number of bytes, then we assert that the rest of
-                // the bits are zero.
-                if i / 8 >= test_case.1.len() + 1 {
-                    if proof.public_inputs[i] != F::ZERO {
-                        panic!("unexpected error 1")
-                    }
+            println!("Voting Power: {:?}", test_case.0);
+            println!("Expected Varint Encoding (Bytes): {:?}", expected_bytes);
+            println!("Produced Varint Encoding (Bytes): {:?}", marshalled_bytes);
+
+            for i in 0..marshalled_bytes.len() {
+                if i >= expected_bytes.len() {
+                    assert_eq!(marshalled_bytes[i], 0);
                     continue;
                 }
-
-                // If we've reached the end of a byte, then we assert that the byte is correct. We
-                // account for the edge conditions such as not wanting to check the 0'th index
-                // and wanting to check the last index which may not be a multiple of 8.
-                let res = test_case.1.clone();
-                if i % 8 == 0 && i != 0 {
-                    let expected_byte = F::from_canonical_u64(res[i / 8 - 1]);
-                    println!("Byte {}: {} and {}", i / 8 - 1, expected_byte, byte);
-                    if expected_byte != byte {
-                        panic!("unexpected error 2")
-                    }
-                    byte = F::ZERO;
-                    base = F::ONE;
-                } else if i == proof.public_inputs.len() - 1 && i / 8 < res.len() {
-                    let expected_byte = F::from_canonical_u64(res[i / 8]);
-                    println!("Byte {}: {} and {}", i / 8 - 1, expected_byte, byte);
-                    if expected_byte != byte {
-                        panic!("unexpected error 3")
-                    }
-                }
-
-                byte += base * proof.public_inputs[i];
-                base *= F::TWO;
+                assert_eq!(marshalled_bytes[i], expected_bytes[i]);
             }
+        }
+    }
+
+    #[test]
+    fn test_marshal_tendermint_validator() {
+        let voting_power_i64 = 724325643436111i64;
+        let pubkey_bytes = [0; 32];
+        let expected_marshal = [
+            10u8, 34, 10, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 16, 207, 128, 183, 165, 211, 216, 164, 1,
+        ];
+
+        let pw = PartialWitness::new();
+        let config = CircuitConfig::standard_recursion_config();
+        let mut builder = CircuitBuilder::<F, D>::new(config);
+
+        let voting_power_lower = voting_power_i64 & ((1 << 32) - 1);
+        let voting_power_upper = voting_power_i64 >> 32;
+
+        let voting_power_lower_target =
+            U32Target(builder.constant(F::from_canonical_usize(voting_power_lower as usize)));
+        let voting_power_upper_target =
+            U32Target(builder.constant(F::from_canonical_usize(voting_power_upper as usize)));
+        let voting_power_target = I64Target([voting_power_lower_target, voting_power_upper_target]);
+
+        let pubkey = Ed25519PubkeyTarget([builder._false(); 256]);
+        let result = builder.marshal_tendermint_validator(pubkey, voting_power_target);
+
+        for i in 0..result.len() {
+            builder.register_public_input(result[i].target);
+        }
+
+        let data = builder.build::<C>();
+        let proof = data.prove(pw).unwrap();
+
+        let marshalled_bytes = f_bits_to_bytes(&proof.public_inputs);
+        let expected_bytes = expected_marshal;
+
+        println!("Voting Power: {:?}", voting_power_i64);
+        println!("Public Key: {:?}", pubkey_bytes);
+        println!("Expected Validator Encoding (Bytes): {:?}", expected_bytes);
+        println!(
+            "Produced Validator Encoding (Bytes): {:?}",
+            marshalled_bytes
+        );
+
+        for i in 0..marshalled_bytes.len() {
+            if i >= expected_bytes.len() {
+                assert_eq!(marshalled_bytes[i], 0);
+                continue;
+            }
+            assert_eq!(marshalled_bytes[i], expected_bytes[i]);
         }
     }
 }
