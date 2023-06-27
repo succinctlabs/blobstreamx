@@ -200,6 +200,26 @@ pub(crate) mod tests {
     type F = <C as GenericConfig<D>>::F;
     const D: usize = 2;
 
+    fn bits_to_bytes(bits: &[bool]) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        let nb_bytes = if bits.len() % 8 == 0 {
+            bits.len() / 8
+        } else {
+            bits.len() / 8 + 1
+        };
+        for i in 0..nb_bytes {
+            let mut byte = 0;
+            for j in 0..8 {
+                if i * 8 + j >= bits.len() {
+                    break;
+                }
+                byte |= (bits[i * 8 + j] as u8) << j;
+            }
+            bytes.push(byte);
+        }
+        bytes
+    }
+
     fn f_bits_to_bytes(bits: &[F]) -> Vec<u8> {
         let mut bytes = Vec::new();
         let nb_bytes = if bits.len() % 8 == 0 {
@@ -299,7 +319,7 @@ pub(crate) mod tests {
     #[test]
     fn test_marshal_tendermint_validator() {
         let voting_power_i64 = 724325643436111i64;
-        let pubkey_bytes = [0; 32];
+        let pubkey_bits = [false; 256];
         let expected_marshal = [
             10u8, 34, 10, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 0, 16, 207, 128, 183, 165, 211, 216, 164, 1,
@@ -318,7 +338,15 @@ pub(crate) mod tests {
             U32Target(builder.constant(F::from_canonical_usize(voting_power_upper as usize)));
         let voting_power_target = I64Target([voting_power_lower_target, voting_power_upper_target]);
 
-        let pubkey = Ed25519PubkeyTarget([builder._false(); 256]);
+        let mut pubkey = [builder._false(); 256];
+        for i in 0..256 {
+            pubkey[i] = if pubkey_bits[i] {
+                builder._true()
+            } else {
+                builder._false()
+            };
+        }
+        let pubkey = Ed25519PubkeyTarget(pubkey);
         let result = builder.marshal_tendermint_validator(pubkey, voting_power_target);
 
         for i in 0..result.len() {
@@ -332,7 +360,7 @@ pub(crate) mod tests {
         let expected_bytes = expected_marshal;
 
         println!("Voting Power: {:?}", voting_power_i64);
-        println!("Public Key: {:?}", pubkey_bytes);
+        println!("Public Key: {:?}", bits_to_bytes(&pubkey_bits));
         println!("Expected Validator Encoding (Bytes): {:?}", expected_bytes);
         println!(
             "Produced Validator Encoding (Bytes): {:?}",
