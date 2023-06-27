@@ -187,10 +187,11 @@ pub(crate) mod tests {
             config::{GenericConfig, PoseidonGoldilocksConfig},
         },
     };
-    use plonky2_field::types::{Field, PrimeField64};
+    use plonky2_field::types::Field;
 
     use crate::{
         u32::U32Target,
+        utils::{bits_to_bytes, f_bits_to_bytes},
         validator::{I64Target, TendermintMarshaller},
     };
 
@@ -199,56 +200,6 @@ pub(crate) mod tests {
     type C = PoseidonGoldilocksConfig;
     type F = <C as GenericConfig<D>>::F;
     const D: usize = 2;
-
-    fn bits_to_bytes(bits: &[bool]) -> Vec<u8> {
-        let mut bytes = Vec::new();
-        let nb_bytes = if bits.len() % 8 == 0 {
-            bits.len() / 8
-        } else {
-            bits.len() / 8 + 1
-        };
-        for i in 0..nb_bytes {
-            let mut byte = 0;
-            for j in 0..8 {
-                if i * 8 + j >= bits.len() {
-                    break;
-                }
-                byte |= (bits[i * 8 + j] as u8) << j;
-            }
-            bytes.push(byte);
-        }
-        bytes
-    }
-
-    fn f_bits_to_bytes(bits: &[F]) -> Vec<u8> {
-        let mut bytes = Vec::new();
-        let nb_bytes = if bits.len() % 8 == 0 {
-            bits.len() / 8
-        } else {
-            bits.len() / 8 + 1
-        };
-        for i in 0..nb_bytes {
-            let mut byte = 0;
-            for j in 0..8 {
-                if i * 8 + j >= bits.len() {
-                    break;
-                }
-                byte |= (bits[i * 8 + j].to_canonical_u64() << j) as u8;
-            }
-            bytes.push(byte);
-        }
-        bytes
-    }
-
-    fn bytes_to_le_f_bits(bytes: &[u8]) -> Vec<F> {
-        let mut bits = Vec::new();
-        for byte in bytes {
-            for i in 0..8 {
-                bits.push(F::from_bool((byte >> i) & 1 == 1));
-            }
-        }
-        bits
-    }
 
     #[test]
     fn test_marshal_int64_varint() {
@@ -318,6 +269,14 @@ pub(crate) mod tests {
 
     #[test]
     fn test_marshal_tendermint_validator() {
+        // This is a test cases generated from `celestia-core`.
+        //
+        // allZerosPubkey := make(ed25519.PubKey, ed25519.PubKeySize)
+        // minimumVotingPower := int64(724325643436111)
+        // minValidator := NewValidator(allZerosPubkey, minimumVotingPower)
+        // fmt.Println(minValidator.Bytes())
+        //
+        // The tuples hold the form: (voting_power_i64, voting_power_varint_bytes).
         let voting_power_i64 = 724325643436111i64;
         let pubkey_bits = [false; 256];
         let expected_marshal = [
