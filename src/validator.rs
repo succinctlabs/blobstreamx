@@ -1,17 +1,16 @@
+//! The protobuf encoding of a Tendermint validator is a deterministic function of the validator's
+//! public key (32 bytes) and voting power (int64). The encoding is as follows in bytes:
+//
+//!     10 34 10 32 <pubkey> 16 <varint>
+//
+//! The `pubkey` is encoded as the raw list of bytes used in the public key. The `varint` is
+//! encoded using protobuf's default integer encoding, which consist of 7 bit payloads. You can
+//! read more about them here: https://protobuf.dev/programming-guides/encoding/#varints.
+
 use crate::u32::{U32Builder, U32Target};
-use crate::u8::{U8Builder, U8Target};
 use plonky2::iop::target::BoolTarget;
 use plonky2::{hash::hash_types::RichField, plonk::circuit_builder::CircuitBuilder};
 use plonky2_field::extension::Extendable;
-
-/// The protobuf-encoding of a Tendermint validator is a deterministic function of the validator's
-/// public key (32 bytes) and voting power (int64). The encoding is as follows in bytes:
-///
-///     10 34 10 32 <pubkey> 16 <varint>
-///
-/// The `pubkey` is encoded as the raw list of bytes used in the public key. The `varint` is
-/// encoded using protobuf's default integer encoding, which consist of 7 bit payloads. You can
-/// read more about them here: https://protobuf.dev/programming-guides/encoding/#varints.
 
 /// The maximum length of a protobuf-encoded Tendermint validator in bytes.
 const VALIDATOR_BYTES_LEN_MAX: usize = 46;
@@ -43,7 +42,8 @@ struct TendermintValidator {
     pub voting_power: I64Target,
 }
 
-pub trait TendermintBuilder {
+pub trait TendermintMarshaller {
+    /// Serializes an int64 as a protobuf varint.
     fn marshal_int64_varint(&mut self, num: I64Target) -> [BoolTarget; VOTING_POWER_BITS_LEN_MAX];
 
     /// Serializes the validator public key and voting power to bytes.
@@ -54,7 +54,7 @@ pub trait TendermintBuilder {
     ) -> [BoolTarget; VALIDATOR_BITS_LEN_MAX];
 }
 
-impl<F: RichField + Extendable<D>, const D: usize> TendermintBuilder for CircuitBuilder<F, D> {
+impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for CircuitBuilder<F, D> {
     fn marshal_int64_varint(
         &mut self,
         voting_power: I64Target,
@@ -126,6 +126,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintBuilder for Circuit
             // non-zero septet index.
             buffer[i * 8 + 7] = is_lt_last_non_zero_septet_idx;
         }
+
         return buffer;
     }
 
@@ -150,7 +151,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintBuilder for Circuit
         // The next 32 bytes of the serialized validator are the public key.
         for i in 0..PUBKEY_BYTES_LEN {
             for j in 0..8 {
-                buffer[ptr] = pubkey.0[i];
+                buffer[ptr] = pubkey.0[i * 8 + j];
                 ptr += 1;
             }
         }
