@@ -18,7 +18,7 @@ impl<F: RichField + Extendable<D>, const D: usize> U32Builder for CircuitBuilder
         // In particular, we can "batch decompose" the bits to fill the entire width of the table.
         let mut res = [self._false(); 32];
         let bits = self.split_le(byte.0, 32);
-        for i in 0..8 {
+        for i in 0..32 {
             res[i] = bits[i];
         }
         return res;

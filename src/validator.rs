@@ -104,7 +104,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
         for i in 0..VOTING_POWER_BYTES_LEN_MAX {
             // If the index is less than the last non-zero septet index, `diff` will be in
             // [0, VOTING_POWER_BYTES_LEN_MAX).
-            let idx = self.constant(F::from_canonical_usize(i));
+            let idx = self.constant(F::from_canonical_usize(i + 1));
             let diff = self.sub(last_seen_non_zero_septet_idx, idx);
 
             // Calculates whether we've seen at least one `diff` in [0, VOTING_POWER_BYTES_LEN_MAX).
@@ -174,5 +174,118 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
         }
 
         buffer
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod tests {
+    use plonky2::{
+        iop::witness::PartialWitness,
+        plonk::{
+            circuit_builder::CircuitBuilder,
+            circuit_data::CircuitConfig,
+            config::{GenericConfig, PoseidonGoldilocksConfig},
+        },
+    };
+    use plonky2_field::types::Field;
+
+    use crate::{
+        u32::U32Target,
+        validator::{I64Target, TendermintMarshaller},
+    };
+
+    #[test]
+    fn test_marshal_int64_varint() {
+        type C = PoseidonGoldilocksConfig;
+        type F = <C as GenericConfig<D>>::F;
+        const D: usize = 2;
+
+        // These are test cases generated from `celestia-core`.
+        //
+        // allZerosPubkey := make(ed25519.PubKey, ed25519.PubKeySize)
+        // votingPower := int64(9999999999999)
+        // validator := NewValidator(allZerosPubkey, votingPower)
+        // fmt.Println(validator.Bytes()[37:])
+        //
+        // The tuples hold the form: (voting_power_i64, voting_power_varint_bytes).
+        let test_cases = [
+            (1i64, vec![1u64]),
+            (1234567890i64, vec![210, 133, 216, 204, 4]),
+            (38957235239i64, vec![167, 248, 160, 144, 145, 1]),
+            (9999999999999i64, vec![255, 191, 202, 243, 132, 163, 2]),
+            (
+                724325643436111i64,
+                vec![207, 128, 183, 165, 211, 216, 164, 1],
+            ),
+            (
+                9223372036854775807i64,
+                vec![255, 255, 255, 255, 255, 255, 255, 255, 127],
+            ),
+        ];
+
+        for test_case in test_cases {
+            let pw = PartialWitness::new();
+            let config = CircuitConfig::standard_recursion_config();
+            let mut builder = CircuitBuilder::<F, D>::new(config);
+
+            let voting_power_i64 = test_case.0;
+            let voting_power_lower = voting_power_i64 & ((1 << 32) - 1);
+            let voting_power_upper = voting_power_i64 >> 32;
+
+            let voting_power_lower_target =
+                U32Target(builder.constant(F::from_canonical_usize(voting_power_lower as usize)));
+            let voting_power_upper_target =
+                U32Target(builder.constant(F::from_canonical_usize(voting_power_upper as usize)));
+            let voting_power_target =
+                I64Target([voting_power_lower_target, voting_power_upper_target]);
+            let result = builder.marshal_int64_varint(voting_power_target);
+
+            for i in 0..result.len() {
+                builder.register_public_input(result[i].target);
+            }
+
+            let data = builder.build::<C>();
+            let proof = data.prove(pw).unwrap();
+
+            println!("Voting Power: {:?}", test_case.0);
+            println!("Expected Varint Encoding (Bytes): {:?}", test_case.1);
+            println!("Produced Varint Encoding (Bits): {:?}", proof.public_inputs);
+
+            let mut base = F::ONE;
+            let mut byte = F::ZERO;
+            for i in 0..proof.public_inputs.len() {
+                // If we've gone past the expected number of bytes, then we assert that the rest of
+                // the bits are zero.
+                if i / 8 >= test_case.1.len() + 1 {
+                    if proof.public_inputs[i] != F::ZERO {
+                        panic!("unexpected error 1")
+                    }
+                    continue;
+                }
+
+                // If we've reached the end of a byte, then we assert that the byte is correct. We
+                // account for the edge conditions such as not wanting to check the 0'th index
+                // and wanting to check the last index which may not be a multiple of 8.
+                let res = test_case.1.clone();
+                if i % 8 == 0 && i != 0 {
+                    let expected_byte = F::from_canonical_u64(res[i / 8 - 1]);
+                    println!("Byte {}: {} and {}", i / 8 - 1, expected_byte, byte);
+                    if expected_byte != byte {
+                        panic!("unexpected error 2")
+                    }
+                    byte = F::ZERO;
+                    base = F::ONE;
+                } else if i == proof.public_inputs.len() - 1 && i / 8 < res.len() {
+                    let expected_byte = F::from_canonical_u64(res[i / 8]);
+                    println!("Byte {}: {} and {}", i / 8 - 1, expected_byte, byte);
+                    if expected_byte != byte {
+                        panic!("unexpected error 3")
+                    }
+                }
+
+                byte += base * proof.public_inputs[i];
+                base *= F::TWO;
+            }
+        }
     }
 }
