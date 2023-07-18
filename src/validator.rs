@@ -11,7 +11,7 @@ use plonky2::{hash::hash_types::RichField, plonk::circuit_builder::CircuitBuilde
 use plonky2_field::extension::Extendable;
 
 use crate::helper::{uint32_to_bits, _right_rotate, _shr};
-use crate::merkle::HASH_SIZE;
+use crate::merkle::{HASH_SIZE, HASH_LEN_BITS};
 use crate::u32::{U32Builder, U32Target};
 use crate::sha256::{make_sha256_circuit};
 
@@ -26,6 +26,9 @@ const VALIDATOR_BYTES_LEN_MIN: usize = 38;
 
 /// The minimum length of a protobuf-encoded Tendermint validator in bits.
 const VALIDATOR_BITS_LEN_MIN: usize = VALIDATOR_BYTES_LEN_MIN * 8;
+
+/// The number of possible byte lengths of a protobuf-encoded Tendermint validator.
+const NUM_VALIDATOR_BYTES_LENGTHS: usize = VALIDATOR_BYTES_LEN_MAX - VALIDATOR_BYTES_LEN_MIN + 1;
 
 // The number of bytes in a Tendermint validator's public key.
 const PUBKEY_BYTES_LEN: usize = 32;
@@ -71,6 +74,13 @@ pub trait TendermintMarshaller {
 }
 
 pub trait TendermintValidatorSet {
+    /// Gets all of the leaf hashes for validators in the validator set with variable length.
+    fn get_all_leaf_hashes(
+        &mut self,
+        validators: [[BoolTarget; VALIDATOR_BITS_LEN_MAX]; VALIDATOR_SET_LEN_MAX],
+        validator_byte_lengths: [U32Target; VALIDATOR_SET_LEN_MAX],
+    ) -> [[BoolTarget; HASH_LEN_BITS]; VALIDATOR_SET_LEN_MAX];
+    
     /// Checks that the validator hash matches the expected hash from the validators.
     fn simple_hash_from_byte_vectors(
         &mut self, 
@@ -204,109 +214,155 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
 }
 
 impl<F: RichField + Extendable<D>, const D: usize> TendermintValidatorSet for CircuitBuilder<F, D> {
-    fn simple_hash_from_byte_vectors(
-        &mut self, 
+    fn get_all_leaf_hashes(
+        &mut self,
         validators: [[BoolTarget; VALIDATOR_BITS_LEN_MAX]; VALIDATOR_SET_LEN_MAX],
-        validator_lengths: [U32Target; VALIDATOR_SET_LEN_MAX],
-        validator_enabled: [BoolTarget; VALIDATOR_SET_LEN_MAX],
-    ) -> [BoolTarget; HASH_SIZE * 8] {
+        validator_byte_lengths: [U32Target; VALIDATOR_SET_LEN_MAX],
+    ) -> [[BoolTarget; HASH_LEN_BITS]; VALIDATOR_SET_LEN_MAX] {
         let zero = self.zero();
         let one = self.one();
-
         // PSEUDOCODE
-        // Initialize initial_validators_hash of [BoolTarget; HASH_SIZE] of length VALIDATOR_SET_LEN_MAX
-        // Process validators with VALIDATOR_SET_LEN_MAX
-
-        let mut validators_leaf_hashes = [[self._false(); HASH_SIZE * 8]; VALIDATOR_SET_LEN_MAX];
-        // Hash each of the validators into a leaf hash.
-        for i in 0..VALIDATOR_SET_LEN_MAX {
-            let mut validator_bytes_hashes = [[self._false(); HASH_SIZE * 8]; VALIDATOR_BYTES_LEN_MAX - VALIDATOR_BYTES_LEN_MIN];
-            for j in 0..VALIDATOR_BYTES_LEN_MAX - VALIDATOR_BYTES_LEN_MIN {
-                let bits_length = (VALIDATOR_BYTES_LEN_MIN + j) * 8;
-                // Convert bits_length to u128
-                
-                // TODO: This doesn't seem right, why is this bits like this?
-                let sha_target = make_sha256_circuit(self, bits_length as u128);
-                for k in 0..bits_length {
-                    self.connect(validators[i][k].target, sha_target.message[k].target);
-                }
-                let mut return_hash = [_f; HASH_LEN_BITS];
-                for i in 0..HASH_LEN_BITS {
-                    return_hash[i] = builder.add_virtual_bool_target_safe();
-                    builder.connect(sha2_targets.digest[i].target, return_hash[i].target);
-                }
-            }
-
-            // Select the validator's byte hash that we want to use.
-        }
-
-        // Initialize temp_validators of [BoolTarget; HASH_SIZE] of length VALIDATOR_SET_LEN_MAX / 2
-        // Initialize temp_validator_enabled of [BoolTarget] of length VALIDATOR_SET_LEN_MAX / 2
-        // Loop over validators with VALIDATOR_SET_LEN_MAX
-        //   If validator_enabled[i] is true && validator_enabled[i + 1] is true
-        //     Concatenate validators[i] and validators[i + 1] & hash into a single [BoolTarget; HASH_SIZE]
-        //   If validator_enabled[i] is true && validator_enabled[i + 1] is false
-        //     Concatenate validators[i] and zero & hash into a single [BoolTarget; HASH_SIZE]
-        //   If validator_enabled[i] is false && validator_enabled[i + 1] is false
-        //     Set temp_validators_enabled[i / 2] to false
-
-        // Initialize temp_validators of [BoolTarget; HASH_SIZE] of length VALIDATOR_SET_LEN_MAX / 2
-        let mut temp_validators = [[self._false(); HASH_SIZE * 8]; VALIDATOR_SET_LEN_MAX / 2];
-
-        // TODO: Constrain temp_validator_enabled
-        // Initialize temp_validator_enabled of [BoolTarget] of length VALIDATOR_SET_LEN_MAX / 2
-        let mut temp_validator_enabled = [self._false(); VALIDATOR_SET_LEN_MAX / 2];
-
-        // Loop over validators with VALIDATOR_SET_LEN_MAX, i += 2
-        for i in (0..VALIDATOR_SET_LEN_MAX).step_by(2) {
-            // If validator_enabled[i] is true && validator_enabled[i + 1] is true
-            let both_enabled = self.and(validator_enabled[i], validator_enabled[i + 1]);
-
-
-            let cond = self.is_equal(both_enabled.target, one);
-            let a = {
-                // 
-            }
-            let b = self.constant(F::from_canonical_u64(1));
-            let c = self.select(cond, a, b);
-
-            c = cond * a + (1 - cond) * b
-
-
-            if  {
-
-            } else if (validator_enabled[i]) {
-                let hash = make_sha256_circuit(self, header_bits.len() as u128);
-            } else {
-
-            }
-            // Concatenate validators[i] and validators[i + 1] & hash into a single [BoolTarget; HASH_SIZE]
-            let hash = make_sha256_circuit(self, header_bits.len() as u128);
-            // Set temp_validators[i / 2] to hash
-            temp_validators[i / 2] = hash;
-            // Set temp_validator_enabled[i / 2] to true
-            temp_validator_enabled[i / 2] = both_enabled;
-        }
 
         /*
-        
         validator: [Target; MAX_VALIDATOR_SIZE]
         let cases = [HashTarget; MAX_VALIDATOR_SIZE - MIN_VALIDATOR_SIZE + 1];
         for i in 0..len(cases) {
             cases[i] = sha256(validator[:i+MIN_VALIDATOR_SIZE);
         }
         let output = builder.select_array(length - MIN_VALIDATOR_SIZE, cases);
-
-
-
-
-
-        
          */
+        // Loop over all validators.
+        // Generate the SHA256 hash of each potential byte length of the validator.
+        // Select the hash of the correct byte length.
+        // Return the leaf hash for all validators.
 
-        let mut buffer = [self._false(); HASH_SIZE * 8];
+        let mut validators_leaf_hashes = [[self._false(); HASH_LEN_BITS]; VALIDATOR_SET_LEN_MAX];
+        // Hash each of the validators into a leaf hash.
+        for i in 0..VALIDATOR_SET_LEN_MAX {
+            let mut validator_bytes_hashes = [[self._false(); HASH_LEN_BITS]; NUM_VALIDATOR_BYTES_LENGTHS];
+            for j in 0..NUM_VALIDATOR_BYTES_LENGTHS {
+                // Calculate the length of the message for the leaf hash.
+                // 0x00 || validatorBytes
+                let bits_length = 8 + (VALIDATOR_BYTES_LEN_MIN + j) * 8;
+                
+                let sha_target = make_sha256_circuit(self, bits_length as u128);
+                // 0x00
+                for k in 0..8 {
+                    self.connect(sha_target.message[k].target, zero);
+                }
+                // validatorBytes
+                for k in 8..bits_length {
+                    self.connect(validators[i][k].target, sha_target.message[k].target);
+                }
+                // Load the output of the hash.
+                for l in 0..HASH_LEN_BITS {
+                    validator_bytes_hashes[i][l] = self.add_virtual_bool_target_safe();
+                    self.connect(sha_target.digest[i].target, validator_bytes_hashes[i][l].target);
+                }
+            }
+            let val_bytes_len_min = self.constant(F::from_canonical_u32(VALIDATOR_BYTES_LEN_MIN as u32));
+            let length_index = self.sub(validator_byte_lengths[i].0, val_bytes_len_min);
+            
+            // Create a bitmap, with a single bit set to 1 that corresponds to the length of the validator's bytes.
+            let mut validator_byte_hash_selector = [self._false(); NUM_VALIDATOR_BYTES_LENGTHS];
+            for j in 0..NUM_VALIDATOR_BYTES_LENGTHS {
+                let byte_length = self.constant(F::from_canonical_u32(j as u32));
+                validator_byte_hash_selector[j] = self.is_equal(length_index, byte_length);
+            }
 
-        return buffer;
+            // Select the validator's byte hash that we want to use from this array.
+            let mut temp_validator_leaf_hash = [self._false(); HASH_LEN_BITS];
+            for j in 0..NUM_VALIDATOR_BYTES_LENGTHS {
+                for k in 0..HASH_LEN_BITS {
+                    temp_validator_leaf_hash[k] = BoolTarget::new_unsafe(self.select(validator_byte_hash_selector[j], 
+                        validator_bytes_hashes[j][k].target, 
+                        temp_validator_leaf_hash[k].target));
+                }
+            }
+            
+            // Set the validator's leaf hash to the selected hash.
+            for j in 0..HASH_LEN_BITS {
+                self.connect(temp_validator_leaf_hash[j].target, validators_leaf_hashes[i][j].target);
+            }
+
+        }
+        validators_leaf_hashes
+    }
+
+    fn simple_hash_from_byte_vectors(
+        &mut self, 
+        validators: [[BoolTarget; VALIDATOR_BITS_LEN_MAX]; VALIDATOR_SET_LEN_MAX],
+        validator_byte_lengths: [U32Target; VALIDATOR_SET_LEN_MAX],
+        validator_enabled: [BoolTarget; VALIDATOR_SET_LEN_MAX],
+    ) -> [BoolTarget; HASH_LEN_BITS] {
+        let zero = self.zero();
+        let one = self.one();
+
+        let mut temp_validators = self.get_all_leaf_hashes(validators, validator_byte_lengths);
+        let mut temp_validator_enabled = validator_enabled;
+
+        // Initialize temp_validators of [BoolTarget; HASH_LEN_BITS] of length VALIDATOR_SET_LEN_MAX
+        // Initialize temp_validator_enabled of [BoolTarget] of length VALIDATOR_SET_LEN_MAX
+        // Loop over validators with VALIDATOR_SET_LEN_MAX
+        //   If validator_enabled[i] is true && validator_enabled[i + 1] is true
+        //     Concatenate validators[i] and validators[i + 1] & hash into a single [BoolTarget; HASH_LEN_BITS]
+        //   If validator_enabled[i] is true && validator_enabled[i + 1] is false
+        //     Concatenate validators[i] and zero & hash into a single [BoolTarget; HASH_LEN_BITS]
+        //   If validator_enabled[i] is false && validator_enabled[i + 1] is false
+        //     Set temp_validators_enabled[i / 2] to false
+
+
+        // Loop from size VALIDATOR_SET_LEN_MAX to 2
+        let mut size = VALIDATOR_SET_LEN_MAX;
+        while size > 1 {
+            // Loop over validators with VALIDATOR_SET_LEN_MAX, i += 2
+            for i in (0..size).step_by(2) {
+                let both_enabled = self.and(validator_enabled[i], validator_enabled[i + 1]);
+
+                let disabled_1 = self.not(validator_enabled[i]);
+                let disabled_2 = self.not(validator_enabled[i + 1]);
+                let both_disabled = self.and(disabled_1, disabled_2);
+
+                // If validator_enabled[i] is true && validator_enabled[i + 1] is true
+                let mut temp_validator_both_true = [self._false(); HASH_LEN_BITS];
+                // Calculate the length of the message for the leaf hash.
+                // 0x01 || left || right
+                let bits_length = 8 + (HASH_LEN_BITS * 2);
+                
+                let sha_target = make_sha256_circuit(self, bits_length as u128);
+                // 0x01
+                for k in 0..7 {
+                    self.connect(sha_target.message[k].target, zero);
+                }
+                self.connect(sha_target.message[7].target, one);
+                // left
+                for k in 8..8+HASH_LEN_BITS {
+                    self.connect(validators[i][k].target, sha_target.message[k].target);
+                }
+                // right
+                for k in 8+HASH_LEN_BITS..bits_length {
+                    self.connect(validators[i + 1][k].target, sha_target.message[k].target);
+                }
+
+                // Load the output of the hash.
+                for l in 0..HASH_LEN_BITS {
+                    temp_validator_both_true[l] = self.add_virtual_bool_target_safe();
+                    self.connect(sha_target.digest[i].target, temp_validator_both_true[l].target);
+                }
+
+                // If temp_validator_enabled[i] is true && temp_validator_enabled[i + 1] is false, we pass up the left hash.
+                for l in 0..HASH_LEN_BITS {
+                    temp_validators[i / 2][l] = BoolTarget::new_unsafe(self.select(both_enabled, temp_validator_both_true[l].target, temp_validators[i / 2][l].target));
+                }
+
+                // Set temp_validators_enabled[i / 2] to false if both temp_validators_enabled[i] and temp_validators_enabled[i+1] are false.
+                temp_validator_enabled[i / 2] = BoolTarget::new_unsafe(self.select(both_disabled, zero, one));
+
+            }
+            size /= 2;
+        }
+
+        return temp_validators[0];
     }
 }
 

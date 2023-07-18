@@ -2,6 +2,8 @@ use digest::{consts::U32, Digest, FixedOutputReset};
 
 pub const HASH_SIZE: usize = 32;
 
+pub const HASH_LEN_BITS: usize = HASH_SIZE * 8;
+
 /// Hash is the output of the cryptographic digest function
 pub type Hash = [u8; HASH_SIZE];
 
