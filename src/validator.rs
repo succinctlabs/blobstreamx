@@ -6,17 +6,26 @@
 //! The `pubkey` is encoded as the raw list of bytes used in the public key. The `varint` is
 //! encoded using protobuf's default integer encoding, which consist of 7 bit payloads. You can
 //! read more about them here: https://protobuf.dev/programming-guides/encoding/#varints.
-
-use crate::u32::{U32Builder, U32Target};
-use plonky2::iop::target::BoolTarget;
+use plonky2::iop::target::{BoolTarget, Target};
 use plonky2::{hash::hash_types::RichField, plonk::circuit_builder::CircuitBuilder};
 use plonky2_field::extension::Extendable;
+
+use crate::helper::{uint32_to_bits, _right_rotate, _shr};
+use crate::merkle::HASH_SIZE;
+use crate::u32::{U32Builder, U32Target};
+use crate::sha256::{make_sha256_circuit};
 
 /// The maximum length of a protobuf-encoded Tendermint validator in bytes.
 const VALIDATOR_BYTES_LEN_MAX: usize = 46;
 
 /// The maximum length of a protobuf-encoded Tendermint validator in bits.
 const VALIDATOR_BITS_LEN_MAX: usize = VALIDATOR_BYTES_LEN_MAX * 8;
+
+/// The minimum length of a protobuf-encoded Tendermint validator in bytes.
+const VALIDATOR_BYTES_LEN_MIN: usize = 38;
+
+/// The minimum length of a protobuf-encoded Tendermint validator in bits.
+const VALIDATOR_BITS_LEN_MIN: usize = VALIDATOR_BYTES_LEN_MIN * 8;
 
 // The number of bytes in a Tendermint validator's public key.
 const PUBKEY_BYTES_LEN: usize = 32;
@@ -27,9 +36,16 @@ const VOTING_POWER_BYTES_LEN_MAX: usize = 9;
 // The maximum number of bits in a Tendermint validator's voting power.
 const VOTING_POWER_BITS_LEN_MAX: usize = VOTING_POWER_BYTES_LEN_MAX * 8;
 
+// The maximum number of validators in a Tendermint validator set.
+const VALIDATOR_SET_LEN_MAX: usize = 128;
+
 /// The Ed25519 public key as a list of 32 byte targets.
 #[derive(Debug, Clone, Copy)]
 pub struct Ed25519PubkeyTarget(pub [BoolTarget; 256]);
+
+/// The Tendermint hash as a 32 byte target.
+#[derive(Debug, Clone, Copy)]
+pub struct TendermintHashTarget(pub [Target; HASH_SIZE]);
 
 /// The voting power as a list of 2 u32 targets.
 #[derive(Debug, Clone, Copy)]
@@ -52,6 +68,16 @@ pub trait TendermintMarshaller {
         pubkey: Ed25519PubkeyTarget,
         voting_power: I64Target,
     ) -> [BoolTarget; VALIDATOR_BITS_LEN_MAX];
+}
+
+pub trait TendermintValidatorSet {
+    /// Checks that the validator hash matches the expected hash from the validators.
+    fn simple_hash_from_byte_vectors(
+        &mut self, 
+        validators: [[BoolTarget; VALIDATOR_BITS_LEN_MAX]; VALIDATOR_SET_LEN_MAX],
+        validator_lengths: [U32Target; VALIDATOR_SET_LEN_MAX],
+        validator_enabled: [BoolTarget; VALIDATOR_SET_LEN_MAX],
+    ) -> [BoolTarget; HASH_SIZE * 8];
 }
 
 impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for CircuitBuilder<F, D> {
@@ -177,6 +203,113 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
     }
 }
 
+impl<F: RichField + Extendable<D>, const D: usize> TendermintValidatorSet for CircuitBuilder<F, D> {
+    fn simple_hash_from_byte_vectors(
+        &mut self, 
+        validators: [[BoolTarget; VALIDATOR_BITS_LEN_MAX]; VALIDATOR_SET_LEN_MAX],
+        validator_lengths: [U32Target; VALIDATOR_SET_LEN_MAX],
+        validator_enabled: [BoolTarget; VALIDATOR_SET_LEN_MAX],
+    ) -> [BoolTarget; HASH_SIZE * 8] {
+        let zero = self.zero();
+        let one = self.one();
+
+        // PSEUDOCODE
+        // Initialize initial_validators_hash of [BoolTarget; HASH_SIZE] of length VALIDATOR_SET_LEN_MAX
+        // Process validators with VALIDATOR_SET_LEN_MAX
+
+        let mut validators_leaf_hashes = [[self._false(); HASH_SIZE * 8]; VALIDATOR_SET_LEN_MAX];
+        // Hash each of the validators into a leaf hash.
+        for i in 0..VALIDATOR_SET_LEN_MAX {
+            let mut validator_bytes_hashes = [[self._false(); HASH_SIZE * 8]; VALIDATOR_BYTES_LEN_MAX - VALIDATOR_BYTES_LEN_MIN];
+            for j in 0..VALIDATOR_BYTES_LEN_MAX - VALIDATOR_BYTES_LEN_MIN {
+                let bits_length = (VALIDATOR_BYTES_LEN_MIN + j) * 8;
+                // Convert bits_length to u128
+                
+                // TODO: This doesn't seem right, why is this bits like this?
+                let sha_target = make_sha256_circuit(self, bits_length as u128);
+                for k in 0..bits_length {
+                    self.connect(validators[i][k].target, sha_target.message[k].target);
+                }
+                let mut return_hash = [_f; HASH_LEN_BITS];
+                for i in 0..HASH_LEN_BITS {
+                    return_hash[i] = builder.add_virtual_bool_target_safe();
+                    builder.connect(sha2_targets.digest[i].target, return_hash[i].target);
+                }
+            }
+
+            // Select the validator's byte hash that we want to use.
+        }
+
+        // Initialize temp_validators of [BoolTarget; HASH_SIZE] of length VALIDATOR_SET_LEN_MAX / 2
+        // Initialize temp_validator_enabled of [BoolTarget] of length VALIDATOR_SET_LEN_MAX / 2
+        // Loop over validators with VALIDATOR_SET_LEN_MAX
+        //   If validator_enabled[i] is true && validator_enabled[i + 1] is true
+        //     Concatenate validators[i] and validators[i + 1] & hash into a single [BoolTarget; HASH_SIZE]
+        //   If validator_enabled[i] is true && validator_enabled[i + 1] is false
+        //     Concatenate validators[i] and zero & hash into a single [BoolTarget; HASH_SIZE]
+        //   If validator_enabled[i] is false && validator_enabled[i + 1] is false
+        //     Set temp_validators_enabled[i / 2] to false
+
+        // Initialize temp_validators of [BoolTarget; HASH_SIZE] of length VALIDATOR_SET_LEN_MAX / 2
+        let mut temp_validators = [[self._false(); HASH_SIZE * 8]; VALIDATOR_SET_LEN_MAX / 2];
+
+        // TODO: Constrain temp_validator_enabled
+        // Initialize temp_validator_enabled of [BoolTarget] of length VALIDATOR_SET_LEN_MAX / 2
+        let mut temp_validator_enabled = [self._false(); VALIDATOR_SET_LEN_MAX / 2];
+
+        // Loop over validators with VALIDATOR_SET_LEN_MAX, i += 2
+        for i in (0..VALIDATOR_SET_LEN_MAX).step_by(2) {
+            // If validator_enabled[i] is true && validator_enabled[i + 1] is true
+            let both_enabled = self.and(validator_enabled[i], validator_enabled[i + 1]);
+
+
+            let cond = self.is_equal(both_enabled.target, one);
+            let a = {
+                // 
+            }
+            let b = self.constant(F::from_canonical_u64(1));
+            let c = self.select(cond, a, b);
+
+            c = cond * a + (1 - cond) * b
+
+
+            if  {
+
+            } else if (validator_enabled[i]) {
+                let hash = make_sha256_circuit(self, header_bits.len() as u128);
+            } else {
+
+            }
+            // Concatenate validators[i] and validators[i + 1] & hash into a single [BoolTarget; HASH_SIZE]
+            let hash = make_sha256_circuit(self, header_bits.len() as u128);
+            // Set temp_validators[i / 2] to hash
+            temp_validators[i / 2] = hash;
+            // Set temp_validator_enabled[i / 2] to true
+            temp_validator_enabled[i / 2] = both_enabled;
+        }
+
+        /*
+        
+        validator: [Target; MAX_VALIDATOR_SIZE]
+        let cases = [HashTarget; MAX_VALIDATOR_SIZE - MIN_VALIDATOR_SIZE + 1];
+        for i in 0..len(cases) {
+            cases[i] = sha256(validator[:i+MIN_VALIDATOR_SIZE);
+        }
+        let output = builder.select_array(length - MIN_VALIDATOR_SIZE, cases);
+
+
+
+
+
+        
+         */
+
+        let mut buffer = [self._false(); HASH_SIZE * 8];
+
+        return buffer;
+    }
+}
+
 #[cfg(test)]
 pub(crate) mod tests {
     use plonky2::{
@@ -200,6 +333,16 @@ pub(crate) mod tests {
     type C = PoseidonGoldilocksConfig;
     type F = <C as GenericConfig<D>>::F;
     const D: usize = 2;
+
+    #[test]
+    fn test_validator_inclusion() {
+        let pw = PartialWitness::new();
+        let config = CircuitConfig::standard_recursion_config();
+        let mut builder = CircuitBuilder::<F, D>::new(config);
+
+        let data = builder.build::<C>();
+        let proof = data.prove(pw).unwrap();
+    }
 
     #[test]
     fn test_marshal_int64_varint() {
