@@ -260,6 +260,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintValidatorSet for Ci
         for i in 0..VALIDATOR_SET_LEN_MAX {
             let mut validator_bytes_hashes = [[self._false(); HASH_LEN_BITS]; NUM_VALIDATOR_BYTES_LENGTHS];
             for j in 0..NUM_VALIDATOR_BYTES_LENGTHS {
+                // self.is_equal(zero, one);
                 // Calculate the length of the message for the leaf hash.
                 // 0x00 || validatorBytes
                 let bits_length = 8 + (VALIDATOR_BYTES_LEN_MIN + j) * 8;
@@ -267,16 +268,19 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintValidatorSet for Ci
                 let sha_target = make_sha256_circuit(self, bits_length as u128);
                 // 0x00
                 for k in 0..8 {
-                    self.connect(zero, sha_target.message[k].target);
+                    self.connect(sha_target.message[k].target, zero);
                 }
                 // validatorBytes
                 for k in 8..bits_length {
-                    self.connect(validators[i][k - 8].target, sha_target.message[k].target);
+                    self.connect(sha_target.message[k].target, validators[i][k - 8].target);
                 }
                 // Load the output of the hash.
                 for k in 0..HASH_LEN_BITS {
-                    validator_bytes_hashes[j][k] = self.add_virtual_bool_target_safe();
-                    self.connect(sha_target.digest[i].target, validator_bytes_hashes[j][k].target);
+                    validator_bytes_hashes[j][k] = sha_target.digest[k];
+                }
+                // Constrain the output of the hash
+                for k in 0..HASH_LEN_BITS {
+                    self.connect(sha_target.digest[k].target, validator_bytes_hashes[j][k].target);
                 }
             }
             let val_bytes_len_min = self.constant(F::from_canonical_u32(VALIDATOR_BYTES_LEN_MIN as u32));
@@ -285,9 +289,12 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintValidatorSet for Ci
             // Create a bitmap, with a single bit set to 1 that corresponds to the length of the validator's bytes.
             let mut validator_byte_hash_selector = [self._false(); NUM_VALIDATOR_BYTES_LENGTHS];
             for j in 0..NUM_VALIDATOR_BYTES_LENGTHS {
-                let byte_length = self.constant(F::from_canonical_u32(j as u32));
-                validator_byte_hash_selector[j] = self.is_equal(length_index, byte_length);
+                let byte_length_index = self.constant(F::from_canonical_u32(j as u32));
+                validator_byte_hash_selector[j] = self.is_equal(length_index, byte_length_index);
             }
+            // dbg!(validator_byte_hash_selector);
+
+            // self.is_equal(validator_byte_hash_selector[0].target, zero);
 
             // Select the validator's byte hash that we want to use from this array.
             let mut temp_validator_leaf_hash = [self._false(); HASH_LEN_BITS];
@@ -301,7 +308,11 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintValidatorSet for Ci
             
             // Set the validator's leaf hash to the selected hash.
             for j in 0..HASH_LEN_BITS {
-                self.connect(temp_validator_leaf_hash[j].target, validators_leaf_hashes[i][j].target);
+                validators_leaf_hashes[i][j] = temp_validator_leaf_hash[j];
+            }
+            // Constrain the validator's leaf hash to be equal to the selected hash.
+            for j in 0..HASH_LEN_BITS {
+                self.connect(validators_leaf_hashes[i][j].target, temp_validator_leaf_hash[j].target);
             }
 
         }
@@ -373,16 +384,16 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintValidatorSet for Ci
                 self.connect(sha_target.message[7].target, one);
                 // left
                 for k in 8..8+HASH_LEN_BITS {
-                    self.connect(temp_validators[i][k - 8].target, sha_target.message[k].target);
+                    self.connect(sha_target.message[k].target, temp_validators[i][k - 8].target);
                 }
                 // right
                 for k in 8+HASH_LEN_BITS..bits_length {
-                    self.connect(temp_validators[i + 1][k - (8 + HASH_LEN_BITS)].target, sha_target.message[k].target);
+                    self.connect(sha_target.message[k].target, temp_validators[i + 1][k - (8 + HASH_LEN_BITS)].target);
                 }
 
                 // Load the output of the hash.
                 for l in 0..HASH_LEN_BITS {
-                    temp_validator_both_true[l] = self.add_virtual_bool_target_safe();
+                    temp_validator_both_true[l] = sha_target.digest[i];
                     self.connect(sha_target.digest[i].target, temp_validator_both_true[l].target);
                 }
 
