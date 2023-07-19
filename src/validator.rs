@@ -233,6 +233,13 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintValidatorSet for Ci
     ) -> Vec<[BoolTarget; HASH_LEN_BITS]> {
         let zero = self.zero();
         let one = self.one();
+
+        // Assert validators length is VALIDATOR_SET_LEN_MAX
+        assert_eq!(validators.len(), VALIDATOR_SET_LEN_MAX);
+
+        // Assert validator_byte_lengths length is VALIDATOR_SET_LEN_MAX
+        assert_eq!(validator_byte_lengths.len(), VALIDATOR_SET_LEN_MAX);
+
         // PSEUDOCODE
 
         /*
@@ -312,6 +319,15 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintValidatorSet for Ci
     ) -> [BoolTarget; HASH_LEN_BITS] {
         let zero = self.zero();
         let one = self.one();
+
+        // Assert validators length is VALIDATOR_SET_LEN_MAX
+        assert_eq!(validators.len(), VALIDATOR_SET_LEN_MAX);
+
+        // Assert validator_byte_lengths length is VALIDATOR_SET_LEN_MAX
+        assert_eq!(validator_byte_lengths.len(), VALIDATOR_SET_LEN_MAX);
+
+        // Assert validator_enabled length is VALIDATOR_SET_LEN_MAX
+        assert_eq!(validator_enabled.len(), VALIDATOR_SET_LEN_MAX);
 
         let mut temp_validators = self.get_all_leaf_hashes(validators, validator_byte_lengths);
 
