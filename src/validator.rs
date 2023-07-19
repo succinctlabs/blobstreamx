@@ -79,6 +79,12 @@ pub trait TendermintMarshaller {
 }
 
 pub trait TendermintValidatorSet {
+    fn hash_leaf(
+        &mut self,
+        validator: &[BoolTarget; VALIDATOR_BITS_LEN_MAX],
+        validator_byte_length: &U32Target,
+    ) -> [BoolTarget; HASH_LEN_BITS];
+
     /// Gets all of the leaf hashes for validators in the validator set with variable length.
     fn get_all_leaf_hashes(
         &mut self,
@@ -224,6 +230,80 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
 }
 
 impl<F: RichField + Extendable<D>, const D: usize> TendermintValidatorSet for CircuitBuilder<F, D> {
+    fn hash_leaf(
+        &mut self,
+        validator: &[BoolTarget; VALIDATOR_BITS_LEN_MAX],
+        validator_byte_length: &U32Target,
+    ) -> [BoolTarget; HASH_LEN_BITS] {
+        let zero = self.zero();
+        let one = self.one();
+
+        let mut validator_leaf_hash = [self._false(); HASH_LEN_BITS];
+        let mut validator_bytes_hashes = [[self._false(); HASH_LEN_BITS]; NUM_VALIDATOR_BYTES_LENGTHS];
+        for j in 0..NUM_VALIDATOR_BYTES_LENGTHS {
+            // self.is_equal(zero, one);
+            // Calculate the length of the message for the leaf hash.
+            // 0x00 || validatorBytes
+            let bits_length = 8 + (VALIDATOR_BYTES_LEN_MIN + j) * 8;
+            
+            let sha_target = make_sha256_circuit(self, bits_length as u128);
+            // 0x00
+            for k in 0..8 {
+                self.connect(sha_target.message[k].target, zero);
+            }
+            // validatorBytes
+            for k in 8..bits_length {
+                self.connect(sha_target.message[k].target, validator[k - 8].target);
+            }
+
+            // Assert the output of the hash is the correct length.
+            assert_eq!(sha_target.digest.len(), HASH_LEN_BITS);
+
+            // Load the output of the hash.
+            for k in 0..HASH_LEN_BITS {
+                validator_bytes_hashes[j][k] = sha_target.digest[k];
+            }
+
+            // Constrain the output of the hash
+            for k in 0..HASH_LEN_BITS {
+                self.connect(sha_target.digest[k].target, validator_bytes_hashes[j][k].target);
+            }
+        }
+        let val_bytes_len_min = self.constant(F::from_canonical_u32(VALIDATOR_BYTES_LEN_MIN as u32));
+        let length_index = self.sub(validator_byte_length.0, val_bytes_len_min);
+        
+        // Create a bitmap, with a single bit set to 1 that corresponds to the length of the validator's bytes.
+        let mut validator_byte_hash_selector = [self._false(); NUM_VALIDATOR_BYTES_LENGTHS];
+        for j in 0..NUM_VALIDATOR_BYTES_LENGTHS {
+            let byte_length_index = self.constant(F::from_canonical_u32(j as u32));
+            validator_byte_hash_selector[j] = self.is_equal(length_index, byte_length_index);
+        }
+
+
+        // Select the validator's byte hash that we want to use from this array.
+        let mut temp_validator_leaf_hash = [self._false(); HASH_LEN_BITS];
+        for j in 0..NUM_VALIDATOR_BYTES_LENGTHS {
+            for k in 0..HASH_LEN_BITS {
+                // temp_validator_leaf_hash[k] = BoolTarget::new_unsafe(self.select(validator_byte_hash_selector[j], 
+                //     validator_bytes_hashes[j][k].target, 
+                //     temp_validator_leaf_hash[k].target));
+                temp_validator_leaf_hash[k] = validator_bytes_hashes[0][k];
+            }
+        }
+        self.connect(temp_validator_leaf_hash[0].target, one);
+        self.connect(temp_validator_leaf_hash[1].target, zero);
+        self.connect(temp_validator_leaf_hash[2].target, zero);
+        self.connect(temp_validator_leaf_hash[3].target, zero);
+
+        temp_validator_leaf_hash
+        
+        // // Set the validator's leaf hash to the selected hash.
+        // for j in 0..HASH_LEN_BITS {
+        //     validator_leaf_hash[j] = temp_validator_leaf_hash[j];
+        // }
+        // validator_leaf_hash
+
+    }
     fn get_all_leaf_hashes(
         &mut self,
         // [[BoolTarget; VALIDATOR_BITS_LEN_MAX]; VALIDATOR_SET_LEN_MAX]
@@ -231,25 +311,12 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintValidatorSet for Ci
         // [U32Target; VALIDATOR_SET_LEN_MAX]
         validator_byte_lengths: &Vec<U32Target>,
     ) -> Vec<[BoolTarget; HASH_LEN_BITS]> {
-        let zero = self.zero();
-        let one = self.one();
-
         // Assert validators length is VALIDATOR_SET_LEN_MAX
         assert_eq!(validators.len(), VALIDATOR_SET_LEN_MAX);
 
         // Assert validator_byte_lengths length is VALIDATOR_SET_LEN_MAX
         assert_eq!(validator_byte_lengths.len(), VALIDATOR_SET_LEN_MAX);
 
-        // PSEUDOCODE
-
-        /*
-        validator: [Target; MAX_VALIDATOR_SIZE]
-        let cases = [HashTarget; MAX_VALIDATOR_SIZE - MIN_VALIDATOR_SIZE + 1];
-        for i in 0..len(cases) {
-            cases[i] = sha256(validator[:i+MIN_VALIDATOR_SIZE);
-        }
-        let output = builder.select_array(length - MIN_VALIDATOR_SIZE, cases);
-         */
         // Loop over all validators.
         // Generate the SHA256 hash of each potential byte length of the validator.
         // Select the hash of the correct byte length.
@@ -258,70 +325,10 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintValidatorSet for Ci
         let mut validators_leaf_hashes = [[self._false(); HASH_LEN_BITS]; VALIDATOR_SET_LEN_MAX];
         // Hash each of the validators into a leaf hash.
         for i in 0..VALIDATOR_SET_LEN_MAX {
-            let mut validator_bytes_hashes = [[self._false(); HASH_LEN_BITS]; NUM_VALIDATOR_BYTES_LENGTHS];
-            for j in 0..NUM_VALIDATOR_BYTES_LENGTHS {
-                // self.is_equal(zero, one);
-                // Calculate the length of the message for the leaf hash.
-                // 0x00 || validatorBytes
-                let bits_length = 8 + (VALIDATOR_BYTES_LEN_MIN + j) * 8;
-                
-                let sha_target = make_sha256_circuit(self, bits_length as u128);
-                // 0x00
-                for k in 0..8 {
-                    self.connect(sha_target.message[k].target, zero);
-                }
-                // validatorBytes
-                for k in 8..bits_length {
-                    self.connect(sha_target.message[k].target, validators[i][k - 8].target);
-                    // self.connect(sha_target.message[k].target, zero);
-
-                }
-                // Load the output of the hash.
-                for k in 0..HASH_LEN_BITS {
-                    validator_bytes_hashes[j][k] = sha_target.digest[k];
-                }
-
-                // Assert the output of the hash is the correct length.
-                assert_eq!(sha_target.digest.len(), HASH_LEN_BITS);
-
-                // Constrain the output of the hash
-                for k in 0..HASH_LEN_BITS {
-                    self.connect(sha_target.digest[k].target, validator_bytes_hashes[j][k].target);
-                }
-            }
-            let val_bytes_len_min = self.constant(F::from_canonical_u32(VALIDATOR_BYTES_LEN_MIN as u32));
-            let length_index = self.sub(validator_byte_lengths[i].0, val_bytes_len_min);
-            
-            // Create a bitmap, with a single bit set to 1 that corresponds to the length of the validator's bytes.
-            let mut validator_byte_hash_selector = [self._false(); NUM_VALIDATOR_BYTES_LENGTHS];
-            for j in 0..NUM_VALIDATOR_BYTES_LENGTHS {
-                let byte_length_index = self.constant(F::from_canonical_u32(j as u32));
-                validator_byte_hash_selector[j] = self.is_equal(length_index, byte_length_index);
-            }
-            // dbg!(validator_byte_hash_selector);
-
-            // self.is_equal(validator_byte_hash_selector[0].target, zero);
-
-            // Select the validator's byte hash that we want to use from this array.
-            let mut temp_validator_leaf_hash = [self._false(); HASH_LEN_BITS];
-            for j in 0..NUM_VALIDATOR_BYTES_LENGTHS {
-                for k in 0..HASH_LEN_BITS {
-                    temp_validator_leaf_hash[k] = BoolTarget::new_unsafe(self.select(validator_byte_hash_selector[j], 
-                        validator_bytes_hashes[j][k].target, 
-                        temp_validator_leaf_hash[k].target));
-                }
-            }
-            
-            // Set the validator's leaf hash to the selected hash.
-            for j in 0..HASH_LEN_BITS {
-                validators_leaf_hashes[i][j] = temp_validator_leaf_hash[j];
-            }
-            // Constrain the validator's leaf hash to be equal to the selected hash.
-            for j in 0..HASH_LEN_BITS {
-                self.connect(validators_leaf_hashes[i][j].target, temp_validator_leaf_hash[j].target);
-            }
+            validators_leaf_hashes[i] = self.hash_leaf(&validators[i], &validator_byte_lengths[i]);
 
         }
+
         validators_leaf_hashes.to_vec()
     }
 
@@ -471,6 +478,84 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn test_get_leaf_hash() {
+        let pw = PartialWitness::new();
+        let config = CircuitConfig::standard_recursion_config();
+        let mut builder = CircuitBuilder::<F, D>::new(config);
+
+        let expected_digest = "5541a94a9cf19e568401a2eed59f4ac8118c945d37803632aad655c6ee4f3ed6";
+        let digest_bits = to_bits(hex::decode(expected_digest).unwrap());
+
+        let msg = hex::decode("00de6ad0941095ada2a7996e6a888581928203b8b69e07ee254d289f5b9c9caea193c2ab01902d").unwrap();
+        let msg_bits = to_bits(msg.to_vec());
+
+        let validators: Vec<&str> = vec!["de6ad0941095ada2a7996e6a888581928203b8b69e07ee254d289f5b9c9caea193c2ab01902d", "92fbe0c52937d80c5ea643c7832620b84bfdf154ec7129b8b471a63a763f2fe955af1ac65fd3", "e902f88b2371ff6243bf4b0ebe8f46205e00749dd4dad07b2ea34350a1f9ceedb7620ab913c2"];
+
+        // println!("Expected Val Hash Encoding (Bytes): {:?}", hex::decode(expected_digest).unwrap());
+
+        let vec_validator_byte_lengths: Vec<usize> = vec![
+            38,
+            38,
+            38,
+        ];
+
+        let mut validator_byte_lengths: Vec<U32Target> = vec![U32Target(builder.constant(F::from_canonical_usize(VALIDATOR_BYTES_LEN_MIN))); VALIDATOR_SET_LEN_MAX];
+
+        let mut validator_enabled: Vec<BoolTarget> = vec![builder._false(); VALIDATOR_SET_LEN_MAX];
+
+        let mut validator_bits: Vec<Vec<bool>> = (0..256)
+        .map(|_| Vec::<bool>::new())
+        .collect();
+
+        let mut pre_sha_target: Vec<BoolTarget> = vec![builder._false(); 8 + (38 * 8)];
+        let mut validators_target: Vec<[BoolTarget; VALIDATOR_BITS_LEN_MAX]> = vec![[builder._false(); VALIDATOR_BITS_LEN_MAX]; VALIDATOR_SET_LEN_MAX];
+
+        // Convert the hex strings to bytes.
+        for i in 0..validators.len() {
+            validator_bits[i] = to_bits(hex::decode(validators[i]).unwrap());
+            for j in 0..vec_validator_byte_lengths[i] {
+                if validator_bits[i][j] {
+                    validators_target[i][j] = builder._true();
+                } else {
+                    validators_target[i][j] = builder._false();
+                }
+                
+                if msg_bits[j] {
+                    pre_sha_target[j] = builder._true();
+                } else {
+                    pre_sha_target[j] = builder._false();
+                }
+            }
+            validator_byte_lengths[i] = U32Target(builder.constant(F::from_canonical_usize(vec_validator_byte_lengths[i])));
+            validator_enabled[i] = builder._true();
+        }
+
+
+
+
+        let result = builder.hash_leaf(&validators_target[0], &validator_byte_lengths[0]);
+        for i in 0..result.len() {
+            builder.register_public_input(result[i].target);
+        }
+
+        println!("Registered public inputs");
+
+        let data = builder.build::<C>();
+        let proof = data.prove(pw).unwrap();
+
+        println!("Created proof");
+
+        let leaf_hash = f_bits_to_bytes(&proof.public_inputs);
+
+        dbg!("Produced Val Hash Encoding 1 (Bytes): {}", &leaf_hash);
+
+        // for i in 0..expected_val_hash.len() {
+        //     assert_eq!(all_leaf_hahes[i], expected_val_hash[i]);
+        // }
+
+    }
+
+    #[test]
     fn test_get_all_leaf_hashes() {
         let pw = PartialWitness::new();
         let config = CircuitConfig::standard_recursion_config();
@@ -513,6 +598,7 @@ pub(crate) mod tests {
             validator_enabled[i] = builder._true();
         }
         let result = builder.get_all_leaf_hashes(&validators_target, &validator_byte_lengths);
+        println!("Got all leaf hashes: {}", result.len());
         for i in 0..result.len() {
             for j in 0..HASH_LEN_BITS {
                 builder.register_public_input(result[i][j].target);
@@ -529,9 +615,9 @@ pub(crate) mod tests {
         let all_leaf_hashes = f_bits_to_bytes(&proof.public_inputs);
         let expected_val_hash = hex::decode(expected_digest).unwrap();
 
-        dbg!("Produced Val Hash Encoding 1 (Bytes): {:?}", &all_leaf_hashes[0..32]);
-        dbg!("Produced Val Hash Encoding 2 (Bytes): {:?}", &all_leaf_hashes[32..64]);
-        dbg!("Produced Val Hash Encoding 3 (Bytes): {:?}", &all_leaf_hashes[64..]);
+        dbg!("Produced Val Hash Encoding 1 (Bytes): {}", &all_leaf_hashes[0..32]);
+        dbg!("Produced Val Hash Encoding 2 (Bytes): {}", &all_leaf_hashes[32..64]);
+        dbg!("Produced Val Hash Encoding 3 (Bytes): {}", &all_leaf_hashes[64..]);
 
         // for i in 0..expected_val_hash.len() {
         //     assert_eq!(all_leaf_hahes[i], expected_val_hash[i]);

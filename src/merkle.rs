@@ -132,11 +132,6 @@ pub(crate) mod tests {
 
     #[test]
     fn test_validator_leaf_hashes() {
-
-    }
-
-    #[test]
-    fn test_multiple_validator_inclusion() {
         // JSON string
         let validators = vec!["de6ad0941095ada2a7996e6a888581928203b8b69e07ee254d289f5b9c9caea193c2ab01902d", "92fbe0c52937d80c5ea643c7832620b84bfdf154ec7129b8b471a63a763f2fe955af1ac65fd3", "e902f88b2371ff6243bf4b0ebe8f46205e00749dd4dad07b2ea34350a1f9ceedb7620ab913c2"];
 
@@ -157,7 +152,31 @@ pub(crate) mod tests {
             let hex_string = hex::encode(&leaf);
             let hex_string = String::from_utf8(hex_string).unwrap();
 
-            // println!("Leaf (Hex): {}", hex_string);
+            println!("Leaf (Hex): {}", hex_string);
         }
+    }
+
+    #[test]
+    fn test_multiple_validator_inclusion() {
+        // These are test cases generated from generating a random set of validators using the tendermint repository.
+
+        // Serde JSON
+        let leaf_root_hex = "5541a94a9cf19e568401a2eed59f4ac8118c945d37803632aad655c6ee4f3ed6";
+
+        // JSON string
+        let validators = vec!["de6ad0941095ada2a7996e6a888581928203b8b69e07ee254d289f5b9c9caea193c2ab01902d", "92fbe0c52937d80c5ea643c7832620b84bfdf154ec7129b8b471a63a763f2fe955af1ac65fd3", "e902f88b2371ff6243bf4b0ebe8f46205e00749dd4dad07b2ea34350a1f9ceedb7620ab913c2"];
+
+        // Process the JSON value
+        for validator in &validators {
+            println!("Validator: {}", validator);
+        }
+
+        let bytes_vec: Vec<Vec<u8>> = validators.iter().map(|s| hex::decode(s).unwrap()).collect();
+
+        let leaf_root = &hex::decode(leaf_root_hex).unwrap();
+        let leaf_tree: Vec<Vec<u8>> = bytes_vec;
+
+        let root = simple_hash_from_byte_vectors::<Sha256>(&leaf_tree);
+        assert_eq!(leaf_root, &root);
     }
 }

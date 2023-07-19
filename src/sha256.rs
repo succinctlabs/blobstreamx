@@ -327,9 +327,11 @@ mod tests {
 
     #[test]
     fn test_sha256_large_msg() -> Result<()> {
-        let msg = decode("35c323757c20640a294345c89c0bfcebe3d554fdb0c7b7a0bdb72222c531b1ecf7ec1c43f4de9d49556de87b86b26a98942cb078486fdb44de38b80864c3973153756363696e6374204c616273").unwrap();
+        let msg = decode("00de6ad0941095ada2a7996e6a888581928203b8b69e07ee254d289f5b9c9caea193c2ab01902d").unwrap();
         let msg_bits = to_bits(msg.to_vec());
-        let expected_digest = "8fcee6fbeadc123c38d5a97dbe58f8257b4906820d627425af668b94b795e74e";
+        // dbg!(&msg_bits);
+        let expected_digest = "84f633a570a987326947aafd434ae37f151e98d5e6d429137a4cc378d4a7988e";
+        dbg!(decode(expected_digest).unwrap());
         let digest_bits = to_bits(decode(expected_digest).unwrap());
 
         const D: usize = 2;
