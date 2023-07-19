@@ -123,21 +123,10 @@ pub(crate) mod tests {
         // These are test cases generated from generating a random set of validators using the tendermint repository.
 
         // Serde JSON
-        let leaf_root_hex = "168b0b14b4b10af44bd73a62f6b4bf10b72ef7669bb2b803cc8f23f37dd04b09";
+        let leaf_root_hex = "5541a94a9cf19e568401a2eed59f4ac8118c945d37803632aad655c6ee4f3ed6";
 
         // JSON string
-        let validators = vec![
-            "54eefe7a464e6c67120dac79a0adba06a364faa37bcf0d72896bf604777732048a3964e9a509",
-            "d9ff2bcdeb3433412649137bddfebf1fe92baa3f06a80815fca91c82e573546e8a4d9fd3fbd9",
-            "f538cc8b62f6286f8b38d25dfe74be1a3488eebb2efda8d0a824bd250cfa0c7fd1db98ee5d19",
-            "8423095697b74f57a8ea760881d163125f827ec62d025822addd2fdb15c7d26222182b2211d9",
-            "480184c90e4e62e3fe59d51161e15057b96538951ddd54ce3946bcff54fa12bde6444c36b3f6",
-            "237f40dcfe69210f3eb0ca400f86309a0e5e2d57d5b4d170b267f6f772f0734e0e3aa912ccf3",
-            "bf808daaf1767dc2f3b067002c867c6fe46e8f825f763bf5db1f3e1e80df60870f9afe8817bb",
-            "b463d92ecea817c4461608b0d15bb69b816a0551ccaa840cd4fd3be35b2f73325ec114ff9e26",
-            "3499498f2f6ba09f67276826f7712df24325806a478b179f70dd63ed2d4033f955174d44b23d",
-            "5bb1996443c9d5641b1eb3d7e683712f5c97e8e5644a87b094814f27f410a85c8c0706a841a8",
-        ];
+        let validators = vec!["de6ad0941095ada2a7996e6a888581928203b8b69e07ee254d289f5b9c9caea193c2ab01902d", "92fbe0c52937d80c5ea643c7832620b84bfdf154ec7129b8b471a63a763f2fe955af1ac65fd3", "e902f88b2371ff6243bf4b0ebe8f46205e00749dd4dad07b2ea34350a1f9ceedb7620ab913c2"];
 
         // Process the JSON value
         for validator in &validators {
