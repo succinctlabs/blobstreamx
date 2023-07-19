@@ -273,11 +273,17 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintValidatorSet for Ci
                 // validatorBytes
                 for k in 8..bits_length {
                     self.connect(sha_target.message[k].target, validators[i][k - 8].target);
+                    // self.connect(sha_target.message[k].target, zero);
+
                 }
                 // Load the output of the hash.
                 for k in 0..HASH_LEN_BITS {
                     validator_bytes_hashes[j][k] = sha_target.digest[k];
                 }
+
+                // Assert the output of the hash is the correct length.
+                assert_eq!(sha_target.digest.len(), HASH_LEN_BITS);
+
                 // Constrain the output of the hash
                 for k in 0..HASH_LEN_BITS {
                     self.connect(sha_target.digest[k].target, validator_bytes_hashes[j][k].target);
@@ -465,7 +471,7 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn get_all_leaf_hashes() {
+    fn test_get_all_leaf_hashes() {
         let pw = PartialWitness::new();
         let config = CircuitConfig::standard_recursion_config();
         let mut builder = CircuitBuilder::<F, D>::new(config);
@@ -475,7 +481,7 @@ pub(crate) mod tests {
 
         let validators: Vec<&str> = vec!["de6ad0941095ada2a7996e6a888581928203b8b69e07ee254d289f5b9c9caea193c2ab01902d", "92fbe0c52937d80c5ea643c7832620b84bfdf154ec7129b8b471a63a763f2fe955af1ac65fd3", "e902f88b2371ff6243bf4b0ebe8f46205e00749dd4dad07b2ea34350a1f9ceedb7620ab913c2"];
 
-        println!("Expected Val Hash Encoding (Bytes): {:?}", hex::decode(expected_digest).unwrap());
+        // println!("Expected Val Hash Encoding (Bytes): {:?}", hex::decode(expected_digest).unwrap());
 
         let vec_validator_byte_lengths: Vec<usize> = vec![
             38,
@@ -519,6 +525,18 @@ pub(crate) mod tests {
         let proof = data.prove(pw).unwrap();
 
         println!("Created proof");
+
+        let all_leaf_hashes = f_bits_to_bytes(&proof.public_inputs);
+        let expected_val_hash = hex::decode(expected_digest).unwrap();
+
+        dbg!("Produced Val Hash Encoding 1 (Bytes): {:?}", &all_leaf_hashes[0..32]);
+        dbg!("Produced Val Hash Encoding 2 (Bytes): {:?}", &all_leaf_hashes[32..64]);
+        dbg!("Produced Val Hash Encoding 3 (Bytes): {:?}", &all_leaf_hashes[64..]);
+
+        // for i in 0..expected_val_hash.len() {
+        //     assert_eq!(all_leaf_hahes[i], expected_val_hash[i]);
+        // }
+
     }
 
     #[test]
