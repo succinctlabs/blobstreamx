@@ -61,6 +61,8 @@ fn reshape(u: Vec<BoolTarget>) -> Vec<[BoolTarget; 32]>{
     }
     res
 }
+
+// Checks the length of the message, and the length of the digest.
 pub fn sha256<F: RichField + Extendable<D>, const D: usize>(
     builder: &mut CircuitBuilder<F, D>,
     msg_bit_len: usize,

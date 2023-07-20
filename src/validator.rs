@@ -10,15 +10,9 @@ use plonky2::iop::target::{BoolTarget, Target};
 use plonky2::{hash::hash_types::RichField, plonk::circuit_builder::CircuitBuilder};
 use plonky2_field::extension::Extendable;
 
-use crate::helper::{uint32_to_bits, _right_rotate, _shr};
 use crate::merkle::{HASH_SIZE, HASH_LEN_BITS};
 use crate::u32::{U32Builder, U32Target};
-use crate::sha256::{make_sha256_circuit};
-
-use crate::validator;
-use crate::{
-    utils::{bits_to_bytes, f_bits_to_bytes},
-};
+use crate::sha256::sha256;
 
 /// The maximum length of a protobuf-encoded Tendermint validator in bytes.
 const VALIDATOR_BYTES_LEN_MAX: usize = 46;
@@ -237,39 +231,34 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
         validator: &[BoolTarget; VALIDATOR_BITS_LEN_MAX],
         validator_byte_len: &U32Target,
     ) -> [BoolTarget; HASH_LEN_BITS] {
-        let zero = self.zero();
-
         // Note: Because the byte length of each validator is variable, need to hash the validator bytes for each potential byte length.
         let mut validator_bytes_hashes = [[self._false(); HASH_LEN_BITS]; NUM_VALIDATOR_BYTE_LEN];
         for j in 0..NUM_VALIDATOR_BYTE_LEN {
             // Calculate the length of the message for the leaf hash.
             // 0x00 || validatorBytes
             let bits_length = 8 + (VALIDATOR_BYTES_LEN_MIN + j) * 8;
-            
-            let sha_target = make_sha256_circuit(self, bits_length as u128);
+
+            // Calculate the message for the leaf hash.
+            let mut validator_bits = vec![self._false(); bits_length];
+
             // 0x00
             for k in 0..8 {
-                self.connect(sha_target.message[k].target, zero);
+                validator_bits[k] = self._false();
             }
             // validatorBytes
             for k in 8..bits_length {
-                self.connect(sha_target.message[k].target, validator[k - 8].target);
+                validator_bits[k] = validator[k - 8];
             }
-
-            // Assert the output of the hash is the correct length.
-            assert_eq!(sha_target.digest.len(), HASH_LEN_BITS);
+            
+            let hash = sha256(self, bits_length, validator_bits);
 
             // Load the output of the hash.
             for k in 0..HASH_LEN_BITS {
-                validator_bytes_hashes[j][k] = sha_target.digest[k];
-            }
-
-            // Constrain the output of the hash
-            for k in 0..HASH_LEN_BITS {
-                self.connect(sha_target.digest[k].target, validator_bytes_hashes[j][k].target);
+                validator_bytes_hashes[j][k] = hash[k];
             }
         }
         let validator_bytes_len_min = self.constant(F::from_canonical_u32(VALIDATOR_BYTES_LEN_MIN as u32));
+
         // Calculate the index of the validator's bytes length in the range [0, NUM_VALIDATOR_BYTE_LEN).
         let length_index = self.sub(validator_byte_len.0, validator_bytes_len_min);
         
@@ -302,11 +291,15 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
         validators: &Vec<[BoolTarget; VALIDATOR_BITS_LEN_MAX]>,
         validator_byte_len: &Vec<U32Target>,
     ) -> Vec<[BoolTarget; HASH_LEN_BITS]> {
+        let len_validators = self.constant(F::from_canonical_usize(validators.len()));
+        let len_validator_byte_len = self.constant(F::from_canonical_usize(validator_byte_len.len()));
+        let validator_set_len_max = self.constant(F::from_canonical_usize(VALIDATOR_SET_LEN_MAX));
+
         // Assert validators length is VALIDATOR_SET_LEN_MAX
-        assert_eq!(validators.len(), VALIDATOR_SET_LEN_MAX);
+        self.connect(len_validators, validator_set_len_max);
 
         // Assert validator_byte_len length is VALIDATOR_SET_LEN_MAX
-        assert_eq!(validator_byte_len.len(), VALIDATOR_SET_LEN_MAX);
+        self.connect(len_validator_byte_len, validator_set_len_max);
 
         // For each validator
         // 1) Generate the SHA256 hash for each potential byte length of the validator from VALIDATOR_BYTES_LEN_MIN to VALIDATOR_BYTES_LEN_MAX.
@@ -342,32 +335,32 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
             // Calculate the inner hash as if both validators are enabled.
             let mut temp_validator_both_true = [self._false(); HASH_LEN_BITS];
 
-            // Calculate the length of the message for the leaf hash.
+            // Calculate the length of the message for the inner hash.
             // 0x01 || left || right
             let bits_length = 8 + (HASH_LEN_BITS * 2);
-            
-            let sha_target = make_sha256_circuit(self, bits_length as u128);
+
+            // Calculate the message for the inner hash.
+            let mut validator_bits = vec![self._false(); bits_length];
+
             // 0x01
             for k in 0..7 {
-                self.connect(sha_target.message[k].target, zero);
+                validator_bits[k] = self._false();
             }
-            self.connect(sha_target.message[7].target, one);
+            validator_bits[7] = self._true();
             // left
             for k in 8..8+HASH_LEN_BITS {
-                self.connect(sha_target.message[k].target, validator_hashes[i][k - 8].target);
+                validator_bits[k] = validator_hashes[i][k - 8];
             }
             // right
             for k in 8+HASH_LEN_BITS..bits_length {
-                self.connect(sha_target.message[k].target, validator_hashes[i + 1][k - (8 + HASH_LEN_BITS)].target);
+                validator_bits[k] = validator_hashes[i + 1][k - (8 + HASH_LEN_BITS)];
             }
-
-            // Assert the output of the hash is the correct length.
-            assert_eq!(sha_target.digest.len(), HASH_LEN_BITS);
+            
+            let hash = sha256(self, bits_length, validator_bits);
 
             // Load the output of the hash.
             for k in 0..HASH_LEN_BITS {
-                temp_validator_both_true[k] = sha_target.digest[k];
-                self.connect(sha_target.digest[k].target, temp_validator_both_true[k].target);
+                temp_validator_both_true[k] = hash[k];
 
                 // If the left node is enabled and the right node is disabled, we pass up the left hash.
                 validator_hashes[i / 2][k] = BoolTarget::new_unsafe(self.select(both_enabled, temp_validator_both_true[k].target, validator_hashes[i][k].target));
@@ -387,14 +380,19 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
         validator_byte_len: &Vec<U32Target>,
         validator_enabled: &Vec<BoolTarget>,
     ) -> [BoolTarget; HASH_LEN_BITS] {
+        let len_validators = self.constant(F::from_canonical_usize(validators.len()));
+        let len_validator_byte_len = self.constant(F::from_canonical_usize(validator_byte_len.len()));
+        let len_validator_enabled = self.constant(F::from_canonical_usize(validator_enabled.len()));
+        let validator_set_len_max = self.constant(F::from_canonical_usize(VALIDATOR_SET_LEN_MAX));
+            
         // Assert validators length is VALIDATOR_SET_LEN_MAX
-        assert_eq!(validators.len(), VALIDATOR_SET_LEN_MAX);
+        self.connect(len_validators, validator_set_len_max);
 
         // Assert validator_byte_len length is VALIDATOR_SET_LEN_MAX
-        assert_eq!(validator_byte_len.len(), VALIDATOR_SET_LEN_MAX);
+        self.connect(len_validator_byte_len, validator_set_len_max);
 
         // Assert validator_enabled length is VALIDATOR_SET_LEN_MAX
-        assert_eq!(validator_enabled.len(), VALIDATOR_SET_LEN_MAX);
+        self.connect(len_validator_enabled, validator_set_len_max);
 
         // Hash each of the validators to get their corresponding leaf hash.
         let mut temp_validators = self.hash_validator_leaves(validators, validator_byte_len);
