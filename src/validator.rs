@@ -239,6 +239,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
     ) -> [BoolTarget; HASH_LEN_BITS] {
         let zero = self.zero();
 
+        // Note: Because the byte length of each validator is variable, need to hash the validator bytes for each potential byte length.
         let mut validator_bytes_hashes = [[self._false(); HASH_LEN_BITS]; NUM_VALIDATOR_BYTE_LEN];
         for j in 0..NUM_VALIDATOR_BYTE_LEN {
             // Calculate the length of the message for the leaf hash.
@@ -312,9 +313,8 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
         // 2) Select the hash of the correct byte length.
         // 3) Return the correct hash.
 
-        // Note: Because the byte length of each validator is variable, need to hash the validator bytes for each potential byte length.
-
         let mut validators_leaf_hashes = [[self._false(); HASH_LEN_BITS]; VALIDATOR_SET_LEN_MAX];
+
         // Hash each of the validators into a leaf hash.
         for i in 0..VALIDATOR_SET_LEN_MAX {
             validators_leaf_hashes[i] = self.hash_validator_leaf(&validators[i], &validator_byte_len[i]);
@@ -339,8 +339,9 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
             let disabled_2 = self.not(validator_hash_enabled[i + 1]);
             let both_disabled = self.and(disabled_1, disabled_2);
 
-            // If validator_enabled[i] is true && validator_enabled[i + 1] is true
+            // Calculate the inner hash as if both validators are enabled.
             let mut temp_validator_both_true = [self._false(); HASH_LEN_BITS];
+
             // Calculate the length of the message for the leaf hash.
             // 0x01 || left || right
             let bits_length = 8 + (HASH_LEN_BITS * 2);
@@ -367,16 +368,16 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
             for k in 0..HASH_LEN_BITS {
                 temp_validator_both_true[k] = sha_target.digest[k];
                 self.connect(sha_target.digest[k].target, temp_validator_both_true[k].target);
-            }
 
-            // If temp_validator_enabled[i] is true && temp_validator_enabled[i + 1] is false, we pass up the left hash.
-            for k in 0..HASH_LEN_BITS {
+                // If the left node is enabled and the right node is disabled, we pass up the left hash.
                 validator_hashes[i / 2][k] = BoolTarget::new_unsafe(self.select(both_enabled, temp_validator_both_true[k].target, validator_hashes[i][k].target));
             }
 
-            // Set temp_validators_enabled[i / 2] to false if both temp_validators_enabled[i] and temp_validators_enabled[i+1] are false.
+            // Set the inner node one level up to disabled if both nodes are disabled.
             validator_hash_enabled[i / 2] = BoolTarget::new_unsafe(self.select(both_disabled, zero, one));
         }
+
+        // Return the hashes and enabled nodes for the next layer up.
         (validator_hashes.to_vec(), validator_hash_enabled.to_vec())
     }
 
@@ -395,16 +396,21 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
         // Assert validator_enabled length is VALIDATOR_SET_LEN_MAX
         assert_eq!(validator_enabled.len(), VALIDATOR_SET_LEN_MAX);
 
+        // Hash each of the validators to get their corresponding leaf hash.
         let mut temp_validators = self.hash_validator_leaves(validators, validator_byte_len);
 
+        // Whether to treat the validator as empty.
         let mut temp_validator_enabled = validator_enabled.clone();
 
         let mut size = VALIDATOR_SET_LEN_MAX;
+
+        // Hash each layer of nodes to get the root according to the Tendermint spec, starting from the leaves.
         while size > 1 {
             (temp_validators, temp_validator_enabled) = self.hash_layer(&mut temp_validators, &mut temp_validator_enabled, size);
             size /= 2;
         }
 
+        // Return the root hash.
         return temp_validators[0];
     }
 }
@@ -469,12 +475,7 @@ pub(crate) mod tests {
         let expected_digest = "84f633a570a987326947aafd434ae37f151e98d5e6d429137a4cc378d4a7988e";
         let digest_bits = to_bits(hex::decode(expected_digest).unwrap());
 
-        let msg = hex::decode("00de6ad0941095ada2a7996e6a888581928203b8b69e07ee254d289f5b9c9caea193c2ab01902d").unwrap();
-        let msg_bits = to_bits(msg.to_vec());
-
         let validators: Vec<&str> = vec!["de6ad0941095ada2a7996e6a888581928203b8b69e07ee254d289f5b9c9caea193c2ab01902d", "92fbe0c52937d80c5ea643c7832620b84bfdf154ec7129b8b471a63a763f2fe955af1ac65fd3", "e902f88b2371ff6243bf4b0ebe8f46205e00749dd4dad07b2ea34350a1f9ceedb7620ab913c2"];
-
-        // println!("Expected Val Hash Encoding (Bytes): {:?}", hex::decode(expected_digest).unwrap());
 
         let vec_validator_byte_len: Vec<usize> = vec![
             38,
@@ -506,12 +507,9 @@ pub(crate) mod tests {
             validator_enabled[i] = builder._true();
         }
 
-        // dbg!("Converted validators to bits: {}", validators_target[0]);
-
-
         let result = builder.hash_validator_leaf(&validators_target[0], &validator_byte_len[0]);
-        // dbg!("Result validator leaf hash: {}", result);
 
+        // Set the target bits to the expected digest bits.
         for i in 0..HASH_LEN_BITS {
             if digest_bits[i] {
                 pw.set_target(result[i].target, F::ONE);
@@ -542,8 +540,6 @@ pub(crate) mod tests {
         let digests_bits: Vec<Vec<bool>> = expected_digests.iter().map(|x| to_bits(hex::decode(x).unwrap())).collect();
 
         let validators: Vec<&str> = vec!["de6ad0941095ada2a7996e6a888581928203b8b69e07ee254d289f5b9c9caea193c2ab01902d", "92fbe0c52937d80c5ea643c7832620b84bfdf154ec7129b8b471a63a763f2fe955af1ac65fd3", "e902f88b2371ff6243bf4b0ebe8f46205e00749dd4dad07b2ea34350a1f9ceedb7620ab913c2"];
-
-        // println!("Expected Val Hash Encoding (Bytes): {:?}", hex::decode(expected_digest).unwrap());
 
         let vec_validator_byte_len: Vec<usize> = vec![
             38,
