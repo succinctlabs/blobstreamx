@@ -2,6 +2,7 @@ use plonky2_field::extension::Extendable;
 use plonky2::hash::hash_types::RichField;
 use plonky2::iop::target::{BoolTarget};
 use plonky2::plonk::circuit_builder::CircuitBuilder;
+use plonky2_u32::gadgets::arithmetic_u32::CircuitBuilderU32;
 
 use crate::helper::{uint32_to_bits, _right_rotate, _shr};
 use crate::bit_operations::{not_arr, and_arr, xor2_arr, xor3_arr, add_arr, zip_add};
@@ -59,6 +60,29 @@ fn reshape(u: Vec<BoolTarget>) -> Vec<[BoolTarget; 32]>{
         res.push(arr.map(|x| x.unwrap()));
     }
     res
+}
+pub fn sha256<F: RichField + Extendable<D>, const D: usize>(
+    builder: &mut CircuitBuilder<F, D>,
+    msg_bit_len: usize,
+    message: Vec<BoolTarget>,
+) -> Vec<BoolTarget> {
+    // Assert the message is the correct length.
+    let bit_len_const = builder.constant(F::from_canonical_usize(msg_bit_len));
+    let msg_len_const = builder.constant(F::from_canonical_usize(message.len()));
+    builder.connect(bit_len_const, msg_len_const);
+
+    let sha_target = make_sha256_circuit(builder, msg_bit_len as u128);
+    // 0x00
+    for i in 0..msg_bit_len {
+        builder.connect(sha_target.message[i].target, message[i].target);
+    }
+
+    // Assert the output of the hash is the correct length.
+    let digest_len_const = builder.constant(F::from_canonical_usize(sha_target.digest.len()));
+    let hash_len_const = builder.constant(F::from_canonical_usize(32 * 8 as usize));
+    builder.connect(digest_len_const, hash_len_const);
+
+    return sha_target.digest;
 }
 
 // reference: https://github.com/thomdixon/pysha2/blob/master/sha2/sha256.py
