@@ -1,3 +1,5 @@
+/// Source (tendermint-rs): https://github.com/informalsystems/tendermint-rs/blob/e930691a5639ef805c399743ac0ddbba0e9f53da/tendermint/src/merkle.rs#L32
+
 use digest::{consts::U32, Digest, FixedOutputReset};
 
 pub const HASH_SIZE: usize = 32;
@@ -7,7 +9,6 @@ pub const HASH_LEN_BITS: usize = HASH_SIZE * 8;
 /// Hash is the output of the cryptographic digest function
 pub type Hash = [u8; HASH_SIZE];
 
-/// Source (tendermint-rs): https://github.com/informalsystems/tendermint-rs/blob/e930691a5639ef805c399743ac0ddbba0e9f53da/tendermint/src/merkle.rs#L32
 /// Implementation of Merkle tree hashing for Tendermint.
 pub trait MerkleHash {
     // tmhash({})
