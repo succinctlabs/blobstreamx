@@ -74,7 +74,6 @@ pub fn sha256<F: RichField + Extendable<D>, const D: usize>(
     builder.connect(bit_len_const, msg_len_const);
 
     let sha_target = make_sha256_circuit(builder, msg_bit_len as u128);
-    // 0x00
     for i in 0..msg_bit_len {
         builder.connect(sha_target.message[i].target, message[i].target);
     }

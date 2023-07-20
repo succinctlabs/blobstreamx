@@ -88,11 +88,11 @@ pub trait TendermintMarshaller {
     /// Hashes a layer of the Merkle tree according to the Tendermint spec. (0x01 || left || right)
     /// If in a pair the right node is not enabled (empty), then the left node is passed up to the next layer.
     /// If neither the left nor right node in a pair is enabled (empty), then the parent node is set to not enabled (empty).
-    fn hash_layer(
+    fn hash_merkle_layer(
         &mut self,
-        validator_hashes: &mut Vec<[BoolTarget; 256]>,
-        validator_hash_enabled: &mut Vec<BoolTarget>,
-        num_validators: usize,
+        merkle_hashes: &mut Vec<[BoolTarget; 256]>,
+        merkle_hash_enabled: &mut Vec<BoolTarget>,
+        num_hashes: usize,
     ) -> (Vec<[BoolTarget; 256]>, Vec<BoolTarget>);
     
     /// Compute the expected validator hash from the validator set.
@@ -245,17 +245,18 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
             for k in 0..8 {
                 validator_bits[k] = self._false();
             }
+
             // validatorBytes
             for k in 8..bits_length {
                 validator_bits[k] = validator[k - 8];
             }
             
-            let hash = sha256(self, bits_length, validator_bits);
-
             // Load the output of the hash.
+            let hash = sha256(self, bits_length, validator_bits);
             for k in 0..HASH_LEN_BITS {
                 validator_bytes_hashes[j][k] = hash[k];
             }
+
         }
         let validator_bytes_len_min = self.constant(F::from_canonical_u32(VALIDATOR_BYTES_LEN_MIN as u32));
 
@@ -283,7 +284,6 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
         }
 
         ret_validator_leaf_hash
-
     }
 
     fn hash_validator_leaves(
@@ -306,9 +306,8 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
         // 2) Select the hash of the correct byte length.
         // 3) Return the correct hash.
 
-        let mut validators_leaf_hashes = [[self._false(); HASH_LEN_BITS]; VALIDATOR_SET_LEN_MAX];
-
         // Hash each of the validators into a leaf hash.
+        let mut validators_leaf_hashes = [[self._false(); HASH_LEN_BITS]; VALIDATOR_SET_LEN_MAX];
         for i in 0..VALIDATOR_SET_LEN_MAX {
             validators_leaf_hashes[i] = self.hash_validator_leaf(&validators[i], &validator_byte_len[i]);
         }
@@ -316,20 +315,20 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
         validators_leaf_hashes.to_vec()
     }
 
-    fn hash_layer(
+    fn hash_merkle_layer(
         &mut self,
-        validator_hashes: &mut Vec<[BoolTarget; 256]>,
-        validator_hash_enabled: &mut Vec<BoolTarget>,
-        num_validators: usize,
+        merkle_hashes: &mut Vec<[BoolTarget; 256]>,
+        merkle_hash_enabled: &mut Vec<BoolTarget>,
+        num_hashes: usize,
     ) -> (Vec<[BoolTarget; 256]>, Vec<BoolTarget>) {
         let zero = self.zero();
         let one = self.one();
 
-        for i in (0..num_validators).step_by(2) {
-            let both_enabled = self.and(validator_hash_enabled[i], validator_hash_enabled[i + 1]);
+        for i in (0..num_hashes).step_by(2) {
+            let both_enabled = self.and(merkle_hash_enabled[i], merkle_hash_enabled[i + 1]);
 
-            let disabled_1 = self.not(validator_hash_enabled[i]);
-            let disabled_2 = self.not(validator_hash_enabled[i + 1]);
+            let disabled_1 = self.not(merkle_hash_enabled[i]);
+            let disabled_2 = self.not(merkle_hash_enabled[i + 1]);
             let both_disabled = self.and(disabled_1, disabled_2);
 
             // Calculate the inner hash as if both validators are enabled.
@@ -347,13 +346,15 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
                 validator_bits[k] = self._false();
             }
             validator_bits[7] = self._true();
+
             // left
             for k in 8..8+HASH_LEN_BITS {
-                validator_bits[k] = validator_hashes[i][k - 8];
+                validator_bits[k] = merkle_hashes[i][k - 8];
             }
+
             // right
             for k in 8+HASH_LEN_BITS..bits_length {
-                validator_bits[k] = validator_hashes[i + 1][k - (8 + HASH_LEN_BITS)];
+                validator_bits[k] = merkle_hashes[i + 1][k - (8 + HASH_LEN_BITS)];
             }
             
             let hash = sha256(self, bits_length, validator_bits);
@@ -363,15 +364,15 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
                 temp_validator_both_true[k] = hash[k];
 
                 // If the left node is enabled and the right node is disabled, we pass up the left hash.
-                validator_hashes[i / 2][k] = BoolTarget::new_unsafe(self.select(both_enabled, temp_validator_both_true[k].target, validator_hashes[i][k].target));
+                merkle_hashes[i / 2][k] = BoolTarget::new_unsafe(self.select(both_enabled, temp_validator_both_true[k].target, merkle_hashes[i][k].target));
             }
 
             // Set the inner node one level up to disabled if both nodes are disabled.
-            validator_hash_enabled[i / 2] = BoolTarget::new_unsafe(self.select(both_disabled, zero, one));
+            merkle_hash_enabled[i / 2] = BoolTarget::new_unsafe(self.select(both_disabled, zero, one));
         }
 
         // Return the hashes and enabled nodes for the next layer up.
-        (validator_hashes.to_vec(), validator_hash_enabled.to_vec())
+        (merkle_hashes.to_vec(), merkle_hash_enabled.to_vec())
     }
 
     fn hash_validator_set(
@@ -404,7 +405,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
 
         // Hash each layer of nodes to get the root according to the Tendermint spec, starting from the leaves.
         while size > 1 {
-            (temp_validators, temp_validator_enabled) = self.hash_layer(&mut temp_validators, &mut temp_validator_enabled, size);
+            (temp_validators, temp_validator_enabled) = self.hash_merkle_layer(&mut temp_validators, &mut temp_validator_enabled, size);
             size /= 2;
         }
 
@@ -470,6 +471,7 @@ pub(crate) mod tests {
         let config = CircuitConfig::standard_recursion_config();
         let mut builder = CircuitBuilder::<F, D>::new(config);
 
+        // Computed the leaf hashes corresponding to the first validator bytes. SHA256(0x00 || validatorBytes)
         let expected_digest = "84f633a570a987326947aafd434ae37f151e98d5e6d429137a4cc378d4a7988e";
         let digest_bits = to_bits(hex::decode(expected_digest).unwrap());
 
@@ -531,13 +533,15 @@ pub(crate) mod tests {
         let config = CircuitConfig::standard_recursion_config();
         let mut builder = CircuitBuilder::<F, D>::new(config);
 
+        let validators: Vec<&str> = vec!["de6ad0941095ada2a7996e6a888581928203b8b69e07ee254d289f5b9c9caea193c2ab01902d", "92fbe0c52937d80c5ea643c7832620b84bfdf154ec7129b8b471a63a763f2fe955af1ac65fd3", "e902f88b2371ff6243bf4b0ebe8f46205e00749dd4dad07b2ea34350a1f9ceedb7620ab913c2"];
+
+        // Computed the leaf hashes corresponding to the above validators. SHA256(0x00 || validatorBytes)
         let expected_digests: Vec<&str> = vec!["84f633a570a987326947aafd434ae37f151e98d5e6d429137a4cc378d4a7988e",
         "3d03b065d15243f543ba9498f1c4ee954ef954c9a03049d62fd2df9e48017409"
         ,"987d7777f7809fc17efa5951fa1de336d55e6b357b0df6605be616b53191ee02"
         ];
         let digests_bits: Vec<Vec<bool>> = expected_digests.iter().map(|x| to_bits(hex::decode(x).unwrap())).collect();
 
-        let validators: Vec<&str> = vec!["de6ad0941095ada2a7996e6a888581928203b8b69e07ee254d289f5b9c9caea193c2ab01902d", "92fbe0c52937d80c5ea643c7832620b84bfdf154ec7129b8b471a63a763f2fe955af1ac65fd3", "e902f88b2371ff6243bf4b0ebe8f46205e00749dd4dad07b2ea34350a1f9ceedb7620ab913c2"];
 
         let vec_validator_byte_len: Vec<usize> = vec![
             38,
@@ -595,10 +599,12 @@ pub(crate) mod tests {
         let config = CircuitConfig::standard_recursion_config();
         let mut builder = CircuitBuilder::<F, D>::new(config);
 
+        // Generated random byte arrays of length 38 (to mimic validator bytes), and computed the validator hash corresponding to a merkle tree of depth 2 formed by these validator bytes.
+        let validators: Vec<&str> = vec!["de6ad0941095ada2a7996e6a888581928203b8b69e07ee254d289f5b9c9caea193c2ab01902d", "92fbe0c52937d80c5ea643c7832620b84bfdf154ec7129b8b471a63a763f2fe955af1ac65fd3", "e902f88b2371ff6243bf4b0ebe8f46205e00749dd4dad07b2ea34350a1f9ceedb7620ab913c2"];
+
         let expected_digest = "5541a94a9cf19e568401a2eed59f4ac8118c945d37803632aad655c6ee4f3ed6";
         let digest_bits = to_bits(hex::decode(expected_digest).unwrap());
 
-        let validators: Vec<&str> = vec!["de6ad0941095ada2a7996e6a888581928203b8b69e07ee254d289f5b9c9caea193c2ab01902d", "92fbe0c52937d80c5ea643c7832620b84bfdf154ec7129b8b471a63a763f2fe955af1ac65fd3", "e902f88b2371ff6243bf4b0ebe8f46205e00749dd4dad07b2ea34350a1f9ceedb7620ab913c2"];
 
         println!("Expected Val Hash Encoding (Bytes): {:?}", hex::decode(expected_digest).unwrap());
 
