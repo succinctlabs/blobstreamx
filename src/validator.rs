@@ -363,7 +363,6 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintValidatorSet for Ci
         let mut size = VALIDATOR_SET_LEN_MAX;
         while size > 1 {
             // Loop over validators with VALIDATOR_SET_LEN_MAX, i += 2
-            dbg!(size);
             for i in (0..size).step_by(2) {
                 let both_enabled = self.and(temp_validator_enabled[i], temp_validator_enabled[i + 1]);
 
@@ -392,15 +391,18 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintValidatorSet for Ci
                     self.connect(sha_target.message[k].target, temp_validators[i + 1][k - (8 + HASH_LEN_BITS)].target);
                 }
 
+                // // Assert the output of the hash is the correct length.
+                assert_eq!(sha_target.digest.len(), HASH_LEN_BITS);
+
                 // Load the output of the hash.
-                for l in 0..HASH_LEN_BITS {
-                    temp_validator_both_true[l] = sha_target.digest[i];
-                    self.connect(sha_target.digest[i].target, temp_validator_both_true[l].target);
+                for k in 0..HASH_LEN_BITS {
+                    temp_validator_both_true[k] = sha_target.digest[k];
+                    self.connect(sha_target.digest[k].target, temp_validator_both_true[k].target);
                 }
 
                 // If temp_validator_enabled[i] is true && temp_validator_enabled[i + 1] is false, we pass up the left hash.
-                for l in 0..HASH_LEN_BITS {
-                    temp_validators[i / 2][l] = BoolTarget::new_unsafe(self.select(both_enabled, temp_validator_both_true[l].target, temp_validators[i / 2][l].target));
+                for k in 0..HASH_LEN_BITS {
+                    temp_validators[i / 2][k] = BoolTarget::new_unsafe(self.select(both_enabled, temp_validator_both_true[k].target, temp_validators[i][k].target));
                 }
 
                 // Set temp_validators_enabled[i / 2] to false if both temp_validators_enabled[i] and temp_validators_enabled[i+1] are false.
@@ -495,7 +497,6 @@ pub(crate) mod tests {
         .map(|_| Vec::<bool>::new())
         .collect();
 
-        let mut pre_sha_target: Vec<BoolTarget> = vec![builder._false(); 8 + (38 * 8)];
         let mut validators_target: Vec<[BoolTarget; VALIDATOR_BITS_LEN_MAX]> = vec![[builder._false(); VALIDATOR_BITS_LEN_MAX]; VALIDATOR_SET_LEN_MAX];
 
         // Convert the hex strings to bytes.
