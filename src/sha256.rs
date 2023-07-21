@@ -211,7 +211,7 @@ mod tests {
     use plonky2::plonk::circuit_data::CircuitConfig;
     use plonky2::plonk::config::{GenericConfig, PoseidonGoldilocksConfig};
 
-    use crate::sha256::make_sha256_circuit;
+    use crate::sha256::sha256;
 
     fn to_bits(msg: Vec<u8>) -> Vec<bool> {
         let mut res = Vec::new();
@@ -242,26 +242,28 @@ mod tests {
         type C = PoseidonGoldilocksConfig;
         type F = <C as GenericConfig<D>>::F;
         let mut builder = CircuitBuilder::<F, D>::new(CircuitConfig::standard_recursion_config());
-        let targets = make_sha256_circuit(&mut builder, msg_bits.len().try_into().unwrap());
-       
+
+        let mut targets = Vec::new();
+        for i in 0..msg_bits.len() {            
+            targets.push(builder.constant_bool(msg_bits[i]));
+        }
+        let msg_hash = sha256(&mut builder, targets.clone());
 
         for i in 0..digest_bits.len() {
             if digest_bits[i] {
-                builder.assert_one(targets.digest[i].target);
+                builder.assert_one(msg_hash[i].target);
             } else {
-                builder.assert_zero(targets.digest[i].target);
+                builder.assert_zero(msg_hash[i].target);
             }
         }
 
-
         let data = builder.build::<C>();
-
         
         for i in 0..10 {
             let mut pw = PartialWitness::new();
 
             for i in 0..msg_bits.len() {
-                pw.set_bool_target(targets.message[i], msg_bits[i]);
+                pw.set_bool_target(targets[i], msg_bits[i]);
             }
             let now = std::time::Instant::now();
             let _proof = data.prove(pw).unwrap();
@@ -282,19 +284,25 @@ mod tests {
         type C = PoseidonGoldilocksConfig;
         type F = <C as GenericConfig<D>>::F;
         let mut builder = CircuitBuilder::<F, D>::new(CircuitConfig::standard_recursion_config());
-        let targets = make_sha256_circuit(&mut builder, msg_bits.len().try_into().unwrap());
-        let mut pw = PartialWitness::new();
 
-        for i in 0..msg_bits.len() {
-            pw.set_bool_target(targets.message[i], msg_bits[i]);
+        let mut targets = Vec::new();
+        for i in 0..msg_bits.len() {            
+            targets.push(builder.constant_bool(msg_bits[i]));
         }
+        let msg_hash = sha256(&mut builder, targets.clone());
 
         for i in 0..digest_bits.len() {
             if digest_bits[i] {
-                builder.assert_one(targets.digest[i].target);
+                builder.assert_one(msg_hash[i].target);
             } else {
-                builder.assert_zero(targets.digest[i].target);
+                builder.assert_zero(msg_hash[i].target);
             }
+        }
+
+        let mut pw = PartialWitness::new();
+
+        for i in 0..msg_bits.len() {
+            pw.set_bool_target(targets[i], msg_bits[i]);
         }
 
         let data = builder.build::<C>();
@@ -314,19 +322,24 @@ mod tests {
         type C = PoseidonGoldilocksConfig;
         type F = <C as GenericConfig<D>>::F;
         let mut builder = CircuitBuilder::<F, D>::new(CircuitConfig::standard_recursion_config());
-        let targets = make_sha256_circuit(&mut builder, msg_bits.len().try_into().unwrap());
-        let mut pw = PartialWitness::new();
-
-        for i in 0..msg_bits.len() {
-            pw.set_bool_target(targets.message[i], msg_bits[i]);
+        let mut targets = Vec::new();
+        for i in 0..msg_bits.len() {            
+            targets.push(builder.constant_bool(msg_bits[i]));
         }
+        let msg_hash = sha256(&mut builder, targets.clone());
 
         for i in 0..digest_bits.len() {
             if digest_bits[i] {
-                builder.assert_one(targets.digest[i].target);
+                builder.assert_one(msg_hash[i].target);
             } else {
-                builder.assert_zero(targets.digest[i].target);
+                builder.assert_zero(msg_hash[i].target);
             }
+        }
+
+        let mut pw = PartialWitness::new();
+
+        for i in 0..msg_bits.len() {
+            pw.set_bool_target(targets[i], msg_bits[i]);
         }
 
         let data = builder.build::<C>();
@@ -348,19 +361,25 @@ mod tests {
         type C = PoseidonGoldilocksConfig;
         type F = <C as GenericConfig<D>>::F;
         let mut builder = CircuitBuilder::<F, D>::new(CircuitConfig::standard_ecc_config());
-        let targets = make_sha256_circuit(&mut builder, msg_bits.len().try_into().unwrap());
-        let mut pw = PartialWitness::new();
 
-        for i in 0..msg_bits.len() {
-            pw.set_bool_target(targets.message[i], msg_bits[i]);
+        let mut targets = Vec::new();
+        for i in 0..msg_bits.len() {            
+            targets.push(builder.constant_bool(msg_bits[i]));
         }
+        let msg_hash = sha256(&mut builder, targets.clone());
 
         for i in 0..digest_bits.len() {
             if digest_bits[i] {
-                builder.assert_one(targets.digest[i].target);
+                builder.assert_one(msg_hash[i].target);
             } else {
-                builder.assert_zero(targets.digest[i].target);
+                builder.assert_zero(msg_hash[i].target);
             }
+        }
+
+        let mut pw = PartialWitness::new();
+
+        for i in 0..msg_bits.len() {
+            pw.set_bool_target(targets[i], msg_bits[i]);
         }
 
         dbg!(builder.num_gates());
@@ -382,19 +401,24 @@ mod tests {
         type C = PoseidonGoldilocksConfig;
         type F = <C as GenericConfig<D>>::F;
         let mut builder = CircuitBuilder::<F, D>::new(CircuitConfig::standard_recursion_config());
-        let targets = make_sha256_circuit(&mut builder, msg_bits.len().try_into().unwrap());
-        let mut pw = PartialWitness::new();
 
-        for i in 0..msg_bits.len() {
-            pw.set_bool_target(targets.message[i], msg_bits[i]);
+        let mut targets = Vec::new();
+        for i in 0..msg_bits.len() {            
+            targets.push(builder.constant_bool(msg_bits[i]));
         }
+        let msg_hash = sha256(&mut builder, targets.clone());
 
         for i in 0..digest_bits.len() {
             if digest_bits[i] {
-                builder.assert_one(targets.digest[i].target);
+                builder.assert_one(msg_hash[i].target);
             } else {
-                builder.assert_zero(targets.digest[i].target);
+                builder.assert_zero(msg_hash[i].target);
             }
+        }
+        let mut pw = PartialWitness::new();
+
+        for i in 0..msg_bits.len() {
+            pw.set_bool_target(targets[i], msg_bits[i]);
         }
 
         let data = builder.build::<C>();
