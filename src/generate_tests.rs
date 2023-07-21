@@ -1,4 +1,4 @@
-use crate::merkle::{simple_hash_from_byte_vectors};
+use crate::merkle::simple_hash_from_byte_vectors;
 use rand::Rng;
 use sha2::Sha256;
 use subtle_encoding::hex;

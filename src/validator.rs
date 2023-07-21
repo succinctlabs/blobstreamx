@@ -447,6 +447,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
 
 #[cfg(test)]
 pub(crate) mod tests {
+    use clap::builder;
     use plonky2::iop::target::BoolTarget;
     use plonky2::{
         iop::witness::{PartialWitness, WitnessWrite},
@@ -490,23 +491,10 @@ pub(crate) mod tests {
         res
     }
 
-    #[test]
-    fn test_get_leaf_hash() {
-        let mut pw = PartialWitness::new();
-        let config = CircuitConfig::standard_recursion_config();
-        let mut builder = CircuitBuilder::<F, D>::new(config);
-
-        // Computed the leaf hashes corresponding to the first validator bytes. SHA256(0x00 || validatorBytes)
-        let expected_digest = "84f633a570a987326947aafd434ae37f151e98d5e6d429137a4cc378d4a7988e";
-        let digest_bits = to_bits(hex::decode(expected_digest).unwrap());
-
-        let validators: Vec<&str> = vec![
-            "de6ad0941095ada2a7996e6a888581928203b8b69e07ee254d289f5b9c9caea193c2ab01902d",
-            "92fbe0c52937d80c5ea643c7832620b84bfdf154ec7129b8b471a63a763f2fe955af1ac65fd3",
-            "e902f88b2371ff6243bf4b0ebe8f46205e00749dd4dad07b2ea34350a1f9ceedb7620ab913c2",
-        ];
-
-        let vec_validator_byte_len: Vec<usize> = vec![38, 38, 38];
+    // Generate the inputs from the validator byte arrays.
+    fn generate_inputs(
+        builder: &mut CircuitBuilder<F, D>, 
+        validators: &Vec<&str>) -> (Vec<[BoolTarget; VALIDATOR_BIT_LENGTH_MAX]>, Vec<U32Target>, Vec<BoolTarget>) {
 
         let mut validator_byte_length: Vec<U32Target> =
             vec![
@@ -523,8 +511,9 @@ pub(crate) mod tests {
 
         // Convert the hex strings to bytes.
         for i in 0..validators.len() {
+            let val_byte_length = validators[i].len() / 2;
             validator_bits[i] = to_bits(hex::decode(validators[i]).unwrap());
-            for j in 0..(vec_validator_byte_len[i] * 8) {
+            for j in 0..(val_byte_length * 8) {
                 if validator_bits[i][j] {
                     validators_target[i][j] = builder._true();
                 } else {
@@ -532,9 +521,29 @@ pub(crate) mod tests {
                 }
             }
             validator_byte_length[i] =
-                U32Target(builder.constant(F::from_canonical_usize(vec_validator_byte_len[i])));
+                U32Target(builder.constant(F::from_canonical_usize(val_byte_length)));
             validator_enabled[i] = builder._true();
         }
+        return (validators_target, validator_byte_length, validator_enabled);
+    }
+
+    #[test]
+    fn test_get_leaf_hash() {
+        let mut pw = PartialWitness::new();
+        let config = CircuitConfig::standard_recursion_config();
+        let mut builder = CircuitBuilder::<F, D>::new(config);
+
+        // Computed the leaf hashes corresponding to the first validator bytes. SHA256(0x00 || validatorBytes)
+        let expected_digest = "84f633a570a987326947aafd434ae37f151e98d5e6d429137a4cc378d4a7988e";
+        let digest_bits = to_bits(hex::decode(expected_digest).unwrap());
+
+        let validators: Vec<&str> = vec![
+            "de6ad0941095ada2a7996e6a888581928203b8b69e07ee254d289f5b9c9caea193c2ab01902d",
+            "92fbe0c52937d80c5ea643c7832620b84bfdf154ec7129b8b471a63a763f2fe955af1ac65fd3",
+            "e902f88b2371ff6243bf4b0ebe8f46205e00749dd4dad07b2ea34350a1f9ceedb7620ab913c2",
+        ];
+
+        let (validators_target, validator_byte_length, _) = generate_inputs(&mut builder, &validators);
 
         let result = builder.hash_validator_leaf(&validators_target[0], &validator_byte_length[0]);
 
@@ -566,6 +575,8 @@ pub(crate) mod tests {
             "92fbe0c52937d80c5ea643c7832620b84bfdf154ec7129b8b471a63a763f2fe955af1ac65fd3",
             "e902f88b2371ff6243bf4b0ebe8f46205e00749dd4dad07b2ea34350a1f9ceedb7620ab913c2",
         ];
+        
+        let (validators_target, validator_byte_length, _) = generate_inputs(&mut builder, &validators);
 
         // Computed the leaf hashes corresponding to the above validators. SHA256(0x00 || validatorBytes)
         let expected_digests: Vec<&str> = vec![
@@ -573,40 +584,12 @@ pub(crate) mod tests {
             "3d03b065d15243f543ba9498f1c4ee954ef954c9a03049d62fd2df9e48017409",
             "987d7777f7809fc17efa5951fa1de336d55e6b357b0df6605be616b53191ee02",
         ];
+
         let digests_bits: Vec<Vec<bool>> = expected_digests
-            .iter()
-            .map(|x| to_bits(hex::decode(x).unwrap()))
-            .collect();
+        .iter()
+        .map(|x| to_bits(hex::decode(x).unwrap()))
+        .collect();
 
-        let vec_validator_byte_len: Vec<usize> = vec![38, 38, 38];
-
-        let mut validator_byte_length: Vec<U32Target> =
-            vec![
-                U32Target(builder.constant(F::from_canonical_usize(VALIDATOR_BYTE_LENGTH_MIN)));
-                VALIDATOR_SET_SIZE_MAX
-            ];
-
-        let mut validator_enabled: Vec<BoolTarget> = vec![builder._false(); VALIDATOR_SET_SIZE_MAX];
-
-        let mut validator_bits: Vec<Vec<bool>> = (0..256).map(|_| Vec::<bool>::new()).collect();
-
-        let mut validators_target: Vec<[BoolTarget; VALIDATOR_BIT_LENGTH_MAX]> =
-            vec![[builder._false(); VALIDATOR_BIT_LENGTH_MAX]; VALIDATOR_SET_SIZE_MAX];
-
-        // Convert the hex strings to bytes.
-        for i in 0..validators.len() {
-            validator_bits[i] = to_bits(hex::decode(validators[i]).unwrap());
-            for j in 0..(vec_validator_byte_len[i] * 8) {
-                if validator_bits[i][j] {
-                    validators_target[i][j] = builder._true();
-                } else {
-                    validators_target[i][j] = builder._false();
-                }
-            }
-            validator_byte_length[i] =
-                U32Target(builder.constant(F::from_canonical_usize(vec_validator_byte_len[i])));
-            validator_enabled[i] = builder._true();
-        }
         let result = builder.hash_validator_leaves(&validators_target, &validator_byte_length);
         println!("Got all leaf hashes: {}", result.len());
         for i in 0..validators.len() {
@@ -633,14 +616,11 @@ pub(crate) mod tests {
         let config = CircuitConfig::standard_recursion_config();
         let mut builder = CircuitBuilder::<F, D>::new(config);
 
-        // Generated random byte arrays of length 38 (to mimic validator bytes), and computed the validator hash corresponding to a merkle tree of depth 2 formed by these validator bytes.
+        // Generated array with byte arrays with variable length [38, 47] bytes (to mimic validator bytes), and computed the validator hash corresponding to a merkle tree of depth 2 formed by these validator bytes.
         let validators: Vec<&str> = vec!["97b8cc20f17618415186ec0efca0f8a24a070b5e844f3abdaa03436c4cb58af32c3bde71e391", "5f407f30abdec9e3c4f5e8c95d0df93d5977acb7e686dd1dfc331a57f7c693756334f8252ca6b17f5a971fa891a9c7", "0daac88e983737ca1ed37da4fff6c87651deb410b3811dd6d6c0a9ff023a4655ef61d1240d60fe5f"];
 
-        let mut vec_validator_byte_len = Vec::new();
-        for i in 0..validators.len() {
-            vec_validator_byte_len.push(validators[i].len() / 2)
-        }
-        
+        let (validators_target, validator_byte_length, validator_enabled) = generate_inputs(&mut builder, &validators);
+
         let expected_digest = "9e75a6467742596100e170527f6c74e654acf208278276025d7448d3ddb211b6";
         let digest_bits = to_bits(hex::decode(expected_digest).unwrap());
 
@@ -649,33 +629,6 @@ pub(crate) mod tests {
             hex::decode(expected_digest).unwrap()
         );
 
-        let mut validator_byte_length: Vec<U32Target> =
-            vec![
-                U32Target(builder.constant(F::from_canonical_usize(VALIDATOR_BYTE_LENGTH_MIN)));
-                VALIDATOR_SET_SIZE_MAX
-            ];
-
-        let mut validator_enabled: Vec<BoolTarget> = vec![builder._false(); VALIDATOR_SET_SIZE_MAX];
-
-        let mut validator_bits: Vec<Vec<bool>> = (0..256).map(|_| Vec::<bool>::new()).collect();
-
-        let mut validators_target: Vec<[BoolTarget; VALIDATOR_BIT_LENGTH_MAX]> =
-            vec![[builder._false(); VALIDATOR_BIT_LENGTH_MAX]; VALIDATOR_SET_SIZE_MAX];
-
-        // Convert the hex strings to bytes.
-        for i in 0..validators.len() {
-            validator_bits[i] = to_bits(hex::decode(validators[i]).unwrap());
-            for j in 0..(vec_validator_byte_len[i] * 8) {
-                if validator_bits[i][j] {
-                    validators_target[i][j] = builder._true();
-                } else {
-                    validators_target[i][j] = builder._false();
-                }
-            }
-            validator_byte_length[i] =
-                U32Target(builder.constant(F::from_canonical_usize(vec_validator_byte_len[i])));
-            validator_enabled[i] = builder._true();
-        }
         let result = builder.hash_validator_set(
             &validators_target,
             &validator_byte_length,
