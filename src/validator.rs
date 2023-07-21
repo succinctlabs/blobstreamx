@@ -15,7 +15,7 @@ use crate::u32::{U32Builder, U32Target};
 use crate::sha256::sha256;
 
 /// The maximum length of a protobuf-encoded Tendermint validator in bytes.
-const VALIDATOR_BYTES_LEN_MAX: usize = 46;
+const VALIDATOR_BYTES_LEN_MAX: usize = 47;
 
 /// The maximum length of a protobuf-encoded Tendermint validator in bits.
 const VALIDATOR_BITS_LEN_MAX: usize = VALIDATOR_BYTES_LEN_MAX * 8;
@@ -229,8 +229,22 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
     fn hash_validator_leaf(
         &mut self,
         validator: &[BoolTarget; VALIDATOR_BITS_LEN_MAX],
-        validator_byte_len: &U32Target,
+        validator_byte_length: &U32Target,
     ) -> [BoolTarget; HASH_LEN_BITS] {
+        // Range check the validator byte length is between [VALIDATOR_BYTES_LEN_MIN, VALIDATOR_BYTES_LEN_MAX]
+        let min_validator_bytes_len = self.constant(F::from_canonical_usize(VALIDATOR_BYTES_LEN_MIN));
+        let max_validator_bytes_len = self.constant(F::from_canonical_usize(VALIDATOR_BYTES_LEN_MAX));
+
+        // len - min
+        let diff_with_min_len = self.sub(validator_byte_length.0, min_validator_bytes_len);
+
+        // max - len
+        let diff_with_max_len = self.sub(max_validator_bytes_len, validator_byte_length.0);
+
+        // Check that diff_with_min_len and diff_with_max_len are both small (if outside of range, one would be a large element of F).
+        self.range_check(diff_with_min_len, 4);
+        self.range_check(diff_with_max_len, 4);
+
         // Note: Because the byte length of each validator is variable, need to hash the validator bytes for each potential byte length.
         let mut validator_bytes_hashes = [[self._false(); HASH_LEN_BITS]; NUM_VALIDATOR_BYTE_LEN];
         for j in 0..NUM_VALIDATOR_BYTE_LEN {
@@ -261,7 +275,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
         let validator_bytes_len_min = self.constant(F::from_canonical_u32(VALIDATOR_BYTES_LEN_MIN as u32));
 
         // Calculate the index of the validator's bytes length in the range [0, NUM_VALIDATOR_BYTE_LEN).
-        let length_index = self.sub(validator_byte_len.0, validator_bytes_len_min);
+        let length_index = self.sub(validator_byte_length.0, validator_bytes_len_min);
         
         // Create a bitmap, with a selector bit set to 1 if the current index corresponds to the index of the validator's bytes length.
         let mut validator_byte_hash_selector = [self._false(); NUM_VALIDATOR_BYTE_LEN];
@@ -289,17 +303,17 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
     fn hash_validator_leaves(
         &mut self,
         validators: &Vec<[BoolTarget; VALIDATOR_BITS_LEN_MAX]>,
-        validator_byte_len: &Vec<U32Target>,
+        validator_byte_lengths: &Vec<U32Target>,
     ) -> Vec<[BoolTarget; HASH_LEN_BITS]> {
-        let len_validators = self.constant(F::from_canonical_usize(validators.len()));
-        let len_validator_byte_len = self.constant(F::from_canonical_usize(validator_byte_len.len()));
+        let num_validators = self.constant(F::from_canonical_usize(validators.len()));
+        let num_validator_byte_lengths = self.constant(F::from_canonical_usize(validator_byte_lengths.len()));
         let validator_set_len_max = self.constant(F::from_canonical_usize(VALIDATOR_SET_LEN_MAX));
 
         // Assert validators length is VALIDATOR_SET_LEN_MAX
-        self.connect(len_validators, validator_set_len_max);
+        self.connect(num_validators, validator_set_len_max);
 
         // Assert validator_byte_len length is VALIDATOR_SET_LEN_MAX
-        self.connect(len_validator_byte_len, validator_set_len_max);
+        self.connect(num_validator_byte_lengths, validator_set_len_max);
 
         // For each validator
         // 1) Generate the SHA256 hash for each potential byte length of the validator from VALIDATOR_BYTES_LEN_MIN to VALIDATOR_BYTES_LEN_MAX.
@@ -309,7 +323,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
         // Hash each of the validators into a leaf hash.
         let mut validators_leaf_hashes = [[self._false(); HASH_LEN_BITS]; VALIDATOR_SET_LEN_MAX];
         for i in 0..VALIDATOR_SET_LEN_MAX {
-            validators_leaf_hashes[i] = self.hash_validator_leaf(&validators[i], &validator_byte_len[i]);
+            validators_leaf_hashes[i] = self.hash_validator_leaf(&validators[i], &validator_byte_lengths[i]);
         }
 
         validators_leaf_hashes.to_vec()
@@ -325,50 +339,46 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
         let one = self.one();
 
         for i in (0..num_hashes).step_by(2) {
-            let both_enabled = self.and(merkle_hash_enabled[i], merkle_hash_enabled[i + 1]);
+            let both_nodes_enabled = self.and(merkle_hash_enabled[i], merkle_hash_enabled[i + 1]);
 
-            let disabled_1 = self.not(merkle_hash_enabled[i]);
-            let disabled_2 = self.not(merkle_hash_enabled[i + 1]);
-            let both_disabled = self.and(disabled_1, disabled_2);
-
-            // Calculate the inner hash as if both validators are enabled.
-            let mut temp_validator_both_true = [self._false(); HASH_LEN_BITS];
+            let first_node_disabled = self.not(merkle_hash_enabled[i]);
+            let second_node_disabled = self.not(merkle_hash_enabled[i + 1]);
+            let both_nodes_disabled = self.and(first_node_disabled, second_node_disabled);
 
             // Calculate the length of the message for the inner hash.
             // 0x01 || left || right
             let bits_length = 8 + (HASH_LEN_BITS * 2);
 
             // Calculate the message for the inner hash.
-            let mut validator_bits = vec![self._false(); bits_length];
+            let mut message_bits = vec![self._false(); bits_length];
 
             // 0x01
             for k in 0..7 {
-                validator_bits[k] = self._false();
+                message_bits[k] = self._false();
             }
-            validator_bits[7] = self._true();
+            message_bits[7] = self._true();
 
             // left
             for k in 8..8+HASH_LEN_BITS {
-                validator_bits[k] = merkle_hashes[i][k - 8];
+                message_bits[k] = merkle_hashes[i][k - 8];
             }
 
             // right
             for k in 8+HASH_LEN_BITS..bits_length {
-                validator_bits[k] = merkle_hashes[i + 1][k - (8 + HASH_LEN_BITS)];
+                message_bits[k] = merkle_hashes[i + 1][k - (8 + HASH_LEN_BITS)];
             }
             
-            let hash = sha256(self, bits_length, validator_bits);
-
             // Load the output of the hash.
-            for k in 0..HASH_LEN_BITS {
-                temp_validator_both_true[k] = hash[k];
+            // Note: Calculate the inner hash as if both validators are enabled.
+            let inner_hash = sha256(self, bits_length, message_bits);
 
+            for k in 0..HASH_LEN_BITS {
                 // If the left node is enabled and the right node is disabled, we pass up the left hash.
-                merkle_hashes[i / 2][k] = BoolTarget::new_unsafe(self.select(both_enabled, temp_validator_both_true[k].target, merkle_hashes[i][k].target));
+                merkle_hashes[i / 2][k] = BoolTarget::new_unsafe(self.select(both_nodes_enabled, inner_hash[k].target, merkle_hashes[i][k].target));
             }
 
             // Set the inner node one level up to disabled if both nodes are disabled.
-            merkle_hash_enabled[i / 2] = BoolTarget::new_unsafe(self.select(both_disabled, zero, one));
+            merkle_hash_enabled[i / 2] = BoolTarget::new_unsafe(self.select(both_nodes_disabled, zero, one));
         }
 
         // Return the hashes and enabled nodes for the next layer up.
@@ -378,39 +388,39 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
     fn hash_validator_set(
         &mut self,
         validators: &Vec<[BoolTarget; VALIDATOR_BITS_LEN_MAX]>,
-        validator_byte_len: &Vec<U32Target>,
+        validator_byte_lengths: &Vec<U32Target>,
         validator_enabled: &Vec<BoolTarget>,
     ) -> [BoolTarget; HASH_LEN_BITS] {
-        let len_validators = self.constant(F::from_canonical_usize(validators.len()));
-        let len_validator_byte_len = self.constant(F::from_canonical_usize(validator_byte_len.len()));
-        let len_validator_enabled = self.constant(F::from_canonical_usize(validator_enabled.len()));
+        let num_validators = self.constant(F::from_canonical_usize(validators.len()));
+        let num_validator_byte_lengths = self.constant(F::from_canonical_usize(validator_byte_lengths.len()));
+        let num_validator_enabled = self.constant(F::from_canonical_usize(validator_enabled.len()));
         let validator_set_len_max = self.constant(F::from_canonical_usize(VALIDATOR_SET_LEN_MAX));
             
         // Assert validators length is VALIDATOR_SET_LEN_MAX
-        self.connect(len_validators, validator_set_len_max);
+        self.connect(num_validators, validator_set_len_max);
 
         // Assert validator_byte_len length is VALIDATOR_SET_LEN_MAX
-        self.connect(len_validator_byte_len, validator_set_len_max);
+        self.connect(num_validator_byte_lengths, validator_set_len_max);
 
         // Assert validator_enabled length is VALIDATOR_SET_LEN_MAX
-        self.connect(len_validator_enabled, validator_set_len_max);
+        self.connect(num_validator_enabled, validator_set_len_max);
 
         // Hash each of the validators to get their corresponding leaf hash.
-        let mut temp_validators = self.hash_validator_leaves(validators, validator_byte_len);
+        let mut current_validator_hashes = self.hash_validator_leaves(validators, validator_byte_lengths);
 
         // Whether to treat the validator as empty.
-        let mut temp_validator_enabled = validator_enabled.clone();
+        let mut current_validator_enabled = validator_enabled.clone();
 
-        let mut size = VALIDATOR_SET_LEN_MAX;
+        let mut merkle_layer_size = VALIDATOR_SET_LEN_MAX;
 
         // Hash each layer of nodes to get the root according to the Tendermint spec, starting from the leaves.
-        while size > 1 {
-            (temp_validators, temp_validator_enabled) = self.hash_merkle_layer(&mut temp_validators, &mut temp_validator_enabled, size);
-            size /= 2;
+        while merkle_layer_size > 1 {
+            (current_validator_hashes, current_validator_enabled) = self.hash_merkle_layer(&mut current_validator_hashes, &mut current_validator_enabled, merkle_layer_size);
+            merkle_layer_size /= 2;
         }
 
         // Return the root hash.
-        return temp_validators[0];
+        return current_validator_hashes[0];
     }
 }
 
