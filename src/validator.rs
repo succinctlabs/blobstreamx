@@ -634,21 +634,20 @@ pub(crate) mod tests {
         let mut builder = CircuitBuilder::<F, D>::new(config);
 
         // Generated random byte arrays of length 38 (to mimic validator bytes), and computed the validator hash corresponding to a merkle tree of depth 2 formed by these validator bytes.
-        let validators: Vec<&str> = vec![
-            "de6ad0941095ada2a7996e6a888581928203b8b69e07ee254d289f5b9c9caea193c2ab01902d",
-            "92fbe0c52937d80c5ea643c7832620b84bfdf154ec7129b8b471a63a763f2fe955af1ac65fd3",
-            "e902f88b2371ff6243bf4b0ebe8f46205e00749dd4dad07b2ea34350a1f9ceedb7620ab913c2",
-        ];
+        let validators: Vec<&str> = vec!["97b8cc20f17618415186ec0efca0f8a24a070b5e844f3abdaa03436c4cb58af32c3bde71e391", "5f407f30abdec9e3c4f5e8c95d0df93d5977acb7e686dd1dfc331a57f7c693756334f8252ca6b17f5a971fa891a9c7", "0daac88e983737ca1ed37da4fff6c87651deb410b3811dd6d6c0a9ff023a4655ef61d1240d60fe5f"];
 
-        let expected_digest = "5541a94a9cf19e568401a2eed59f4ac8118c945d37803632aad655c6ee4f3ed6";
+        let mut vec_validator_byte_len = Vec::new();
+        for i in 0..validators.len() {
+            vec_validator_byte_len.push(validators[i].len() / 2)
+        }
+        
+        let expected_digest = "9e75a6467742596100e170527f6c74e654acf208278276025d7448d3ddb211b6";
         let digest_bits = to_bits(hex::decode(expected_digest).unwrap());
 
         println!(
             "Expected Val Hash Encoding (Bytes): {:?}",
             hex::decode(expected_digest).unwrap()
         );
-
-        let vec_validator_byte_len: Vec<usize> = vec![38, 38, 38];
 
         let mut validator_byte_length: Vec<U32Target> =
             vec![

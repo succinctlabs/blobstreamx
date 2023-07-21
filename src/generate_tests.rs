@@ -1,17 +1,12 @@
-use crate::merkle::{hash_all_leaves, simple_hash_from_byte_vectors};
+use crate::merkle::{simple_hash_from_byte_vectors};
 use rand::Rng;
 use sha2::Sha256;
 use subtle_encoding::hex;
 
-pub fn generate_tendermint_test_cases(n: usize) {
-    // Generate an array of byte arrays where the byte arrays have variable length between 38 and 47 bytes and the total length of the array is less than n
-    let mut tendermint_test_cases: Vec<Vec<u8>> = Vec::new();
-    // Generate a random number between 38 and 47
+pub fn generate_tendermint_test_cases(num_validators: usize) {
     let mut rng = rand::thread_rng();
-
-    let length = n;
-
-    let random_bytes: Vec<Vec<u8>> = (0..length)
+    // Generate an array of byte arrays where the byte arrays have variable length between 38 and 47 bytes and the total length of the array is less than n
+    let random_bytes: Vec<Vec<u8>> = (0..num_validators)
         .map(|_| {
             let inner_length = rng.gen_range(38..=47);
             (0..inner_length).map(|_| rng.gen()).collect()
