@@ -29,5 +29,8 @@ pub fn generate_tendermint_test_cases(num_validators: usize) {
     println!("Validators: {:?}", hex_strings);
 
     // Print the root hash
-    println!("Root Hash: {:?}", String::from_utf8(hex::encode(root_hash)).expect("Found invalid UTF-8"));
+    println!(
+        "Root Hash: {:?}",
+        String::from_utf8(hex::encode(root_hash)).expect("Found invalid UTF-8")
+    );
 }

@@ -273,7 +273,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
             }
 
             // Load the output of the hash.
-            let hash = sha256(self, bits_length, validator_bits);
+            let hash = sha256(self, validator_bits);
             for k in 0..HASH_SIZE_BITS {
                 validator_bytes_hashes[j][k] = hash[k];
             }
@@ -380,7 +380,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
 
             // Load the output of the hash.
             // Note: Calculate the inner hash as if both validators are enabled.
-            let inner_hash = sha256(self, bits_length, message_bits);
+            let inner_hash = sha256(self, message_bits);
 
             for k in 0..HASH_SIZE_BITS {
                 // If the left node is enabled and the right node is disabled, we pass up the left hash.
@@ -463,7 +463,7 @@ pub(crate) mod tests {
 
     use crate::validator::{VALIDATOR_BIT_LENGTH_MAX, VALIDATOR_SET_SIZE_MAX};
 
-    use crate::merkle::{HASH_SIZE_BITS, hash_all_leaves};
+    use crate::merkle::{hash_all_leaves, HASH_SIZE_BITS};
 
     use crate::{
         u32::U32Target,
@@ -494,9 +494,13 @@ pub(crate) mod tests {
 
     // Generate the inputs from the validator byte arrays.
     fn generate_inputs(
-        builder: &mut CircuitBuilder<F, D>, 
-        validators: &Vec<&str>) -> (Vec<[BoolTarget; VALIDATOR_BIT_LENGTH_MAX]>, Vec<U32Target>, Vec<BoolTarget>) {
-
+        builder: &mut CircuitBuilder<F, D>,
+        validators: &Vec<&str>,
+    ) -> (
+        Vec<[BoolTarget; VALIDATOR_BIT_LENGTH_MAX]>,
+        Vec<U32Target>,
+        Vec<BoolTarget>,
+    ) {
         let mut validator_byte_length: Vec<U32Target> =
             vec![
                 U32Target(builder.constant(F::from_canonical_usize(VALIDATOR_BYTE_LENGTH_MIN)));
@@ -544,7 +548,8 @@ pub(crate) mod tests {
             "e902f88b2371ff6243bf4b0ebe8f46205e00749dd4dad07b2ea34350a1f9ceedb7620ab913c2",
         ];
 
-        let (validators_target, validator_byte_length, _) = generate_inputs(&mut builder, &validators);
+        let (validators_target, validator_byte_length, _) =
+            generate_inputs(&mut builder, &validators);
 
         let result = builder.hash_validator_leaf(&validators_target[0], &validator_byte_length[0]);
 
@@ -595,8 +600,9 @@ pub(crate) mod tests {
             .iter()
             .map(|x| to_bits(hex::decode(x).unwrap()))
             .collect();
-        
-        let (validators_target, validator_byte_length, _) = generate_inputs(&mut builder, &validators);
+
+        let (validators_target, validator_byte_length, _) =
+            generate_inputs(&mut builder, &validators);
 
         let result = builder.hash_validator_leaves(&validators_target, &validator_byte_length);
         println!("Got all leaf hashes: {}", result.len());
@@ -627,7 +633,8 @@ pub(crate) mod tests {
         // Generated array with byte arrays with variable length [38, 47] bytes (to mimic validator bytes), and computed the validator hash corresponding to a merkle tree of depth 2 formed by these validator bytes.
         let validators: Vec<&str> = vec!["97b8cc20f17618415186ec0efca0f8a24a070b5e844f3abdaa03436c4cb58af32c3bde71e391", "5f407f30abdec9e3c4f5e8c95d0df93d5977acb7e686dd1dfc331a57f7c693756334f8252ca6b17f5a971fa891a9c7", "0daac88e983737ca1ed37da4fff6c87651deb410b3811dd6d6c0a9ff023a4655ef61d1240d60fe5f"];
 
-        let (validators_target, validator_byte_length, validator_enabled) = generate_inputs(&mut builder, &validators);
+        let (validators_target, validator_byte_length, validator_enabled) =
+            generate_inputs(&mut builder, &validators);
 
         let expected_digest = "9e75a6467742596100e170527f6c74e654acf208278276025d7448d3ddb211b6";
         let digest_bits = to_bits(hex::decode(expected_digest).unwrap());
@@ -671,7 +678,8 @@ pub(crate) mod tests {
         // Generated array with byte arrays with variable length [38, 47] bytes (to mimic validator bytes), and computed the validator hash corresponding to a merkle tree of depth 2 formed by these validator bytes.
         let validators: Vec<&str> = vec!["864711afc2c955c5bfcc65300d678ba7a5793fc74c629abaae3becaa5ac9e8d7dbd586a1e02fe7b30dd63c9f84b6ba", "b9ec50c618a22ca150f1157af35e0c530b3f7a1a96174f74aa85d86eabbe570efd36b0c73e49fc2725652f94989c"];
 
-        let (validators_target, validator_byte_length, validator_enabled) = generate_inputs(&mut builder, &validators);
+        let (validators_target, validator_byte_length, validator_enabled) =
+            generate_inputs(&mut builder, &validators);
 
         let expected_digest = "a47148d62d235d74db7619c00bfa0e8c6ad0564fe0ac7b81b78edfa18dd329b3";
         let digest_bits = to_bits(hex::decode(expected_digest).unwrap());
