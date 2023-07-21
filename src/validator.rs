@@ -619,7 +619,7 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn test_validator_inclusion() {
+    fn test_generate_val_hash_normal() {
         let mut pw = PartialWitness::new();
         let config = CircuitConfig::standard_recursion_config();
         let mut builder = CircuitBuilder::<F, D>::new(config);
@@ -630,6 +630,50 @@ pub(crate) mod tests {
         let (validators_target, validator_byte_length, validator_enabled) = generate_inputs(&mut builder, &validators);
 
         let expected_digest = "9e75a6467742596100e170527f6c74e654acf208278276025d7448d3ddb211b6";
+        let digest_bits = to_bits(hex::decode(expected_digest).unwrap());
+
+        println!(
+            "Expected Val Hash Encoding (Bytes): {:?}",
+            hex::decode(expected_digest).unwrap()
+        );
+
+        let result = builder.hash_validator_set(
+            &validators_target,
+            &validator_byte_length,
+            &validator_enabled,
+        );
+
+        for i in 0..HASH_SIZE_BITS {
+            if digest_bits[i] {
+                pw.set_target(result[i].target, F::ONE);
+            } else {
+                pw.set_target(result[i].target, F::ZERO);
+            }
+        }
+
+        let data = builder.build::<C>();
+        let proof = data.prove(pw).unwrap();
+
+        println!("Created proof");
+
+        data.verify(proof).unwrap();
+
+        println!("Verified proof");
+    }
+
+    #[test]
+    fn test_generate_val_hash_small() {
+        // Generate the val hash for a small number of validators (would fit in a tree of less than max depth)
+        let mut pw = PartialWitness::new();
+        let config = CircuitConfig::standard_recursion_config();
+        let mut builder = CircuitBuilder::<F, D>::new(config);
+
+        // Generated array with byte arrays with variable length [38, 47] bytes (to mimic validator bytes), and computed the validator hash corresponding to a merkle tree of depth 2 formed by these validator bytes.
+        let validators: Vec<&str> = vec!["864711afc2c955c5bfcc65300d678ba7a5793fc74c629abaae3becaa5ac9e8d7dbd586a1e02fe7b30dd63c9f84b6ba", "b9ec50c618a22ca150f1157af35e0c530b3f7a1a96174f74aa85d86eabbe570efd36b0c73e49fc2725652f94989c"];
+
+        let (validators_target, validator_byte_length, validator_enabled) = generate_inputs(&mut builder, &validators);
+
+        let expected_digest = "a47148d62d235d74db7619c00bfa0e8c6ad0564fe0ac7b81b78edfa18dd329b3";
         let digest_bits = to_bits(hex::decode(expected_digest).unwrap());
 
         println!(
