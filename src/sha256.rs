@@ -63,6 +63,7 @@ fn reshape(u: Vec<BoolTarget>) -> Vec<[BoolTarget; 32]>{
 }
 
 // Generate the 32-byte SHA-256 hash of the message.
+// reference: https://github.com/thomdixon/pysha2/blob/master/sha2/sha256.py
 pub fn sha256<F: RichField + Extendable<D>, const D: usize>(
     builder: &mut CircuitBuilder<F, D>,
     message: Vec<BoolTarget>,
@@ -199,137 +200,6 @@ pub fn sha256<F: RichField + Extendable<D>, const D: usize>(
     builder.connect(digest_len_const, hash_len_const);
 
     return digest;
-}
-
-// reference: https://github.com/thomdixon/pysha2/blob/master/sha2/sha256.py
-fn make_sha256_circuit<F: RichField + Extendable<D>, const D: usize>(
-    builder: &mut CircuitBuilder<F, D>,
-    msg_bit_len: u128,
-) -> Sha256Target 
-{
-    let mut msg_input = Vec::new();
-
-    // Add signals for the input msg
-    for _ in 0..msg_bit_len {
-        msg_input.push(builder.add_virtual_bool_target_safe()); // Will verify that input is 0 or 1
-    }
-
-    let mdi = (msg_bit_len / 8) % 64;
-    let length = (msg_bit_len / 8) << 3; // length in bytes
-    let padlen = if mdi < 56 { 55 - mdi } else { 119 - mdi };
-    
-    msg_input.push(builder.constant_bool(true));
-    for _ in 0..7 {
-        msg_input.push(builder.constant_bool(false));
-    }
-
-    for _ in 0..padlen*8 {
-        msg_input.push(builder.constant_bool(false));
-    }
-
-    for i in (0..64).rev() {
-        // big endian binary representation of length
-        msg_input.push(builder.constant_bool((length >> i) & 1 == 1));
-    }
-
-    let mut sha256_hash = get_initial_hash(builder);
-    let round_constants = get_round_constants(builder);
-
-    // Process the input with 512 bit chunks aka 64 byte chunks
-    for chunk_start in (0..msg_input.len()).step_by(512) {
-        let chunk = msg_input[chunk_start..chunk_start+512].to_vec();
-        let mut u = Vec::new(); 
-
-        for i in 0..512 { // 0 .. 16 chunk size * 32 bits7
-            u.push(chunk[i]);
-        }
-        for _ in 512..64*32 { // 16 * 8 ... 64 * 8 because of L
-            u.push(builder.constant_bool(false));
-        }
-
-        let mut w = reshape(u);
-        for i in 16..64 {
-            let s0 = xor3_arr(
-                _right_rotate(w[i-15], 7), 
-                _right_rotate(w[i-15], 18), 
-                _shr(w[i-15], 3, builder),
-                builder,
-            );
-            let s1 = xor3_arr(
-                _right_rotate(w[i-2], 17),
-                _right_rotate(w[i-2], 19), 
-                _shr(w[i-2], 10, builder),
-                builder, 
-            );
-            let inter1 = add_arr(w[i-16], s0, builder);
-            let inter2 = add_arr(inter1, w[i-7], builder);
-            w[i] = add_arr(inter2, s1, builder);
-
-        }
-        let mut a = sha256_hash[0];
-        let mut b = sha256_hash[1];
-        let mut c = sha256_hash[2];
-        let mut d = sha256_hash[3];
-        let mut e = sha256_hash[4];
-        let mut f = sha256_hash[5];
-        let mut g = sha256_hash[6];
-        let mut h = sha256_hash[7];
-
-        for i in 0..64 {
-            let sum1 = xor3_arr(
-                _right_rotate(e, 6),
-                _right_rotate(e, 11),
-                _right_rotate(e, 25),
-                builder, 
-            );
-            let ch = xor2_arr(
-                and_arr(e, f, builder),
-                and_arr(not_arr(e, builder), g, builder),
-                builder,
-            );
-            let temp1 = add_arr(h, sum1, builder);
-            let temp2 = add_arr(temp1, ch, builder);
-            let temp3 = add_arr(temp2, round_constants[i], builder);
-            let temp4 = add_arr(temp3, w[i], builder);
-            let final_temp1 = temp4;
-
-            let sum0 = xor3_arr(
-                _right_rotate(a, 2),
-                _right_rotate(a, 13),
-                _right_rotate(a, 22),
-                builder, 
-            );
-
-            let maj = xor3_arr(
-                and_arr(a, b, builder),
-                and_arr(a, c, builder),
-                and_arr(b, c, builder),
-                builder,
-            );
-            let final_temp2  = add_arr(sum0, maj, builder);
-			
-            h = g;
-            g = f;
-            f = e;
-            e = add_arr(d, final_temp1, builder);
-            d = c;
-            c = b;
-            b = a;
-            a = add_arr(final_temp1, final_temp2, builder);
-
-        }
-
-        sha256_hash = zip_add(sha256_hash, [a, b, c, d, e, f, g, h], builder);
-    }
-
-    let mut digest = Vec::new();
-    for word in sha256_hash.iter() {
-        for i in 0..word.len() {
-            digest.push(word[i]);
-        }
-    }
-
-    return Sha256Target { message: msg_input, digest: digest}
 }
 
 #[cfg(test)]
