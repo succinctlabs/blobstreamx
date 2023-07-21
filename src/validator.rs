@@ -458,11 +458,12 @@ pub(crate) mod tests {
         },
     };
     use plonky2_field::types::Field;
+    use sha2::Sha256;
     use subtle_encoding::hex;
 
     use crate::validator::{VALIDATOR_BIT_LENGTH_MAX, VALIDATOR_SET_SIZE_MAX};
 
-    use crate::merkle::HASH_SIZE_BITS;
+    use crate::merkle::{HASH_SIZE_BITS, hash_all_leaves};
 
     use crate::{
         u32::U32Target,
@@ -575,20 +576,27 @@ pub(crate) mod tests {
             "92fbe0c52937d80c5ea643c7832620b84bfdf154ec7129b8b471a63a763f2fe955af1ac65fd3",
             "e902f88b2371ff6243bf4b0ebe8f46205e00749dd4dad07b2ea34350a1f9ceedb7620ab913c2",
         ];
+
+        let validators_bytes: Vec<Vec<u8>> = validators
+            .iter()
+            .map(|x| hex::decode(x).unwrap())
+            .collect::<Vec<_>>();
+
+        let expected_digests_bytes = hash_all_leaves::<Sha256>(&validators_bytes);
+
+        // Convert the expected hashes to hex strings.
+        let expected_digests: Vec<String> = expected_digests_bytes
+            .iter()
+            .map(|x| String::from_utf8(hex::encode(x)).expect("Invalid UTF-8"))
+            .collect::<Vec<_>>();
+
+        // Convert the expected hashes bytes to bits.
+        let digests_bits: Vec<Vec<bool>> = expected_digests
+            .iter()
+            .map(|x| to_bits(hex::decode(x).unwrap()))
+            .collect();
         
         let (validators_target, validator_byte_length, _) = generate_inputs(&mut builder, &validators);
-
-        // Computed the leaf hashes corresponding to the above validators. SHA256(0x00 || validatorBytes)
-        let expected_digests: Vec<&str> = vec![
-            "84f633a570a987326947aafd434ae37f151e98d5e6d429137a4cc378d4a7988e",
-            "3d03b065d15243f543ba9498f1c4ee954ef954c9a03049d62fd2df9e48017409",
-            "987d7777f7809fc17efa5951fa1de336d55e6b357b0df6605be616b53191ee02",
-        ];
-
-        let digests_bits: Vec<Vec<bool>> = expected_digests
-        .iter()
-        .map(|x| to_bits(hex::decode(x).unwrap()))
-        .collect();
 
         let result = builder.hash_validator_leaves(&validators_target, &validator_byte_length);
         println!("Got all leaf hashes: {}", result.len());
