@@ -39,7 +39,7 @@ const VOTING_POWER_BYTES_LENGTH_MAX: usize = 9;
 const VOTING_POWER_BITS_LENGTH_MAX: usize = VOTING_POWER_BYTES_LENGTH_MAX * 8;
 
 // The maximum number of validators in a Tendermint validator set.
-const MAX_VALIDATOR_SET_SIZE: usize = 4;
+const VALIDATOR_SET_SIZE_MAX: usize = 4;
 
 /// The Ed25519 public key as a list of 32 byte targets.
 #[derive(Debug, Clone, Copy)]
@@ -307,13 +307,13 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
     ) -> Vec<[BoolTarget; HASH_SIZE_BITS]> {
         let num_validators = self.constant(F::from_canonical_usize(validators.len()));
         let num_validator_byte_lengths = self.constant(F::from_canonical_usize(validator_byte_lengths.len()));
-        let max_validator_set_size = self.constant(F::from_canonical_usize(MAX_VALIDATOR_SET_SIZE));
+        let validator_set_size_max = self.constant(F::from_canonical_usize(VALIDATOR_SET_SIZE_MAX));
 
-        // Assert validators length is MAX_VALIDATOR_SET_SIZE
-        self.connect(num_validators, max_validator_set_size);
+        // Assert validators length is VALIDATOR_SET_SIZE_MAX
+        self.connect(num_validators, validator_set_size_max);
 
-        // Assert validator_byte_length length is MAX_VALIDATOR_SET_SIZE
-        self.connect(num_validator_byte_lengths, max_validator_set_size);
+        // Assert validator_byte_length length is VALIDATOR_SET_SIZE_MAX
+        self.connect(num_validator_byte_lengths, validator_set_size_max);
 
         // For each validator
         // 1) Generate the SHA256 hash for each potential byte length of the validator from VALIDATOR_BYTE_LENGTH_MIN to VALIDATOR_BYTE_LENGTH_MAX.
@@ -321,8 +321,8 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
         // 3) Return the correct hash.
 
         // Hash each of the validators into a leaf hash.
-        let mut validators_leaf_hashes = [[self._false(); HASH_SIZE_BITS]; MAX_VALIDATOR_SET_SIZE];
-        for i in 0..MAX_VALIDATOR_SET_SIZE {
+        let mut validators_leaf_hashes = [[self._false(); HASH_SIZE_BITS]; VALIDATOR_SET_SIZE_MAX];
+        for i in 0..VALIDATOR_SET_SIZE_MAX {
             validators_leaf_hashes[i] = self.hash_validator_leaf(&validators[i], &validator_byte_lengths[i]);
         }
 
@@ -394,16 +394,16 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
         let num_validators = self.constant(F::from_canonical_usize(validators.len()));
         let num_validator_byte_lengths = self.constant(F::from_canonical_usize(validator_byte_lengths.len()));
         let num_validator_enabled = self.constant(F::from_canonical_usize(validator_enabled.len()));
-        let max_validator_set_size = self.constant(F::from_canonical_usize(MAX_VALIDATOR_SET_SIZE));
+        let validator_set_size_max = self.constant(F::from_canonical_usize(VALIDATOR_SET_SIZE_MAX));
             
-        // Assert validators length is MAX_VALIDATOR_SET_SIZE
-        self.connect(num_validators, max_validator_set_size);
+        // Assert validators length is VALIDATOR_SET_SIZE_MAX
+        self.connect(num_validators, validator_set_size_max);
 
-        // Assert validator_byte_length length is MAX_VALIDATOR_SET_SIZE
-        self.connect(num_validator_byte_lengths, max_validator_set_size);
+        // Assert validator_byte_length length is VALIDATOR_SET_SIZE_MAX
+        self.connect(num_validator_byte_lengths, validator_set_size_max);
 
-        // Assert validator_enabled length is MAX_VALIDATOR_SET_SIZE
-        self.connect(num_validator_enabled, max_validator_set_size);
+        // Assert validator_enabled length is VALIDATOR_SET_SIZE_MAX
+        self.connect(num_validator_enabled, validator_set_size_max);
 
         // Hash each of the validators to get their corresponding leaf hash.
         let mut current_validator_hashes = self.hash_validator_leaves(validators, validator_byte_lengths);
@@ -411,7 +411,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
         // Whether to treat the validator as empty.
         let mut current_validator_enabled = validator_enabled.clone();
 
-        let mut merkle_layer_size = MAX_VALIDATOR_SET_SIZE;
+        let mut merkle_layer_size = VALIDATOR_SET_SIZE_MAX;
 
         // Hash each layer of nodes to get the root according to the Tendermint spec, starting from the leaves.
         while merkle_layer_size > 1 {
@@ -440,7 +440,7 @@ pub(crate) mod tests {
 
     use crate::validator::{
         VALIDATOR_BIT_LENGTH_MAX,
-        MAX_VALIDATOR_SET_SIZE
+        VALIDATOR_SET_SIZE_MAX
     };
 
     use crate::merkle::HASH_SIZE_BITS;
@@ -490,15 +490,15 @@ pub(crate) mod tests {
             38,
         ];
 
-        let mut validator_byte_length: Vec<U32Target> = vec![U32Target(builder.constant(F::from_canonical_usize(VALIDATOR_BYTE_LENGTH_MIN))); MAX_VALIDATOR_SET_SIZE];
+        let mut validator_byte_length: Vec<U32Target> = vec![U32Target(builder.constant(F::from_canonical_usize(VALIDATOR_BYTE_LENGTH_MIN))); VALIDATOR_SET_SIZE_MAX];
 
-        let mut validator_enabled: Vec<BoolTarget> = vec![builder._false(); MAX_VALIDATOR_SET_SIZE];
+        let mut validator_enabled: Vec<BoolTarget> = vec![builder._false(); VALIDATOR_SET_SIZE_MAX];
 
         let mut validator_bits: Vec<Vec<bool>> = (0..256)
         .map(|_| Vec::<bool>::new())
         .collect();
 
-        let mut validators_target: Vec<[BoolTarget; VALIDATOR_BIT_LENGTH_MAX]> = vec![[builder._false(); VALIDATOR_BIT_LENGTH_MAX]; MAX_VALIDATOR_SET_SIZE];
+        let mut validators_target: Vec<[BoolTarget; VALIDATOR_BIT_LENGTH_MAX]> = vec![[builder._false(); VALIDATOR_BIT_LENGTH_MAX]; VALIDATOR_SET_SIZE_MAX];
 
         // Convert the hex strings to bytes.
         for i in 0..validators.len() {
@@ -556,15 +556,15 @@ pub(crate) mod tests {
             38,
         ];
 
-        let mut validator_byte_length: Vec<U32Target> = vec![U32Target(builder.constant(F::from_canonical_usize(VALIDATOR_BYTE_LENGTH_MIN))); MAX_VALIDATOR_SET_SIZE];
+        let mut validator_byte_length: Vec<U32Target> = vec![U32Target(builder.constant(F::from_canonical_usize(VALIDATOR_BYTE_LENGTH_MIN))); VALIDATOR_SET_SIZE_MAX];
 
-        let mut validator_enabled: Vec<BoolTarget> = vec![builder._false(); MAX_VALIDATOR_SET_SIZE];
+        let mut validator_enabled: Vec<BoolTarget> = vec![builder._false(); VALIDATOR_SET_SIZE_MAX];
 
         let mut validator_bits: Vec<Vec<bool>> = (0..256)
         .map(|_| Vec::<bool>::new())
         .collect();
 
-        let mut validators_target: Vec<[BoolTarget; VALIDATOR_BIT_LENGTH_MAX]> = vec![[builder._false(); VALIDATOR_BIT_LENGTH_MAX]; MAX_VALIDATOR_SET_SIZE];
+        let mut validators_target: Vec<[BoolTarget; VALIDATOR_BIT_LENGTH_MAX]> = vec![[builder._false(); VALIDATOR_BIT_LENGTH_MAX]; VALIDATOR_SET_SIZE_MAX];
 
         // Convert the hex strings to bytes.
         for i in 0..validators.len() {
@@ -621,15 +621,15 @@ pub(crate) mod tests {
             38,
         ];
 
-        let mut validator_byte_length: Vec<U32Target> = vec![U32Target(builder.constant(F::from_canonical_usize(VALIDATOR_BYTE_LENGTH_MIN))); MAX_VALIDATOR_SET_SIZE];
+        let mut validator_byte_length: Vec<U32Target> = vec![U32Target(builder.constant(F::from_canonical_usize(VALIDATOR_BYTE_LENGTH_MIN))); VALIDATOR_SET_SIZE_MAX];
 
-        let mut validator_enabled: Vec<BoolTarget> = vec![builder._false(); MAX_VALIDATOR_SET_SIZE];
+        let mut validator_enabled: Vec<BoolTarget> = vec![builder._false(); VALIDATOR_SET_SIZE_MAX];
 
         let mut validator_bits: Vec<Vec<bool>> = (0..256)
         .map(|_| Vec::<bool>::new())
         .collect();
 
-        let mut validators_target: Vec<[BoolTarget; VALIDATOR_BIT_LENGTH_MAX]> = vec![[builder._false(); VALIDATOR_BIT_LENGTH_MAX]; MAX_VALIDATOR_SET_SIZE];
+        let mut validators_target: Vec<[BoolTarget; VALIDATOR_BIT_LENGTH_MAX]> = vec![[builder._false(); VALIDATOR_BIT_LENGTH_MAX]; VALIDATOR_SET_SIZE_MAX];
 
         // Convert the hex strings to bytes.
         for i in 0..validators.len() {
