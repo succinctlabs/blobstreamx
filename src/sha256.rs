@@ -62,13 +62,13 @@ fn reshape(u: Vec<BoolTarget>) -> Vec<[BoolTarget; 32]>{
     res
 }
 
-// Generate the 32-byte SHA-256 hash of message.
+// Generate the 32-byte SHA-256 hash of the message.
 pub fn sha256<F: RichField + Extendable<D>, const D: usize>(
     builder: &mut CircuitBuilder<F, D>,
     msg_bit_len: usize,
     message: Vec<BoolTarget>,
 ) -> Vec<BoolTarget> {
-    // Assert the message is the correct length.
+    // Constrain the message to the correct length.
     let bit_len_const = builder.constant(F::from_canonical_usize(msg_bit_len));
     let msg_len_const = builder.constant(F::from_canonical_usize(message.len()));
     builder.connect(bit_len_const, msg_len_const);
@@ -78,7 +78,7 @@ pub fn sha256<F: RichField + Extendable<D>, const D: usize>(
         builder.connect(sha_target.message[i].target, message[i].target);
     }
 
-    // Assert the output of the hash is the correct length.
+    // Constrain the output of the hash to the correct length.
     let digest_len_const = builder.constant(F::from_canonical_usize(sha_target.digest.len()));
     let hash_len_const = builder.constant(F::from_canonical_usize(32 * 8 as usize));
     builder.connect(digest_len_const, hash_len_const);
