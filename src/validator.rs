@@ -266,7 +266,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
             }
             
             // Load the output of the hash.
-            let hash = sha256(self, bits_length, validator_bits);
+            let hash = sha256(self, validator_bits);
             for k in 0..HASH_SIZE_BITS {
                 validator_bytes_hashes[j][k] = hash[k];
             }
@@ -370,7 +370,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
             
             // Load the output of the hash.
             // Note: Calculate the inner hash as if both validators are enabled.
-            let inner_hash = sha256(self, bits_length, message_bits);
+            let inner_hash = sha256(self, message_bits);
 
             for k in 0..HASH_SIZE_BITS {
                 // If the left node is enabled and the right node is disabled, we pass up the left hash.
