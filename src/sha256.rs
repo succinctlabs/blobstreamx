@@ -62,7 +62,7 @@ fn reshape(u: Vec<BoolTarget>) -> Vec<[BoolTarget; 32]>{
     res
 }
 
-// Checks the length of the message, and the length of the digest.
+// Generate the 32-byte SHA-256 hash of message.
 pub fn sha256<F: RichField + Extendable<D>, const D: usize>(
     builder: &mut CircuitBuilder<F, D>,
     msg_bit_len: usize,
@@ -87,7 +87,7 @@ pub fn sha256<F: RichField + Extendable<D>, const D: usize>(
 }
 
 // reference: https://github.com/thomdixon/pysha2/blob/master/sha2/sha256.py
-pub fn make_sha256_circuit<F: RichField + Extendable<D>, const D: usize>(
+fn make_sha256_circuit<F: RichField + Extendable<D>, const D: usize>(
     builder: &mut CircuitBuilder<F, D>,
     msg_bit_len: u128,
 ) -> Sha256Target 
