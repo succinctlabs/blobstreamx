@@ -1,5 +1,4 @@
 /// Source (tendermint-rs): https://github.com/informalsystems/tendermint-rs/blob/e930691a5639ef805c399743ac0ddbba0e9f53da/tendermint/src/merkle.rs#L32
-
 use digest::{consts::U32, Digest, FixedOutputReset};
 
 pub const HASH_SIZE: usize = 32;
@@ -104,7 +103,10 @@ where
     H: MerkleHash + Default,
 {
     let mut hasher = H::default();
-    let hashed_leaves = byte_vecs.iter().map(|b| hasher.leaf_hash(b.as_ref())).collect();
+    let hashed_leaves = byte_vecs
+        .iter()
+        .map(|b| hasher.leaf_hash(b.as_ref()))
+        .collect();
     hashed_leaves
 }
 
@@ -139,7 +141,11 @@ pub(crate) mod tests {
         let leaf_root_hex = "5541a94a9cf19e568401a2eed59f4ac8118c945d37803632aad655c6ee4f3ed6";
 
         // JSON string
-        let validators = vec!["de6ad0941095ada2a7996e6a888581928203b8b69e07ee254d289f5b9c9caea193c2ab01902d", "92fbe0c52937d80c5ea643c7832620b84bfdf154ec7129b8b471a63a763f2fe955af1ac65fd3", "e902f88b2371ff6243bf4b0ebe8f46205e00749dd4dad07b2ea34350a1f9ceedb7620ab913c2"];
+        let validators = vec![
+            "de6ad0941095ada2a7996e6a888581928203b8b69e07ee254d289f5b9c9caea193c2ab01902d",
+            "92fbe0c52937d80c5ea643c7832620b84bfdf154ec7129b8b471a63a763f2fe955af1ac65fd3",
+            "e902f88b2371ff6243bf4b0ebe8f46205e00749dd4dad07b2ea34350a1f9ceedb7620ab913c2",
+        ];
 
         // Process the JSON value
         for validator in &validators {

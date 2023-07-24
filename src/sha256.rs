@@ -1,21 +1,23 @@
-use plonky2_field::extension::Extendable;
 use plonky2::hash::hash_types::RichField;
-use plonky2::iop::target::{BoolTarget};
+use plonky2::iop::target::BoolTarget;
 use plonky2::plonk::circuit_builder::CircuitBuilder;
+use plonky2_field::extension::Extendable;
 use plonky2_u32::gadgets::arithmetic_u32::CircuitBuilderU32;
 
-use crate::helper::{uint32_to_bits, _right_rotate, _shr};
-use crate::bit_operations::{not_arr, and_arr, xor2_arr, xor3_arr, add_arr, zip_add};
+use crate::bit_operations::{add_arr, and_arr, not_arr, xor2_arr, xor3_arr, zip_add};
+use crate::helper::{_right_rotate, _shr, uint32_to_bits};
 
 pub struct Sha256Target {
     pub message: Vec<BoolTarget>,
     pub digest: Vec<BoolTarget>,
 }
 
-fn get_initial_hash<F:RichField + Extendable<D>, const D:usize>(builder: &mut CircuitBuilder<F, D>) -> [[BoolTarget; 32]; 8] {
+fn get_initial_hash<F: RichField + Extendable<D>, const D: usize>(
+    builder: &mut CircuitBuilder<F, D>,
+) -> [[BoolTarget; 32]; 8] {
     let initial_hash = [
-        0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
-        0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19
+        0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab,
+        0x5be0cd19,
     ];
     let mut res = [None; 8];
     for i in 0..8 {
@@ -24,24 +26,21 @@ fn get_initial_hash<F:RichField + Extendable<D>, const D:usize>(builder: &mut Ci
     res.map(|x| x.unwrap())
 }
 
-fn get_round_constants<F:RichField + Extendable<D>, const D:usize>(builder: &mut CircuitBuilder<F, D>) -> [[BoolTarget; 32]; 64] {
-    let round_constants: [u32;64] = [
-            0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5,
-            0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
-            0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3,
-            0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
-            0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc,
-            0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
-            0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7,
-            0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
-            0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13,
-            0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
-            0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3,
-            0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
-            0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5,
-            0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
-            0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208,
-            0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2];
+fn get_round_constants<F: RichField + Extendable<D>, const D: usize>(
+    builder: &mut CircuitBuilder<F, D>,
+) -> [[BoolTarget; 32]; 64] {
+    let round_constants: [u32; 64] = [
+        0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4,
+        0xab1c5ed5, 0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe,
+        0x9bdc06a7, 0xc19bf174, 0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f,
+        0x4a7484aa, 0x5cb0a9dc, 0x76f988da, 0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7,
+        0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967, 0x27b70a85, 0x2e1b2138, 0x4d2c6dfc,
+        0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85, 0xa2bfe8a1, 0xa81a664b,
+        0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070, 0x19a4c116,
+        0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+        0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7,
+        0xc67178f2,
+    ];
     let mut res = [None; 64];
     for i in 0..64 {
         res[i] = Some(uint32_to_bits(round_constants[i], builder));
@@ -49,13 +48,13 @@ fn get_round_constants<F:RichField + Extendable<D>, const D:usize>(builder: &mut
     res.map(|x| x.unwrap())
 }
 
-fn reshape(u: Vec<BoolTarget>) -> Vec<[BoolTarget; 32]>{
-    let l = u.len()  / 32;
+fn reshape(u: Vec<BoolTarget>) -> Vec<[BoolTarget; 32]> {
+    let l = u.len() / 32;
     let mut res = Vec::new();
     for i in 0..l {
         let mut arr = [None; 32];
         for j in 0..32 {
-            arr[j] = Some(u[i*32 + j]);
+            arr[j] = Some(u[i * 32 + j]);
         }
         res.push(arr.map(|x| x.unwrap()));
     }
@@ -82,13 +81,13 @@ pub fn sha256<F: RichField + Extendable<D>, const D: usize>(
     let mdi = (message.len() / 8) % 64;
     let length = (message.len() / 8) << 3; // length in bytes
     let padlen = if mdi < 56 { 55 - mdi } else { 119 - mdi };
-    
+
     msg_input.push(builder.constant_bool(true));
     for _ in 0..7 {
         msg_input.push(builder.constant_bool(false));
     }
 
-    for _ in 0..padlen*8 {
+    for _ in 0..padlen * 8 {
         msg_input.push(builder.constant_bool(false));
     }
 
@@ -102,34 +101,35 @@ pub fn sha256<F: RichField + Extendable<D>, const D: usize>(
 
     // Process the input with 512 bit chunks aka 64 byte chunks
     for chunk_start in (0..msg_input.len()).step_by(512) {
-        let chunk = msg_input[chunk_start..chunk_start+512].to_vec();
-        let mut u = Vec::new(); 
+        let chunk = msg_input[chunk_start..chunk_start + 512].to_vec();
+        let mut u = Vec::new();
 
-        for i in 0..512 { // 0 .. 16 chunk size * 32 bits7
+        for i in 0..512 {
+            // 0 .. 16 chunk size * 32 bits7
             u.push(chunk[i]);
         }
-        for _ in 512..64*32 { // 16 * 8 ... 64 * 8 because of L
+        for _ in 512..64 * 32 {
+            // 16 * 8 ... 64 * 8 because of L
             u.push(builder.constant_bool(false));
         }
 
         let mut w = reshape(u);
         for i in 16..64 {
             let s0 = xor3_arr(
-                _right_rotate(w[i-15], 7), 
-                _right_rotate(w[i-15], 18), 
-                _shr(w[i-15], 3, builder),
+                _right_rotate(w[i - 15], 7),
+                _right_rotate(w[i - 15], 18),
+                _shr(w[i - 15], 3, builder),
                 builder,
             );
             let s1 = xor3_arr(
-                _right_rotate(w[i-2], 17),
-                _right_rotate(w[i-2], 19), 
-                _shr(w[i-2], 10, builder),
-                builder, 
+                _right_rotate(w[i - 2], 17),
+                _right_rotate(w[i - 2], 19),
+                _shr(w[i - 2], 10, builder),
+                builder,
             );
-            let inter1 = add_arr(w[i-16], s0, builder);
-            let inter2 = add_arr(inter1, w[i-7], builder);
+            let inter1 = add_arr(w[i - 16], s0, builder);
+            let inter2 = add_arr(inter1, w[i - 7], builder);
             w[i] = add_arr(inter2, s1, builder);
-
         }
         let mut a = sha256_hash[0];
         let mut b = sha256_hash[1];
@@ -145,7 +145,7 @@ pub fn sha256<F: RichField + Extendable<D>, const D: usize>(
                 _right_rotate(e, 6),
                 _right_rotate(e, 11),
                 _right_rotate(e, 25),
-                builder, 
+                builder,
             );
             let ch = xor2_arr(
                 and_arr(e, f, builder),
@@ -162,7 +162,7 @@ pub fn sha256<F: RichField + Extendable<D>, const D: usize>(
                 _right_rotate(a, 2),
                 _right_rotate(a, 13),
                 _right_rotate(a, 22),
-                builder, 
+                builder,
             );
 
             let maj = xor3_arr(
@@ -171,8 +171,8 @@ pub fn sha256<F: RichField + Extendable<D>, const D: usize>(
                 and_arr(b, c, builder),
                 builder,
             );
-            let final_temp2  = add_arr(sum0, maj, builder);
-			
+            let final_temp2 = add_arr(sum0, maj, builder);
+
             h = g;
             g = f;
             f = e;
@@ -181,7 +181,6 @@ pub fn sha256<F: RichField + Extendable<D>, const D: usize>(
             c = b;
             b = a;
             a = add_arr(final_temp1, final_temp2, builder);
-
         }
 
         sha256_hash = zip_add(sha256_hash, [a, b, c, d, e, f, g, h], builder);
@@ -205,11 +204,11 @@ pub fn sha256<F: RichField + Extendable<D>, const D: usize>(
 #[cfg(test)]
 mod tests {
     use anyhow::Result;
-    use subtle_encoding::hex::decode;
     use plonky2::iop::witness::{PartialWitness, WitnessWrite};
     use plonky2::plonk::circuit_builder::CircuitBuilder;
     use plonky2::plonk::circuit_data::CircuitConfig;
     use plonky2::plonk::config::{GenericConfig, PoseidonGoldilocksConfig};
+    use subtle_encoding::hex::decode;
 
     use crate::sha256::sha256;
 
@@ -244,7 +243,7 @@ mod tests {
         let mut builder = CircuitBuilder::<F, D>::new(CircuitConfig::standard_recursion_config());
 
         let mut targets = Vec::new();
-        for i in 0..msg_bits.len() {            
+        for i in 0..msg_bits.len() {
             targets.push(builder.constant_bool(msg_bits[i]));
         }
         let msg_hash = sha256(&mut builder, targets.clone());
@@ -258,7 +257,7 @@ mod tests {
         }
 
         let data = builder.build::<C>();
-        
+
         for i in 0..10 {
             let mut pw = PartialWitness::new();
 
@@ -286,7 +285,7 @@ mod tests {
         let mut builder = CircuitBuilder::<F, D>::new(CircuitConfig::standard_recursion_config());
 
         let mut targets = Vec::new();
-        for i in 0..msg_bits.len() {            
+        for i in 0..msg_bits.len() {
             targets.push(builder.constant_bool(msg_bits[i]));
         }
         let msg_hash = sha256(&mut builder, targets.clone());
@@ -323,7 +322,7 @@ mod tests {
         type F = <C as GenericConfig<D>>::F;
         let mut builder = CircuitBuilder::<F, D>::new(CircuitConfig::standard_recursion_config());
         let mut targets = Vec::new();
-        for i in 0..msg_bits.len() {            
+        for i in 0..msg_bits.len() {
             targets.push(builder.constant_bool(msg_bits[i]));
         }
         let msg_hash = sha256(&mut builder, targets.clone());
@@ -350,7 +349,10 @@ mod tests {
 
     #[test]
     fn test_sha256_large_msg() -> Result<()> {
-        let msg = decode("00de6ad0941095ada2a7996e6a888581928203b8b69e07ee254d289f5b9c9caea193c2ab01902d").unwrap();
+        let msg = decode(
+            "00de6ad0941095ada2a7996e6a888581928203b8b69e07ee254d289f5b9c9caea193c2ab01902d",
+        )
+        .unwrap();
         let msg_bits = to_bits(msg.to_vec());
         // dbg!(&msg_bits);
         let expected_digest = "84f633a570a987326947aafd434ae37f151e98d5e6d429137a4cc378d4a7988e";
@@ -363,7 +365,7 @@ mod tests {
         let mut builder = CircuitBuilder::<F, D>::new(CircuitConfig::standard_ecc_config());
 
         let mut targets = Vec::new();
-        for i in 0..msg_bits.len() {            
+        for i in 0..msg_bits.len() {
             targets.push(builder.constant_bool(msg_bits[i]));
         }
         let msg_hash = sha256(&mut builder, targets.clone());
@@ -403,7 +405,7 @@ mod tests {
         let mut builder = CircuitBuilder::<F, D>::new(CircuitConfig::standard_recursion_config());
 
         let mut targets = Vec::new();
-        for i in 0..msg_bits.len() {            
+        for i in 0..msg_bits.len() {
             targets.push(builder.constant_bool(msg_bits[i]));
         }
         let msg_hash = sha256(&mut builder, targets.clone());
@@ -425,6 +427,5 @@ mod tests {
         let proof = data.prove(pw).unwrap();
 
         data.verify(proof).expect("sha256 error");
-    }    
-
+    }
 }

@@ -10,7 +10,7 @@ use plonky2::iop::target::Target;
 use plonky2::iop::witness::{PartitionWitness, Witness, WitnessWrite};
 use plonky2::plonk::circuit_builder::CircuitBuilder;
 use plonky2::plonk::vars::{EvaluationTargets, EvaluationVars, EvaluationVarsBase};
-use plonky2::util::serialization::{IoResult, Write, Buffer, Read};
+use plonky2::util::serialization::{Buffer, IoResult, Read, Write};
 use plonky2_ecdsa::gadgets::biguint::CircuitBuilderBiguint;
 use plonky2_field::extension::Extendable;
 use plonky2_field::types::Field;
@@ -213,7 +213,6 @@ pub fn add_arr<F: RichField + Extendable<D>, const D: usize, const S: usize>(
     res.map(|x| x.unwrap())
 }
 
-
 /// A gate which can perform a weighted multiply-add, i.e. `result = c0 x y + c1 z`. If the config
 /// supports enough routed wires, it can support several such operations in one gate.
 #[derive(Debug, Clone)]
@@ -386,7 +385,11 @@ impl<F: RichField + Extendable<D>, const D: usize> SimpleGenerator<F> for XOR3Ge
     fn deserialize(src: &mut Buffer) -> IoResult<Self> {
         let row = src.read_usize()?;
         let num_xors = src.read_usize()?;
-        Ok(Self { row, num_xors, _phantom: PhantomData })
+        Ok(Self {
+            row,
+            num_xors,
+            _phantom: PhantomData,
+        })
     }
 
     fn dependencies(&self) -> Vec<Target> {
