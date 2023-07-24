@@ -24,5 +24,5 @@ fn main() {
     let args = Args::parse();
 
     println!("Number of validators: {}", args.validators);
-    generate_tests::generate_tendermint_test_cases(args.validators);
+    generate_tests::generate_val_array(args.validators);
 }
