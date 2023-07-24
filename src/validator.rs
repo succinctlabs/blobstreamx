@@ -8,14 +8,14 @@
 //! read more about them here: https://protobuf.dev/programming-guides/encoding/#varints.
 use plonky2::iop::target::{BoolTarget, Target};
 use plonky2::{hash::hash_types::RichField, plonk::circuit_builder::CircuitBuilder};
-use plonky2_field::extension::Extendable;
+use plonky2::field::extension::Extendable;
+use plonky2_gadgets::hash::sha::sha256::sha256;
+use plonky2_gadgets::num::u32::gadgets::arithmetic_u32::U32Target;
 
 use crate::merkle::{HASH_SIZE, HASH_SIZE_BITS};
-use crate::sha256::sha256;
-use crate::u32::{U32Builder, U32Target};
 
 /// The maximum length of a protobuf-encoded Tendermint validator in bytes.
-const VALIDATOR_BYTE_LENGTH_MAX: usize = 47;
+const VALIDATOR_BYTE_LENGTH_MAX: usize = 46;
 
 /// The maximum length of a protobuf-encoded Tendermint validator in bits.
 const VALIDATOR_BIT_LENGTH_MAX: usize = VALIDATOR_BYTE_LENGTH_MAX * 8;
@@ -34,6 +34,7 @@ const NUM_POSSIBLE_VALIDATOR_BYTE_LENGTHS: usize =
 const PUBKEY_BYTES_LEN: usize = 32;
 
 // The maximum number of bytes in a Tendermint validator's voting power.
+// https://docs.tendermint.com/v0.34/tendermint-core/using-tendermint.html#tendermint-networks
 const VOTING_POWER_BYTES_LENGTH_MAX: usize = 9;
 
 // The maximum number of bits in a Tendermint validator's voting power.
@@ -106,6 +107,14 @@ pub trait TendermintMarshaller {
         validator_byte_length: &Vec<U32Target>,
         validator_enabled: &Vec<BoolTarget>,
     ) -> [BoolTarget; HASH_SIZE * 8];
+
+    /// Accumulate voting power from the enabled validators & check that the voting power is greater than 2/3 of the total voting power.
+    fn check_voting_power(
+        &mut self,
+        validators: &Vec<TendermintValidator>,
+        validator_enabled: &Vec<BoolTarget>,
+        total_voting_power: &I64Target,
+    );
 }
 
 impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for CircuitBuilder<F, D> {
@@ -273,7 +282,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
             }
 
             // Load the output of the hash.
-            let hash = sha256(self, validator_bits);
+            let hash = sha256(self, &validator_bits);
             for k in 0..HASH_SIZE_BITS {
                 validator_bytes_hashes[j][k] = hash[k];
             }
@@ -380,7 +389,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
 
             // Load the output of the hash.
             // Note: Calculate the inner hash as if both validators are enabled.
-            let inner_hash = sha256(self, message_bits);
+            let inner_hash = sha256(self, &message_bits);
 
             for k in 0..HASH_SIZE_BITS {
                 // If the left node is enabled and the right node is disabled, we pass up the left hash.
@@ -443,6 +452,24 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
         // Return the root hash.
         return current_validator_hashes[0];
     }
+
+    fn check_voting_power(
+            &mut self,
+            validators: &Vec<TendermintValidator>,
+            validator_enabled: &Vec<BoolTarget>,
+            total_voting_power: &I64Target,
+        ) {
+        // Accumulate the voting power from the enabled validators.
+        let mut accumulated_voting_power = self.zero();
+        for i in 0..VALIDATOR_SET_SIZE_MAX {
+            let validator = validators[i];
+            let enabled = validator_enabled[i];
+            let voting_power = validator.voting_power;
+            let voting_power_enabled = self.mul(enabled, voting_power.0);
+            accumulated_voting_power = self.add(accumulated_voting_power, voting_power_enabled);
+        }
+        
+    }
 }
 
 #[cfg(test)]
@@ -457,7 +484,7 @@ pub(crate) mod tests {
             config::{GenericConfig, PoseidonGoldilocksConfig},
         },
     };
-    use plonky2_field::types::Field;
+    use plonky2::field::types::Field;
     use sha2::Sha256;
     use subtle_encoding::hex;
 
@@ -630,7 +657,7 @@ pub(crate) mod tests {
         let config = CircuitConfig::standard_recursion_config();
         let mut builder = CircuitBuilder::<F, D>::new(config);
 
-        // Generated array with byte arrays with variable length [38, 47] bytes (to mimic validator bytes), and computed the validator hash corresponding to a merkle tree of depth 2 formed by these validator bytes.
+        // Generated array with byte arrays with variable length [38, 46] bytes (to mimic validator bytes), and computed the validator hash corresponding to a merkle tree of depth 2 formed by these validator bytes.
         let validators: Vec<&str> = vec!["97b8cc20f17618415186ec0efca0f8a24a070b5e844f3abdaa03436c4cb58af32c3bde71e391", "5f407f30abdec9e3c4f5e8c95d0df93d5977acb7e686dd1dfc331a57f7c693756334f8252ca6b17f5a971fa891a9c7", "0daac88e983737ca1ed37da4fff6c87651deb410b3811dd6d6c0a9ff023a4655ef61d1240d60fe5f"];
 
         let (validators_target, validator_byte_length, validator_enabled) =
@@ -675,7 +702,7 @@ pub(crate) mod tests {
         let config = CircuitConfig::standard_recursion_config();
         let mut builder = CircuitBuilder::<F, D>::new(config);
 
-        // Generated array with byte arrays with variable length [38, 47] bytes (to mimic validator bytes), and computed the validator hash corresponding to a merkle tree of depth 2 formed by these validator bytes.
+        // Generated array with byte arrays with variable length [38, 6] bytes (to mimic validator bytes), and computed the validator hash corresponding to a merkle tree of depth 2 formed by these validator bytes.
         let validators: Vec<&str> = vec!["864711afc2c955c5bfcc65300d678ba7a5793fc74c629abaae3becaa5ac9e8d7dbd586a1e02fe7b30dd63c9f84b6ba", "b9ec50c618a22ca150f1157af35e0c530b3f7a1a96174f74aa85d86eabbe570efd36b0c73e49fc2725652f94989c"];
 
         let (validators_target, validator_byte_length, validator_enabled) =

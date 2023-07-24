@@ -3,7 +3,7 @@ use plonky2::{
     iop::target::{BoolTarget, Target},
     plonk::circuit_builder::CircuitBuilder,
 };
-use plonky2_field::extension::Extendable;
+use plonky2::field::extension::Extendable;
 
 #[derive(Debug, Clone, Copy)]
 pub struct U8Target(pub Target);

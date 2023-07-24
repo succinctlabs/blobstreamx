@@ -66,10 +66,10 @@ struct SignatureData {
 
 pub fn generate_val_array(num_validators: usize) {
     let mut rng = rand::thread_rng();
-    // Generate an array of byte arrays where the byte arrays have variable length between 38 and 47 bytes and the total length of the array is less than n
+    // Generate an array of byte arrays where the byte arrays have variable length between 38 and 46 bytes and the total length of the array is less than n
     let random_bytes: Vec<Vec<u8>> = (0..num_validators)
         .map(|_| {
-            let inner_length = rng.gen_range(38..=47);
+            let inner_length = rng.gen_range(38..=46);
             (0..inner_length).map(|_| rng.gen()).collect()
         })
         .collect();
