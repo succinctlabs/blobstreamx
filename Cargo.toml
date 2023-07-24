@@ -7,10 +7,8 @@ edition = "2021"
 anyhow = "1.0.71"
 clap = { version = "4.3.18", features = ["derive"] }
 digest = "0.10.7"
-plonky2 = { git = "https://github.com/mir-protocol/plonky2.git" }
-plonky2_ecdsa = { git = "ssh://git@github.com/succinctlabs/plonky2-ecdsa", branch="kevjue/serialization" }
-plonky2_field = "0.1.0"
-plonky2_u32 = { git = "ssh://git@github.com/succinctlabs/plonky2-u32", branch="kevjue/serialize" }
+plonky2 = { git = "ssh://git@github.com/succinctlabs/plonky2.git" }
+plonky2_gadgets = { git = "ssh://git@github.com/succinctlabs/plonky2-gadgets.git" }
 rand = "0.8.5"
 serde_json = "1.0.103"
 sha2 = "0.10.7"

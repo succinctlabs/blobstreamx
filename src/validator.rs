@@ -8,11 +8,11 @@
 //! read more about them here: https://protobuf.dev/programming-guides/encoding/#varints.
 use plonky2::iop::target::{BoolTarget, Target};
 use plonky2::{hash::hash_types::RichField, plonk::circuit_builder::CircuitBuilder};
-use plonky2_field::extension::Extendable;
+use plonky2::field::extension::Extendable;
+use plonky2_gadgets::hash::sha::sha256::sha256;
+use plonky2_gadgets::num::u32::gadgets::arithmetic_u32::{U32Target, CircuitBuilderU32};
 
 use crate::merkle::{HASH_SIZE, HASH_SIZE_BITS};
-use crate::sha256::sha256;
-use crate::u32::{U32Builder, U32Target};
 
 /// The maximum length of a protobuf-encoded Tendermint validator in bytes.
 const VALIDATOR_BYTE_LENGTH_MAX: usize = 47;
@@ -273,7 +273,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
             }
 
             // Load the output of the hash.
-            let hash = sha256(self, validator_bits);
+            let hash = sha256(self, &validator_bits);
             for k in 0..HASH_SIZE_BITS {
                 validator_bytes_hashes[j][k] = hash[k];
             }
@@ -457,7 +457,7 @@ pub(crate) mod tests {
             config::{GenericConfig, PoseidonGoldilocksConfig},
         },
     };
-    use plonky2_field::types::Field;
+    use plonky2::field::types::Field;
     use sha2::Sha256;
     use subtle_encoding::hex;
 

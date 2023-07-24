@@ -1,12 +1,11 @@
 use plonky2::{
     hash::hash_types::RichField,
-    iop::target::{BoolTarget, Target},
+    iop::target::{BoolTarget},
     plonk::circuit_builder::CircuitBuilder,
 };
-use plonky2_field::extension::Extendable;
+use plonky2::field::extension::Extendable;
+use plonky2_gadgets::num::u32::gadgets::arithmetic_u32::U32Target;
 
-#[derive(Debug, Clone, Copy)]
-pub struct U32Target(pub Target);
 
 pub trait U32Builder {
     fn u32_to_bits_le(&mut self, num: U32Target) -> [BoolTarget; 32];
