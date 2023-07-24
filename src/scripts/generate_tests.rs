@@ -1,10 +1,10 @@
 use crate::merkle::simple_hash_from_byte_vectors;
 use rand::Rng;
+use reqwest::Error;
+use serde::Deserialize;
 use serde_json::Value;
 use sha2::Sha256;
 use subtle_encoding::hex;
-use reqwest::Error;
-use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
 struct Response {
@@ -97,21 +97,16 @@ pub fn generate_val_array(num_validators: usize) {
 }
 
 pub async fn get_celestia_consensus_signatures() -> Result<(), Error> {
-    // Read from https://rpc-t.celestia.nodestake.top/signed_block?height=131950 using 
+    // Read from https://rpc-t.celestia.nodestake.top/signed_block?height=131950 using
     let url = "https://rpc-t.celestia.nodestake.top/signed_block?height=131950";
 
     // Send a GET request and wait for the response
 
-
-    let res = reqwest::get(url)
-        .await?
-        .json::<Value>()
-        .await?;
+    let res = reqwest::get(url).await?.json::<Value>().await?;
 
     println!("{:#?}", res);
 
     // Parse the response body as JSON
-
 
     Ok(())
 }
