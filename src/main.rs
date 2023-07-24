@@ -1,5 +1,5 @@
 pub mod bit_operations;
-pub mod generate_tests;
+pub mod scripts;
 pub mod helper;
 pub mod merkle;
 pub mod sha256;
@@ -7,6 +7,8 @@ pub mod u32;
 pub mod u8;
 pub mod utils;
 pub mod validator;
+
+use crate::scripts::generate_tests;
 
 use clap::{Arg, ArgAction, Command, Parser};
 
