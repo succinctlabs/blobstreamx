@@ -112,9 +112,10 @@ pub trait TendermintMarshaller {
     fn check_voting_power(
         &mut self,
         validators: &Vec<TendermintValidator>,
-        validator_enabled: &Vec<BoolTarget>,
+        validator_enabled: &Vec<U32Target>,
         total_voting_power: &I64Target,
     );
+
 }
 
 impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for CircuitBuilder<F, D> {
@@ -456,18 +457,96 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
     fn check_voting_power(
         &mut self,
         validators: &Vec<TendermintValidator>,
-        validator_enabled: &Vec<BoolTarget>,
+        validator_enabled: &Vec<U32Target>,
         total_voting_power: &I64Target,
     ) {
         // Accumulate the voting power from the enabled validators.
-        let mut accumulated_voting_power = self.zero();
+        let mut accumulated_voting_power = I64Target([U32Target(self.zero()), U32Target(self.zero())]);
         for i in 0..VALIDATOR_SET_SIZE_MAX {
             let validator = &validators[i];
             let enabled = validator_enabled[i];
             let voting_power = validator.voting_power;
-            // let voting_power_enabled = self.mul(enabled, voting_power.0);
-            // accumulated_voting_power = self.add(accumulated_voting_power, voting_power_enabled);
+            
+            // Note: Tendermint validators max voting power is 2^63 - 1. (Should below 2^32)
+            let (sum_lower_low, sum_lower_high) = self.mul_add_u32(voting_power.0[0], enabled, accumulated_voting_power.0[0]);
+            
+            let (carry_sum_low, carry_sum_high) = self.add_u32(sum_lower_high, voting_power.0[1]);
+
+            // This should not overflow from carrying voting_power[1] + accumulated_voting_power[0]
+            self.assert_zero_u32(carry_sum_high);
+
+            // This should not overflow
+            let (sum_upper_low, sum_upper_high) = self.mul_add_u32(carry_sum_low, enabled, accumulated_voting_power.0[1]);
+
+            // Check that the upper 32 bits of the upper sum are zero.
+            self.assert_zero_u32(sum_upper_high);
+
+            accumulated_voting_power.0[0] = sum_lower_low;
+            accumulated_voting_power.0[1] = sum_upper_low;
+
         }
+
+        let zero = self.constant_u32(0);
+
+        // Compute accumulated_voting_power * 3
+        let three = self.constant_u32(3);
+        let (sum_acc_lower_low, sum_acc_lower_high) = self.mul_u32(accumulated_voting_power.0[0], three);
+
+        let (carry_sum_acc_low, carry_sum_acc_high) = self.add_u32(sum_acc_lower_high, accumulated_voting_power.0[1]);
+
+        // This should not overflow from multiplying acc_voting_power by 3
+        // NOTE: This will limit the maximum size of numbers to (2^63 - 1) / 3
+        self.assert_zero_u32(carry_sum_acc_high);
+
+        let (sum_acc_upper_low, sum_acc_upper_high) = self.mul_u32(carry_sum_acc_low, three);
+
+        self.assert_zero_u32(sum_acc_upper_high);
+
+        // Compute total_vp * 2
+        let two = self.constant_u32(2);
+        let (total_vp_lower_low, total_vp_lower_high) = self.mul_u32(total_voting_power.0[0], two);
+
+        let (carry_total_vp_low, carry_total_vp_high) = self.add_u32(total_vp_lower_high, total_voting_power.0[1]);
+
+        self.assert_zero_u32(carry_total_vp_high);
+
+        let (total_vp_upper_low, total_vp_upper_high) = self.mul_u32(carry_total_vp_low, two);
+
+        self.assert_zero_u32(total_vp_upper_high);
+
+        // Check that the accumulated voting power is greater than 2/3 of the total voting power.
+        // 3 Cases
+        // 1) Upper 32 bits of accumulated voting power is greater than upper 32 bits of total voting power => PASS
+        // 2) Upper 32 bits of accumulated voting power is equal to upper 32 bits of total voting power
+        //  a) Lower 32 bits of accumulated voting power is >= than lower 32 bits of total voting power => PASS
+        //  b) Lower 32 bits of accumulated voting power is < to lower 32 bits of total voting power => FAIL
+        // 3) Upper 32 bits of accumulated voting power is less than upper 32 bits of total voting power => FAIL
+
+        let (result_high, underflow_high) = self.sub_u32(sum_acc_upper_low, total_vp_upper_low, zero);
+
+        let no_underflow_high = self.is_equal(underflow_high.0, zero.0);
+
+        // Check if upper 32 bits are equal
+        let upper_equal = self.is_equal(result_high.0, zero.0);
+
+        let upper_not_equal = self.not(upper_equal);
+
+        // Underflow if sum_acc_upper_low < total_vp_upper_low
+        let (result_low, underflow_low) = self.sub_u32(sum_acc_lower_low, total_vp_lower_low, zero);
+
+        let no_underflow_low = self.is_equal(underflow_low.0, zero.0);
+        
+        let upper_pass = self.and(upper_not_equal, no_underflow_high);
+
+        let lower_pass = self.and(upper_equal, no_underflow_low);
+
+        let pass = self.or(upper_pass, lower_pass);
+
+        let one = self.one();
+
+        // Check that the accumulated voting power is greater than 2/3 of the total voting power.
+        self.connect(pass.target, one);
+        
     }
 }
 
@@ -868,5 +947,22 @@ pub(crate) mod tests {
             }
             assert_eq!(marshalled_bytes[i], expected_bytes[i]);
         }
+    }
+
+    #[test]
+    fn test_underflow() {
+        let mut pw = PartialWitness::new();
+        let config = CircuitConfig::standard_recursion_config();
+        let mut builder = CircuitBuilder::<F, D>::new(config);
+        builder.check_underflow();
+        let data = builder.build::<C>();
+        let proof = data.prove(pw).unwrap();
+
+        println!("Created proof");
+
+        data.verify(proof).unwrap();
+
+        println!("Verified proof");
+
     }
 }
