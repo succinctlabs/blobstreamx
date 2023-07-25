@@ -17,6 +17,7 @@ struct Response {
 struct BlockData {
     header: HeaderData,
     commit: CommitData,
+    validator_set: ValidatorSetData,
 }
 
 #[derive(Debug, Deserialize)]
@@ -24,7 +25,6 @@ struct HeaderData {
     version: VersionData,
     chain_id: String,
     height: String,
-    // ... Add other fields as per your requirement
 }
 
 #[derive(Debug, Deserialize)]
@@ -39,14 +39,12 @@ struct CommitData {
     round: i32,
     block_id: BlockIdData,
     signatures: Vec<SignatureData>,
-    // ... Add other fields as per your requirement
 }
 
 #[derive(Debug, Deserialize)]
 struct BlockIdData {
     hash: String,
     parts: PartData,
-    // ... Add other fields as per your requirement
 }
 
 #[derive(Debug, Deserialize)]
@@ -61,7 +59,26 @@ struct SignatureData {
     validator_address: String,
     timestamp: String,
     signature: Option<String>,
-    // ... Add other fields as per your requirement
+}
+
+#[derive(Debug, Deserialize)]
+struct ValidatorSetData {
+    validators: Vec<ValidatorData>,
+    proposer: ValidatorData,
+}
+
+#[derive(Debug, Deserialize)]
+struct ValidatorData {
+    address: String,
+    pub_key: PubkeyData,
+    voting_power: String,
+    proposer_priority: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct PubkeyData {
+    r#type: String,
+    value: String,
 }
 
 pub fn generate_val_array(num_validators: usize) {
@@ -98,13 +115,21 @@ pub fn generate_val_array(num_validators: usize) {
 
 pub async fn get_celestia_consensus_signatures() -> Result<(), Error> {
     // Read from https://rpc-t.celestia.nodestake.top/signed_block?height=131950 using
-    let url = "https://rpc-t.celestia.nodestake.top/signed_block?height=132400";
+    // Serves latest block
+    let url = "https://rpc-t.celestia.nodestake.top/signed_block";
 
     // Send a GET request and wait for the response
 
-    let res = reqwest::get(url).await?.bytes().await?;
+    // Convert response to string
+    let res = reqwest::get(url).await?.text().await?;
 
-    println!("{:#?}", res);
+    let v: Response = serde_json::from_str(&res).expect("Failed to parse JSON");
+
+    // println!("{:#?}", v);
+
+    for signature in v.result.commit.signatures {
+        println!("Signature: {:?}", signature.signature);
+    }
 
     // Parse the response body as JSON
 
