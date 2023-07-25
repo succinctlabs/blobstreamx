@@ -6,11 +6,11 @@
 //! The `pubkey` is encoded as the raw list of bytes used in the public key. The `varint` is
 //! encoded using protobuf's default integer encoding, which consist of 7 bit payloads. You can
 //! read more about them here: https://protobuf.dev/programming-guides/encoding/#varints.
+use plonky2::field::extension::Extendable;
 use plonky2::iop::target::{BoolTarget, Target};
 use plonky2::{hash::hash_types::RichField, plonk::circuit_builder::CircuitBuilder};
-use plonky2::field::extension::Extendable;
 use plonky2_gadgets::hash::sha::sha256::sha256;
-use plonky2_gadgets::num::u32::gadgets::arithmetic_u32::U32Target;
+use plonky2_gadgets::num::u32::gadgets::arithmetic_u32::{CircuitBuilderU32, U32Target};
 
 use crate::merkle::{HASH_SIZE, HASH_SIZE_BITS};
 
@@ -57,7 +57,7 @@ pub struct I64Target(pub [U32Target; 2]);
 
 /// The bytes, public key, and voting power targets inside of a Tendermint validator.
 #[derive(Debug, Clone)]
-struct TendermintValidator {
+pub struct TendermintValidator {
     pub pubkey: Ed25519PubkeyTarget,
     pub voting_power: I64Target,
 }
@@ -454,27 +454,27 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
     }
 
     fn check_voting_power(
-            &mut self,
-            validators: &Vec<TendermintValidator>,
-            validator_enabled: &Vec<BoolTarget>,
-            total_voting_power: &I64Target,
-        ) {
+        &mut self,
+        validators: &Vec<TendermintValidator>,
+        validator_enabled: &Vec<BoolTarget>,
+        total_voting_power: &I64Target,
+    ) {
         // Accumulate the voting power from the enabled validators.
         let mut accumulated_voting_power = self.zero();
         for i in 0..VALIDATOR_SET_SIZE_MAX {
-            let validator = validators[i];
+            let validator = &validators[i];
             let enabled = validator_enabled[i];
             let voting_power = validator.voting_power;
-            let voting_power_enabled = self.mul(enabled, voting_power.0);
-            accumulated_voting_power = self.add(accumulated_voting_power, voting_power_enabled);
+            // let voting_power_enabled = self.mul(enabled, voting_power.0);
+            // accumulated_voting_power = self.add(accumulated_voting_power, voting_power_enabled);
         }
-        
     }
 }
 
 #[cfg(test)]
 pub(crate) mod tests {
     use clap::builder;
+    use plonky2::field::types::Field;
     use plonky2::iop::target::BoolTarget;
     use plonky2::{
         iop::witness::{PartialWitness, WitnessWrite},
@@ -484,7 +484,6 @@ pub(crate) mod tests {
             config::{GenericConfig, PoseidonGoldilocksConfig},
         },
     };
-    use plonky2::field::types::Field;
     use sha2::Sha256;
     use subtle_encoding::hex;
 
@@ -492,8 +491,9 @@ pub(crate) mod tests {
 
     use crate::merkle::{hash_all_leaves, HASH_SIZE_BITS};
 
+    use plonky2_gadgets::num::u32::gadgets::arithmetic_u32::U32Target;
+
     use crate::{
-        u32::U32Target,
         utils::{bits_to_bytes, f_bits_to_bytes},
         validator::{I64Target, TendermintMarshaller},
     };
@@ -603,11 +603,7 @@ pub(crate) mod tests {
         let config = CircuitConfig::standard_recursion_config();
         let mut builder = CircuitBuilder::<F, D>::new(config);
 
-        let validators: Vec<&str> = vec![
-            "de6ad0941095ada2a7996e6a888581928203b8b69e07ee254d289f5b9c9caea193c2ab01902d",
-            "92fbe0c52937d80c5ea643c7832620b84bfdf154ec7129b8b471a63a763f2fe955af1ac65fd3",
-            "e902f88b2371ff6243bf4b0ebe8f46205e00749dd4dad07b2ea34350a1f9ceedb7620ab913c2",
-        ];
+        let validators: Vec<&str> = vec!["6694200ba0e084f7184255abedc39af04463a4ff11e0e0c1326b1b82ea1de50c6b35cf6efa8f7ed3", "739d312e54353379a852b43de497ca4ec52bb49f59b7294a4d6cf19dd648e16cb530b7a7a1e35875d4ab4d90", "4277f2f871f3e041bcd4643c0cf18e5a931c2bfe121ce8983329a289a2b0d2161745a2ddf99bade9a1"];
 
         let validators_bytes: Vec<Vec<u8>> = validators
             .iter()
@@ -658,12 +654,12 @@ pub(crate) mod tests {
         let mut builder = CircuitBuilder::<F, D>::new(config);
 
         // Generated array with byte arrays with variable length [38, 46] bytes (to mimic validator bytes), and computed the validator hash corresponding to a merkle tree of depth 2 formed by these validator bytes.
-        let validators: Vec<&str> = vec!["97b8cc20f17618415186ec0efca0f8a24a070b5e844f3abdaa03436c4cb58af32c3bde71e391", "5f407f30abdec9e3c4f5e8c95d0df93d5977acb7e686dd1dfc331a57f7c693756334f8252ca6b17f5a971fa891a9c7", "0daac88e983737ca1ed37da4fff6c87651deb410b3811dd6d6c0a9ff023a4655ef61d1240d60fe5f"];
+        let validators: Vec<&str> = vec!["6694200ba0e084f7184255abedc39af04463a4ff11e0e0c1326b1b82ea1de50c6b35cf6efa8f7ed3", "739d312e54353379a852b43de497ca4ec52bb49f59b7294a4d6cf19dd648e16cb530b7a7a1e35875d4ab4d90", "4277f2f871f3e041bcd4643c0cf18e5a931c2bfe121ce8983329a289a2b0d2161745a2ddf99bade9a1"];
 
         let (validators_target, validator_byte_length, validator_enabled) =
             generate_inputs(&mut builder, &validators);
 
-        let expected_digest = "9e75a6467742596100e170527f6c74e654acf208278276025d7448d3ddb211b6";
+        let expected_digest = "d3430135bc6ed16a421ef1b8ec45d4d8b3e335e479f2bc3b074e9f1ed1d8f67e";
         let digest_bits = to_bits(hex::decode(expected_digest).unwrap());
 
         println!(
@@ -702,13 +698,13 @@ pub(crate) mod tests {
         let config = CircuitConfig::standard_recursion_config();
         let mut builder = CircuitBuilder::<F, D>::new(config);
 
-        // Generated array with byte arrays with variable length [38, 6] bytes (to mimic validator bytes), and computed the validator hash corresponding to a merkle tree of depth 2 formed by these validator bytes.
-        let validators: Vec<&str> = vec!["864711afc2c955c5bfcc65300d678ba7a5793fc74c629abaae3becaa5ac9e8d7dbd586a1e02fe7b30dd63c9f84b6ba", "b9ec50c618a22ca150f1157af35e0c530b3f7a1a96174f74aa85d86eabbe570efd36b0c73e49fc2725652f94989c"];
+        // Generated array with byte arrays with variable length [38, 46] bytes (to mimic validator bytes), and computed the validator hash corresponding to a merkle tree of depth 2 formed by these validator bytes.
+        let validators: Vec<&str> = vec!["364db94241a02b701d0dc85ac016fab2366fba326178e6f11d8294931969072b7441fd6b0ff5129d6867", "6fa0cef8f328eb8e2aef2084599662b1ee0595d842058966166029e96bd263e5367185f19af67b099645ec08aa"];
 
         let (validators_target, validator_byte_length, validator_enabled) =
             generate_inputs(&mut builder, &validators);
 
-        let expected_digest = "a47148d62d235d74db7619c00bfa0e8c6ad0564fe0ac7b81b78edfa18dd329b3";
+        let expected_digest = "be110ff9abb6bdeaebf48ac8e179a76fda1f6eaef0150ca6159587f489722204";
         let digest_bits = to_bits(hex::decode(expected_digest).unwrap());
 
         println!(

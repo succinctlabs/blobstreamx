@@ -98,11 +98,11 @@ pub fn generate_val_array(num_validators: usize) {
 
 pub async fn get_celestia_consensus_signatures() -> Result<(), Error> {
     // Read from https://rpc-t.celestia.nodestake.top/signed_block?height=131950 using
-    let url = "https://rpc-t.celestia.nodestake.top/signed_block?height=131950";
+    let url = "https://rpc-t.celestia.nodestake.top/signed_block?height=132400";
 
     // Send a GET request and wait for the response
 
-    let res = reqwest::get(url).await?.json::<Value>().await?;
+    let res = reqwest::get(url).await?.bytes().await?;
 
     println!("{:#?}", res);
 
