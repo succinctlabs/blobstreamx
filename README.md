@@ -3,7 +3,7 @@
 Set release version to old nightly.
 
 ```
-cargo +nightly-2023-05-29 build
+cargo +nightly-2023-06-02 build
 ```
 
 ## Fixtures
