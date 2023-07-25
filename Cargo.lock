@@ -115,7 +115,7 @@ dependencies = [
  "anyhow",
  "clap",
  "digest",
- "plonky2 0.1.3 (git+ssh://git@github.com/succinctlabs/plonky2.git)",
+ "plonky2",
  "plonky2_gadgets",
  "rand",
  "serde_json",
@@ -542,30 +542,6 @@ checksum = "dd8b5dd2ae5ed71462c540258bedcb51965123ad7e7ccf4b9a8cafaa4a63576d"
 [[package]]
 name = "plonky2"
 version = "0.1.3"
-source = "git+ssh://git@github.com/succinctlabs/plonky2.git#84c6a46f0934d7756c72999ca39caab9d5888dfb"
-dependencies = [
- "ahash",
- "anyhow",
- "getrandom",
- "hashbrown",
- "itertools 0.11.0",
- "keccak-hash",
- "log",
- "num",
- "plonky2_field",
- "plonky2_maybe_rayon",
- "plonky2_util",
- "rand",
- "rand_chacha",
- "serde",
- "serde_json",
- "static_assertions",
- "unroll",
-]
-
-[[package]]
-name = "plonky2"
-version = "0.1.3"
 source = "git+https://github.com/succinctlabs/plonky2.git#84c6a46f0934d7756c72999ca39caab9d5888dfb"
 dependencies = [
  "ahash",
@@ -580,6 +556,7 @@ dependencies = [
  "plonky2_maybe_rayon",
  "plonky2_util",
  "rand",
+ "rand_chacha",
  "serde",
  "serde_json",
  "static_assertions",
@@ -605,13 +582,13 @@ dependencies = [
 [[package]]
 name = "plonky2_gadgets"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky2-gadgets.git#a8fe804f6285179a3bebd8f240273b5cc0cd7577"
+source = "git+ssh://git@github.com/succinctlabs/plonky2-gadgets.git#41e1e88a4bdb6f563654ee5135c8c763e42f58aa"
 dependencies = [
  "anyhow",
  "digest",
  "itertools 0.10.5",
  "num",
- "plonky2 0.1.3 (git+https://github.com/succinctlabs/plonky2.git)",
+ "plonky2",
  "serde_json",
  "sha2",
  "subtle-encoding",

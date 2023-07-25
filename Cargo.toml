@@ -7,7 +7,7 @@ edition = "2021"
 anyhow = "1.0.71"
 clap = { version = "4.3.18", features = ["derive"] }
 digest = "0.10.7"
-plonky2 = { git = "ssh://git@github.com/succinctlabs/plonky2.git" }
+plonky2 = { git = "https://github.com/succinctlabs/plonky2.git" }
 plonky2_gadgets = { git = "ssh://git@github.com/succinctlabs/plonky2-gadgets.git" }
 rand = "0.8.5"
 serde_json = "1.0.103"

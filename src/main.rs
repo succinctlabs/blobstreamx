@@ -1,6 +1,5 @@
 pub mod merkle;
 pub mod scripts;
-pub mod u32;
 pub mod utils;
 pub mod validator;
 
