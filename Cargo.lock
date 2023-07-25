@@ -542,7 +542,7 @@ checksum = "dd8b5dd2ae5ed71462c540258bedcb51965123ad7e7ccf4b9a8cafaa4a63576d"
 [[package]]
 name = "plonky2"
 version = "0.1.3"
-source = "git+https://github.com/succinctlabs/plonky2.git#84c6a46f0934d7756c72999ca39caab9d5888dfb"
+source = "git+https://github.com/mir-protocol/plonky2.git#bfa7ab369eebdd2284def26d830dfcfcdcd58c1b"
 dependencies = [
  "ahash",
  "anyhow",
@@ -582,7 +582,7 @@ dependencies = [
 [[package]]
 name = "plonky2_gadgets"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/plonky2-gadgets.git#41e1e88a4bdb6f563654ee5135c8c763e42f58aa"
+source = "git+ssh://git@github.com/succinctlabs/plonky2-gadgets.git#c8c670282afbce2634b9dd82f673ab3755b68e61"
 dependencies = [
  "anyhow",
  "digest",
