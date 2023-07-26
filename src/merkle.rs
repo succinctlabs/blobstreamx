@@ -8,6 +8,9 @@ use tendermint_proto::{
 use tendermint::block::Header;
 use sha2::{Sha256, Digest};
 use subtle_encoding::hex;
+use std::borrow::BorrowMut;
+use std::rc::Rc;
+use std::cell::RefCell;
 
 /// Compute leaf hashes for arbitrary byte vectors.
 /// The leaves of the tree are the bytes of the given byte vectors in
@@ -33,11 +36,11 @@ struct Proof {
 }
 
 #[derive(Clone)]
-struct ProofNode {
-    hash: Hash,
-    parent: Option<Box<ProofNode>>,
-    left: Option<Box<ProofNode>>,
-    right: Option<Box<ProofNode>>,
+pub struct ProofNode {
+    pub hash: Hash,
+    pub left: Option<Rc<RefCell<ProofNode>>>,
+    pub right: Option<Rc<RefCell<ProofNode>>>,
+    pub parent: Option<Rc<RefCell<ProofNode>>>,
 }
 
 impl Proof {
@@ -69,22 +72,29 @@ impl Proof {
 }
 
 impl ProofNode {
-    fn new(hash: Hash, parent: Option<Box<ProofNode>>, left: Option<Box<ProofNode>>, right: Option<Box<ProofNode>>) -> Self {
+    fn new(hash: Hash, parent: Option<Rc<RefCell<ProofNode>>>, left: Option<Rc<RefCell<ProofNode>>>, right: Option<Rc<RefCell<ProofNode>>>) -> Self {
         ProofNode { hash, parent, left, right }
     }
 
     fn flatten_aunts(&self) -> Vec<Hash> {
         let mut inner_hashes = Vec::new();
-        let mut current_node = self.parent.as_ref();
+        let mut current_node = self.parent.clone();
 
         while let Some(node) = current_node {
-            match (node.left.as_ref(), node.right.as_ref()) {
-                (Some(left_node), _) => inner_hashes.push(left_node.hash.clone()),
-                (_, Some(right_node)) => inner_hashes.push(right_node.hash.clone()),
+            // Separate this into two steps to avoid holding onto a borrow across loop iterations
+            let (left, right) = {
+                let node_borrowed = node.borrow();
+                (node_borrowed.left.clone(), node_borrowed.right.clone())
+            };
+    
+            match (&left, &right) {
+                (Some(left_node), _) => inner_hashes.push(left_node.borrow().hash.clone()),
+                (_, Some(right_node)) => inner_hashes.push(right_node.borrow().hash.clone()),
                 _ => {}
             }
-
-            current_node = node.parent.as_ref();
+    
+            // Now update current_node
+            current_node = node.borrow().parent.clone();
         }
 
         inner_hashes
@@ -92,10 +102,11 @@ impl ProofNode {
 }
 
 fn compute_hash_from_aunts(index: u64, total: u64, leaf_hash: Hash, inner_hashes: Vec<Hash>) -> Option<Hash> {
-    println!("Index: {:?}", index);
+    // println!("Index: {:?}", index);
     println!("Total: {:?}", total);
-    println!("Leaf Hash: {:?}", String::from_utf8(hex::encode(leaf_hash)));
-    println!("Inner Hashes: {:?}", inner_hashes);
+    // println!("Leaf Hash: {:?}", String::from_utf8(hex::encode(leaf_hash)));
+    let aunts_hex: Vec<String> = inner_hashes.iter().map(|a| String::from_utf8(hex::encode(a)).unwrap()).collect();
+    println!("Inner Hashes: {:?}", aunts_hex);
     if index >= total || index < 0 || total <= 0 {
         return None;
     }
@@ -130,50 +141,58 @@ fn compute_hash_from_aunts(index: u64, total: u64, leaf_hash: Hash, inner_hashes
 
 fn proofs_from_byte_slices(items: Vec<Vec<u8>>) -> (Hash, Vec<Proof>) {
     let (trails, root) = trails_from_byte_slices(items.clone());
-    let root_hash = root.hash.clone();
+    let root_hash = root.borrow().hash;
     let mut proofs = Vec::new();
 
     for (i, trail) in trails.into_iter().enumerate() {
+        // println!("Trail: {:?}", String::from_utf8(hex::encode(trail.borrow().hash)));
         proofs.push(Proof::new(
             items.len() as u64,
             i as u64,
-            trail.hash.clone(),
-            trail.flatten_aunts(),
+            trail.borrow().hash,
+            trail.borrow().flatten_aunts(),
         ));
     }
 
     (root_hash, proofs)
 }
 
-fn trails_from_byte_slices(items: Vec<Vec<u8>>) -> (Vec<ProofNode>, ProofNode) {
+fn trails_from_byte_slices(items: Vec<Vec<u8>>) -> (Vec<Rc<RefCell<ProofNode>>>, Rc<RefCell<ProofNode>>) {
     match items.len() {
         0 => {
             let node = ProofNode::new(empty_hash(), None, None, None);
-            (vec![], node)
+            (vec![], Rc::new(RefCell::new(node)))
         }
         1 => {
-            let node = ProofNode::new(leaf_hash(&items[0]), None, None, None);
-            (vec![node.clone()], node)
+            let node = Rc::new(RefCell::new(ProofNode::new(leaf_hash(&items[0]), None, None, None)));
+            (vec![Rc::clone(&node)], Rc::clone(&node))
         }
         _ => {
             let k = get_split_point(items.len());
-            let (lefts, mut left_root) = trails_from_byte_slices(items[..k].to_vec());
-            let (rights, mut right_root) = trails_from_byte_slices(items[k..].to_vec());
+            let (lefts, left_root) = trails_from_byte_slices(items[..k].to_vec());
+            let (rights, right_root) = trails_from_byte_slices(items[k..].to_vec());
 
-            let root_hash = inner_hash(&left_root.hash, &right_root.hash);
-            let root = ProofNode::new(
+            let root_hash = inner_hash(&left_root.borrow().hash, &right_root.borrow().hash);
+            let root = Rc::new(RefCell::new(ProofNode::new(
                 root_hash,
                 None,
                 None,
-                None
-            );
+                None,
+            )));
 
-            left_root.parent = Some(Box::new(root.clone()));
-            left_root.right = Some(Box::new(right_root.clone()));
-            right_root.parent = Some(Box::new(root.clone()));
-            right_root.left = Some(Box::new(left_root.clone()));
+            {
+                let mut left_root_borrowed = (*left_root).borrow_mut();
+                left_root_borrowed.parent = Some(Rc::clone(&root));
+                left_root_borrowed.right = Some(Rc::clone(&right_root));
+            }
+            {
+                let mut right_root_borrowed = (*right_root).borrow_mut();
+                right_root_borrowed.parent = Some(Rc::clone(&root));
+                right_root_borrowed.left = Some(Rc::clone(&left_root));
+            }
 
             let trails = [lefts, rights].concat();
+            // println!("Trails: {:?}", trails.len());
 
             (trails, root)
         }
