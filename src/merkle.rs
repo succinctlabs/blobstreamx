@@ -1,6 +1,13 @@
 /// Source (tendermint-rs): https://github.com/informalsystems/tendermint-rs/blob/e930691a5639ef805c399743ac0ddbba0e9f53da/tendermint/src/merkle.rs#L32
 use tendermint::merkle::{MerkleHash, Hash};
+use tendermint_proto::Protobuf;
+use tendermint_proto::{
+    types::BlockId as RawBlockId,
+    version::Consensus as RawConsensusVersion,
+};
+use tendermint::block::Header;
 use sha2::{Sha256, Digest};
+use subtle_encoding::hex;
 
 /// Compute leaf hashes for arbitrary byte vectors.
 /// The leaves of the tree are the bytes of the given byte vectors in
@@ -19,32 +26,54 @@ where
 
 #[derive(Clone)]
 struct Proof {
-    total: i64,
-    index: i64,
-    leaf_hash: Vec<u8>,
-    aunts: Vec<Vec<u8>>,
+    total: u64,
+    index: u64,
+    leaf_hash: Hash,
+    aunts: Vec<Hash>,
 }
 
 #[derive(Clone)]
 struct ProofNode {
-    hash: Vec<u8>,
+    hash: Hash,
     parent: Option<Box<ProofNode>>,
     left: Option<Box<ProofNode>>,
     right: Option<Box<ProofNode>>,
 }
 
 impl Proof {
-    fn new(total: i64, index: i64, leaf_hash: Vec<u8>, aunts: Vec<Vec<u8>>) -> Self {
+    fn new(total: u64, index: u64, leaf_hash: Hash, aunts: Vec<Hash>) -> Self {
         Proof { total, index, leaf_hash, aunts }
+    }
+
+    fn compute_root_hash(&self) -> Option<Hash> {
+        return compute_hash_from_aunts(self.index, self.total, self.leaf_hash, self.aunts.clone())
+    }
+
+    fn verify(&self, root_hash: &Hash, leaf: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
+        let leaf_hash = leaf_hash(leaf);
+        if self.total < 0 {
+            return Err("proof total must be positive".into());
+        }
+        if self.index < 0 {
+            return Err("proof index cannot be negative".into());
+        }
+        if self.leaf_hash != leaf_hash {
+            return Err(format!("invalid leaf hash: wanted {:?} got {:?}", hex::encode(leaf_hash), hex::encode(self.leaf_hash)).into());
+        }
+        let computed_hash = self.compute_root_hash().expect("failed to compute root hash");
+        if computed_hash != *root_hash {
+            return Err(format!("invalid root hash: wanted {:?} got {:?}", hex::encode(root_hash), hex::encode(computed_hash)).into());
+        }
+        Ok(())
     }
 }
 
 impl ProofNode {
-    fn new(hash: Vec<u8>, parent: Option<Box<ProofNode>>, left: Option<Box<ProofNode>>, right: Option<Box<ProofNode>>) -> Self {
+    fn new(hash: Hash, parent: Option<Box<ProofNode>>, left: Option<Box<ProofNode>>, right: Option<Box<ProofNode>>) -> Self {
         ProofNode { hash, parent, left, right }
     }
 
-    fn flatten_aunts(&self) -> Vec<Vec<u8>> {
+    fn flatten_aunts(&self) -> Vec<Hash> {
         let mut inner_hashes = Vec::new();
         let mut current_node = self.parent.as_ref();
 
@@ -62,15 +91,52 @@ impl ProofNode {
     }
 }
 
-fn proofs_from_byte_slices(items: Vec<Vec<u8>>) -> (Vec<u8>, Vec<Proof>) {
+fn compute_hash_from_aunts(index: u64, total: u64, leaf_hash: Hash, inner_hashes: Vec<Hash>) -> Option<Hash> {
+    println!("Index: {:?}", index);
+    println!("Total: {:?}", total);
+    println!("Leaf Hash: {:?}", String::from_utf8(hex::encode(leaf_hash)));
+    println!("Inner Hashes: {:?}", inner_hashes);
+    if index >= total || index < 0 || total <= 0 {
+        return None;
+    }
+    match total {
+        0 => panic!("Cannot call compute_hash_from_aunts() with 0 total"),
+        1 => {
+            if !inner_hashes.is_empty() {
+                return None;
+            }
+            return Some(leaf_hash);
+        },
+        _ => {
+            if inner_hashes.is_empty() {
+                return None;
+            }
+            let num_left = get_split_point(total as usize) as u64;
+            if index < num_left {
+                let left_hash = compute_hash_from_aunts(index, num_left, leaf_hash, inner_hashes[..inner_hashes.len()-1].to_vec());
+                match left_hash {
+                    None => return None,
+                    Some(hash) => return Some(inner_hash(&hash, &inner_hashes[inner_hashes.len()-1])),
+                }
+            }
+            let right_hash = compute_hash_from_aunts(index-num_left, total-num_left, leaf_hash, inner_hashes[..inner_hashes.len()-1].to_vec());
+            match right_hash {
+                None => return None,
+                Some(hash) => return Some(inner_hash(&inner_hashes[inner_hashes.len()-1], &hash)),
+            }
+        }
+    }
+}
+
+fn proofs_from_byte_slices(items: Vec<Vec<u8>>) -> (Hash, Vec<Proof>) {
     let (trails, root) = trails_from_byte_slices(items.clone());
     let root_hash = root.hash.clone();
     let mut proofs = Vec::new();
 
     for (i, trail) in trails.into_iter().enumerate() {
         proofs.push(Proof::new(
-            items.len() as i64,
-            i as i64,
+            items.len() as u64,
+            i as u64,
             trail.hash.clone(),
             trail.flatten_aunts(),
         ));
@@ -91,16 +157,21 @@ fn trails_from_byte_slices(items: Vec<Vec<u8>>) -> (Vec<ProofNode>, ProofNode) {
         }
         _ => {
             let k = get_split_point(items.len());
-            let (lefts, left_root) = trails_from_byte_slices(items[..k].to_vec());
-            let (rights, right_root) = trails_from_byte_slices(items[k..].to_vec());
+            let (lefts, mut left_root) = trails_from_byte_slices(items[..k].to_vec());
+            let (rights, mut right_root) = trails_from_byte_slices(items[k..].to_vec());
 
             let root_hash = inner_hash(&left_root.hash, &right_root.hash);
             let root = ProofNode::new(
                 root_hash,
                 None,
-                Some(Box::new(left_root)),
-                Some(Box::new(right_root)),
+                None,
+                None
             );
+
+            left_root.parent = Some(Box::new(root.clone()));
+            left_root.right = Some(Box::new(right_root.clone()));
+            right_root.parent = Some(Box::new(root.clone()));
+            right_root.left = Some(Box::new(left_root.clone()));
 
             let trails = [lefts, rights].concat();
 
@@ -122,32 +193,80 @@ fn get_split_point(length: usize) -> usize {
     }
 }
 
-fn empty_hash() -> Vec<u8> {
-    Sha256::digest(&[]).to_vec()
+fn empty_hash() -> Hash {
+    Sha256::digest(&[]).to_vec().try_into().expect("slice with incorrect length")
 }
 
-fn leaf_hash(leaf: &[u8]) -> Vec<u8> {
+fn leaf_hash(leaf: &[u8]) -> Hash {
     let mut hasher = Sha256::new();
     hasher.update([0x00].as_ref());
     hasher.update(leaf);
-    hasher.finalize().to_vec()
+    hasher.finalize().to_vec().try_into().expect("slice with incorrect length")
 }
 
-fn inner_hash(left: &[u8], right: &[u8]) -> Vec<u8> {
+fn inner_hash(left: &[u8], right: &[u8]) -> Hash {
     let mut hasher = Sha256::new();
     hasher.update([0x01].as_ref());
     hasher.update(left);
     hasher.update(right);
-    hasher.finalize().to_vec()
+    hasher.finalize().to_vec().try_into().expect("slice with incorrect length")
 }
 
+fn generate_val_hash_proof(h: Header) -> (Hash, Vec<Proof>) {
+    
+    println!("Header Hash: {:?}", h.hash());
 
+    // println!("Length of height: {:?}", h.height.encode_vec().len().to_string());
+
+    let fields_bytes = vec![
+        Protobuf::<RawConsensusVersion>::encode_vec(h.version),
+        h.chain_id.clone().encode_vec(),
+        h.height.encode_vec(),
+        h.time.encode_vec(),
+        Protobuf::<RawBlockId>::encode_vec(h.last_block_id.unwrap_or_default()),
+        h.last_commit_hash.unwrap_or_default().encode_vec(),
+        h.data_hash.unwrap_or_default().encode_vec(),
+        h.validators_hash.encode_vec(),
+        h.next_validators_hash.encode_vec(),
+        h.consensus_hash.encode_vec(),
+        h.app_hash.clone().encode_vec(),
+        h.last_results_hash.unwrap_or_default().encode_vec(),
+        h.evidence_hash.unwrap_or_default().encode_vec(),
+        h.proposer_address.encode_vec(),
+    ];
+
+    // let hash = h.hash().as_bytes().try_into().expect("Failed to unwrap");
+    // println!("Header Hash as Hex: {:?}", String::from_utf8(subtle_encoding::hex::encode(hash)).unwrap());
+
+
+    let (root_hash, proofs) = proofs_from_byte_slices(fields_bytes);
+    println!("Validator Hash (expected): {:?}", String::from_utf8(hex::encode(h.validators_hash)).unwrap());
+
+    println!("Root Hash: {:?}", String::from_utf8(hex::encode(root_hash)).unwrap());
+    println!("Validator Hash: {:?}", String::from_utf8(hex::encode(proofs[7].clone().leaf_hash)).unwrap());
+    // Use map to format the aunts as hex strings
+    let aunts = proofs[7].clone().aunts;
+    let aunts_hex: Vec<String> = aunts.iter().map(|a| String::from_utf8(hex::encode(a)).unwrap()).collect();
+    println!("Aunts: {:?}", aunts_hex);
+
+    proofs[7].verify(&root_hash, &h.validators_hash.encode_vec()).unwrap();
+    
+    // for val in h.validators.iter() {
+    //     val_hash.push(val.address.as_bytes().to_vec());
+    // }
+    // proofs_from_byte_slices(h)
+    (root_hash, vec![])
+}
 
 #[cfg(test)]
 pub(crate) mod tests {
     use tendermint::merkle::simple_hash_from_byte_vectors;
     use sha2::Sha256;
     use subtle_encoding::hex;
+
+    use crate::merkle::generate_val_hash_proof;
+
+    use super::proofs_from_byte_slices;
 
     #[test]
     fn test_validator_inclusion() {
@@ -192,5 +311,19 @@ pub(crate) mod tests {
 
         let root = simple_hash_from_byte_vectors::<Sha256>(&leaf_tree);
         assert_eq!(leaf_root, &root);
+    }
+
+    #[test]
+    fn test_proofs_from_byte_slices() {
+        // Generate test cases from Celestia block:
+        let block = tendermint::Block::from(
+            serde_json::from_str::<tendermint::block::Block>(include_str!("./scripts/celestia_block.json")).unwrap()
+        );
+        
+        // println!("Block: {:?}", block);
+
+        generate_val_hash_proof(block.header);
+
+        
     }
 }

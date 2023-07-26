@@ -190,6 +190,7 @@ dependencies = [
  "sha2 0.10.7",
  "subtle-encoding",
  "tendermint",
+ "tendermint-proto",
  "tokio",
 ]
 

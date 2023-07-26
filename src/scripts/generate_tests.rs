@@ -5,7 +5,6 @@ use serde_json::Value;
 use sha2::Sha256;
 use subtle_encoding::hex;
 use tendermint::merkle::simple_hash_from_byte_vectors;
-use tendermint::merkle::proof::Proof;
 
 #[derive(Debug, Deserialize)]
 struct Response {
