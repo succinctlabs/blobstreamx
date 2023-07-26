@@ -1,5 +1,6 @@
 /// Source (tendermint-rs): https://github.com/informalsystems/tendermint-rs/blob/e930691a5639ef805c399743ac0ddbba0e9f53da/tendermint/src/merkle.rs#L32
 use tendermint::merkle::{MerkleHash, Hash};
+use sha2::{Sha256, Digest};
 
 /// Compute leaf hashes for arbitrary byte vectors.
 /// The leaves of the tree are the bytes of the given byte vectors in
@@ -15,6 +16,132 @@ where
         .collect();
     hashed_leaves
 }
+
+#[derive(Clone)]
+struct Proof {
+    total: i64,
+    index: i64,
+    leaf_hash: Vec<u8>,
+    aunts: Vec<Vec<u8>>,
+}
+
+#[derive(Clone)]
+struct ProofNode {
+    hash: Vec<u8>,
+    parent: Option<Box<ProofNode>>,
+    left: Option<Box<ProofNode>>,
+    right: Option<Box<ProofNode>>,
+}
+
+impl Proof {
+    fn new(total: i64, index: i64, leaf_hash: Vec<u8>, aunts: Vec<Vec<u8>>) -> Self {
+        Proof { total, index, leaf_hash, aunts }
+    }
+}
+
+impl ProofNode {
+    fn new(hash: Vec<u8>, parent: Option<Box<ProofNode>>, left: Option<Box<ProofNode>>, right: Option<Box<ProofNode>>) -> Self {
+        ProofNode { hash, parent, left, right }
+    }
+
+    fn flatten_aunts(&self) -> Vec<Vec<u8>> {
+        let mut inner_hashes = Vec::new();
+        let mut current_node = self.parent.as_ref();
+
+        while let Some(node) = current_node {
+            match (node.left.as_ref(), node.right.as_ref()) {
+                (Some(left_node), _) => inner_hashes.push(left_node.hash.clone()),
+                (_, Some(right_node)) => inner_hashes.push(right_node.hash.clone()),
+                _ => {}
+            }
+
+            current_node = node.parent.as_ref();
+        }
+
+        inner_hashes
+    }
+}
+
+fn proofs_from_byte_slices(items: Vec<Vec<u8>>) -> (Vec<u8>, Vec<Proof>) {
+    let (trails, root) = trails_from_byte_slices(items.clone());
+    let root_hash = root.hash.clone();
+    let mut proofs = Vec::new();
+
+    for (i, trail) in trails.into_iter().enumerate() {
+        proofs.push(Proof::new(
+            items.len() as i64,
+            i as i64,
+            trail.hash.clone(),
+            trail.flatten_aunts(),
+        ));
+    }
+
+    (root_hash, proofs)
+}
+
+fn trails_from_byte_slices(items: Vec<Vec<u8>>) -> (Vec<ProofNode>, ProofNode) {
+    match items.len() {
+        0 => {
+            let node = ProofNode::new(empty_hash(), None, None, None);
+            (vec![], node)
+        }
+        1 => {
+            let node = ProofNode::new(leaf_hash(&items[0]), None, None, None);
+            (vec![node.clone()], node)
+        }
+        _ => {
+            let k = get_split_point(items.len());
+            let (lefts, left_root) = trails_from_byte_slices(items[..k].to_vec());
+            let (rights, right_root) = trails_from_byte_slices(items[k..].to_vec());
+
+            let root_hash = inner_hash(&left_root.hash, &right_root.hash);
+            let root = ProofNode::new(
+                root_hash,
+                None,
+                Some(Box::new(left_root)),
+                Some(Box::new(right_root)),
+            );
+
+            let trails = [lefts, rights].concat();
+
+            (trails, root)
+        }
+    }
+}
+
+fn get_split_point(length: usize) -> usize {
+    if length < 1 {
+        panic!("Trying to split a tree with size < 1")
+    }
+    let bitlen = (length as f64).log2() as usize;
+    let k = 1 << bitlen;
+    if k == length {
+        k >> 1
+    } else {
+        k
+    }
+}
+
+fn empty_hash() -> Vec<u8> {
+    Sha256::digest(&[]).to_vec()
+}
+
+fn leaf_hash(leaf: &[u8]) -> Vec<u8> {
+    let mut hasher = Sha256::new();
+    hasher.update([0x00].as_ref());
+    hasher.update(leaf);
+    hasher.finalize().to_vec()
+}
+
+fn inner_hash(left: &[u8], right: &[u8]) -> Vec<u8> {
+    let mut hasher = Sha256::new();
+    hasher.update([0x01].as_ref());
+    hasher.update(left);
+    hasher.update(right);
+    hasher.finalize().to_vec()
+}
+
+
 
 #[cfg(test)]
 pub(crate) mod tests {
