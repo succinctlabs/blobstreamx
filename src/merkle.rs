@@ -1,99 +1,5 @@
 /// Source (tendermint-rs): https://github.com/informalsystems/tendermint-rs/blob/e930691a5639ef805c399743ac0ddbba0e9f53da/tendermint/src/merkle.rs#L32
-use digest::{consts::U32, Digest, FixedOutputReset};
-
-pub const HASH_SIZE: usize = 32;
-
-pub const HASH_SIZE_BITS: usize = HASH_SIZE * 8;
-
-/// Hash is the output of the cryptographic digest function
-pub type Hash = [u8; HASH_SIZE];
-
-/// Implementation of Merkle tree hashing for Tendermint.
-pub trait MerkleHash {
-    // tmhash({})
-    // Pre and post-conditions: the hasher is in the reset state
-    // before and after calling this function.
-    fn empty_hash(&mut self) -> Hash;
-
-    // tmhash(0x00 || leaf)
-    // Pre and post-conditions: the hasher is in the reset state
-    // before and after calling this function.
-    fn leaf_hash(&mut self, bytes: &[u8]) -> Hash;
-
-    // tmhash(0x01 || left || right)
-    // Pre and post-conditions: the hasher is in the reset state
-    // before and after calling this function.
-    fn inner_hash(&mut self, left: Hash, right: Hash) -> Hash;
-
-    // Implements recursion into subtrees.
-    // Pre and post-conditions: the hasher is in the reset state
-    // before and after calling this function.
-    fn hash_byte_vectors(&mut self, byte_vecs: &[impl AsRef<[u8]>]) -> Hash {
-        let length = byte_vecs.len();
-        match length {
-            0 => self.empty_hash(),
-            1 => self.leaf_hash(byte_vecs[0].as_ref()),
-            _ => {
-                let split = length.next_power_of_two() / 2;
-                let left = self.hash_byte_vectors(&byte_vecs[..split]);
-                let right = self.hash_byte_vectors(&byte_vecs[split..]);
-                self.inner_hash(left, right)
-            }
-        }
-    }
-}
-
-// A helper to copy GenericArray into the human-friendly Hash type.
-fn copy_to_hash(output: impl AsRef<[u8]>) -> Hash {
-    let mut hash_bytes = [0u8; HASH_SIZE];
-    hash_bytes.copy_from_slice(output.as_ref());
-    hash_bytes
-}
-
-impl<H> MerkleHash for H
-where
-    H: Digest<OutputSize = U32> + FixedOutputReset,
-{
-    fn empty_hash(&mut self) -> Hash {
-        // Get the output of an empty digest state.
-        let digest = self.finalize_reset();
-        copy_to_hash(digest)
-    }
-
-    fn leaf_hash(&mut self, bytes: &[u8]) -> Hash {
-        // Feed the data to the hasher, prepended with 0x00.
-        Digest::update(self, [0x00]);
-        Digest::update(self, bytes);
-
-        // Finalize the digest, reset the hasher state.
-        let digest = self.finalize_reset();
-
-        copy_to_hash(digest)
-    }
-
-    fn inner_hash(&mut self, left: Hash, right: Hash) -> Hash {
-        // Feed the data to the hasher: 0x1, then left and right data.
-        Digest::update(self, [0x01]);
-        Digest::update(self, left);
-        Digest::update(self, right);
-
-        // Finalize the digest, reset the hasher state
-        let digest = self.finalize_reset();
-
-        copy_to_hash(digest)
-    }
-}
-
-/// Compute a simple Merkle root from vectors of arbitrary byte vectors.
-/// The leaves of the tree are the bytes of the given byte vectors in
-/// the given order.
-pub fn simple_hash_from_byte_vectors<H>(byte_vecs: &[impl AsRef<[u8]>]) -> Hash
-where
-    H: MerkleHash + Default,
-{
-    let mut hasher = H::default();
-    hasher.hash_byte_vectors(byte_vecs)
-}
+use tendermint::merkle::{MerkleHash, Hash};
 
 /// Compute leaf hashes for arbitrary byte vectors.
 /// The leaves of the tree are the bytes of the given byte vectors in
@@ -112,7 +18,7 @@ where
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use super::*;
+    use tendermint::merkle::simple_hash_from_byte_vectors;
     use sha2::Sha256;
     use subtle_encoding::hex;
 

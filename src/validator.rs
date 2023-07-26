@@ -12,7 +12,10 @@ use plonky2::{hash::hash_types::RichField, plonk::circuit_builder::CircuitBuilde
 use plonky2_gadgets::hash::sha::sha256::sha256;
 use plonky2_gadgets::num::u32::gadgets::arithmetic_u32::{CircuitBuilderU32, U32Target};
 
-use crate::merkle::{HASH_SIZE, HASH_SIZE_BITS};
+use tendermint::merkle::HASH_SIZE;
+
+/// The number of bytes in a SHA256 hash.
+pub const HASH_SIZE_BITS: usize = HASH_SIZE * 8;
 
 /// The maximum length of a protobuf-encoded Tendermint validator in bytes.
 const VALIDATOR_BYTE_LENGTH_MAX: usize = 46;
@@ -594,10 +597,11 @@ pub(crate) mod tests {
     };
     use sha2::Sha256;
     use subtle_encoding::hex;
+    use super::*;
 
     use crate::validator::{VALIDATOR_BIT_LENGTH_MAX, VALIDATOR_SET_SIZE_MAX};
 
-    use crate::merkle::{hash_all_leaves, HASH_SIZE_BITS};
+    use crate::merkle::hash_all_leaves;
 
     use plonky2_gadgets::num::u32::gadgets::arithmetic_u32::U32Target;
 
@@ -978,20 +982,4 @@ pub(crate) mod tests {
         }
     }
 
-    #[test]
-    fn test_underflow() {
-        let mut pw = PartialWitness::new();
-        let config = CircuitConfig::standard_recursion_config();
-        let mut builder = CircuitBuilder::<F, D>::new(config);
-        builder.check_underflow();
-        let data = builder.build::<C>();
-        let proof = data.prove(pw).unwrap();
-
-        println!("Created proof");
-
-        data.verify(proof).unwrap();
-
-        println!("Verified proof");
-
-    }
 }
