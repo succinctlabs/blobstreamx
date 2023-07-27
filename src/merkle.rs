@@ -78,7 +78,7 @@ impl ProofNode {
 
     fn flatten_aunts(&self) -> Vec<Hash> {
         let mut inner_hashes = Vec::new();
-        let mut current_node = self.parent.clone();
+        let mut current_node = Some(Rc::new(RefCell::new(self.clone())));
 
         while let Some(node) = current_node {
             // Separate this into two steps to avoid holding onto a borrow across loop iterations
@@ -102,11 +102,7 @@ impl ProofNode {
 }
 
 fn compute_hash_from_aunts(index: u64, total: u64, leaf_hash: Hash, inner_hashes: Vec<Hash>) -> Option<Hash> {
-    // println!("Index: {:?}", index);
-    println!("Total: {:?}", total);
-    // println!("Leaf Hash: {:?}", String::from_utf8(hex::encode(leaf_hash)));
     let aunts_hex: Vec<String> = inner_hashes.iter().map(|a| String::from_utf8(hex::encode(a)).unwrap()).collect();
-    println!("Inner Hashes: {:?}", aunts_hex);
     if index >= total || index < 0 || total <= 0 {
         return None;
     }
@@ -145,7 +141,6 @@ fn proofs_from_byte_slices(items: Vec<Vec<u8>>) -> (Hash, Vec<Proof>) {
     let mut proofs = Vec::new();
 
     for (i, trail) in trails.into_iter().enumerate() {
-        // println!("Trail: {:?}", String::from_utf8(hex::encode(trail.borrow().hash)));
         proofs.push(Proof::new(
             items.len() as u64,
             i as u64,
@@ -157,6 +152,7 @@ fn proofs_from_byte_slices(items: Vec<Vec<u8>>) -> (Hash, Vec<Proof>) {
     (root_hash, proofs)
 }
 
+// Not including the bottom leaf
 fn trails_from_byte_slices(items: Vec<Vec<u8>>) -> (Vec<Rc<RefCell<ProofNode>>>, Rc<RefCell<ProofNode>>) {
     match items.len() {
         0 => {
@@ -165,6 +161,7 @@ fn trails_from_byte_slices(items: Vec<Vec<u8>>) -> (Vec<Rc<RefCell<ProofNode>>>,
         }
         1 => {
             let node = Rc::new(RefCell::new(ProofNode::new(leaf_hash(&items[0]), None, None, None)));
+
             (vec![Rc::clone(&node)], Rc::clone(&node))
         }
         _ => {
@@ -192,7 +189,6 @@ fn trails_from_byte_slices(items: Vec<Vec<u8>>) -> (Vec<Rc<RefCell<ProofNode>>>,
             }
 
             let trails = [lefts, rights].concat();
-            // println!("Trails: {:?}", trails.len());
 
             (trails, root)
         }
@@ -231,11 +227,7 @@ fn inner_hash(left: &[u8], right: &[u8]) -> Hash {
     hasher.finalize().to_vec().try_into().expect("slice with incorrect length")
 }
 
-fn generate_val_hash_proof(h: Header) -> (Hash, Vec<Proof>) {
-    
-    println!("Header Hash: {:?}", h.hash());
-
-    // println!("Length of height: {:?}", h.height.encode_vec().len().to_string());
+fn generate_proofs_from_header(h: &Header) -> (Hash, Vec<Proof>) {
 
     let fields_bytes = vec![
         Protobuf::<RawConsensusVersion>::encode_vec(h.version),
@@ -254,27 +246,7 @@ fn generate_val_hash_proof(h: Header) -> (Hash, Vec<Proof>) {
         h.proposer_address.encode_vec(),
     ];
 
-    // let hash = h.hash().as_bytes().try_into().expect("Failed to unwrap");
-    // println!("Header Hash as Hex: {:?}", String::from_utf8(subtle_encoding::hex::encode(hash)).unwrap());
-
-
-    let (root_hash, proofs) = proofs_from_byte_slices(fields_bytes);
-    println!("Validator Hash (expected): {:?}", String::from_utf8(hex::encode(h.validators_hash)).unwrap());
-
-    println!("Root Hash: {:?}", String::from_utf8(hex::encode(root_hash)).unwrap());
-    println!("Validator Hash: {:?}", String::from_utf8(hex::encode(proofs[7].clone().leaf_hash)).unwrap());
-    // Use map to format the aunts as hex strings
-    let aunts = proofs[7].clone().aunts;
-    let aunts_hex: Vec<String> = aunts.iter().map(|a| String::from_utf8(hex::encode(a)).unwrap()).collect();
-    println!("Aunts: {:?}", aunts_hex);
-
-    proofs[7].verify(&root_hash, &h.validators_hash.encode_vec()).unwrap();
-    
-    // for val in h.validators.iter() {
-    //     val_hash.push(val.address.as_bytes().to_vec());
-    // }
-    // proofs_from_byte_slices(h)
-    (root_hash, vec![])
+    proofs_from_byte_slices(fields_bytes)
 }
 
 #[cfg(test)]
@@ -282,8 +254,9 @@ pub(crate) mod tests {
     use tendermint::merkle::simple_hash_from_byte_vectors;
     use sha2::Sha256;
     use subtle_encoding::hex;
+    use tendermint_proto::Protobuf;
 
-    use crate::merkle::generate_val_hash_proof;
+    use crate::merkle::generate_proofs_from_header;
 
     use super::proofs_from_byte_slices;
 
@@ -333,16 +306,16 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn test_proofs_from_byte_slices() {
+    fn test_verify_validator_hash_proof() {
         // Generate test cases from Celestia block:
         let block = tendermint::Block::from(
             serde_json::from_str::<tendermint::block::Block>(include_str!("./scripts/celestia_block.json")).unwrap()
         );
         
-        // println!("Block: {:?}", block);
+        let (root_hash, proofs) = generate_proofs_from_header(&block.header);
 
-        generate_val_hash_proof(block.header);
-
+        // Verify validator proof
+        proofs[7].verify(&root_hash, &block.header.validators_hash.encode_vec()).unwrap();
         
     }
 }
