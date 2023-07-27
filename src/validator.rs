@@ -121,15 +121,15 @@ pub trait TendermintMarshaller {
         &mut self,
         accumulated_power: &I64Target,
         threshold: &I64Target
-    );
+    ) -> BoolTarget;
 
     /// Accumulate voting power from the enabled validators & check that the voting power is greater than 2/3 of the total voting power.
     fn check_voting_power(
         &mut self,
-        validators: &Vec<TendermintValidator>,
+        validator_voting_power: &Vec<I64Target>,
         validator_enabled: &Vec<U32Target>,
         total_voting_power: &I64Target,
-    );
+    ) -> BoolTarget;
 
 }
 
@@ -477,32 +477,29 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
         // Multiply the lower 32 bits of the accumulated voting power by b
         let (lower_product, lower_carry) = self.mul_u32(a.0[0], b);
 
-        // Add the carry from the lower 32 bits of the accumulated voting power to the upper 32 bits of the accumulated voting power
-        let (upper_sum, upper_carry) = self.add_u32(lower_carry, a.0[1]);
+        // Multiply the upper 32 bits of the accumulated voting power by b
+        let (upper_product, upper_carry) = self.mul_u32(a.0[1], b);
 
         // NOTE: This will limit the maximum size of numbers to (2^64 - 1) / b
         self.assert_zero_u32(upper_carry);
 
-
-        // Multiply the upper 32 bits of the accumulated voting power by b
-        let (upper_product_low, upper_product_high) = self.mul_u32(upper_sum, b);
+        // Add the carry from the lower 32 bits of the accumulated voting power to the upper 32 bits of the accumulated voting power
+        let (upper_sum, upper_carry) = self.add_u32(upper_product, lower_carry);
 
         // Check that we did not overflow when multiplying the upper bits
-        self.assert_zero_u32(upper_product_high);
+        self.assert_zero_u32(upper_carry);
 
-        (lower_product, upper_product_low)
+        (lower_product, upper_sum)
     }
 
     fn voting_power_greater_than_threshold(
         &mut self,
         accumulated_power: &I64Target,
         threshold: &I64Target
-    ) {
+    ) -> BoolTarget {
         let zero_u32 = self.constant_u32(0);
         let two_u32 = self.constant_u32(2);
         let three_u32 = self.constant_u32(3);
-
-        let one = self.one();
 
         // Compute accumulated_voting_power * 3
         let (scaled_sum_acc_low, scaled_sum_acc_high) = self.mul_i64_by_u32(&accumulated_power, three_u32);
@@ -526,13 +523,13 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
 
         let upper_not_equal = self.not(upper_equal);
 
-        // Underflows if sum_acc_upper_low < total_vp_upper_low
+        // Underflows if scaled_sum_acc_low < scaled_total_vp_low
         let (_, underflow_low) = self.sub_u32(scaled_sum_acc_low, scaled_total_vp_low, zero_u32);
 
         let no_underflow_low = self.is_equal(underflow_low.0, zero_u32.0);
         
         // Case 1)
-        // If there was no underflow & scaled_sum_acc_high - scaled_total_vp_high is positive, accumulated voting power is greater.
+        // If there was no underflow & scaled_sum_acc_high - scaled_total_vp_high is not equal (i.e. positive), accumulated voting power is greater.
         let upper_pass = self.and(upper_not_equal, no_underflow_high);
 
         // Case 2a)
@@ -541,22 +538,21 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
 
         let pass = self.or(upper_pass, lower_pass);
 
-        // Pass if accumulated voting power is greater than 2/3 of the total voting power.
-        self.connect(pass.target, one);
+        // Note: True if accumulated voting power is >= than 2/3 of the total voting power.
+        pass
     }
 
     fn check_voting_power(
         &mut self,
-        validators: &Vec<TendermintValidator>,
+        validator_voting_power: &Vec<I64Target>,
         validator_enabled: &Vec<U32Target>,
         total_voting_power: &I64Target,
-    ) {
+    ) -> BoolTarget {
         // Accumulate the voting power from the enabled validators.
         let mut accumulated_voting_power = I64Target([U32Target(self.zero()), U32Target(self.zero())]);
         for i in 0..VALIDATOR_SET_SIZE_MAX {
-            let validator = &validators[i];
+            let voting_power = validator_voting_power[i];
             let enabled = validator_enabled[i];
-            let voting_power = validator.voting_power;
             
             // Note: Tendermint validators max voting power is 2^63 - 1. (Should below 2^32)
             let (sum_lower_low, sum_lower_high) = self.mul_add_u32(voting_power.0[0], enabled, accumulated_voting_power.0[0]);
@@ -574,11 +570,10 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
 
             accumulated_voting_power.0[0] = sum_lower_low;
             accumulated_voting_power.0[1] = sum_upper_low;
-
         }
 
         // Note: Because the threshold is 2/3, max I64 should be range checked to be < 2^63 / 3
-        self.voting_power_greater_than_threshold(&accumulated_voting_power, &total_voting_power);
+        self.voting_power_greater_than_threshold(&accumulated_voting_power, &total_voting_power)
     }
 }
 
@@ -846,6 +841,71 @@ pub(crate) mod tests {
         data.verify(proof).unwrap();
 
         println!("Verified proof");
+    }
+
+    #[test]
+    fn test_accumulate_voting_power() {
+        let test_cases = [
+            // voting power, enabled, pass
+            (vec![10i64, 10i64, 10i64, 10i64], [1, 1, 1, 0], true),
+            (vec![10i64, 10i64, 10i64, 10i64], [1, 1, 1, 1], true),
+            // (vec![9223372036854775000i64, 0, 0, 0], [1, 0, 0, 0], false),
+        ];
+
+        // These test cases should pass
+
+        for test_case in test_cases {
+            let mut pw = PartialWitness::new();
+            let config = CircuitConfig::standard_recursion_config();
+            let mut builder = CircuitBuilder::<F, D>::new(config);
+
+            let mut all_validators = vec![];
+            let mut validators_enabled = vec![];
+            let mut total_vp = 0;
+            for i in 0..test_case.0.len() {
+                let voting_power = test_case.0[i];
+                total_vp += voting_power;
+                let voting_power_lower = voting_power & ((1 << 32) - 1);
+                let voting_power_upper = voting_power >> 32;
+
+                let voting_power_lower_target =
+                    U32Target(builder.constant(F::from_canonical_usize(voting_power_lower as usize)));
+                let voting_power_upper_target =
+                    U32Target(builder.constant(F::from_canonical_usize(voting_power_upper as usize)));
+                let voting_power_target =
+                    I64Target([voting_power_lower_target, voting_power_upper_target]);
+
+                all_validators.push(voting_power_target);
+                validators_enabled.push(builder.constant_u32(test_case.1[i]));
+            }
+
+            let total_vp_lower = total_vp & ((1 << 32) - 1);
+            let total_vp_upper = total_vp >> 32;
+
+            println!("Lower total vp: {:?}", total_vp_lower);
+            println!("Upper total vp: {:?}", total_vp_upper);
+
+            let total_vp_lower_target =
+                U32Target(builder.constant(F::from_canonical_usize(total_vp_lower as usize)));
+            let total_vp_upper_target =
+                U32Target(builder.constant(F::from_canonical_usize(total_vp_upper as usize)));
+            let total_vp_target =
+                I64Target([total_vp_lower_target, total_vp_upper_target]);
+
+            let result = builder.check_voting_power(&all_validators, &validators_enabled, &total_vp_target);
+
+            pw.set_bool_target(result, test_case.2);
+
+            let data = builder.build::<C>();
+            let proof = data.prove(pw).unwrap();
+
+            println!("Created proof");
+
+            data.verify(proof).unwrap();
+
+            println!("Verified proof");
+
+        }
     }
 
     #[test]

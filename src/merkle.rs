@@ -27,6 +27,8 @@ where
     hashed_leaves
 }
 
+// Note: Matches the implementation in tendermint-rs, need to add PR to tendermint-rs to support proofs
+// https://github.com/tendermint/tendermint/blob/35581cf54ec436b8c37fabb43fdaa3f48339a170/crypto/merkle/proof.go#L35-L236
 #[derive(Clone)]
 struct Proof {
     total: u64,
@@ -152,7 +154,7 @@ fn proofs_from_byte_slices(items: Vec<Vec<u8>>) -> (Hash, Vec<Proof>) {
     (root_hash, proofs)
 }
 
-// Not including the bottom leaf
+// Create trail from byte slice to root
 fn trails_from_byte_slices(items: Vec<Vec<u8>>) -> (Vec<Rc<RefCell<ProofNode>>>, Rc<RefCell<ProofNode>>) {
     match items.len() {
         0 => {
