@@ -852,9 +852,10 @@ pub(crate) mod tests {
             // voting power, enabled, pass
             (vec![10i64, 10i64, 10i64, 10i64], [1, 1, 1, 0], true),
             (vec![10i64, 10i64, 10i64, 10i64], [1, 1, 1, 1], true),
+            (vec![4294967296000i64, 4294967296i64, 10i64, 10i64], [1, 0, 0, 0], true),
+            (vec![4294967296000i64, 4294967296000i64, 4294967296000i64, 0i64], [1, 1, 0, 0], true)
             // (vec![9223372036854775000i64, 0, 0, 0], [1, 0, 0, 0], false),
         ];
-
         // These test cases should pass
 
         for test_case in test_cases {
@@ -910,6 +911,47 @@ pub(crate) mod tests {
 
         }
     }
+
+    // #[test]
+    // fn test_mul_i64_by_u32_fail() {
+    //     let test_cases = [
+    //         // Overflows past 2^63 - 1 / 3
+    //         (9223372036854775000i64, 3, false)
+    //     ];
+
+    //     for test_case in test_cases {
+    //         let mut pw = PartialWitness::new();
+    //         let config = CircuitConfig::standard_recursion_config();
+    //         let mut builder = CircuitBuilder::<F, D>::new(config);
+            
+    //         let voting_power_lower = test_case.0 & ((1 << 32) - 1);
+    //         let voting_power_upper = test_case.0 >> 32;
+
+    //         let voting_power_lower_target =
+    //             U32Target(builder.constant(F::from_canonical_usize(voting_power_lower as usize)));
+    //         let voting_power_upper_target =
+    //             U32Target(builder.constant(F::from_canonical_usize(voting_power_upper as usize)));
+    //         let voting_power_target =
+    //             I64Target([voting_power_lower_target, voting_power_upper_target]);
+
+    //         let b = builder.constant_u32(test_case.1);
+    //         let (upper, lower) = builder.mul_i64_by_u32(&voting_power_target, b);
+
+    //         // pw.set_bool_target(result, test_case.2);
+
+    //         let data = builder.build::<C>();
+    //         println!("Built data");
+
+    //         let proof = data.prove(pw);
+
+    //         println!("Created proof");
+
+    //         // data.verify(proof);
+
+    //         println!("Failed to verify proof");
+
+    //     }
+    // }
 
     #[test]
     fn test_marshal_int64_varint() {
