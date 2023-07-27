@@ -147,6 +147,9 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
         let voting_power_bits_upper = self.u32_to_bits_le(voting_power.0[1]);
         let voting_power_bits = [voting_power_bits_lower, voting_power_bits_upper].concat();
 
+        // Check that the MSB of the voting power is zero.
+        self.assert_zero(voting_power_bits[voting_power_bits.len() - 1].target);
+
         // The septet (7 bit) payloads  of the "varint".
         let septets = (0..VOTING_POWER_BYTES_LENGTH_MAX)
             .map(|i| {
@@ -938,6 +941,7 @@ pub(crate) mod tests {
             let config = CircuitConfig::standard_recursion_config();
             let mut builder = CircuitBuilder::<F, D>::new(config);
 
+            // NOTE: NEED TO ADD CHECK IN MARSHAL THAT IT IS NOT NEGATIVE
             let voting_power_i64 = test_case.0;
             let voting_power_lower = voting_power_i64 & ((1 << 32) - 1);
             let voting_power_upper = voting_power_i64 >> 32;
