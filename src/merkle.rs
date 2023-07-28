@@ -1,11 +1,16 @@
 /// Source (tendermint-rs): https://github.com/informalsystems/tendermint-rs/blob/e930691a5639ef805c399743ac0ddbba0e9f53da/tendermint/src/merkle.rs#L32
 use tendermint::merkle::{MerkleHash, Hash};
 use tendermint_proto::Protobuf;
+use tendermint_proto::types::Data;
 use tendermint_proto::{
+    types::Commit,
     types::BlockId as RawBlockId,
     version::Consensus as RawConsensusVersion,
 };
+use serde::{Deserialize, Serialize, Deserializer};
 use tendermint::block::Header;
+use tendermint::validator::{Set as ValidatorSet, Info};
+use tendermint::vote::Power;
 use sha2::{Sha256, Digest};
 use subtle_encoding::hex;
 use std::borrow::BorrowMut;
@@ -25,6 +30,33 @@ where
         .map(|b| leaf_hash::<Sha256>(b.as_ref()))
         .collect();
     hashed_leaves
+}
+
+// Note: total_voting_power seems to be missing from celestia testnet nodes can use ValidatorSet once fixed
+/// Validator set contains a vector of validators
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+struct MyValidatorSet {
+    validators: Vec<Info>,
+    proposer: Option<Info>,
+    total_voting_power: Option<Power>
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[non_exhaustive]
+struct SignedBlock
+{
+    /// Block header
+    pub header: Header,
+
+    /// Transaction data
+    pub data: Data,
+
+    /// Commit
+    pub commit: Commit,
+
+    /// Validator set
+    pub validator_set: MyValidatorSet,
+
 }
 
 // Note: Matches the implementation in tendermint-rs, need to add PR to tendermint-rs to support proofs
@@ -259,7 +291,7 @@ pub(crate) mod tests {
 
     use crate::merkle::generate_proofs_from_header;
 
-    use super::proofs_from_byte_slices;
+    use super::{proofs_from_byte_slices, SignedBlock};
 
     #[test]
     fn test_validator_inclusion() {
@@ -307,7 +339,18 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn test_verify_validator_hash_proof() {
+    fn test_generate_validator_hash_proof() {
+        // Generate test cases from Celestia block:
+        let block = SignedBlock::from(
+            serde_json::from_str::<SignedBlock>(include_str!("./scripts/signed_celestia_block.json")).unwrap()
+        );
+        
+        println!("Block: {:?}", block);
+        
+    }
+
+    #[test]
+    fn test_verify_validator_hash_from_root_proof() {
         // Generate test cases from Celestia block:
         let block = tendermint::Block::from(
             serde_json::from_str::<tendermint::block::Block>(include_str!("./scripts/celestia_block.json")).unwrap()
