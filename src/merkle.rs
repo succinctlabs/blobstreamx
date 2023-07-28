@@ -1,3 +1,4 @@
+use tendermint::abci::types::Validator;
 /// Source (tendermint-rs): https://github.com/informalsystems/tendermint-rs/blob/e930691a5639ef805c399743ac0ddbba0e9f53da/tendermint/src/merkle.rs#L32
 use tendermint::merkle::{MerkleHash, Hash};
 use tendermint_proto::Protobuf;
@@ -6,10 +7,11 @@ use tendermint_proto::{
     types::Commit,
     types::BlockId as RawBlockId,
     version::Consensus as RawConsensusVersion,
+    
 };
 use serde::{Deserialize, Serialize, Deserializer};
 use tendermint::block::Header;
-use tendermint::validator::{Set as ValidatorSet, Info};
+use tendermint::validator::{Set as ValidatorSet, Info, SimpleValidator};
 use tendermint::vote::Power;
 use sha2::{Sha256, Digest};
 use subtle_encoding::hex;
@@ -35,10 +37,28 @@ where
 // Note: total_voting_power seems to be missing from celestia testnet nodes can use ValidatorSet once fixed
 /// Validator set contains a vector of validators
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-struct MyValidatorSet {
+struct TempValidatorSet {
     validators: Vec<Info>,
     proposer: Option<Info>,
     total_voting_power: Option<Power>
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[non_exhaustive]
+struct TempSignedBlock
+{
+    /// Block header
+    pub header: Header,
+
+    /// Transaction data
+    pub data: Data,
+
+    /// Commit
+    pub commit: Commit,
+
+    /// Validator set
+    pub validator_set: TempValidatorSet,
+
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -55,7 +75,7 @@ struct SignedBlock
     pub commit: Commit,
 
     /// Validator set
-    pub validator_set: MyValidatorSet,
+    pub validator_set: ValidatorSet,
 
 }
 
@@ -287,9 +307,13 @@ pub(crate) mod tests {
     use tendermint::merkle::simple_hash_from_byte_vectors;
     use sha2::Sha256;
     use subtle_encoding::hex;
-    use tendermint_proto::Protobuf;
+    use tendermint_proto::{
+        Protobuf,
+        types::SimpleValidator as RawSimpleValidator,
+    };
 
-    use crate::merkle::generate_proofs_from_header;
+    use crate::merkle::{generate_proofs_from_header, TempSignedBlock};
+    use tendermint::validator::{Set as ValidatorSet, Info, SimpleValidator};
 
     use super::{proofs_from_byte_slices, SignedBlock};
 
@@ -341,11 +365,32 @@ pub(crate) mod tests {
     #[test]
     fn test_generate_validator_hash_proof() {
         // Generate test cases from Celestia block:
-        let block = SignedBlock::from(
-            serde_json::from_str::<SignedBlock>(include_str!("./scripts/signed_celestia_block.json")).unwrap()
+        let temp_block = TempSignedBlock::from(
+            serde_json::from_str::<TempSignedBlock>(include_str!("./scripts/signed_celestia_block.json")).unwrap()
         );
         
-        println!("Block: {:?}", block);
+        // Cast to SignedBlock
+        let block = SignedBlock {
+            header: temp_block.header,
+            data: temp_block.data,
+            commit: temp_block.commit,
+            validator_set: ValidatorSet::new(
+                temp_block.validator_set.validators,
+                temp_block.validator_set.proposer,
+            )
+        };
+
+        for validator in block.validator_set.validators() {
+            println!("Validator: {:?}", validator);
+            let encoded_bytes = Protobuf::<RawSimpleValidator>::encode_vec(SimpleValidator::from(validator));
+            println!("Encoded Validator (Hex): {:?}", String::from_utf8(hex::encode(encoded_bytes)));
+        }
+
+        let validator_hash = block.validator_set.hash();
+        
+        // Check that the computed hash and validators_hash match
+        assert_eq!(validator_hash, block.header.validators_hash);
+
         
     }
 
