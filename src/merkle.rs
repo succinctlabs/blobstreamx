@@ -1,99 +1,16 @@
 /// Source (tendermint-rs): https://github.com/informalsystems/tendermint-rs/blob/e930691a5639ef805c399743ac0ddbba0e9f53da/tendermint/src/merkle.rs#L32
-use digest::{consts::U32, Digest, FixedOutputReset};
-
-pub const HASH_SIZE: usize = 32;
-
-pub const HASH_SIZE_BITS: usize = HASH_SIZE * 8;
-
-/// Hash is the output of the cryptographic digest function
-pub type Hash = [u8; HASH_SIZE];
-
-/// Implementation of Merkle tree hashing for Tendermint.
-pub trait MerkleHash {
-    // tmhash({})
-    // Pre and post-conditions: the hasher is in the reset state
-    // before and after calling this function.
-    fn empty_hash(&mut self) -> Hash;
-
-    // tmhash(0x00 || leaf)
-    // Pre and post-conditions: the hasher is in the reset state
-    // before and after calling this function.
-    fn leaf_hash(&mut self, bytes: &[u8]) -> Hash;
-
-    // tmhash(0x01 || left || right)
-    // Pre and post-conditions: the hasher is in the reset state
-    // before and after calling this function.
-    fn inner_hash(&mut self, left: Hash, right: Hash) -> Hash;
-
-    // Implements recursion into subtrees.
-    // Pre and post-conditions: the hasher is in the reset state
-    // before and after calling this function.
-    fn hash_byte_vectors(&mut self, byte_vecs: &[impl AsRef<[u8]>]) -> Hash {
-        let length = byte_vecs.len();
-        match length {
-            0 => self.empty_hash(),
-            1 => self.leaf_hash(byte_vecs[0].as_ref()),
-            _ => {
-                let split = length.next_power_of_two() / 2;
-                let left = self.hash_byte_vectors(&byte_vecs[..split]);
-                let right = self.hash_byte_vectors(&byte_vecs[split..]);
-                self.inner_hash(left, right)
-            }
-        }
-    }
-}
-
-// A helper to copy GenericArray into the human-friendly Hash type.
-fn copy_to_hash(output: impl AsRef<[u8]>) -> Hash {
-    let mut hash_bytes = [0u8; HASH_SIZE];
-    hash_bytes.copy_from_slice(output.as_ref());
-    hash_bytes
-}
-
-impl<H> MerkleHash for H
-where
-    H: Digest<OutputSize = U32> + FixedOutputReset,
-{
-    fn empty_hash(&mut self) -> Hash {
-        // Get the output of an empty digest state.
-        let digest = self.finalize_reset();
-        copy_to_hash(digest)
-    }
-
-    fn leaf_hash(&mut self, bytes: &[u8]) -> Hash {
-        // Feed the data to the hasher, prepended with 0x00.
-        Digest::update(self, [0x00]);
-        Digest::update(self, bytes);
-
-        // Finalize the digest, reset the hasher state.
-        let digest = self.finalize_reset();
-
-        copy_to_hash(digest)
-    }
-
-    fn inner_hash(&mut self, left: Hash, right: Hash) -> Hash {
-        // Feed the data to the hasher: 0x1, then left and right data.
-        Digest::update(self, [0x01]);
-        Digest::update(self, left);
-        Digest::update(self, right);
-
-        // Finalize the digest, reset the hasher state
-        let digest = self.finalize_reset();
-
-        copy_to_hash(digest)
-    }
-}
-
-/// Compute a simple Merkle root from vectors of arbitrary byte vectors.
-/// The leaves of the tree are the bytes of the given byte vectors in
-/// the given order.
-pub fn simple_hash_from_byte_vectors<H>(byte_vecs: &[impl AsRef<[u8]>]) -> Hash
-where
-    H: MerkleHash + Default,
-{
-    let mut hasher = H::default();
-    hasher.hash_byte_vectors(byte_vecs)
-}
+use tendermint::merkle::{MerkleHash, Hash};
+use tendermint_proto::Protobuf;
+use tendermint_proto::{
+    types::BlockId as RawBlockId,
+    version::Consensus as RawConsensusVersion,
+};
+use tendermint::block::Header;
+use sha2::{Sha256, Digest};
+use subtle_encoding::hex;
+use std::borrow::BorrowMut;
+use std::rc::Rc;
+use std::cell::RefCell;
 
 /// Compute leaf hashes for arbitrary byte vectors.
 /// The leaves of the tree are the bytes of the given byte vectors in
@@ -110,11 +27,240 @@ where
     hashed_leaves
 }
 
+// Note: Matches the implementation in tendermint-rs, need to add PR to tendermint-rs to support proofs
+// https://github.com/tendermint/tendermint/blob/35581cf54ec436b8c37fabb43fdaa3f48339a170/crypto/merkle/proof.go#L35-L236
+#[derive(Clone)]
+struct Proof {
+    total: u64,
+    index: u64,
+    leaf_hash: Hash,
+    aunts: Vec<Hash>,
+}
+
+#[derive(Clone)]
+pub struct ProofNode {
+    pub hash: Hash,
+    pub left: Option<Rc<RefCell<ProofNode>>>,
+    pub right: Option<Rc<RefCell<ProofNode>>>,
+    pub parent: Option<Rc<RefCell<ProofNode>>>,
+}
+
+impl Proof {
+    fn new(total: u64, index: u64, leaf_hash: Hash, aunts: Vec<Hash>) -> Self {
+        Proof { total, index, leaf_hash, aunts }
+    }
+
+    fn compute_root_hash(&self) -> Option<Hash> {
+        return compute_hash_from_aunts(self.index, self.total, self.leaf_hash, self.aunts.clone())
+    }
+
+    fn verify(&self, root_hash: &Hash, leaf: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
+        let leaf_hash = leaf_hash(leaf);
+        if self.total < 0 {
+            return Err("proof total must be positive".into());
+        }
+        if self.index < 0 {
+            return Err("proof index cannot be negative".into());
+        }
+        if self.leaf_hash != leaf_hash {
+            return Err(format!("invalid leaf hash: wanted {:?} got {:?}", hex::encode(leaf_hash), hex::encode(self.leaf_hash)).into());
+        }
+        let computed_hash = self.compute_root_hash().expect("failed to compute root hash");
+        if computed_hash != *root_hash {
+            return Err(format!("invalid root hash: wanted {:?} got {:?}", hex::encode(root_hash), hex::encode(computed_hash)).into());
+        }
+        Ok(())
+    }
+}
+
+impl ProofNode {
+    fn new(hash: Hash, parent: Option<Rc<RefCell<ProofNode>>>, left: Option<Rc<RefCell<ProofNode>>>, right: Option<Rc<RefCell<ProofNode>>>) -> Self {
+        ProofNode { hash, parent, left, right }
+    }
+
+    fn flatten_aunts(&self) -> Vec<Hash> {
+        let mut inner_hashes = Vec::new();
+        let mut current_node = Some(Rc::new(RefCell::new(self.clone())));
+
+        while let Some(node) = current_node {
+            // Separate this into two steps to avoid holding onto a borrow across loop iterations
+            let (left, right) = {
+                let node_borrowed = node.borrow();
+                (node_borrowed.left.clone(), node_borrowed.right.clone())
+            };
+    
+            match (&left, &right) {
+                (Some(left_node), _) => inner_hashes.push(left_node.borrow().hash.clone()),
+                (_, Some(right_node)) => inner_hashes.push(right_node.borrow().hash.clone()),
+                _ => {}
+            }
+    
+            // Now update current_node
+            current_node = node.borrow().parent.clone();
+        }
+
+        inner_hashes
+    }
+}
+
+fn compute_hash_from_aunts(index: u64, total: u64, leaf_hash: Hash, inner_hashes: Vec<Hash>) -> Option<Hash> {
+    let aunts_hex: Vec<String> = inner_hashes.iter().map(|a| String::from_utf8(hex::encode(a)).unwrap()).collect();
+    if index >= total || index < 0 || total <= 0 {
+        return None;
+    }
+    match total {
+        0 => panic!("Cannot call compute_hash_from_aunts() with 0 total"),
+        1 => {
+            if !inner_hashes.is_empty() {
+                return None;
+            }
+            return Some(leaf_hash);
+        },
+        _ => {
+            if inner_hashes.is_empty() {
+                return None;
+            }
+            let num_left = get_split_point(total as usize) as u64;
+            if index < num_left {
+                let left_hash = compute_hash_from_aunts(index, num_left, leaf_hash, inner_hashes[..inner_hashes.len()-1].to_vec());
+                match left_hash {
+                    None => return None,
+                    Some(hash) => return Some(inner_hash(&hash, &inner_hashes[inner_hashes.len()-1])),
+                }
+            }
+            let right_hash = compute_hash_from_aunts(index-num_left, total-num_left, leaf_hash, inner_hashes[..inner_hashes.len()-1].to_vec());
+            match right_hash {
+                None => return None,
+                Some(hash) => return Some(inner_hash(&inner_hashes[inner_hashes.len()-1], &hash)),
+            }
+        }
+    }
+}
+
+fn proofs_from_byte_slices(items: Vec<Vec<u8>>) -> (Hash, Vec<Proof>) {
+    let (trails, root) = trails_from_byte_slices(items.clone());
+    let root_hash = root.borrow().hash;
+    let mut proofs = Vec::new();
+
+    for (i, trail) in trails.into_iter().enumerate() {
+        proofs.push(Proof::new(
+            items.len() as u64,
+            i as u64,
+            trail.borrow().hash,
+            trail.borrow().flatten_aunts(),
+        ));
+    }
+
+    (root_hash, proofs)
+}
+
+// Create trail from byte slice to root
+fn trails_from_byte_slices(items: Vec<Vec<u8>>) -> (Vec<Rc<RefCell<ProofNode>>>, Rc<RefCell<ProofNode>>) {
+    match items.len() {
+        0 => {
+            let node = ProofNode::new(empty_hash(), None, None, None);
+            (vec![], Rc::new(RefCell::new(node)))
+        }
+        1 => {
+            let node = Rc::new(RefCell::new(ProofNode::new(leaf_hash(&items[0]), None, None, None)));
+
+            (vec![Rc::clone(&node)], Rc::clone(&node))
+        }
+        _ => {
+            let k = get_split_point(items.len());
+            let (lefts, left_root) = trails_from_byte_slices(items[..k].to_vec());
+            let (rights, right_root) = trails_from_byte_slices(items[k..].to_vec());
+
+            let root_hash = inner_hash(&left_root.borrow().hash, &right_root.borrow().hash);
+            let root = Rc::new(RefCell::new(ProofNode::new(
+                root_hash,
+                None,
+                None,
+                None,
+            )));
+
+            {
+                let mut left_root_borrowed = (*left_root).borrow_mut();
+                left_root_borrowed.parent = Some(Rc::clone(&root));
+                left_root_borrowed.right = Some(Rc::clone(&right_root));
+            }
+            {
+                let mut right_root_borrowed = (*right_root).borrow_mut();
+                right_root_borrowed.parent = Some(Rc::clone(&root));
+                right_root_borrowed.left = Some(Rc::clone(&left_root));
+            }
+
+            let trails = [lefts, rights].concat();
+
+            (trails, root)
+        }
+    }
+}
+
+fn get_split_point(length: usize) -> usize {
+    if length < 1 {
+        panic!("Trying to split a tree with size < 1")
+    }
+    let bitlen = (length as f64).log2() as usize;
+    let k = 1 << bitlen;
+    if k == length {
+        k >> 1
+    } else {
+        k
+    }
+}
+
+fn empty_hash() -> Hash {
+    Sha256::digest(&[]).to_vec().try_into().expect("slice with incorrect length")
+}
+
+fn leaf_hash(leaf: &[u8]) -> Hash {
+    let mut hasher = Sha256::new();
+    hasher.update([0x00].as_ref());
+    hasher.update(leaf);
+    hasher.finalize().to_vec().try_into().expect("slice with incorrect length")
+}
+
+fn inner_hash(left: &[u8], right: &[u8]) -> Hash {
+    let mut hasher = Sha256::new();
+    hasher.update([0x01].as_ref());
+    hasher.update(left);
+    hasher.update(right);
+    hasher.finalize().to_vec().try_into().expect("slice with incorrect length")
+}
+
+fn generate_proofs_from_header(h: &Header) -> (Hash, Vec<Proof>) {
+
+    let fields_bytes = vec![
+        Protobuf::<RawConsensusVersion>::encode_vec(h.version),
+        h.chain_id.clone().encode_vec(),
+        h.height.encode_vec(),
+        h.time.encode_vec(),
+        Protobuf::<RawBlockId>::encode_vec(h.last_block_id.unwrap_or_default()),
+        h.last_commit_hash.unwrap_or_default().encode_vec(),
+        h.data_hash.unwrap_or_default().encode_vec(),
+        h.validators_hash.encode_vec(),
+        h.next_validators_hash.encode_vec(),
+        h.consensus_hash.encode_vec(),
+        h.app_hash.clone().encode_vec(),
+        h.last_results_hash.unwrap_or_default().encode_vec(),
+        h.evidence_hash.unwrap_or_default().encode_vec(),
+        h.proposer_address.encode_vec(),
+    ];
+
+    proofs_from_byte_slices(fields_bytes)
+}
+
 #[cfg(test)]
 pub(crate) mod tests {
-    use super::*;
+    use tendermint::merkle::simple_hash_from_byte_vectors;
     use sha2::Sha256;
     use subtle_encoding::hex;
+    use tendermint_proto::Protobuf;
+
+    use crate::merkle::generate_proofs_from_header;
+
+    use super::proofs_from_byte_slices;
 
     #[test]
     fn test_validator_inclusion() {
@@ -159,5 +305,19 @@ pub(crate) mod tests {
 
         let root = simple_hash_from_byte_vectors::<Sha256>(&leaf_tree);
         assert_eq!(leaf_root, &root);
+    }
+
+    #[test]
+    fn test_verify_validator_hash_proof() {
+        // Generate test cases from Celestia block:
+        let block = tendermint::Block::from(
+            serde_json::from_str::<tendermint::block::Block>(include_str!("./scripts/celestia_block.json")).unwrap()
+        );
+        
+        let (root_hash, proofs) = generate_proofs_from_header(&block.header);
+
+        // Verify validator proof
+        proofs[7].verify(&root_hash, &block.header.validators_hash.encode_vec()).unwrap();
+        
     }
 }

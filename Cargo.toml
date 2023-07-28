@@ -10,6 +10,11 @@ digest = "0.10.7"
 plonky2 = { git = "https://github.com/mir-protocol/plonky2.git" }
 plonky2_gadgets = { git = "ssh://git@github.com/succinctlabs/plonky2-gadgets.git" }
 rand = "0.8.5"
+reqwest = "0.11.18"
+serde = "1.0.175"
 serde_json = "1.0.103"
 sha2 = "0.10.7"
 subtle-encoding = "0.5.1"
+tendermint = "0.33.0"
+tendermint-proto = "0.33.0"
+tokio = { version="1.29.1", features = ["full"]}
