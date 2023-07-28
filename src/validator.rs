@@ -275,6 +275,9 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
         validator: &[BoolTarget; VALIDATOR_BIT_LENGTH_MAX],
         validator_byte_length: &U32Target,
     ) -> [BoolTarget; HASH_SIZE_BITS] {
+        // Number of bits in a byte.
+        let eight_u32 = self.constant_u32(8);
+
         // Range check the validator byte length is between [VALIDATOR_BYTE_LENGTH_MIN, VALIDATOR_BYTE_LENGTH_MAX]
         let min_validator_bytes_length =
             self.constant(F::from_canonical_usize(VALIDATOR_BYTE_LENGTH_MIN));
@@ -291,36 +294,6 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
         self.range_check(diff_with_min_length, 4);
         self.range_check(diff_with_max_length, 4);
 
-        // Note: Because the byte length of each validator is variable, need to hash the validator bytes for each potential byte length.
-        let mut validator_bytes_hashes =
-            [[self._false(); HASH_SIZE_BITS]; NUM_POSSIBLE_VALIDATOR_BYTE_LENGTHS];
-        for j in 0..NUM_POSSIBLE_VALIDATOR_BYTE_LENGTHS {
-            // Calculate the length of the message for the leaf hash.
-            // 0x00 || validatorBytes
-            let bits_length = 8 + (VALIDATOR_BYTE_LENGTH_MIN + j) * 8;
-
-            // Calculate the message for the leaf hash.
-            let mut validator_bits = vec![self._false(); bits_length];
-
-            // 0x00
-            for k in 0..8 {
-                validator_bits[k] = self._false();
-            }
-
-            // validatorBytes
-            for k in 8..bits_length {
-                validator_bits[k] = validator[k - 8];
-            }
-
-            // Load the output of the hash.
-            let hash = sha256(self, &validator_bits);
-            for k in 0..HASH_SIZE_BITS {
-                validator_bytes_hashes[j][k] = hash[k];
-            }
-        }
-        let validator_byte_length_min_constant =
-            self.constant(F::from_canonical_u32(VALIDATOR_BYTE_LENGTH_MIN as u32));
-
         // Calculate the index of the validator's bytes length in the range [0, NUM_POSSIBLE_VALIDATOR_BYTE_LENGTHS).
         let length_index = self.sub(validator_byte_length.0, validator_byte_length_min_constant);
 
@@ -331,21 +304,31 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
             validator_byte_hash_selector[j] = self.is_equal(length_index, byte_length_index);
         }
 
-        let mut ret_validator_leaf_hash = [self._false(); HASH_SIZE_BITS];
-        for j in 0..NUM_POSSIBLE_VALIDATOR_BYTE_LENGTHS {
-            for k in 0..HASH_SIZE_BITS {
-                // Select the correct byte hash for the validator's byte length.
-                // Copy the bits from the correct byte hash into the return hash if the selector bit for that byte length is set to 1.
-                // In all other cases, keep the existing bits in the return hash, yielding desired behavior.
-                ret_validator_leaf_hash[k] = BoolTarget::new_unsafe(self.select(
-                    validator_byte_hash_selector[j],
-                    validator_bytes_hashes[j][k].target,
-                    ret_validator_leaf_hash[k].target,
-                ));
-            }
+        let bits_length = 8 + (validator_byte_length * eight_u32);
+
+        // Calculate the message for the leaf hash.
+        let mut validator_bits = vec![self._false(); bits_length];
+
+        // 0x00
+        for k in 0..8 {
+            validator_bits[k] = self._false();
         }
 
-        ret_validator_leaf_hash
+        // validatorBytes
+        for k in 8..bits_length {
+            validator_bits[k] = validator[k - 8];
+        }
+
+        // Load the output of the hash.
+        let hash = sha256(self, &validator_bits);
+        let mut validator_leaf_hash = [self._false(); HASH_SIZE_BITS];
+
+        // Return the hash.
+        for k in 0..HASH_SIZE_BITS {
+            validator_leaf_hash[k] = hash[k];
+        }
+
+        validator_leaf_hash
     }
 
     fn hash_validator_leaves(
