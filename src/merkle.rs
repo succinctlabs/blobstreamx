@@ -22,7 +22,7 @@ where
     let mut hasher = H::default();
     let hashed_leaves = byte_vecs
         .iter()
-        .map(|b| hasher.leaf_hash(b.as_ref()))
+        .map(|b| leaf_hash::<Sha256>(b.as_ref()))
         .collect();
     hashed_leaves
 }
@@ -55,7 +55,7 @@ impl Proof {
     }
 
     fn verify(&self, root_hash: &Hash, leaf: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
-        let leaf_hash = leaf_hash(leaf);
+        let leaf_hash = leaf_hash::<Sha256>(leaf);
         if self.total < 0 {
             return Err("proof total must be positive".into());
         }
@@ -125,13 +125,13 @@ fn compute_hash_from_aunts(index: u64, total: u64, leaf_hash: Hash, inner_hashes
                 let left_hash = compute_hash_from_aunts(index, num_left, leaf_hash, inner_hashes[..inner_hashes.len()-1].to_vec());
                 match left_hash {
                     None => return None,
-                    Some(hash) => return Some(inner_hash(&hash, &inner_hashes[inner_hashes.len()-1])),
+                    Some(hash) => return Some(inner_hash::<Sha256>(hash, inner_hashes[inner_hashes.len()-1])),
                 }
             }
             let right_hash = compute_hash_from_aunts(index-num_left, total-num_left, leaf_hash, inner_hashes[..inner_hashes.len()-1].to_vec());
             match right_hash {
                 None => return None,
-                Some(hash) => return Some(inner_hash(&inner_hashes[inner_hashes.len()-1], &hash)),
+                Some(hash) => return Some(inner_hash::<Sha256>(inner_hashes[inner_hashes.len()-1], hash)),
             }
         }
     }
@@ -162,7 +162,7 @@ fn trails_from_byte_slices(items: Vec<Vec<u8>>) -> (Vec<Rc<RefCell<ProofNode>>>,
             (vec![], Rc::new(RefCell::new(node)))
         }
         1 => {
-            let node = Rc::new(RefCell::new(ProofNode::new(leaf_hash(&items[0]), None, None, None)));
+            let node = Rc::new(RefCell::new(ProofNode::new(leaf_hash::<Sha256>(&items[0]), None, None, None)));
 
             (vec![Rc::clone(&node)], Rc::clone(&node))
         }
@@ -171,7 +171,7 @@ fn trails_from_byte_slices(items: Vec<Vec<u8>>) -> (Vec<Rc<RefCell<ProofNode>>>,
             let (lefts, left_root) = trails_from_byte_slices(items[..k].to_vec());
             let (rights, right_root) = trails_from_byte_slices(items[k..].to_vec());
 
-            let root_hash = inner_hash(&left_root.borrow().hash, &right_root.borrow().hash);
+            let root_hash = inner_hash::<Sha256>(left_root.borrow().hash, right_root.borrow().hash);
             let root = Rc::new(RefCell::new(ProofNode::new(
                 root_hash,
                 None,
@@ -214,19 +214,18 @@ fn empty_hash() -> Hash {
     Sha256::digest(&[]).to_vec().try_into().expect("slice with incorrect length")
 }
 
-fn leaf_hash(leaf: &[u8]) -> Hash {
-    let mut hasher = Sha256::new();
-    hasher.update([0x00].as_ref());
-    hasher.update(leaf);
-    hasher.finalize().to_vec().try_into().expect("slice with incorrect length")
+fn leaf_hash<H>(leaf: &[u8]) -> Hash
+where 
+    H: MerkleHash + Default, {
+    let mut hasher = H::default();
+    hasher.leaf_hash(leaf)
 }
 
-fn inner_hash(left: &[u8], right: &[u8]) -> Hash {
-    let mut hasher = Sha256::new();
-    hasher.update([0x01].as_ref());
-    hasher.update(left);
-    hasher.update(right);
-    hasher.finalize().to_vec().try_into().expect("slice with incorrect length")
+fn inner_hash<H>(left: Hash, right: Hash) -> Hash
+where 
+    H: MerkleHash + Default, {
+    let mut hasher = H::default();
+    hasher.inner_hash(left, right)
 }
 
 fn generate_proofs_from_header(h: &Header) -> (Hash, Vec<Proof>) {
