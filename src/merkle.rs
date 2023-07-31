@@ -4,10 +4,16 @@ use tendermint::merkle::{MerkleHash, Hash};
 use tendermint_proto::Protobuf;
 use tendermint_proto::types::Data;
 use tendermint_proto::{
-    types::Commit,
+    types::Commit as RawCommit,
     types::BlockId as RawBlockId,
     version::Consensus as RawConsensusVersion,
+    types::SimpleValidator as RawSimpleValidator, consensus::Vote as RawVote,
+    types::CommitSig as RawCommitSig,
     
+};
+use tendermint::{
+    vote::{ValidatorIndex, Vote},
+    block::{Commit, CommitSig},
 };
 use serde::{Deserialize, Serialize, Deserializer};
 use tendermint::block::Header;
@@ -302,6 +308,46 @@ fn generate_proofs_from_header(h: &Header) -> (Hash, Vec<Proof>) {
     proofs_from_byte_slices(fields_bytes)
 }
 
+// Gets the vote struct: https://github.com/informalsystems/tendermint-rs/blob/c2b5c9e01eab1c740598aa14375a7453f3bfa436/light-client-verifier/src/operations/voting_power.rs#L202-L238
+fn non_absent_vote(
+    commit_sig: &CommitSig,
+    validator_index: ValidatorIndex,
+    commit: &Commit,
+) -> Option<Vote> {
+    // Cast the raw commit sig to a commit sig
+    let (validator_address, timestamp, signature, block_id) = match commit_sig {
+        CommitSig::BlockIdFlagAbsent { .. } => return None,
+        CommitSig::BlockIdFlagCommit {
+            validator_address,
+            timestamp,
+            signature,
+        } => (
+            validator_address,
+            timestamp,
+            signature,
+            Some(commit.block_id),
+        ),
+        CommitSig::BlockIdFlagNil {
+            validator_address,
+            timestamp,
+            signature,
+        } => (validator_address, timestamp, signature, None),
+    };
+
+    Some(Vote {
+        vote_type: tendermint::vote::Type::Precommit,
+        height: commit.height,
+        round: commit.round,
+        block_id,
+        timestamp: Some(*timestamp),
+        validator_address: *validator_address,
+        validator_index,
+        signature: signature.clone(),
+        extension: Default::default(),
+        extension_signature: None,
+    })
+}
+
 #[cfg(test)]
 pub(crate) mod tests {
     use tendermint::block::{CommitSig, self};
@@ -326,51 +372,7 @@ pub(crate) mod tests {
         block::Commit,
     };
 
-    use super::{proofs_from_byte_slices, SignedBlock};
-
-    fn non_absent_vote(
-        raw_commit_sig: &RawCommitSig,
-        validator_index: ValidatorIndex,
-        raw_commit: &RawCommit,
-    ) -> Option<Vote> {
-        // Cast the raw commit sig to a commit sig
-        let commit_sig = tendermint::block::CommitSig::try_from(raw_commit_sig.clone()).expect("should be able to cast raw commit sig to commit sig");
-        let (validator_address, timestamp, signature, block_id) = match commit_sig {
-            CommitSig::BlockIdFlagAbsent { .. } => return None,
-            CommitSig::BlockIdFlagCommit {
-                validator_address,
-                timestamp,
-                signature,
-            } => (
-                validator_address,
-                timestamp,
-                signature,
-                raw_commit.block_id.clone(),
-            ),
-            CommitSig::BlockIdFlagNil {
-                validator_address,
-                timestamp,
-                signature,
-            } => (validator_address, timestamp, signature, None),
-        };
-
-        let height = tendermint::block::Height::try_from(raw_commit.height).expect("should be able to cast raw commit height to height");
-        let round = tendermint::block::Round::try_from(raw_commit.round).expect("should be able to cast raw commit round to round");
-        let block_id = Some(tendermint::block::Id::try_from(block_id.unwrap()).expect("should be able to cast raw commit block id to block id"));
-    
-        Some(Vote {
-            vote_type: tendermint::vote::Type::Precommit,
-            height: height,
-            round: round,
-            block_id,
-            timestamp: Some(timestamp),
-            validator_address,
-            validator_index,
-            signature: signature.clone(),
-            extension: Default::default(),
-            extension_signature: None,
-        })
-    }
+    use super::{proofs_from_byte_slices, SignedBlock, non_absent_vote};
 
     #[test]
     fn test_validator_inclusion() {
@@ -467,6 +469,8 @@ pub(crate) mod tests {
             )
         };
 
+        // Source: https://github.com/informalsystems/tendermint-rs/blob/c2b5c9e01eab1c740598aa14375a7453f3bfa436/light-client-verifier/src/operations/voting_power.rs#L139-L198
+        // Verify each of the signatures of the non_absent_votes
         // Verify signatures
         let non_absent_votes = block.commit.signatures.iter().enumerate().flat_map(|(idx, signature)| {
             non_absent_vote(
@@ -491,6 +495,7 @@ pub(crate) mod tests {
 
             // Check vote is valid
             let sign_bytes = signed_vote.sign_bytes();
+            println!("sign_bytes: {:?}", String::from_utf8(hex::encode(&sign_bytes)));
             validator.verify_signature::<tendermint::crypto::default::signature::Verifier>(&sign_bytes, signed_vote.signature()).expect("invalid signature");
 
             // TODO: Break out of the loop when we have enough voting power.
