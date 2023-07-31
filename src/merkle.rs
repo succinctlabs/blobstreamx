@@ -304,18 +304,73 @@ fn generate_proofs_from_header(h: &Header) -> (Hash, Vec<Proof>) {
 
 #[cfg(test)]
 pub(crate) mod tests {
+    use tendermint::block::{CommitSig, self};
     use tendermint::merkle::simple_hash_from_byte_vectors;
     use sha2::Sha256;
     use subtle_encoding::hex;
     use tendermint_proto::{
         Protobuf,
-        types::SimpleValidator as RawSimpleValidator,
+        types::SimpleValidator as RawSimpleValidator, consensus::Vote as RawVote,
+        types::CommitSig as RawCommitSig, types::Commit as RawCommit,
     };
+    use tendermint::Signature;
+    use tendermint::crypto::default::signature::Verifier;
+    use tendermint::crypto::signature::Verifier as SignatureVerifier;
+    use tendermint::crypto::signature;
+    use tendermint::vote::SignedVote;
 
     use crate::merkle::{generate_proofs_from_header, TempSignedBlock};
     use tendermint::validator::{Set as ValidatorSet, Info, SimpleValidator};
+    use tendermint::{
+        vote::{ValidatorIndex, Vote},
+        block::Commit,
+    };
 
     use super::{proofs_from_byte_slices, SignedBlock};
+
+    fn non_absent_vote(
+        raw_commit_sig: &RawCommitSig,
+        validator_index: ValidatorIndex,
+        raw_commit: &RawCommit,
+    ) -> Option<Vote> {
+        // Cast the raw commit sig to a commit sig
+        let commit_sig = tendermint::block::CommitSig::try_from(raw_commit_sig.clone()).expect("should be able to cast raw commit sig to commit sig");
+        let (validator_address, timestamp, signature, block_id) = match commit_sig {
+            CommitSig::BlockIdFlagAbsent { .. } => return None,
+            CommitSig::BlockIdFlagCommit {
+                validator_address,
+                timestamp,
+                signature,
+            } => (
+                validator_address,
+                timestamp,
+                signature,
+                raw_commit.block_id.clone(),
+            ),
+            CommitSig::BlockIdFlagNil {
+                validator_address,
+                timestamp,
+                signature,
+            } => (validator_address, timestamp, signature, None),
+        };
+
+        let height = tendermint::block::Height::try_from(raw_commit.height).expect("should be able to cast raw commit height to height");
+        let round = tendermint::block::Round::try_from(raw_commit.round).expect("should be able to cast raw commit round to round");
+        let block_id = Some(tendermint::block::Id::try_from(block_id.unwrap()).expect("should be able to cast raw commit block id to block id"));
+    
+        Some(Vote {
+            vote_type: tendermint::vote::Type::Precommit,
+            height: height,
+            round: round,
+            block_id,
+            timestamp: Some(timestamp),
+            validator_address,
+            validator_index,
+            signature: signature.clone(),
+            extension: Default::default(),
+            extension_signature: None,
+        })
+    }
 
     #[test]
     fn test_validator_inclusion() {
@@ -385,6 +440,62 @@ pub(crate) mod tests {
             let encoded_bytes = Protobuf::<RawSimpleValidator>::encode_vec(SimpleValidator::from(validator));
             println!("Encoded Validator (Hex): {:?}", String::from_utf8(hex::encode(encoded_bytes)));
         }
+
+        let validator_hash = block.validator_set.hash();
+        
+        // Check that the computed hash and validators_hash match
+        assert_eq!(validator_hash, block.header.validators_hash);
+
+        
+    }
+
+    #[test]
+    fn test_verify_signatures() {
+        // Generate test cases from Celestia block:
+        let temp_block = TempSignedBlock::from(
+            serde_json::from_str::<TempSignedBlock>(include_str!("./scripts/signed_celestia_block.json")).unwrap()
+        );
+        
+        // Cast to SignedBlock
+        let block = SignedBlock {
+            header: temp_block.header,
+            data: temp_block.data,
+            commit: temp_block.commit,
+            validator_set: ValidatorSet::new(
+                temp_block.validator_set.validators,
+                temp_block.validator_set.proposer,
+            )
+        };
+
+        // Verify signatures
+        let non_absent_votes = block.commit.signatures.iter().enumerate().flat_map(|(idx, signature)| {
+            non_absent_vote(
+                signature,
+                ValidatorIndex::try_from(idx).unwrap(),
+                &block.commit,
+            )
+            .map(|vote| (signature, vote))
+        });
+
+        for (signature, vote) in non_absent_votes {
+            let validator = match block.validator_set.validator(vote.validator_address) {
+                Some(validator) => validator,
+                None => continue, // Cannot find matching validator, so we skip the vote
+            };
+
+            println!("verified");
+
+            let signed_vote =
+                SignedVote::from_vote(vote.clone(), block.header.chain_id.clone())
+                    .expect("missing signature");
+
+            // Check vote is valid
+            let sign_bytes = signed_vote.sign_bytes();
+            validator.verify_signature::<tendermint::crypto::default::signature::Verifier>(&sign_bytes, signed_vote.signature()).expect("invalid signature");
+
+            // TODO: Break out of the loop when we have enough voting power.
+            // See https://github.com/informalsystems/tendermint-rs/issues/235
+        }        
 
         let validator_hash = block.validator_set.hash();
         
