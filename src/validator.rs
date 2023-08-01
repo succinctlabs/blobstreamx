@@ -89,7 +89,7 @@ pub trait TendermintMarshaller {
         header_hash: [BoolTarget; HASH_SIZE_BITS],
         // Should be the same for all validators
         round_present_in_message: BoolTarget,
-    );
+    ) -> [BoolTarget; HASH_SIZE_BITS];
 
     /// Hashes validator bytes to get the leaf according to the Tendermint spec. (0x00 || validatorBytes)
     fn hash_validator_leaf(
@@ -165,7 +165,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
         header_hash: [BoolTarget; HASH_SIZE_BITS],
         // Should be the same for all validators
         round_present_in_message: BoolTarget,
-    ) {
+    ) -> [BoolTarget; HASH_SIZE_BITS] {
         // Logic is the following:
         //  1) If message[12] == 34
         //      a) Verify message[14] == 10 (hash index within subfield)
@@ -199,6 +199,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
             let round_missing_eq = self.is_equal(header_hash[i].target, vec_round_missing[i].target);
             let round_present_eq = self.is_equal(header_hash[i].target, vec_round_present[i].target);
 
+            // Pick the correct bit based on whether the round is present or not.
             let hash_eq = self.select(
                 round_present_in_message,
                 round_present_eq.target,
@@ -207,6 +208,8 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
 
             self.connect(hash_eq, one);
         }
+
+        header_hash
     }
 
     fn marshal_int64_varint(
@@ -1002,6 +1005,61 @@ pub(crate) mod tests {
             println!("Verified proof");
 
         }
+    }
+
+    #[test]
+    fn test_verify_hash_in_message() {
+        // This is a test case generated from block 144094 of Celestia's Mocha testnet
+        // Block Hash: 8909e1b73b7d987e95a7541d96ed484c17a4b0411e98ee4b7c890ad21302ff8c
+        // Signed Message (from the last validator): 6b080211de3202000000000022480a208909e1b73b7d987e95a7541d96ed484c17a4b0411e98ee4b7c890ad21302ff8c12240801122061263df4855e55fcab7aab0a53ee32cf4f29a1101b56de4a9d249d44e4cf96282a0b089dce84a60610ebb7a81932076d6f6368612d33
+        // No round exists in the signed message above
+
+        let header_hash = "8909e1b73b7d987e95a7541d96ed484c17a4b0411e98ee4b7c890ad21302ff8c";
+        let header_bits = to_bits(hex::decode(header_hash).unwrap());
+
+        let signed_message = "6b080211de3202000000000022480a208909e1b73b7d987e95a7541d96ed484c17a4b0411e98ee4b7c890ad21302ff8c12240801122061263df4855e55fcab7aab0a53ee32cf4f29a1101b56de4a9d249d44e4cf96282a0b089dce84a60610ebb7a81932076d6f6368612d33";
+        let signed_message_bits = to_bits(hex::decode(signed_message).unwrap());
+
+        let mut pw = PartialWitness::new();
+        let config = CircuitConfig::standard_recursion_config();
+        let mut builder = CircuitBuilder::<F, D>::new(config);
+
+        let zero = builder._false();
+
+        let mut signed_message_target = [builder._false(); VALIDATOR_MESSAGE_BYTES_LENGTH_MAX * 8];
+        for i in 0..signed_message_bits.len() {
+            signed_message_target[i] = builder.constant_bool(signed_message_bits[i]);
+        }
+
+        let mut header_hash_target = [builder._false(); HASH_SIZE_BITS];
+        for i in 0..header_bits.len() {
+            header_hash_target[i] = builder.constant_bool(header_bits[i]);
+        }
+
+        let result = builder.verify_hash_in_message(
+            signed_message_target,
+            header_hash_target,
+            zero,
+        );
+        
+        for i in 0..HASH_SIZE_BITS {
+            if header_bits[i] {
+                pw.set_target(result[i].target, F::ONE);
+            } else {
+                pw.set_target(result[i].target, F::ZERO);
+            }
+        }
+
+        let data = builder.build::<C>();
+        let proof = data.prove(pw).unwrap();
+
+        println!("Created proof");
+
+        data.verify(proof).unwrap();
+
+        println!("Verified proof");
+
+
     }
 
     #[test]

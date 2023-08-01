@@ -485,6 +485,8 @@ pub(crate) mod tests {
         let mut min_sign_bytes_len = 1000000;
         let mut max_sign_bytes_len = 0;
 
+        println!("Header hash: {:?}", block.header.hash().to_string().to_lowercase());
+
         for (signature, vote) in non_absent_votes {
             let validator = match block.validator_set.validator(vote.validator_address) {
                 Some(validator) => validator,
@@ -504,6 +506,7 @@ pub(crate) mod tests {
             // let mut buf = Vec::new();
             // vote.to_signable_bytes(block.header.chain_id.clone(), &mut buf).expect("failed to encode vote");
 
+            // println!("Sign Bytes: {:?}", String::from_utf8(hex::encode(&sign_bytes)));
 
             if (sign_bytes.len() < min_sign_bytes_len) {
                 min_sign_bytes_len = sign_bytes.len();
