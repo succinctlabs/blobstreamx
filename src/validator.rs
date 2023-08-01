@@ -91,6 +91,23 @@ pub trait TendermintMarshaller {
         round_present_in_message: BoolTarget,
     ) -> [BoolTarget; HASH_SIZE_BITS];
 
+    /// Verify a merkle proof against the specified root hash.
+    /// Note: Used for dataHash, validatorsHash and nextValidatorsHash
+    /// Output is the merkle root
+    fn get_root_from_merkle_proof(
+        &mut self,
+        aunts: Vec<[BoolTarget; HASH_SIZE_BITS]>,
+        merkle_proof_enabled: Vec<BoolTarget>,
+        leaf: [BoolTarget; HASH_SIZE_BITS],
+    ) -> [BoolTarget; HASH_SIZE_BITS];
+
+    /// Hashes leaf bytes to get the leaf hash according to the Tendermint spec. (0x00 || leafBytes)
+    /// NOTE: This function will only work for leaves with a length of 32 bytes.
+    fn hash_header_leaf(
+        &mut self,
+        validator: &[BoolTarget; HASH_SIZE_BITS],
+    ) -> [BoolTarget; HASH_SIZE_BITS];
+
     /// Hashes validator bytes to get the leaf according to the Tendermint spec. (0x00 || validatorBytes)
     fn hash_validator_leaf(
         &mut self,
@@ -104,6 +121,13 @@ pub trait TendermintMarshaller {
         validators: &Vec<[BoolTarget; VALIDATOR_BIT_LENGTH_MAX]>,
         validator_byte_lengths: &Vec<U32Target>,
     ) -> Vec<[BoolTarget; HASH_SIZE_BITS]>;
+
+    /// Hashes two nodes to get the inner node according to the Tendermint spec. (0x01 || left || right)
+    fn inner_hash(
+        &mut self,
+        left: &[BoolTarget; HASH_SIZE_BITS],
+        right: &[BoolTarget; HASH_SIZE_BITS],
+    ) -> [BoolTarget; HASH_SIZE_BITS];
 
     /// Hashes a layer of the Merkle tree according to the Tendermint spec. (0x01 || left || right)
     /// If in a pair the right node is not enabled (empty), then the left node is passed up to the next layer.
@@ -123,18 +147,10 @@ pub trait TendermintMarshaller {
         validator_enabled: &Vec<BoolTarget>,
     ) -> [BoolTarget; HASH_SIZE * 8];
 
-    fn mul_i64_by_u32(
-        &mut self,
-        a: &I64Target,
-        b: U32Target
-    ) -> I64Target;
+    fn mul_i64_by_u32(&mut self, a: &I64Target, b: U32Target) -> I64Target;
 
     // Returns a >= b
-    fn is_i64_gte(
-        &mut self,
-        a: &I64Target,
-        b: &I64Target
-    ) -> BoolTarget;
+    fn is_i64_gte(&mut self, a: &I64Target, b: &I64Target) -> BoolTarget;
 
     // Checks if accumulated voting power * m > total voting power * n (threshold is n/m)
     fn voting_power_greater_than_threshold(
@@ -142,7 +158,7 @@ pub trait TendermintMarshaller {
         accumulated_power: &I64Target,
         total_voting_power: &I64Target,
         threshold_numerator: U32Target,
-        threshold_denominator: U32Target
+        threshold_denominator: U32Target,
     ) -> BoolTarget;
 
     /// Accumulate voting power from the enabled validators & check that the voting power is greater than 2/3 of the total voting power.
@@ -152,12 +168,75 @@ pub trait TendermintMarshaller {
         validator_enabled: &Vec<U32Target>,
         total_voting_power: &I64Target,
         threshold_numerator: U32Target,
-        threshold_denominator: U32Target
+        threshold_denominator: U32Target,
     ) -> BoolTarget;
-
 }
 
 impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for CircuitBuilder<F, D> {
+    /// Verify a merkle proof against the specified root hash.
+    /// Aunts is the array from the leaf's sibling to the root's child
+    /// NOTE: This function will only work for leaves with a length of 32 bytes.
+    /// NOTE: Index should be checked to be one of the valid leaves {dataHash, validatorsHash, nextValidatorsHash} before calling this function.
+    fn get_root_from_merkle_proof(
+        &mut self,
+        aunts: Vec<[BoolTarget; HASH_SIZE_BITS]>,
+        path_indices: Vec<BoolTarget>,
+        leaf: [BoolTarget; HASH_SIZE_BITS],
+    ) -> [BoolTarget; HASH_SIZE_BITS] {
+        let hash_leaf = self.hash_header_leaf(&leaf);
+
+        let mut hash_so_far = hash_leaf;
+        for i in 0..aunts.len() {
+            let aunt = aunts[i];
+            let path_index = path_indices[i];
+            let left_hash_pair = self.inner_hash(&hash_so_far, &aunt);
+            let right_hash_pair = self.inner_hash(&aunt, &hash_so_far);
+
+            let mut hash_pair = [self._false(); HASH_SIZE_BITS];
+            for j in 0..HASH_SIZE_BITS {
+                // If the path index is 0, then the right hash is the aunt.
+                hash_pair[j] = BoolTarget::new_unsafe(self.select(
+                    path_index,
+                    right_hash_pair[j].target,
+                    left_hash_pair[j].target,
+                ));
+            }
+            hash_so_far = hash_pair;
+        }
+        hash_so_far
+    }
+
+    /// Hashes leaf bytes to get the leaf hash according to the Tendermint spec. (0x00 || leafBytes)
+    /// NOTE: This function will only work for leaves with a length of 32 bytes.
+    fn hash_header_leaf(
+        &mut self,
+        leaf: &[BoolTarget; HASH_SIZE_BITS],
+    ) -> [BoolTarget; HASH_SIZE_BITS] {
+        // Calculate the length of the message for the leaf hash.
+        // 0x00 || leafBytes
+        let bits_length = 8 + (HASH_SIZE_BITS);
+
+        // Calculate the message for the leaf hash.
+        let mut leaf_msg_bits = vec![self._false(); bits_length];
+
+        // 0x00
+        for k in 0..8 {
+            leaf_msg_bits[k] = self._false();
+        }
+
+        // validatorBytes
+        for k in 8..bits_length {
+            leaf_msg_bits[k] = leaf[k - 8];
+        }
+
+        // Load the output of the hash.
+        let hash = sha256(self, &leaf_msg_bits);
+        let mut return_hash = [self._false(); HASH_SIZE_BITS];
+        for k in 0..HASH_SIZE_BITS {
+            return_hash[k] = hash[k];
+        }
+        return_hash
+    }
 
     fn verify_hash_in_message(
         &mut self,
@@ -184,10 +263,9 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
 
         let missing_round_start_idx = 16;
 
-        let including_round_start_idx = 25;   
+        let including_round_start_idx = 25;
 
         let one = self.one();
-        
 
         let mut vec_round_missing = [self._false(); HASH_SIZE_BITS];
 
@@ -196,14 +274,16 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
         for i in 0..HASH_SIZE_BITS {
             vec_round_missing[i] = message[(missing_round_start_idx) * 8 + i];
             vec_round_present[i] = message[(including_round_start_idx) * 8 + i];
-            let round_missing_eq = self.is_equal(header_hash[i].target, vec_round_missing[i].target);
-            let round_present_eq = self.is_equal(header_hash[i].target, vec_round_present[i].target);
+            let round_missing_eq =
+                self.is_equal(header_hash[i].target, vec_round_missing[i].target);
+            let round_present_eq =
+                self.is_equal(header_hash[i].target, vec_round_present[i].target);
 
             // Pick the correct bit based on whether the round is present or not.
             let hash_eq = self.select(
                 round_present_in_message,
                 round_present_eq.target,
-                round_missing_eq.target
+                round_missing_eq.target,
             );
 
             self.connect(hash_eq, one);
@@ -445,6 +525,44 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
         validators_leaf_hashes.to_vec()
     }
 
+    fn inner_hash(
+        &mut self,
+        left: &[BoolTarget; HASH_SIZE_BITS],
+        right: &[BoolTarget; HASH_SIZE_BITS],
+    ) -> [BoolTarget; HASH_SIZE_BITS] {
+        // Calculate the length of the message for the inner hash.
+        // 0x01 || left || right
+        let bits_length = 8 + (HASH_SIZE_BITS * 2);
+
+        // Calculate the message for the inner hash.
+        let mut message_bits = vec![self._false(); bits_length];
+
+        // 0x01
+        for k in 0..7 {
+            message_bits[k] = self._false();
+        }
+        message_bits[7] = self._true();
+
+        // left
+        for k in 8..8 + HASH_SIZE_BITS {
+            message_bits[k] = left[k - 8];
+        }
+
+        // right
+        for k in 8 + HASH_SIZE_BITS..bits_length {
+            message_bits[k] = right[k - (8 + HASH_SIZE_BITS)];
+        }
+
+        // Load the output of the hash.
+        // Note: Calculate the inner hash as if both validators are enabled.
+        let inner_hash = sha256(self, &message_bits);
+        let mut ret_inner_hash = [self._false(); HASH_SIZE_BITS];
+        for k in 0..HASH_SIZE_BITS {
+            ret_inner_hash[k] = inner_hash[k];
+        }
+        ret_inner_hash
+    }
+
     fn hash_merkle_layer(
         &mut self,
         merkle_hashes: &mut Vec<[BoolTarget; 256]>,
@@ -461,35 +579,11 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
             let second_node_disabled = self.not(merkle_hash_enabled[i + 1]);
             let both_nodes_disabled = self.and(first_node_disabled, second_node_disabled);
 
-            // Calculate the length of the message for the inner hash.
-            // 0x01 || left || right
-            let bits_length = 8 + (HASH_SIZE_BITS * 2);
-
-            // Calculate the message for the inner hash.
-            let mut message_bits = vec![self._false(); bits_length];
-
-            // 0x01
-            for k in 0..7 {
-                message_bits[k] = self._false();
-            }
-            message_bits[7] = self._true();
-
-            // left
-            for k in 8..8 + HASH_SIZE_BITS {
-                message_bits[k] = merkle_hashes[i][k - 8];
-            }
-
-            // right
-            for k in 8 + HASH_SIZE_BITS..bits_length {
-                message_bits[k] = merkle_hashes[i + 1][k - (8 + HASH_SIZE_BITS)];
-            }
-
-            // Load the output of the hash.
-            // Note: Calculate the inner hash as if both validators are enabled.
-            let inner_hash = sha256(self, &message_bits);
+            // Calculuate the inner hash.
+            let inner_hash = self.inner_hash(&merkle_hashes[i], &merkle_hashes[i + 1]);
 
             for k in 0..HASH_SIZE_BITS {
-                // If the left node is enabled and the right node is disabled, we pass up the left hash.
+                // If the left node is enabled and the right node is disabled, we pass up the left hash instead of the inner hash.
                 merkle_hashes[i / 2][k] = BoolTarget::new_unsafe(self.select(
                     both_nodes_enabled,
                     inner_hash[k].target,
@@ -547,14 +641,10 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
         }
 
         // Return the root hash.
-        return current_validator_hashes[0];
+        current_validator_hashes[0]
     }
 
-    fn mul_i64_by_u32(
-        &mut self,
-        a: &I64Target,
-        b: U32Target
-    ) -> I64Target   {
+    fn mul_i64_by_u32(&mut self, a: &I64Target, b: U32Target) -> I64Target {
         // Multiply the lower 32 bits of the accumulated voting power by b
         let (lower_product, lower_carry) = self.mul_u32(a.0[0], b);
 
@@ -574,11 +664,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
     }
 
     // Returns a >= b
-    fn is_i64_gte(
-        &mut self,
-        a: &I64Target,
-        b: &I64Target
-    ) -> BoolTarget {
+    fn is_i64_gte(&mut self, a: &I64Target, b: &I64Target) -> BoolTarget {
         // Check that the a >= b
         // 1) a_high > b_high => TRUE
         // 2) a_high == b_high
@@ -601,7 +687,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
         let (_, underflow_low) = self.sub_u32(a.0[0], b.0[0], zero_u32);
 
         let no_underflow_low = self.is_equal(underflow_low.0, zero_u32.0);
-        
+
         // Case 1)
         // If there was no underflow & a_high - b_high is not equal (i.e. positive), accumulated voting power is greater.
         let upper_pass = self.and(upper_not_equal, no_underflow_high);
@@ -610,11 +696,8 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
         // If a_high = b_high & a_low >= b_low, accumulated voting power is greater.
         let lower_pass = self.and(upper_equal, no_underflow_low);
 
-        let pass = self.or(upper_pass, lower_pass);
-
         // Note: True if accumulated voting power is >= than 2/3 of the total voting power.
-        pass
-
+        self.or(upper_pass, lower_pass)
     }
 
     fn voting_power_greater_than_threshold(
@@ -622,15 +705,15 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
         accumulated_power: &I64Target,
         total_voting_power: &I64Target,
         threshold_numerator: U32Target,
-        threshold_denominator: U32Target
+        threshold_denominator: U32Target,
     ) -> BoolTarget {
         // Threshold is numerator/denominator * total_voting_power
 
         // Compute accumulated_voting_power * m
-        let scaled_accumulated_vp = self.mul_i64_by_u32(&accumulated_power, threshold_denominator);
+        let scaled_accumulated_vp = self.mul_i64_by_u32(accumulated_power, threshold_denominator);
 
         // Compute total_vp * n
-        let scaled_total_vp = self.mul_i64_by_u32(&total_voting_power, threshold_numerator);
+        let scaled_total_vp = self.mul_i64_by_u32(total_voting_power, threshold_numerator);
 
         self.is_i64_gte(&scaled_accumulated_vp, &scaled_total_vp)
     }
@@ -641,24 +724,27 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
         validator_enabled: &Vec<U32Target>,
         total_voting_power: &I64Target,
         threshold_numerator: U32Target,
-        threshold_denominator: U32Target
+        threshold_denominator: U32Target,
     ) -> BoolTarget {
         // Accumulate the voting power from the enabled validators.
-        let mut accumulated_voting_power = I64Target([U32Target(self.zero()), U32Target(self.zero())]);
+        let mut accumulated_voting_power =
+            I64Target([U32Target(self.zero()), U32Target(self.zero())]);
         for i in 0..VALIDATOR_SET_SIZE_MAX {
             let voting_power = validator_voting_power[i];
             let enabled = validator_enabled[i];
-            
+
             // Note: Tendermint validators max voting power is 2^63 - 1. (Should below 2^32)
-            let (sum_lower_low, sum_lower_high) = self.mul_add_u32(voting_power.0[0], enabled, accumulated_voting_power.0[0]);
-            
+            let (sum_lower_low, sum_lower_high) =
+                self.mul_add_u32(voting_power.0[0], enabled, accumulated_voting_power.0[0]);
+
             let (carry_sum_low, carry_sum_high) = self.add_u32(sum_lower_high, voting_power.0[1]);
 
             // This should not overflow from carrying voting_power[1] + accumulated_voting_power[0]
             self.assert_zero_u32(carry_sum_high);
 
             // This should not overflow
-            let (sum_upper_low, sum_upper_high) = self.mul_add_u32(carry_sum_low, enabled, accumulated_voting_power.0[1]);
+            let (sum_upper_low, sum_upper_high) =
+                self.mul_add_u32(carry_sum_low, enabled, accumulated_voting_power.0[1]);
 
             // Check that the upper 32 bits of the upper sum are zero.
             self.assert_zero_u32(sum_upper_high);
@@ -668,12 +754,18 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
         }
 
         // Note: Because the threshold is n/m, max I64 should be range checked to be < 2^63 / m
-        self.voting_power_greater_than_threshold(&accumulated_voting_power, &total_voting_power, threshold_numerator, threshold_denominator)
+        self.voting_power_greater_than_threshold(
+            &accumulated_voting_power,
+            total_voting_power,
+            threshold_numerator,
+            threshold_denominator,
+        )
     }
 }
 
 #[cfg(test)]
 pub(crate) mod tests {
+    use super::*;
     use clap::builder;
     use plonky2::field::types::Field;
     use plonky2::iop::target::BoolTarget;
@@ -687,11 +779,10 @@ pub(crate) mod tests {
     };
     use sha2::Sha256;
     use subtle_encoding::hex;
-    use super::*;
 
     use crate::validator::{VALIDATOR_BIT_LENGTH_MAX, VALIDATOR_SET_SIZE_MAX};
 
-    use crate::merkle::hash_all_leaves;
+    use crate::merkle::{generate_proofs_from_header, get_split_point, hash_all_leaves};
 
     use plonky2_gadgets::num::u32::gadgets::arithmetic_u32::U32Target;
 
@@ -760,6 +851,96 @@ pub(crate) mod tests {
         }
         return (validators_target, validator_byte_length, validator_enabled);
     }
+
+    // #[test]
+    // fn test_get_root_from_merkle_proof() {
+    //     // Generate test cases from Celestia block:
+    //     let block = tendermint::Block::from(
+    //         serde_json::from_str::<tendermint::block::Block>(include_str!(
+    //             "./scripts/celestia_block.json"
+    //         ))
+    //         .unwrap(),
+    //     );
+
+    //     // println!("Block: {:?}", block);
+
+    //     let header_hash = block.header.hash().to_string();
+    //     let header_bits = to_bits(hex::decode(header_hash.to_lowercase()).unwrap());
+
+    //     let validators_hash = block.header.validators_hash.to_string();
+    //     let validators_hash_bits = to_bits(hex::decode(validators_hash.to_lowercase()).unwrap());
+
+    //     let mut pw = PartialWitness::new();
+    //     let config = CircuitConfig::standard_recursion_config();
+    //     let mut builder = CircuitBuilder::<F, D>::new(config);
+
+    //     let zero = builder._false();
+    //     let one = builder._true();
+
+    //     let (root_hash, proofs) = generate_proofs_from_header(&block.header);
+
+    //     // println!("root_hash: {:?}", root_hash);
+
+    //     let validators_hash_index = 7;
+
+    //     let mut path_indices = vec![];
+
+    //     let mut current_total = proofs[7].total as usize;
+    //     let mut current_index = 7 as usize;
+    //     // println!("current_total: {:?}", current_total);
+    //     while (current_total >= 1) {
+    //         path_indices.push(builder.constant_bool(current_index % 2 == 1));
+    //         current_total = current_total / 2;
+    //         current_index = current_index / 2;
+    //     }
+
+    //     // println!("path_indices: {:?}", path_indices);
+
+    //     let mut validators_hash_target = [builder._false(); HASH_SIZE_BITS];
+    //     for i in 0..HASH_SIZE_BITS {
+    //         validators_hash_target[i] = if validators_hash_bits[i] {
+    //             builder._true()
+    //         } else {
+    //             builder._false()
+    //         };
+    //     }
+
+    //     let mut aunts_target = vec![[builder._false(); HASH_SIZE_BITS]; proofs[7].aunts.len()];
+    //     // println!("aunts: {:?}", proofs[7].aunts);
+    //     for i in 0..proofs[7].aunts.len() {
+    //         let bool_vector = to_bits(proofs[7].aunts[i].to_vec());
+    //         // println!("bool_vector: {:?}", bool_vector);
+    //         for j in 0..HASH_SIZE_BITS {
+    //             aunts_target[i][j] = if bool_vector[j] {
+    //                 builder._true()
+    //             } else {
+    //                 builder._false()
+    //             };
+    //         }
+    //     }
+
+    //     let result =
+    //         builder.get_root_from_merkle_proof(aunts_target, path_indices, validators_hash_target);
+        
+    //     println!("result: {:?}", result);
+
+    //     for i in 0..HASH_SIZE_BITS {
+    //         if header_bits[i] {
+    //             pw.set_target(result[i].target, F::ONE);
+    //         } else {
+    //             pw.set_target(result[i].target, F::ZERO);
+    //         }
+    //     }
+
+    //     let data = builder.build::<C>();
+    //     let proof = data.prove(pw).unwrap();
+
+    //     println!("Created proof");
+
+    //     data.verify(proof).unwrap();
+
+    //     println!("Verified proof");
+    // }
 
     #[test]
     fn test_get_leaf_hash() {
@@ -944,9 +1125,16 @@ pub(crate) mod tests {
             // voting power, enabled, pass
             (vec![10i64, 10i64, 10i64, 10i64], [1, 1, 1, 0], true),
             (vec![10i64, 10i64, 10i64, 10i64], [1, 1, 1, 1], true),
-            (vec![4294967296000i64, 4294967296i64, 10i64, 10i64], [1, 0, 0, 0], true),
-            (vec![4294967296000i64, 4294967296000i64, 4294967296000i64, 0i64], [1, 1, 0, 0], true)
-            // (vec![9223372036854775000i64, 0, 0, 0], [1, 0, 0, 0], false),
+            (
+                vec![4294967296000i64, 4294967296i64, 10i64, 10i64],
+                [1, 0, 0, 0],
+                true,
+            ),
+            (
+                vec![4294967296000i64, 4294967296000i64, 4294967296000i64, 0i64],
+                [1, 1, 0, 0],
+                true,
+            ), // (vec![9223372036854775000i64, 0, 0, 0], [1, 0, 0, 0], false),
         ];
         // These test cases should pass
 
@@ -964,10 +1152,12 @@ pub(crate) mod tests {
                 let voting_power_lower = voting_power & ((1 << 32) - 1);
                 let voting_power_upper = voting_power >> 32;
 
-                let voting_power_lower_target =
-                    U32Target(builder.constant(F::from_canonical_usize(voting_power_lower as usize)));
-                let voting_power_upper_target =
-                    U32Target(builder.constant(F::from_canonical_usize(voting_power_upper as usize)));
+                let voting_power_lower_target = U32Target(
+                    builder.constant(F::from_canonical_usize(voting_power_lower as usize)),
+                );
+                let voting_power_upper_target = U32Target(
+                    builder.constant(F::from_canonical_usize(voting_power_upper as usize)),
+                );
                 let voting_power_target =
                     I64Target([voting_power_lower_target, voting_power_upper_target]);
 
@@ -985,13 +1175,18 @@ pub(crate) mod tests {
                 U32Target(builder.constant(F::from_canonical_usize(total_vp_lower as usize)));
             let total_vp_upper_target =
                 U32Target(builder.constant(F::from_canonical_usize(total_vp_upper as usize)));
-            let total_vp_target =
-                I64Target([total_vp_lower_target, total_vp_upper_target]);
+            let total_vp_target = I64Target([total_vp_lower_target, total_vp_upper_target]);
 
             let two_u32 = builder.constant_u32(2);
             let three_u32 = builder.constant_u32(3);
 
-            let result = builder.check_voting_power(&all_validators, &validators_enabled, &total_vp_target, two_u32, three_u32);
+            let result = builder.check_voting_power(
+                &all_validators,
+                &validators_enabled,
+                &total_vp_target,
+                two_u32,
+                three_u32,
+            );
 
             pw.set_bool_target(result, test_case.2);
 
@@ -1003,14 +1198,13 @@ pub(crate) mod tests {
             data.verify(proof).unwrap();
 
             println!("Verified proof");
-
         }
     }
 
     #[test]
     fn test_verify_hash_in_message() {
         // This is a test case generated from block 144094 of Celestia's Mocha testnet
-        // Block Hash: 8909e1b73b7d987e95a7541d96ed484c17a4b0411e98ee4b7c890ad21302ff8c
+        // Block Hash: 8909e1b73b7d987e95a7541d96ed484c17a4b0411e98ee4b7c890ad21302ff8c (this needs to be lower case)
         // Signed Message (from the last validator): 6b080211de3202000000000022480a208909e1b73b7d987e95a7541d96ed484c17a4b0411e98ee4b7c890ad21302ff8c12240801122061263df4855e55fcab7aab0a53ee32cf4f29a1101b56de4a9d249d44e4cf96282a0b089dce84a60610ebb7a81932076d6f6368612d33
         // No round exists in the signed message above
 
@@ -1025,6 +1219,7 @@ pub(crate) mod tests {
         let mut builder = CircuitBuilder::<F, D>::new(config);
 
         let zero = builder._false();
+        let one = builder._true();
 
         let mut signed_message_target = [builder._false(); VALIDATOR_MESSAGE_BYTES_LENGTH_MAX * 8];
         for i in 0..signed_message_bits.len() {
@@ -1036,12 +1231,9 @@ pub(crate) mod tests {
             header_hash_target[i] = builder.constant_bool(header_bits[i]);
         }
 
-        let result = builder.verify_hash_in_message(
-            signed_message_target,
-            header_hash_target,
-            zero,
-        );
-        
+        let result =
+            builder.verify_hash_in_message(signed_message_target, header_hash_target, zero);
+
         for i in 0..HASH_SIZE_BITS {
             if header_bits[i] {
                 pw.set_target(result[i].target, F::ONE);
@@ -1058,8 +1250,6 @@ pub(crate) mod tests {
         data.verify(proof).unwrap();
 
         println!("Verified proof");
-
-
     }
 
     #[test]
@@ -1196,5 +1386,4 @@ pub(crate) mod tests {
             assert_eq!(marshalled_bytes[i], expected_bytes[i]);
         }
     }
-
 }

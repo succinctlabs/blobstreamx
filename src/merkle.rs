@@ -1,29 +1,23 @@
-use tendermint::abci::types::Validator;
-/// Source (tendermint-rs): https://github.com/informalsystems/tendermint-rs/blob/e930691a5639ef805c399743ac0ddbba0e9f53da/tendermint/src/merkle.rs#L32
-use tendermint::merkle::{MerkleHash, Hash};
-use tendermint_proto::Protobuf;
-use tendermint_proto::types::Data;
-use tendermint_proto::{
-    types::Commit as RawCommit,
-    types::BlockId as RawBlockId,
-    version::Consensus as RawConsensusVersion,
-    types::SimpleValidator as RawSimpleValidator, consensus::Vote as RawVote,
-    types::CommitSig as RawCommitSig,
-    
-};
-use tendermint::{
-    vote::{ValidatorIndex, Vote},
-    block::{Commit, CommitSig},
-};
-use serde::{Deserialize, Serialize, Deserializer};
-use tendermint::block::Header;
-use tendermint::validator::{Set as ValidatorSet, Info, SimpleValidator};
-use tendermint::vote::Power;
-use sha2::{Sha256, Digest};
-use subtle_encoding::hex;
-use std::borrow::BorrowMut;
-use std::rc::Rc;
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::cell::RefCell;
+use std::rc::Rc;
+use subtle_encoding::hex;
+/// Source (tendermint-rs): https://github.com/informalsystems/tendermint-rs/blob/e930691a5639ef805c399743ac0ddbba0e9f53da/tendermint/src/merkle.rs#L32
+use tendermint::{
+    merkle::{Hash, MerkleHash},
+    validator::{Info, Set as ValidatorSet},
+    vote::Power,
+    block::{Commit, CommitSig},
+    vote::{ValidatorIndex, Vote},
+    block::Header,
+};
+use tendermint_proto::{
+    Protobuf,
+    types::BlockId as RawBlockId,
+    types::Data as RawData,
+    version::Consensus as RawConsensusVersion,
+};
 
 /// Compute leaf hashes for arbitrary byte vectors.
 /// The leaves of the tree are the bytes of the given byte vectors in
@@ -46,53 +40,49 @@ where
 struct TempValidatorSet {
     validators: Vec<Info>,
     proposer: Option<Info>,
-    total_voting_power: Option<Power>
+    total_voting_power: Option<Power>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[non_exhaustive]
-struct TempSignedBlock
-{
+struct TempSignedBlock {
     /// Block header
     pub header: Header,
 
     /// Transaction data
-    pub data: Data,
+    pub data: RawData,
 
     /// Commit
     pub commit: Commit,
 
     /// Validator set
     pub validator_set: TempValidatorSet,
-
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[non_exhaustive]
-struct SignedBlock
-{
+struct SignedBlock {
     /// Block header
     pub header: Header,
 
     /// Transaction data
-    pub data: Data,
+    pub data: RawData,
 
     /// Commit
     pub commit: Commit,
 
     /// Validator set
     pub validator_set: ValidatorSet,
-
 }
 
 // Note: Matches the implementation in tendermint-rs, need to add PR to tendermint-rs to support proofs
 // https://github.com/tendermint/tendermint/blob/35581cf54ec436b8c37fabb43fdaa3f48339a170/crypto/merkle/proof.go#L35-L236
 #[derive(Clone)]
-struct Proof {
-    total: u64,
-    index: u64,
-    leaf_hash: Hash,
-    aunts: Vec<Hash>,
+pub struct Proof {
+    pub total: u64,
+    pub index: u64,
+    pub leaf_hash: Hash,
+    pub aunts: Vec<Hash>,
 }
 
 #[derive(Clone)]
@@ -105,35 +95,56 @@ pub struct ProofNode {
 
 impl Proof {
     fn new(total: u64, index: u64, leaf_hash: Hash, aunts: Vec<Hash>) -> Self {
-        Proof { total, index, leaf_hash, aunts }
+        Proof {
+            total,
+            index,
+            leaf_hash,
+            aunts,
+        }
     }
 
     fn compute_root_hash(&self) -> Option<Hash> {
-        return compute_hash_from_aunts(self.index, self.total, self.leaf_hash, self.aunts.clone())
+        compute_hash_from_aunts(self.index, self.total, self.leaf_hash, self.aunts.clone())
     }
 
     fn verify(&self, root_hash: &Hash, leaf: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
         let leaf_hash = leaf_hash::<Sha256>(leaf);
-        if self.total < 0 {
-            return Err("proof total must be positive".into());
-        }
-        if self.index < 0 {
-            return Err("proof index cannot be negative".into());
-        }
         if self.leaf_hash != leaf_hash {
-            return Err(format!("invalid leaf hash: wanted {:?} got {:?}", hex::encode(leaf_hash), hex::encode(self.leaf_hash)).into());
+            return Err(format!(
+                "invalid leaf hash: wanted {:?} got {:?}",
+                hex::encode(leaf_hash),
+                hex::encode(self.leaf_hash)
+            )
+            .into());
         }
-        let computed_hash = self.compute_root_hash().expect("failed to compute root hash");
+        let computed_hash = self
+            .compute_root_hash()
+            .expect("failed to compute root hash");
         if computed_hash != *root_hash {
-            return Err(format!("invalid root hash: wanted {:?} got {:?}", hex::encode(root_hash), hex::encode(computed_hash)).into());
+            return Err(format!(
+                "invalid root hash: wanted {:?} got {:?}",
+                hex::encode(root_hash),
+                hex::encode(computed_hash)
+            )
+            .into());
         }
         Ok(())
     }
 }
 
 impl ProofNode {
-    fn new(hash: Hash, parent: Option<Rc<RefCell<ProofNode>>>, left: Option<Rc<RefCell<ProofNode>>>, right: Option<Rc<RefCell<ProofNode>>>) -> Self {
-        ProofNode { hash, parent, left, right }
+    fn new(
+        hash: Hash,
+        parent: Option<Rc<RefCell<ProofNode>>>,
+        left: Option<Rc<RefCell<ProofNode>>>,
+        right: Option<Rc<RefCell<ProofNode>>>,
+    ) -> Self {
+        ProofNode {
+            hash,
+            parent,
+            left,
+            right,
+        }
     }
 
     fn flatten_aunts(&self) -> Vec<Hash> {
@@ -146,13 +157,13 @@ impl ProofNode {
                 let node_borrowed = node.borrow();
                 (node_borrowed.left.clone(), node_borrowed.right.clone())
             };
-    
+
             match (&left, &right) {
-                (Some(left_node), _) => inner_hashes.push(left_node.borrow().hash.clone()),
-                (_, Some(right_node)) => inner_hashes.push(right_node.borrow().hash.clone()),
+                (Some(left_node), _) => inner_hashes.push(left_node.borrow().hash),
+                (_, Some(right_node)) => inner_hashes.push(right_node.borrow().hash),
                 _ => {}
             }
-    
+
             // Now update current_node
             current_node = node.borrow().parent.clone();
         }
@@ -161,9 +172,17 @@ impl ProofNode {
     }
 }
 
-fn compute_hash_from_aunts(index: u64, total: u64, leaf_hash: Hash, inner_hashes: Vec<Hash>) -> Option<Hash> {
-    let aunts_hex: Vec<String> = inner_hashes.iter().map(|a| String::from_utf8(hex::encode(a)).unwrap()).collect();
-    if index >= total || index < 0 || total <= 0 {
+fn compute_hash_from_aunts(
+    index: u64,
+    total: u64,
+    leaf_hash: Hash,
+    inner_hashes: Vec<Hash>,
+) -> Option<Hash> {
+    let aunts_hex: Vec<String> = inner_hashes
+        .iter()
+        .map(|a| String::from_utf8(hex::encode(a)).unwrap())
+        .collect();
+    if index >= total || total == 0 {
         return None;
     }
     match total {
@@ -172,24 +191,44 @@ fn compute_hash_from_aunts(index: u64, total: u64, leaf_hash: Hash, inner_hashes
             if !inner_hashes.is_empty() {
                 return None;
             }
-            return Some(leaf_hash);
-        },
+            Some(leaf_hash)
+        }
         _ => {
             if inner_hashes.is_empty() {
                 return None;
             }
             let num_left = get_split_point(total as usize) as u64;
             if index < num_left {
-                let left_hash = compute_hash_from_aunts(index, num_left, leaf_hash, inner_hashes[..inner_hashes.len()-1].to_vec());
+                let left_hash = compute_hash_from_aunts(
+                    index,
+                    num_left,
+                    leaf_hash,
+                    inner_hashes[..inner_hashes.len() - 1].to_vec(),
+                );
                 match left_hash {
                     None => return None,
-                    Some(hash) => return Some(inner_hash::<Sha256>(hash, inner_hashes[inner_hashes.len()-1])),
+                    Some(hash) => {
+                        return Some(inner_hash::<Sha256>(
+                            hash,
+                            inner_hashes[inner_hashes.len() - 1],
+                        ))
+                    }
                 }
             }
-            let right_hash = compute_hash_from_aunts(index-num_left, total-num_left, leaf_hash, inner_hashes[..inner_hashes.len()-1].to_vec());
+            let right_hash = compute_hash_from_aunts(
+                index - num_left,
+                total - num_left,
+                leaf_hash,
+                inner_hashes[..inner_hashes.len() - 1].to_vec(),
+            );
             match right_hash {
-                None => return None,
-                Some(hash) => return Some(inner_hash::<Sha256>(inner_hashes[inner_hashes.len()-1], hash)),
+                None => None,
+                Some(hash) => {
+                    Some(inner_hash::<Sha256>(
+                        inner_hashes[inner_hashes.len() - 1],
+                        hash,
+                    ))
+                }
             }
         }
     }
@@ -213,14 +252,21 @@ fn proofs_from_byte_slices(items: Vec<Vec<u8>>) -> (Hash, Vec<Proof>) {
 }
 
 // Create trail from byte slice to root
-fn trails_from_byte_slices(items: Vec<Vec<u8>>) -> (Vec<Rc<RefCell<ProofNode>>>, Rc<RefCell<ProofNode>>) {
+fn trails_from_byte_slices(
+    items: Vec<Vec<u8>>,
+) -> (Vec<Rc<RefCell<ProofNode>>>, Rc<RefCell<ProofNode>>) {
     match items.len() {
         0 => {
             let node = ProofNode::new(empty_hash(), None, None, None);
             (vec![], Rc::new(RefCell::new(node)))
         }
         1 => {
-            let node = Rc::new(RefCell::new(ProofNode::new(leaf_hash::<Sha256>(&items[0]), None, None, None)));
+            let node = Rc::new(RefCell::new(ProofNode::new(
+                leaf_hash::<Sha256>(&items[0]),
+                None,
+                None,
+                None,
+            )));
 
             (vec![Rc::clone(&node)], Rc::clone(&node))
         }
@@ -230,12 +276,7 @@ fn trails_from_byte_slices(items: Vec<Vec<u8>>) -> (Vec<Rc<RefCell<ProofNode>>>,
             let (rights, right_root) = trails_from_byte_slices(items[k..].to_vec());
 
             let root_hash = inner_hash::<Sha256>(left_root.borrow().hash, right_root.borrow().hash);
-            let root = Rc::new(RefCell::new(ProofNode::new(
-                root_hash,
-                None,
-                None,
-                None,
-            )));
+            let root = Rc::new(RefCell::new(ProofNode::new(root_hash, None, None, None)));
 
             {
                 let mut left_root_borrowed = (*left_root).borrow_mut();
@@ -255,7 +296,7 @@ fn trails_from_byte_slices(items: Vec<Vec<u8>>) -> (Vec<Rc<RefCell<ProofNode>>>,
     }
 }
 
-fn get_split_point(length: usize) -> usize {
+pub fn get_split_point(length: usize) -> usize {
     if length < 1 {
         panic!("Trying to split a tree with size < 1")
     }
@@ -269,25 +310,29 @@ fn get_split_point(length: usize) -> usize {
 }
 
 fn empty_hash() -> Hash {
-    Sha256::digest(&[]).to_vec().try_into().expect("slice with incorrect length")
+    Sha256::digest([])
+        .to_vec()
+        .try_into()
+        .expect("slice with incorrect length")
 }
 
 fn leaf_hash<H>(leaf: &[u8]) -> Hash
-where 
-    H: MerkleHash + Default, {
+where
+    H: MerkleHash + Default,
+{
     let mut hasher = H::default();
     hasher.leaf_hash(leaf)
 }
 
 fn inner_hash<H>(left: Hash, right: Hash) -> Hash
-where 
-    H: MerkleHash + Default, {
+where
+    H: MerkleHash + Default,
+{
     let mut hasher = H::default();
     hasher.inner_hash(left, right)
 }
 
-fn generate_proofs_from_header(h: &Header) -> (Hash, Vec<Proof>) {
-
+pub fn generate_proofs_from_header(h: &Header) -> (Hash, Vec<Proof>) {
     let fields_bytes = vec![
         Protobuf::<RawConsensusVersion>::encode_vec(h.version),
         h.chain_id.clone().encode_vec(),
@@ -309,7 +354,7 @@ fn generate_proofs_from_header(h: &Header) -> (Hash, Vec<Proof>) {
 }
 
 // Gets the vote struct: https://github.com/informalsystems/tendermint-rs/blob/c2b5c9e01eab1c740598aa14375a7453f3bfa436/light-client-verifier/src/operations/voting_power.rs#L202-L238
-fn non_absent_vote(
+pub fn non_absent_vote(
     commit_sig: &CommitSig,
     validator_index: ValidatorIndex,
     commit: &Commit,
@@ -350,30 +395,20 @@ fn non_absent_vote(
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use tendermint::block::{CommitSig, self};
-    use tendermint::merkle::simple_hash_from_byte_vectors;
     use sha2::Sha256;
     use subtle_encoding::hex;
-    use tendermint_proto::types::CanonicalVote as RawCanonicalVote;
     use tendermint_proto::{
-        Protobuf,
-        types::SimpleValidator as RawSimpleValidator, consensus::Vote as RawVote,
-        types::CommitSig as RawCommitSig, types::Commit as RawCommit,
+        types::SimpleValidator as RawSimpleValidator, Protobuf,
     };
-    use tendermint::Signature;
-    use tendermint::crypto::default::signature::Verifier;
-    use tendermint::crypto::signature::Verifier as SignatureVerifier;
-    use tendermint::crypto::signature;
-    use tendermint::vote::{SignedVote, CanonicalVote};
 
     use crate::merkle::{generate_proofs_from_header, TempSignedBlock};
-    use tendermint::validator::{Set as ValidatorSet, Info, SimpleValidator};
     use tendermint::{
-        vote::{ValidatorIndex, Vote},
-        block::Commit,
+        merkle::simple_hash_from_byte_vectors,
+        validator::{Set as ValidatorSet, SimpleValidator},
+        vote::{ValidatorIndex, SignedVote},
     };
 
-    use super::{proofs_from_byte_slices, SignedBlock, non_absent_vote};
+    use super::{non_absent_vote, SignedBlock};
 
     #[test]
     fn test_validator_inclusion() {
@@ -424,9 +459,12 @@ pub(crate) mod tests {
     fn test_generate_validator_hash_proof() {
         // Generate test cases from Celestia block:
         let temp_block = TempSignedBlock::from(
-            serde_json::from_str::<TempSignedBlock>(include_str!("./scripts/signed_celestia_block.json")).unwrap()
+            serde_json::from_str::<TempSignedBlock>(include_str!(
+                "./scripts/signed_celestia_block.json"
+            ))
+            .unwrap(),
         );
-        
+
         // Cast to SignedBlock
         let block = SignedBlock {
             header: temp_block.header,
@@ -435,30 +473,35 @@ pub(crate) mod tests {
             validator_set: ValidatorSet::new(
                 temp_block.validator_set.validators,
                 temp_block.validator_set.proposer,
-            )
+            ),
         };
 
         for validator in block.validator_set.validators() {
             println!("Validator: {:?}", validator);
-            let encoded_bytes = Protobuf::<RawSimpleValidator>::encode_vec(SimpleValidator::from(validator));
-            println!("Encoded Validator (Hex): {:?}", String::from_utf8(hex::encode(encoded_bytes)));
+            let encoded_bytes =
+                Protobuf::<RawSimpleValidator>::encode_vec(SimpleValidator::from(validator));
+            println!(
+                "Encoded Validator (Hex): {:?}",
+                String::from_utf8(hex::encode(encoded_bytes))
+            );
         }
 
         let validator_hash = block.validator_set.hash();
-        
+
         // Check that the computed hash and validators_hash match
         assert_eq!(validator_hash, block.header.validators_hash);
-
-        
     }
 
     #[test]
     fn test_verify_signatures() {
         // Generate test cases from Celestia block:
         let temp_block = TempSignedBlock::from(
-            serde_json::from_str::<TempSignedBlock>(include_str!("./scripts/signed_celestia_block.json")).unwrap()
+            serde_json::from_str::<TempSignedBlock>(include_str!(
+                "./scripts/signed_celestia_block.json"
+            ))
+            .unwrap(),
         );
-        
+
         // Cast to SignedBlock
         let block = SignedBlock {
             header: temp_block.header,
@@ -467,27 +510,33 @@ pub(crate) mod tests {
             validator_set: ValidatorSet::new(
                 temp_block.validator_set.validators,
                 temp_block.validator_set.proposer,
-            )
+            ),
         };
 
         // Source: https://github.com/informalsystems/tendermint-rs/blob/c2b5c9e01eab1c740598aa14375a7453f3bfa436/light-client-verifier/src/operations/voting_power.rs#L139-L198
         // Verify each of the signatures of the non_absent_votes
         // Verify signatures
-        let non_absent_votes = block.commit.signatures.iter().enumerate().flat_map(|(idx, signature)| {
-            non_absent_vote(
-                signature,
-                ValidatorIndex::try_from(idx).unwrap(),
-                &block.commit,
-            )
-            .map(|vote| (signature, vote))
-        });
+        let non_absent_votes =
+            block
+                .commit
+                .signatures
+                .iter()
+                .enumerate()
+                .flat_map(|(idx, signature)| {
+                    non_absent_vote(
+                        signature,
+                        ValidatorIndex::try_from(idx).unwrap(),
+                        &block.commit,
+                    )
+                    .map(|vote| (signature, vote))
+                });
 
         let mut min_sign_bytes_len = 1000000;
         let mut max_sign_bytes_len = 0;
 
-        println!("Header hash: {:?}", block.header.hash().to_string().to_lowercase());
+        // println!("Header hash: {:?}", block.header.hash().to_string().to_lowercase());
 
-        for (signature, vote) in non_absent_votes {
+        for (_, vote) in non_absent_votes {
             let validator = match block.validator_set.validator(vote.validator_address) {
                 Some(validator) => validator,
                 None => continue, // Cannot find matching validator, so we skip the vote
@@ -496,10 +545,9 @@ pub(crate) mod tests {
             println!("verified");
 
             // Cast the vote into a signedVote struct (which is used to get the signed bytes)
-            let signed_vote =
-                SignedVote::from_vote(vote.clone(), block.header.chain_id.clone())
-                    .expect("missing signature");
-            
+            let signed_vote = SignedVote::from_vote(vote.clone(), block.header.chain_id.clone())
+                .expect("missing signature");
+
             // Get the encoded signed vote bytes
             // https://github.com/celestiaorg/celestia-core/blob/main/proto/tendermint/types/canonical.proto#L30-L37
             let sign_bytes = signed_vote.sign_bytes();
@@ -519,31 +567,42 @@ pub(crate) mod tests {
             // let decoded_vote: CanonicalVote = Protobuf::<RawCanonicalVote>::decode_length_delimited_vec(&sign_bytes).expect("failed to decode sign_bytes");
 
             // Verify that the message signed is in fact the sign_bytes
-            validator.verify_signature::<tendermint::crypto::default::signature::Verifier>(&sign_bytes, signed_vote.signature()).expect("invalid signature");
+            validator
+                .verify_signature::<tendermint::crypto::default::signature::Verifier>(
+                    &sign_bytes,
+                    signed_vote.signature(),
+                )
+                .expect("invalid signature");
 
             // TODO: Break out of the loop when we have enough voting power.
             // See https://github.com/informalsystems/tendermint-rs/issues/235
-        }        
+        }
 
         let validator_hash = block.validator_set.hash();
-        
+
         // Check that the computed hash and validators_hash match
         assert_eq!(validator_hash, block.header.validators_hash);
 
-        
+        let header_hash = block.header.hash();
+        let header_hash_bytes = block.commit.block_id.hash;
+        assert_eq!(header_hash, header_hash_bytes);
     }
 
     #[test]
     fn test_verify_validator_hash_from_root_proof() {
         // Generate test cases from Celestia block:
         let block = tendermint::Block::from(
-            serde_json::from_str::<tendermint::block::Block>(include_str!("./scripts/celestia_block.json")).unwrap()
+            serde_json::from_str::<tendermint::block::Block>(include_str!(
+                "./scripts/celestia_block.json"
+            ))
+            .unwrap(),
         );
-        
+
         let (root_hash, proofs) = generate_proofs_from_header(&block.header);
 
         // Verify validator proof
-        proofs[7].verify(&root_hash, &block.header.validators_hash.encode_vec()).unwrap();
-        
+        proofs[7]
+            .verify(&root_hash, &block.header.validators_hash.encode_vec())
+            .unwrap();
     }
 }

@@ -5,7 +5,7 @@ pub mod validator;
 
 use crate::scripts::generate_tests;
 
-use clap::{Parser};
+use clap::Parser;
 
 #[derive(Parser, Debug)]
 enum Function {
