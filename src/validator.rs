@@ -46,6 +46,9 @@ const VOTING_POWER_BITS_LENGTH_MAX: usize = VOTING_POWER_BYTES_LENGTH_MAX * 8;
 // The maximum number of validators in a Tendermint validator set.
 const VALIDATOR_SET_SIZE_MAX: usize = 4;
 
+// The maximum number of bytes in a validator message (CanonicalVote toSignBytes).
+const VALIDATOR_MESSAGE_BYTES_LENGTH_MAX: usize = 124;
+
 /// The Ed25519 public key as a list of 32 byte targets.
 #[derive(Debug, Clone, Copy)]
 pub struct Ed25519PubkeyTarget(pub [BoolTarget; 256]);
@@ -78,6 +81,15 @@ pub trait TendermintMarshaller {
         pubkey: Ed25519PubkeyTarget,
         voting_power: I64Target,
     ) -> [BoolTarget; VALIDATOR_BIT_LENGTH_MAX];
+
+    /// Extract the header hash from the signed message from a validator.
+    fn verify_hash_in_message(
+        &mut self,
+        message: [BoolTarget; VALIDATOR_MESSAGE_BYTES_LENGTH_MAX * 8],
+        header_hash: [BoolTarget; HASH_SIZE_BITS],
+        // Should be the same for all validators
+        round_present_in_message: BoolTarget,
+    );
 
     /// Hashes validator bytes to get the leaf according to the Tendermint spec. (0x00 || validatorBytes)
     fn hash_validator_leaf(
@@ -146,6 +158,57 @@ pub trait TendermintMarshaller {
 }
 
 impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for CircuitBuilder<F, D> {
+
+    fn verify_hash_in_message(
+        &mut self,
+        message: [BoolTarget; VALIDATOR_MESSAGE_BYTES_LENGTH_MAX * 8],
+        header_hash: [BoolTarget; HASH_SIZE_BITS],
+        // Should be the same for all validators
+        round_present_in_message: BoolTarget,
+    ) {
+        // Logic is the following:
+        //  1) If message[12] == 34
+        //      a) Verify message[14] == 10 (hash index within subfield)
+        //      b) Verify message[15] == 32 (32 bytes)
+        //      c) Start of the hash is at index 16
+        //  2) If message[12] == 25, then round is non-zero
+        //      a) Then message[21] == 34
+        //      b) Verify message[23] == 10 (hash index within subfield)
+        //      c) Verify message[24] == 32 (32 bytes)
+        //      d) Start of the hash is at index 25
+
+        // Logic:
+        // Verify that header_hash is equal to the hash in the message at the correct index.
+        // If the round is missing, then the hash starts at index 16.
+        // If the round is present, then the hash starts at index 25.
+
+        let missing_round_start_idx = 16;
+
+        let including_round_start_idx = 25;   
+
+        let one = self.one();
+        
+
+        let mut vec_round_missing = [self._false(); HASH_SIZE_BITS];
+
+        let mut vec_round_present = [self._false(); HASH_SIZE_BITS];
+
+        for i in 0..HASH_SIZE_BITS {
+            vec_round_missing[i] = message[(missing_round_start_idx) * 8 + i];
+            vec_round_present[i] = message[(including_round_start_idx) * 8 + i];
+            let round_missing_eq = self.is_equal(header_hash[i].target, vec_round_missing[i].target);
+            let round_present_eq = self.is_equal(header_hash[i].target, vec_round_present[i].target);
+
+            let hash_eq = self.select(
+                round_present_in_message,
+                round_present_eq.target,
+                round_missing_eq.target
+            );
+
+            self.connect(hash_eq, one);
+        }
+    }
+
     fn marshal_int64_varint(
         &mut self,
         voting_power: I64Target,

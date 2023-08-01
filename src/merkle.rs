@@ -354,6 +354,7 @@ pub(crate) mod tests {
     use tendermint::merkle::simple_hash_from_byte_vectors;
     use sha2::Sha256;
     use subtle_encoding::hex;
+    use tendermint_proto::types::CanonicalVote as RawCanonicalVote;
     use tendermint_proto::{
         Protobuf,
         types::SimpleValidator as RawSimpleValidator, consensus::Vote as RawVote,
@@ -363,7 +364,7 @@ pub(crate) mod tests {
     use tendermint::crypto::default::signature::Verifier;
     use tendermint::crypto::signature::Verifier as SignatureVerifier;
     use tendermint::crypto::signature;
-    use tendermint::vote::SignedVote;
+    use tendermint::vote::{SignedVote, CanonicalVote};
 
     use crate::merkle::{generate_proofs_from_header, TempSignedBlock};
     use tendermint::validator::{Set as ValidatorSet, Info, SimpleValidator};
@@ -481,6 +482,9 @@ pub(crate) mod tests {
             .map(|vote| (signature, vote))
         });
 
+        let mut min_sign_bytes_len = 1000000;
+        let mut max_sign_bytes_len = 0;
+
         for (signature, vote) in non_absent_votes {
             let validator = match block.validator_set.validator(vote.validator_address) {
                 Some(validator) => validator,
@@ -489,13 +493,29 @@ pub(crate) mod tests {
 
             println!("verified");
 
+            // Cast the vote into a signedVote struct (which is used to get the signed bytes)
             let signed_vote =
                 SignedVote::from_vote(vote.clone(), block.header.chain_id.clone())
                     .expect("missing signature");
-
-            // Check vote is valid
+            
+            // Get the encoded signed vote bytes
+            // https://github.com/celestiaorg/celestia-core/blob/main/proto/tendermint/types/canonical.proto#L30-L37
             let sign_bytes = signed_vote.sign_bytes();
-            println!("sign_bytes: {:?}", String::from_utf8(hex::encode(&sign_bytes)));
+            // let mut buf = Vec::new();
+            // vote.to_signable_bytes(block.header.chain_id.clone(), &mut buf).expect("failed to encode vote");
+
+
+            if (sign_bytes.len() < min_sign_bytes_len) {
+                min_sign_bytes_len = sign_bytes.len();
+            }
+            if (sign_bytes.len() > max_sign_bytes_len) {
+                max_sign_bytes_len = sign_bytes.len();
+            }
+
+            // // Similar to encoding the vote: https://github.com/informalsystems/tendermint-rs/blob/c2b5c9e01eab1c740598aa14375a7453f3bfa436/tendermint/src/vote.rs#L267-L271
+            // let decoded_vote: CanonicalVote = Protobuf::<RawCanonicalVote>::decode_length_delimited_vec(&sign_bytes).expect("failed to decode sign_bytes");
+
+            // Verify that the message signed is in fact the sign_bytes
             validator.verify_signature::<tendermint::crypto::default::signature::Verifier>(&sign_bytes, signed_vote.signature()).expect("invalid signature");
 
             // TODO: Break out of the loop when we have enough voting power.
