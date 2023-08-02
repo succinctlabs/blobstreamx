@@ -921,39 +921,28 @@ pub(crate) mod tests {
         let header_hash = block.header.hash().to_string();
         let header_bits = to_bits(hex::decode(header_hash.to_lowercase()).unwrap());
 
-        // WARNING!!! Make sure to encode_vec()
-        let validators_hash = block.header.validators_hash.encode_vec();
-
-        // println!("validators_hash: {:?}", validators_hash.len());
-        let validators_hash_bits = to_bits(validators_hash);
-
         let mut pw = PartialWitness::new();
         let config = CircuitConfig::standard_recursion_config();
         let mut builder = CircuitBuilder::<F, D>::new(config);
-
-        let zero = builder._false();
-        let one = builder._true();
 
         let (root_hash, proofs) = generate_proofs_from_header(&block.header);
 
         println!("root_hash: {:?}", String::from_utf8(hex::encode(root_hash)));
 
-        proofs[7]
-            .verify(&root_hash, &block.header.validators_hash.encode_vec())
-            .unwrap();
-    
-        // proofs[7].
+        // Can test with 6, 7 or 8
+        let leaf_index = 8;
+        // WARNING!!! Make sure to encode_vec()
+        // let leaf = block.header.data_hash.expect("data hash present").encode_vec();
+        // let leaf = block.header.validators_hash.encode_vec();
+        let leaf = block.header.next_validators_hash.encode_vec();
 
-        // println!("verified proof with library!");
-
-        // println!("root_hash: {:?}", root_hash);
-
-        let validators_hash_index = 7;
+        println!("encoded leaf: {:?}", String::from_utf8(hex::encode(leaf.clone())));
+        let leaf_bits = to_bits(leaf);
 
         let mut path_indices = vec![];
 
-        let mut current_total = proofs[validators_hash_index].total as usize;
-        let mut current_index = validators_hash_index as usize;
+        let mut current_total = proofs[leaf_index].total as usize;
+        let mut current_index = leaf_index as usize;
         // println!("current_total: {:?}", current_total);
         while (current_total >= 1) {
             path_indices.push(builder.constant_bool(current_index % 2 == 1));
@@ -961,22 +950,19 @@ pub(crate) mod tests {
             current_index = current_index / 2;
         }
 
-        println!("path_indices: {:?}", path_indices);
-
-        let mut validators_hash_target = [builder._false(); PROTOBUF_HASH_SIZE_BITS];
+        let mut leaf_target = [builder._false(); PROTOBUF_HASH_SIZE_BITS];
         for i in 0..PROTOBUF_HASH_SIZE_BITS {
-            validators_hash_target[i] = if validators_hash_bits[i] {
+            leaf_target[i] = if leaf_bits[i] {
                 builder._true()
             } else {
                 builder._false()
             };
         }
 
-        let mut aunts_target = vec![[builder._false(); HASH_SIZE_BITS]; proofs[validators_hash_index].aunts.len()];
-        let num_aunts = proofs[validators_hash_index].aunts.len();
-        for i in 0..proofs[validators_hash_index].aunts.len() {
+        let mut aunts_target = vec![[builder._false(); HASH_SIZE_BITS]; proofs[leaf_index].aunts.len()];
+        for i in 0..proofs[leaf_index].aunts.len() {
             // Reverse the order of the aunts.
-            let bool_vector = to_bits(proofs[validators_hash_index].aunts[i].to_vec());
+            let bool_vector = to_bits(proofs[leaf_index].aunts[i].to_vec());
             // println!("bool_vector: {:?}", bool_vector);
             for j in 0..HASH_SIZE_BITS {
                 aunts_target[i][j] = if bool_vector[j] {
@@ -988,10 +974,8 @@ pub(crate) mod tests {
         }
 
         let result =
-            builder.get_root_from_merkle_proof(aunts_target, path_indices, validators_hash_target);
+            builder.get_root_from_merkle_proof(aunts_target, path_indices, leaf_target);
         
-        // println!("result: {:?}", result);
-
         for i in 0..HASH_SIZE_BITS {
             if header_bits[i] {
                 pw.set_target(result[i].target, F::ONE);
