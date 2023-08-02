@@ -157,6 +157,12 @@ pub trait TendermintMarshaller {
     // Returns a >= b
     fn is_i64_gte(&mut self, a: &I64Target, b: &I64Target) -> BoolTarget;
 
+    // Gets the total voting power by summing the voting power of all validators.
+    fn get_total_voting_power(
+        &mut self,
+        validator_voting_power: &Vec<I64Target>
+    ) -> I64Target;
+
     // Checks if accumulated voting power * m > total voting power * n (threshold is n/m)
     fn voting_power_greater_than_threshold(
         &mut self,
@@ -165,6 +171,7 @@ pub trait TendermintMarshaller {
         threshold_numerator: U32Target,
         threshold_denominator: U32Target,
     ) -> BoolTarget;
+
 
     /// Accumulate voting power from the enabled validators & check that the voting power is greater than 2/3 of the total voting power.
     fn check_voting_power(
@@ -697,6 +704,35 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
 
         // Note: True if accumulated voting power is >= than 2/3 of the total voting power.
         self.or(upper_pass, lower_pass)
+    }
+
+    fn get_total_voting_power(
+        &mut self,
+        validator_voting_power: &Vec<I64Target>
+    ) -> I64Target {
+        // Sum up the voting power of all the validators
+        
+        // Get a vector of the first element of each validator's voting power using a map and collect
+        let mut validator_voting_power_first = Vec::new();
+        for i in 0..VALIDATOR_SET_SIZE_MAX {
+            validator_voting_power_first.push(validator_voting_power[i].0[0]);
+        }
+
+        let (sum_lower_low, sum_lower_high) = self.add_many_u32(&mut validator_voting_power_first);
+
+        let mut validator_voting_power_second = Vec::new();
+        for i in 0..VALIDATOR_SET_SIZE_MAX {
+            validator_voting_power_second.push(validator_voting_power[i].0[1]);
+        }
+        let (sum_upper_low, sum_upper_high) = self.add_many_u32(&mut validator_voting_power_second);
+
+        self.assert_zero_u32(sum_upper_high);
+
+        let (carry_sum_low, carry_sum_high) = self.add_u32(sum_lower_high, sum_upper_low);
+
+        self.assert_zero_u32(carry_sum_high);
+
+        I64Target([sum_lower_low, carry_sum_low])
     }
 
     fn voting_power_greater_than_threshold(
