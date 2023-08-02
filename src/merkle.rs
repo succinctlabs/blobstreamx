@@ -496,15 +496,15 @@ pub(crate) mod tests {
     #[test]
     fn test_verify_signatures() {
         // Generate test cases from Celestia block:
-        let temp_block = TempSignedBlock::from(
+        let temp_block = Box::new(TempSignedBlock::from(
             serde_json::from_str::<TempSignedBlock>(include_str!(
                 "./scripts/signed_celestia_block.json"
             ))
             .unwrap(),
-        );
+        ));
 
         // Cast to SignedBlock
-        let block = SignedBlock {
+        let block = Box::new(SignedBlock {
             header: temp_block.header,
             data: temp_block.data,
             commit: temp_block.commit,
@@ -512,42 +512,45 @@ pub(crate) mod tests {
                 temp_block.validator_set.validators,
                 temp_block.validator_set.proposer,
             ),
-        };
+        });
 
         // Source: https://github.com/informalsystems/tendermint-rs/blob/c2b5c9e01eab1c740598aa14375a7453f3bfa436/light-client-verifier/src/operations/voting_power.rs#L139-L198
         // Verify each of the signatures of the non_absent_votes
         // Verify signatures
-        let non_absent_votes =
-            block
-                .commit
-                .signatures
-                .iter()
-                .enumerate()
-                .flat_map(|(idx, signature)| {
-                    non_absent_vote(
-                        signature,
-                        ValidatorIndex::try_from(idx).unwrap(),
-                        &block.commit,
-                    )
-                    .map(|vote| (signature, vote))
-                });
+        let non_absent_votes = block.commit.signatures
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, signature)| {
+                ValidatorIndex::try_from(idx).ok().and_then(|validator_idx| {
+                    non_absent_vote(signature, validator_idx, &block.commit)
+                        .map(|vote| (signature, vote))
+                })
+            });
 
         let mut min_sign_bytes_len = 1000000;
         let mut max_sign_bytes_len = 0;
 
         // println!("Header hash: {:?}", block.header.hash().to_string().to_lowercase());
+        println!("Non absent votes: {:?}", non_absent_votes.clone().count());
 
         for (_, vote) in non_absent_votes {
-            let validator = match block.validator_set.validator(vote.validator_address) {
+            let validator = Box::new(match block.validator_set.validator(vote.validator_address) {
                 Some(validator) => validator,
                 None => continue, // Cannot find matching validator, so we skip the vote
-            };
+            });
 
-            println!("verified");
+            // println!("verified");
 
             // Cast the vote into a signedVote struct (which is used to get the signed bytes)
-            let signed_vote = SignedVote::from_vote(vote.clone(), block.header.chain_id.clone())
-                .expect("missing signature");
+            let signed_vote = Box::new(SignedVote::from_vote(vote.clone(), block.header.chain_id.clone())
+                .expect("missing signature"));
+
+            println!("Address: {:?}", String::from_utf8(hex::encode(validator.address.as_bytes())));
+
+            println!("Signature: {:?}", String::from_utf8(hex::encode(signed_vote.signature())));
+
+            let pub_key = validator.pub_key.ed25519().unwrap();
+            println!("Pubkey: {:?}", String::from_utf8(hex::encode(pub_key.as_bytes())));
 
             // Get the encoded signed vote bytes
             // https://github.com/celestiaorg/celestia-core/blob/main/proto/tendermint/types/canonical.proto#L30-L37
@@ -555,7 +558,7 @@ pub(crate) mod tests {
             // let mut buf = Vec::new();
             // vote.to_signable_bytes(block.header.chain_id.clone(), &mut buf).expect("failed to encode vote");
 
-            // println!("Sign Bytes: {:?}", String::from_utf8(hex::encode(&sign_bytes)));
+            println!("Sign Bytes: {:?}", String::from_utf8(hex::encode(&sign_bytes)));
 
             if (sign_bytes.len() < min_sign_bytes_len) {
                 min_sign_bytes_len = sign_bytes.len();
