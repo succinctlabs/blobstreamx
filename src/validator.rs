@@ -97,6 +97,7 @@ pub trait TendermintMarshaller {
 
     /// Verify a merkle proof against the specified root hash.
     /// Note: Used for dataHash, validatorsHash and nextValidatorsHash
+    /// Note: This function will only work for leaves with a length of 34 bytes.
     /// Output is the merkle root
     fn get_root_from_merkle_proof(
         &mut self,
@@ -106,7 +107,7 @@ pub trait TendermintMarshaller {
     ) -> [BoolTarget; HASH_SIZE_BITS];
 
     /// Hashes leaf bytes to get the leaf hash according to the Tendermint spec. (0x00 || leafBytes)
-    /// NOTE: This function will only work for leaves with a length of 34 bytes.
+    /// NOTE: This function will only work for leaves with a length of 34 bytes (Protobuf-encoded SHA256 hash)
     fn hash_header_leaf(
         &mut self,
         validator: &[BoolTarget; PROTOBUF_HASH_SIZE_BITS],
@@ -177,10 +178,6 @@ pub trait TendermintMarshaller {
 }
 
 impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for CircuitBuilder<F, D> {
-    /// Verify a merkle proof against the specified root hash.
-    /// Aunts is the array from the leaf's sibling to the root's child
-    /// NOTE: This function will only work for leaves with a length of 32 bytes.
-    /// NOTE: Index should be checked to be one of the valid leaves {dataHash, validatorsHash, nextValidatorsHash} before calling this function.
     fn get_root_from_merkle_proof(
         &mut self,
         aunts: Vec<[BoolTarget; HASH_SIZE_BITS]>,
@@ -210,8 +207,6 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
         hash_so_far
     }
 
-    /// Hashes leaf bytes to get the leaf hash according to the Tendermint spec. (0x00 || leafBytes)
-    /// NOTE: This function will only work for leaves with a length of 32 bytes.
     fn hash_header_leaf(
         &mut self,
         leaf: &[BoolTarget; PROTOBUF_HASH_SIZE_BITS],
