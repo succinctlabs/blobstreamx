@@ -7,6 +7,7 @@
 //! encoded using protobuf's default integer encoding, which consist of 7 bit payloads. You can
 //! read more about them here: https://protobuf.dev/programming-guides/encoding/#varints.
 use plonky2::field::extension::Extendable;
+use plonky2::gadgets::hash;
 use plonky2::iop::target::{BoolTarget, Target};
 use plonky2::{hash::hash_types::RichField, plonk::circuit_builder::CircuitBuilder};
 use plonky2_gadgets::hash::sha::sha256::sha256;
@@ -16,6 +17,9 @@ use tendermint::merkle::HASH_SIZE;
 
 /// The number of bytes in a SHA256 hash.
 pub const HASH_SIZE_BITS: usize = HASH_SIZE * 8;
+
+/// The number of bytes in a protobuf-encoded SHA256 hash.
+pub const PROTOBUF_HASH_SIZE_BITS: usize = HASH_SIZE_BITS + 8 * 2;
 
 /// The maximum length of a protobuf-encoded Tendermint validator in bytes.
 const VALIDATOR_BYTE_LENGTH_MAX: usize = 46;
@@ -98,14 +102,14 @@ pub trait TendermintMarshaller {
         &mut self,
         aunts: Vec<[BoolTarget; HASH_SIZE_BITS]>,
         merkle_proof_enabled: Vec<BoolTarget>,
-        leaf: [BoolTarget; HASH_SIZE_BITS],
+        leaf: [BoolTarget; PROTOBUF_HASH_SIZE_BITS],
     ) -> [BoolTarget; HASH_SIZE_BITS];
 
     /// Hashes leaf bytes to get the leaf hash according to the Tendermint spec. (0x00 || leafBytes)
-    /// NOTE: This function will only work for leaves with a length of 32 bytes.
+    /// NOTE: This function will only work for leaves with a length of 34 bytes.
     fn hash_header_leaf(
         &mut self,
-        validator: &[BoolTarget; HASH_SIZE_BITS],
+        validator: &[BoolTarget; PROTOBUF_HASH_SIZE_BITS],
     ) -> [BoolTarget; HASH_SIZE_BITS];
 
     /// Hashes validator bytes to get the leaf according to the Tendermint spec. (0x00 || validatorBytes)
@@ -181,7 +185,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
         &mut self,
         aunts: Vec<[BoolTarget; HASH_SIZE_BITS]>,
         path_indices: Vec<BoolTarget>,
-        leaf: [BoolTarget; HASH_SIZE_BITS],
+        leaf: [BoolTarget; PROTOBUF_HASH_SIZE_BITS],
     ) -> [BoolTarget; HASH_SIZE_BITS] {
         let hash_leaf = self.hash_header_leaf(&leaf);
 
@@ -210,11 +214,11 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for Circ
     /// NOTE: This function will only work for leaves with a length of 32 bytes.
     fn hash_header_leaf(
         &mut self,
-        leaf: &[BoolTarget; HASH_SIZE_BITS],
+        leaf: &[BoolTarget; PROTOBUF_HASH_SIZE_BITS],
     ) -> [BoolTarget; HASH_SIZE_BITS] {
         // Calculate the length of the message for the leaf hash.
         // 0x00 || leafBytes
-        let bits_length = 8 + (HASH_SIZE_BITS);
+        let bits_length = 8 + (PROTOBUF_HASH_SIZE_BITS);
 
         // Calculate the message for the leaf hash.
         let mut leaf_msg_bits = vec![self._false(); bits_length];
@@ -779,10 +783,11 @@ pub(crate) mod tests {
     };
     use sha2::Sha256;
     use subtle_encoding::hex;
+    use tendermint_proto::Protobuf;
 
     use crate::validator::{VALIDATOR_BIT_LENGTH_MAX, VALIDATOR_SET_SIZE_MAX};
 
-    use crate::merkle::{generate_proofs_from_header, get_split_point, hash_all_leaves};
+    use crate::merkle::{generate_proofs_from_header, get_split_point, hash_all_leaves, leaf_hash};
 
     use plonky2_gadgets::num::u32::gadgets::arithmetic_u32::U32Target;
 
@@ -852,95 +857,158 @@ pub(crate) mod tests {
         return (validators_target, validator_byte_length, validator_enabled);
     }
 
-    // #[test]
-    // fn test_get_root_from_merkle_proof() {
-    //     // Generate test cases from Celestia block:
-    //     let block = tendermint::Block::from(
-    //         serde_json::from_str::<tendermint::block::Block>(include_str!(
-    //             "./scripts/celestia_block.json"
-    //         ))
-    //         .unwrap(),
-    //     );
+    #[test]
+    fn test_hash_header_leaf() {
+        let block = tendermint::Block::from(
+            serde_json::from_str::<tendermint::block::Block>(include_str!(
+                "./scripts/celestia_block.json"
+            ))
+            .unwrap(),
+        );
 
-    //     // println!("Block: {:?}", block);
+        let encoded_validators_hash_bits = to_bits(block.header.validators_hash.encode_vec());
+        // WARNING!!! Make sure to encode_vec()
+        let validators_leaf_hash = leaf_hash::<Sha256>(&block.header.validators_hash.encode_vec()).to_vec();
 
-    //     let header_hash = block.header.hash().to_string();
-    //     let header_bits = to_bits(hex::decode(header_hash.to_lowercase()).unwrap());
+        // println!("validators_hash: {:?}", validators_hash.len());
+        let validators_hash_bits = to_bits(validators_leaf_hash);
 
-    //     let validators_hash = block.header.validators_hash.to_string();
-    //     let validators_hash_bits = to_bits(hex::decode(validators_hash.to_lowercase()).unwrap());
+        let mut pw = PartialWitness::new();
+        let config = CircuitConfig::standard_recursion_config();
+        let mut builder = CircuitBuilder::<F, D>::new(config);
 
-    //     let mut pw = PartialWitness::new();
-    //     let config = CircuitConfig::standard_recursion_config();
-    //     let mut builder = CircuitBuilder::<F, D>::new(config);
+        let mut validators_hash_bits_target = [builder._false(); PROTOBUF_HASH_SIZE_BITS];
+        for i in 0..encoded_validators_hash_bits.len() {
+            if encoded_validators_hash_bits[i] {
+                validators_hash_bits_target[i] = builder._true();
+            }
+        }
 
-    //     let zero = builder._false();
-    //     let one = builder._true();
+        let result = builder.hash_header_leaf(&validators_hash_bits_target);
 
-    //     let (root_hash, proofs) = generate_proofs_from_header(&block.header);
+        for i in 0..HASH_SIZE_BITS {
+            if validators_hash_bits[i] {
+                pw.set_target(result[i].target, F::ONE);
+            } else {
+                pw.set_target(result[i].target, F::ZERO);
+            }
+        }
 
-    //     // println!("root_hash: {:?}", root_hash);
+        let data = builder.build::<C>();
+        let proof = data.prove(pw).unwrap();
 
-    //     let validators_hash_index = 7;
+        println!("Created proof");
 
-    //     let mut path_indices = vec![];
+        data.verify(proof).unwrap();
 
-    //     let mut current_total = proofs[7].total as usize;
-    //     let mut current_index = 7 as usize;
-    //     // println!("current_total: {:?}", current_total);
-    //     while (current_total >= 1) {
-    //         path_indices.push(builder.constant_bool(current_index % 2 == 1));
-    //         current_total = current_total / 2;
-    //         current_index = current_index / 2;
-    //     }
+        println!("Verified proof");
 
-    //     // println!("path_indices: {:?}", path_indices);
 
-    //     let mut validators_hash_target = [builder._false(); HASH_SIZE_BITS];
-    //     for i in 0..HASH_SIZE_BITS {
-    //         validators_hash_target[i] = if validators_hash_bits[i] {
-    //             builder._true()
-    //         } else {
-    //             builder._false()
-    //         };
-    //     }
+    }
 
-    //     let mut aunts_target = vec![[builder._false(); HASH_SIZE_BITS]; proofs[7].aunts.len()];
-    //     // println!("aunts: {:?}", proofs[7].aunts);
-    //     for i in 0..proofs[7].aunts.len() {
-    //         let bool_vector = to_bits(proofs[7].aunts[i].to_vec());
-    //         // println!("bool_vector: {:?}", bool_vector);
-    //         for j in 0..HASH_SIZE_BITS {
-    //             aunts_target[i][j] = if bool_vector[j] {
-    //                 builder._true()
-    //             } else {
-    //                 builder._false()
-    //             };
-    //         }
-    //     }
+    #[test]
+    fn test_get_root_from_merkle_proof() {
+        // Generate test cases from Celestia block:
+        let block = tendermint::Block::from(
+            serde_json::from_str::<tendermint::block::Block>(include_str!(
+                "./scripts/celestia_block.json"
+            ))
+            .unwrap(),
+        );
 
-    //     let result =
-    //         builder.get_root_from_merkle_proof(aunts_target, path_indices, validators_hash_target);
+        // println!("Block: {:?}", block);
+
+        let header_hash = block.header.hash().to_string();
+        let header_bits = to_bits(hex::decode(header_hash.to_lowercase()).unwrap());
+
+        // WARNING!!! Make sure to encode_vec()
+        let validators_hash = block.header.validators_hash.encode_vec();
+
+        // println!("validators_hash: {:?}", validators_hash.len());
+        let validators_hash_bits = to_bits(validators_hash);
+
+        let mut pw = PartialWitness::new();
+        let config = CircuitConfig::standard_recursion_config();
+        let mut builder = CircuitBuilder::<F, D>::new(config);
+
+        let zero = builder._false();
+        let one = builder._true();
+
+        let (root_hash, proofs) = generate_proofs_from_header(&block.header);
+
+        println!("root_hash: {:?}", String::from_utf8(hex::encode(root_hash)));
+
+        proofs[7]
+            .verify(&root_hash, &block.header.validators_hash.encode_vec())
+            .unwrap();
+    
+        // proofs[7].
+
+        // println!("verified proof with library!");
+
+        // println!("root_hash: {:?}", root_hash);
+
+        let validators_hash_index = 7;
+
+        let mut path_indices = vec![];
+
+        let mut current_total = proofs[validators_hash_index].total as usize;
+        let mut current_index = validators_hash_index as usize;
+        // println!("current_total: {:?}", current_total);
+        while (current_total >= 1) {
+            path_indices.push(builder.constant_bool(current_index % 2 == 1));
+            current_total = current_total / 2;
+            current_index = current_index / 2;
+        }
+
+        println!("path_indices: {:?}", path_indices);
+
+        let mut validators_hash_target = [builder._false(); PROTOBUF_HASH_SIZE_BITS];
+        for i in 0..PROTOBUF_HASH_SIZE_BITS {
+            validators_hash_target[i] = if validators_hash_bits[i] {
+                builder._true()
+            } else {
+                builder._false()
+            };
+        }
+
+        let mut aunts_target = vec![[builder._false(); HASH_SIZE_BITS]; proofs[validators_hash_index].aunts.len()];
+        let num_aunts = proofs[validators_hash_index].aunts.len();
+        for i in 0..proofs[validators_hash_index].aunts.len() {
+            // Reverse the order of the aunts.
+            let bool_vector = to_bits(proofs[validators_hash_index].aunts[i].to_vec());
+            // println!("bool_vector: {:?}", bool_vector);
+            for j in 0..HASH_SIZE_BITS {
+                aunts_target[i][j] = if bool_vector[j] {
+                    builder._true()
+                } else {
+                    builder._false()
+                };
+            }
+        }
+
+        let result =
+            builder.get_root_from_merkle_proof(aunts_target, path_indices, validators_hash_target);
         
-    //     println!("result: {:?}", result);
+        // println!("result: {:?}", result);
 
-    //     for i in 0..HASH_SIZE_BITS {
-    //         if header_bits[i] {
-    //             pw.set_target(result[i].target, F::ONE);
-    //         } else {
-    //             pw.set_target(result[i].target, F::ZERO);
-    //         }
-    //     }
+        for i in 0..HASH_SIZE_BITS {
+            if header_bits[i] {
+                pw.set_target(result[i].target, F::ONE);
+            } else {
+                pw.set_target(result[i].target, F::ZERO);
+            }
+        }
 
-    //     let data = builder.build::<C>();
-    //     let proof = data.prove(pw).unwrap();
+        let data = builder.build::<C>();
+        let proof = data.prove(pw).unwrap();
 
-    //     println!("Created proof");
+        println!("Created proof");
 
-    //     data.verify(proof).unwrap();
+        data.verify(proof).unwrap();
 
-    //     println!("Verified proof");
-    // }
+        println!("Verified proof");
+    }
 
     #[test]
     fn test_get_leaf_hash() {

@@ -107,8 +107,9 @@ impl Proof {
         compute_hash_from_aunts(self.index, self.total, self.leaf_hash, self.aunts.clone())
     }
 
-    fn verify(&self, root_hash: &Hash, leaf: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn verify(&self, root_hash: &Hash, leaf: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
         let leaf_hash = leaf_hash::<Sha256>(leaf);
+        println!("leaf_hash: {:?}", String::from_utf8(hex::encode(leaf_hash)));
         if self.leaf_hash != leaf_hash {
             return Err(format!(
                 "invalid leaf hash: wanted {:?} got {:?}",
@@ -178,10 +179,10 @@ fn compute_hash_from_aunts(
     leaf_hash: Hash,
     inner_hashes: Vec<Hash>,
 ) -> Option<Hash> {
-    let aunts_hex: Vec<String> = inner_hashes
-        .iter()
-        .map(|a| String::from_utf8(hex::encode(a)).unwrap())
-        .collect();
+    // let aunts_hex: Vec<String> = inner_hashes
+    //     .iter()
+    //     .map(|a| String::from_utf8(hex::encode(a)).unwrap())
+    //     .collect();
     if index >= total || total == 0 {
         return None;
     }
@@ -316,7 +317,7 @@ fn empty_hash() -> Hash {
         .expect("slice with incorrect length")
 }
 
-fn leaf_hash<H>(leaf: &[u8]) -> Hash
+pub fn leaf_hash<H>(leaf: &[u8]) -> Hash
 where
     H: MerkleHash + Default,
 {
@@ -324,7 +325,7 @@ where
     hasher.leaf_hash(leaf)
 }
 
-fn inner_hash<H>(left: Hash, right: Hash) -> Hash
+pub fn inner_hash<H>(left: Hash, right: Hash) -> Hash
 where
     H: MerkleHash + Default,
 {
@@ -408,7 +409,7 @@ pub(crate) mod tests {
         vote::{ValidatorIndex, SignedVote},
     };
 
-    use super::{non_absent_vote, SignedBlock};
+    use super::{non_absent_vote, SignedBlock, leaf_hash, inner_hash};
 
     #[test]
     fn test_validator_inclusion() {
@@ -604,5 +605,35 @@ pub(crate) mod tests {
         proofs[7]
             .verify(&root_hash, &block.header.validators_hash.encode_vec())
             .unwrap();
+
+
+        // Verify proof using aunts
+        let mut path_indices = vec![];
+        let mut path_values = vec![];
+        for i in 0..proofs[7].aunts.len() {
+            path_values.push(proofs[7].aunts[i]);
+        }
+        
+        let mut current_total = proofs[7].total;
+        let mut current_index = proofs[7].index;
+        while (current_total >= 1) {
+            path_indices.push(current_index % 2 == 1);
+            current_total = current_total / 2;
+            current_index = current_index / 2;
+        }
+
+        let validators_hash = block.header.validators_hash.encode_vec();
+        let leaf_hash = leaf_hash::<Sha256>(&validators_hash);
+
+        let mut current_hash = leaf_hash;
+        for i in 0..path_indices.len() {
+            if (path_indices[i]) {
+                current_hash = inner_hash::<Sha256>(path_values[i], current_hash);
+            } else {
+                current_hash = inner_hash::<Sha256>(current_hash, path_values[i]);
+            }
+        }
+
+        assert_eq!(current_hash, root_hash);
     }
 }
