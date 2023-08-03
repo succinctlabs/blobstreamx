@@ -35,17 +35,18 @@ where
 }
 
 // Note: total_voting_power seems to be missing from celestia testnet nodes can use ValidatorSet once fixed
+// Need to accumulate independently (non-existent in tendermint-rs)
 /// Validator set contains a vector of validators
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-struct TempValidatorSet {
-    validators: Vec<Info>,
-    proposer: Option<Info>,
-    total_voting_power: Option<Power>,
+pub struct TempValidatorSet {
+    pub validators: Vec<Info>,
+    pub proposer: Option<Info>,
+    pub total_voting_power: Option<Power>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[non_exhaustive]
-struct TempSignedBlock {
+pub struct TempSignedBlock {
     /// Block header
     pub header: Header,
 
@@ -61,7 +62,7 @@ struct TempSignedBlock {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[non_exhaustive]
-struct SignedBlock {
+pub struct SignedBlock {
     /// Block header
     pub header: Header,
 
@@ -538,8 +539,6 @@ pub(crate) mod tests {
                 Some(validator) => validator,
                 None => continue, // Cannot find matching validator, so we skip the vote
             });
-
-            // println!("verified");
 
             // Cast the vote into a signedVote struct (which is used to get the signed bytes)
             let signed_vote = Box::new(SignedVote::from_vote(vote.clone(), block.header.chain_id.clone())
