@@ -5,18 +5,16 @@ use std::rc::Rc;
 use subtle_encoding::hex;
 /// Source (tendermint-rs): https://github.com/informalsystems/tendermint-rs/blob/e930691a5639ef805c399743ac0ddbba0e9f53da/tendermint/src/merkle.rs#L32
 use tendermint::{
+    block::Header,
+    block::{Commit, CommitSig},
     merkle::{Hash, MerkleHash},
     validator::{Info, Set as ValidatorSet},
     vote::Power,
-    block::{Commit, CommitSig},
     vote::{ValidatorIndex, Vote},
-    block::Header,
 };
 use tendermint_proto::{
-    Protobuf,
-    types::BlockId as RawBlockId,
-    types::Data as RawData,
-    version::Consensus as RawConsensusVersion,
+    types::BlockId as RawBlockId, types::Data as RawData,
+    version::Consensus as RawConsensusVersion, Protobuf,
 };
 
 /// Compute leaf hashes for arbitrary byte vectors.
@@ -179,10 +177,6 @@ fn compute_hash_from_aunts(
     leaf_hash: Hash,
     inner_hashes: Vec<Hash>,
 ) -> Option<Hash> {
-    // let aunts_hex: Vec<String> = inner_hashes
-    //     .iter()
-    //     .map(|a| String::from_utf8(hex::encode(a)).unwrap())
-    //     .collect();
     if index >= total || total == 0 {
         return None;
     }
@@ -224,12 +218,10 @@ fn compute_hash_from_aunts(
             );
             match right_hash {
                 None => None,
-                Some(hash) => {
-                    Some(inner_hash::<Sha256>(
-                        inner_hashes[inner_hashes.len() - 1],
-                        hash,
-                    ))
-                }
+                Some(hash) => Some(inner_hash::<Sha256>(
+                    inner_hashes[inner_hashes.len() - 1],
+                    hash,
+                )),
             }
         }
     }
@@ -398,18 +390,16 @@ pub fn non_absent_vote(
 pub(crate) mod tests {
     use sha2::Sha256;
     use subtle_encoding::hex;
-    use tendermint_proto::{
-        types::SimpleValidator as RawSimpleValidator, Protobuf,
-    };
+    use tendermint_proto::{types::SimpleValidator as RawSimpleValidator, Protobuf};
 
     use crate::merkle::{generate_proofs_from_header, TempSignedBlock};
     use tendermint::{
         merkle::simple_hash_from_byte_vectors,
         validator::{Set as ValidatorSet, SimpleValidator},
-        vote::{ValidatorIndex, SignedVote},
+        vote::{SignedVote, ValidatorIndex},
     };
 
-    use super::{non_absent_vote, SignedBlock, leaf_hash, inner_hash};
+    use super::{inner_hash, leaf_hash, non_absent_vote, SignedBlock};
 
     #[test]
     fn test_validator_inclusion() {
@@ -517,48 +507,43 @@ pub(crate) mod tests {
         // Source: https://github.com/informalsystems/tendermint-rs/blob/c2b5c9e01eab1c740598aa14375a7453f3bfa436/light-client-verifier/src/operations/voting_power.rs#L139-L198
         // Verify each of the signatures of the non_absent_votes
         // Verify signatures
-        let non_absent_votes = block.commit.signatures
-            .iter()
-            .enumerate()
-            .filter_map(|(idx, signature)| {
-                ValidatorIndex::try_from(idx).ok().and_then(|validator_idx| {
-                    non_absent_vote(signature, validator_idx, &block.commit)
-                        .map(|vote| (signature, vote))
-                })
-            });
+        let non_absent_votes =
+            block
+                .commit
+                .signatures
+                .iter()
+                .enumerate()
+                .filter_map(|(idx, signature)| {
+                    ValidatorIndex::try_from(idx)
+                        .ok()
+                        .and_then(|validator_idx| {
+                            non_absent_vote(signature, validator_idx, &block.commit)
+                                .map(|vote| (signature, vote))
+                        })
+                });
 
         let mut min_sign_bytes_len = 1000000;
         let mut max_sign_bytes_len = 0;
 
-        // println!("Header hash: {:?}", block.header.hash().to_string().to_lowercase());
-        println!("Non absent votes: {:?}", non_absent_votes.clone().count());
-
         for (_, vote) in non_absent_votes {
-            let validator = Box::new(match block.validator_set.validator(vote.validator_address) {
-                Some(validator) => validator,
-                None => continue, // Cannot find matching validator, so we skip the vote
-            });
-
-            // println!("verified");
+            let validator = Box::new(
+                match block.validator_set.validator(vote.validator_address) {
+                    Some(validator) => validator,
+                    None => continue, // Cannot find matching validator, so we skip the vote
+                },
+            );
 
             // Cast the vote into a signedVote struct (which is used to get the signed bytes)
-            let signed_vote = Box::new(SignedVote::from_vote(vote.clone(), block.header.chain_id.clone())
-                .expect("missing signature"));
-
-            println!("Address: {:?}", String::from_utf8(hex::encode(validator.address.as_bytes())));
-
-            println!("Signature: {:?}", String::from_utf8(hex::encode(signed_vote.signature())));
+            let signed_vote = Box::new(
+                SignedVote::from_vote(vote.clone(), block.header.chain_id.clone())
+                    .expect("missing signature"),
+            );
 
             let pub_key = validator.pub_key.ed25519().unwrap();
-            println!("Pubkey: {:?}", String::from_utf8(hex::encode(pub_key.as_bytes())));
 
             // Get the encoded signed vote bytes
             // https://github.com/celestiaorg/celestia-core/blob/main/proto/tendermint/types/canonical.proto#L30-L37
             let sign_bytes = signed_vote.sign_bytes();
-            // let mut buf = Vec::new();
-            // vote.to_signable_bytes(block.header.chain_id.clone(), &mut buf).expect("failed to encode vote");
-
-            println!("Sign Bytes: {:?}", String::from_utf8(hex::encode(&sign_bytes)));
 
             if (sign_bytes.len() < min_sign_bytes_len) {
                 min_sign_bytes_len = sign_bytes.len();
@@ -567,7 +552,7 @@ pub(crate) mod tests {
                 max_sign_bytes_len = sign_bytes.len();
             }
 
-            // // Similar to encoding the vote: https://github.com/informalsystems/tendermint-rs/blob/c2b5c9e01eab1c740598aa14375a7453f3bfa436/tendermint/src/vote.rs#L267-L271
+            // Similar to encoding the vote: https://github.com/informalsystems/tendermint-rs/blob/c2b5c9e01eab1c740598aa14375a7453f3bfa436/tendermint/src/vote.rs#L267-L271
             // let decoded_vote: CanonicalVote = Protobuf::<RawCanonicalVote>::decode_length_delimited_vec(&sign_bytes).expect("failed to decode sign_bytes");
 
             // Verify that the message signed is in fact the sign_bytes
@@ -578,7 +563,7 @@ pub(crate) mod tests {
                 )
                 .expect("invalid signature");
 
-            // TODO: Break out of the loop when we have enough voting power.
+            // TODO: We can break out of the loop when we have enough voting power.
             // See https://github.com/informalsystems/tendermint-rs/issues/235
         }
 
@@ -604,21 +589,22 @@ pub(crate) mod tests {
 
         let (root_hash, proofs) = generate_proofs_from_header(&block.header);
 
+        let validator_hash_index = 7;
+
         // Verify validator proof
-        proofs[7]
+        proofs[validator_hash_index]
             .verify(&root_hash, &block.header.validators_hash.encode_vec())
             .unwrap();
-
 
         // Verify proof using aunts
         let mut path_indices = vec![];
         let mut path_values = vec![];
-        for i in 0..proofs[7].aunts.len() {
-            path_values.push(proofs[7].aunts[i]);
+        for i in 0..proofs[validator_hash_index].aunts.len() {
+            path_values.push(proofs[validator_hash_index].aunts[i]);
         }
-        
-        let mut current_total = proofs[7].total;
-        let mut current_index = proofs[7].index;
+
+        let mut current_total = proofs[validator_hash_index].total;
+        let mut current_index = proofs[validator_hash_index].index;
         while (current_total >= 1) {
             path_indices.push(current_index % 2 == 1);
             current_total = current_total / 2;
