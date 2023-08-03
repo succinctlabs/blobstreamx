@@ -1,9 +1,9 @@
 pub mod merkle;
-pub mod scripts;
+pub mod fixtures;
 pub mod utils;
 pub mod validator;
 
-use crate::scripts::generate_tests;
+use crate::fixtures::generate_tests;
 
 use clap::Parser;
 
