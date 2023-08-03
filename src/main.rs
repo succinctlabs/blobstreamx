@@ -1,3 +1,4 @@
+pub mod inputs;
 pub mod merkle;
 pub mod fixtures;
 pub mod utils;

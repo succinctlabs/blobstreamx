@@ -871,7 +871,7 @@ pub(crate) mod tests {
     fn test_hash_header_leaf() {
         let block = tendermint::Block::from(
             serde_json::from_str::<tendermint::block::Block>(include_str!(
-                "./fixtures/signed_celestia_block.json"
+                "./fixtures/celestia_block.json"
             ))
             .unwrap(),
         );
@@ -919,7 +919,7 @@ pub(crate) mod tests {
         // Generate test cases from Celestia block:
         let block = tendermint::Block::from(
             serde_json::from_str::<tendermint::block::Block>(include_str!(
-                "./fixtures/signed_celestia_block.json"
+                "./fixtures/celestia_block.json"
             ))
             .unwrap(),
         );

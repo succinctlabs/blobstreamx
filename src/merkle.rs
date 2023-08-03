@@ -36,15 +36,15 @@ where
 // Note: Following PR needs to be merged in tendermint-rs to remove TempValidatorSet and TempSignedBlock: https://github.com/informalsystems/tendermint-rs/pull/1340
 /// Validator set contains a vector of validators
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-struct TempValidatorSet {
-    validators: Vec<Info>,
-    proposer: Option<Info>,
-    total_voting_power: Option<Power>,
+pub struct TempValidatorSet {
+    pub validators: Vec<Info>,
+    pub proposer: Option<Info>,
+    pub total_voting_power: Option<Power>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[non_exhaustive]
-struct TempSignedBlock {
+pub struct TempSignedBlock {
     /// Block header
     pub header: Header,
 
@@ -60,7 +60,7 @@ struct TempSignedBlock {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[non_exhaustive]
-struct SignedBlock {
+pub struct SignedBlock {
     /// Block header
     pub header: Header,
 
@@ -583,7 +583,7 @@ pub(crate) mod tests {
         // Generate test cases from Celestia block:
         let block = tendermint::Block::from(
             serde_json::from_str::<tendermint::block::Block>(include_str!(
-                "./fixtures/signed_celestia_block.json"
+                "./fixtures/celestia_block.json"
             ))
             .unwrap(),
         );
