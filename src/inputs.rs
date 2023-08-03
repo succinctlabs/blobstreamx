@@ -107,11 +107,4 @@ fn generate_inputs() {
     let enc_next_validators_hash_proof = proofs[8].clone();
     let enc_next_validators_hash_proof_indices = get_path_indices(8, total);
 
-
-
-}
-
-#[cfg(test)]
-pub(crate) mod tests {
-
 }
