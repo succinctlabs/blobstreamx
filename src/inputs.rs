@@ -1,19 +1,19 @@
+/// Source (tendermint-rs): https://github.com/informalsystems/tendermint-rs/blob/e930691a5639ef805c399743ac0ddbba0e9f53da/tendermint/src/merkle.rs#L32
+use crate::merkle::{generate_proofs_from_header, non_absent_vote, SignedBlock, TempSignedBlock};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use tendermint_proto::Protobuf;
 use std::cell::RefCell;
 use std::rc::Rc;
 use subtle_encoding::hex;
-/// Source (tendermint-rs): https://github.com/informalsystems/tendermint-rs/blob/e930691a5639ef805c399743ac0ddbba0e9f53da/tendermint/src/merkle.rs#L32
-use crate::merkle::{SignedBlock, TempSignedBlock, non_absent_vote, generate_proofs_from_header};
 use tendermint::{
+    block::Header,
+    block::{Commit, CommitSig},
     merkle::{Hash, MerkleHash},
     validator::{Info, Set as ValidatorSet},
     vote::{Power, SignedVote},
-    block::{Commit, CommitSig},
     vote::{ValidatorIndex, Vote},
-    block::Header,
 };
+use tendermint_proto::Protobuf;
 
 // If hash_so_far is on the left, False, else True
 fn get_path_indices(index: u64, total: u64) -> Vec<bool> {
@@ -78,9 +78,16 @@ fn generate_inputs() {
     let mut signatures = Vec::new();
     for i in 0..block.commit.signatures.len() {
         if block.commit.signatures[i].is_commit() {
-            let vote = non_absent_vote(&block.commit.signatures[i], ValidatorIndex::try_from(i).unwrap(), &block.commit).unwrap();
-            let signed_vote = Box::new(SignedVote::from_vote(vote.clone(), block.header.chain_id.clone())
-                .expect("missing signature"));
+            let vote = non_absent_vote(
+                &block.commit.signatures[i],
+                ValidatorIndex::try_from(i).unwrap(),
+                &block.commit,
+            )
+            .unwrap();
+            let signed_vote = Box::new(
+                SignedVote::from_vote(vote.clone(), block.header.chain_id.clone())
+                    .expect("missing signature"),
+            );
             let sig = signed_vote.signature();
             signatures.push(sig.clone().into_bytes());
         } else {
@@ -95,7 +102,7 @@ fn generate_inputs() {
     let enc_validators_hash_leaf = block.header.validators_hash.encode_vec();
     let enc_data_hash_leaf = block.header.data_hash.unwrap().encode_vec();
 
-    // Generate the merkle proofs for enc_next_validators_hash, enc_validators_hash, and enc_data_hash    
+    // Generate the merkle proofs for enc_next_validators_hash, enc_validators_hash, and enc_data_hash
     // These can be read into aunts_target for get_root_from_merkle_proof
 
     let (root, proofs) = generate_proofs_from_header(&block.header);
@@ -106,5 +113,4 @@ fn generate_inputs() {
     let enc_validators_hash_proof_indices = get_path_indices(7, total);
     let enc_next_validators_hash_proof = proofs[8].clone();
     let enc_next_validators_hash_proof_indices = get_path_indices(8, total);
-
 }

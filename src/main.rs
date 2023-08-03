@@ -1,8 +1,8 @@
+pub mod inputs;
 pub mod merkle;
 pub mod scripts;
 pub mod utils;
 pub mod validator;
-pub mod inputs;
 
 use crate::scripts::generate_tests;
 
