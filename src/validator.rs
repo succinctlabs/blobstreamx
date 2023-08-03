@@ -871,17 +871,16 @@ pub(crate) mod tests {
     fn test_hash_header_leaf() {
         let block = tendermint::Block::from(
             serde_json::from_str::<tendermint::block::Block>(include_str!(
-                "./scripts/celestia_block.json"
+                "./fixtures/celestia_block.json"
             ))
             .unwrap(),
         );
 
         let encoded_validators_hash_bits = to_bits(block.header.validators_hash.encode_vec());
-        // WARNING!!! Make sure to encode_vec()
+        // Note: Make sure to encode_vec()
         let validators_leaf_hash =
             leaf_hash::<Sha256>(&block.header.validators_hash.encode_vec()).to_vec();
 
-        // println!("validators_hash: {:?}", validators_hash.len());
         let validators_hash_bits = to_bits(validators_leaf_hash);
 
         let mut pw = PartialWitness::new();
@@ -920,7 +919,7 @@ pub(crate) mod tests {
         // Generate test cases from Celestia block:
         let block = tendermint::Block::from(
             serde_json::from_str::<tendermint::block::Block>(include_str!(
-                "./scripts/celestia_block.json"
+                "./fixtures/celestia_block.json"
             ))
             .unwrap(),
         );
@@ -972,9 +971,8 @@ pub(crate) mod tests {
         let mut aunts_target =
             vec![[builder._false(); HASH_SIZE_BITS]; proofs[leaf_index].aunts.len()];
         for i in 0..proofs[leaf_index].aunts.len() {
-            // Reverse the order of the aunts.
             let bool_vector = to_bits(proofs[leaf_index].aunts[i].to_vec());
-            // println!("bool_vector: {:?}", bool_vector);
+
             for j in 0..HASH_SIZE_BITS {
                 aunts_target[i][j] = if bool_vector[j] {
                     builder._true()

@@ -32,8 +32,8 @@ where
     hashed_leaves
 }
 
-// Note: total_voting_power seems to be missing from celestia testnet nodes can use ValidatorSet once fixed
-// Need to accumulate independently (non-existent in tendermint-rs)
+// Note: Implementations of ValidatorSet and SignedBlock differ in tendermint-rs and comet-bft
+// Note: Following PR needs to be merged in tendermint-rs to remove TempValidatorSet and TempSignedBlock: https://github.com/informalsystems/tendermint-rs/pull/1340
 /// Validator set contains a vector of validators
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TempValidatorSet {
@@ -452,7 +452,7 @@ pub(crate) mod tests {
         // Generate test cases from Celestia block:
         let temp_block = TempSignedBlock::from(
             serde_json::from_str::<TempSignedBlock>(include_str!(
-                "./scripts/signed_celestia_block.json"
+                "./fixtures/signed_celestia_block.json"
             ))
             .unwrap(),
         );
@@ -489,7 +489,7 @@ pub(crate) mod tests {
         // Generate test cases from Celestia block:
         let temp_block = Box::new(TempSignedBlock::from(
             serde_json::from_str::<TempSignedBlock>(include_str!(
-                "./scripts/signed_celestia_block.json"
+                "./fixtures/signed_celestia_block.json"
             ))
             .unwrap(),
         ));
@@ -583,7 +583,7 @@ pub(crate) mod tests {
         // Generate test cases from Celestia block:
         let block = tendermint::Block::from(
             serde_json::from_str::<tendermint::block::Block>(include_str!(
-                "./scripts/celestia_block.json"
+                "./fixtures/celestia_block.json"
             ))
             .unwrap(),
         );
