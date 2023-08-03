@@ -34,7 +34,7 @@ fn generate_inputs() {
     // Generate test cases from Celestia block:
     let temp_block = Box::new(TempSignedBlock::from(
         serde_json::from_str::<TempSignedBlock>(include_str!(
-            "./scripts/signed_celestia_block.json"
+            "./fixtures/signed_celestia_block.json"
         ))
         .unwrap(),
     ));
