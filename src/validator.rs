@@ -9,8 +9,11 @@
 use plonky2::field::extension::Extendable;
 use plonky2::iop::target::{BoolTarget, Target};
 use plonky2::{hash::hash_types::RichField, plonk::circuit_builder::CircuitBuilder};
+use plonky2_gadgets::ecc::ed25519::curve::curve_types::Curve;
 use plonky2_gadgets::hash::sha::sha256::sha256;
 use plonky2_gadgets::num::u32::gadgets::arithmetic_u32::{CircuitBuilderU32, U32Target};
+use plonky2_gadgets::ecc::ed25519::gadgets::eddsa::{verify_signatures_circuit, EDDSATargets};
+use plonky2_gadgets::ecc::ed25519::gadgets::eddsa::EDDSAPublicKeyTarget;
 
 use tendermint::merkle::HASH_SIZE;
 
@@ -176,9 +179,20 @@ pub trait TendermintMarshaller {
         threshold_numerator: U32Target,
         threshold_denominator: U32Target,
     ) -> BoolTarget;
+
+    /// Verifies the signatures of the validators in the validator set.
+    fn verify_signatures(
+        &mut self,
+        validator_voting_power: &Vec<I64Target>,
+        validator_enabled: &Vec<U32Target>,
+        validator_pubkeys: &Vec<[BoolTarget; VALIDATOR_BIT_LENGTH_MAX]>,
+        validator_signatures: &Vec<[EDDSATargets<C>]>,
+        header_hash: &[BoolTarget; HASH_SIZE_BITS],
+        round_present_in_message: BoolTarget,
+    ) -> BoolTarget;
 }
 
-impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller for CircuitBuilder<F, D> {
+impl<F: RichField + Extendable<D>, C: Curve, const D: usize> TendermintMarshaller for CircuitBuilder<F, D> {
     fn get_root_from_merkle_proof(
         &mut self,
         aunts: Vec<[BoolTarget; HASH_SIZE_BITS]>,
