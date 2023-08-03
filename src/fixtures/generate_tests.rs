@@ -125,8 +125,6 @@ pub async fn get_celestia_consensus_signatures() -> Result<(), Error> {
 
     let v: Response = serde_json::from_str(&res).expect("Failed to parse JSON");
 
-    // println!("{:#?}", v);
-
     for signature in v.result.commit.signatures {
         println!("Signature: {:?}", signature.signature);
     }
