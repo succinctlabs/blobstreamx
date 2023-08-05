@@ -1,3 +1,5 @@
+// #![feature(generic_const_exprs)]
+
 pub mod inputs;
 pub mod merkle;
 pub mod fixtures;
