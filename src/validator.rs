@@ -6,7 +6,6 @@
 //! The `pubkey` is encoded as the raw list of bytes used in the public key. The `varint` is
 //! encoded using protobuf's default integer encoding, which consist of 7 bit payloads. You can
 //! read more about them here: https://protobuf.dev/programming-guides/encoding/#varints.
-use curta::math::goldilocks::cubic::GoldilocksCubicParameters;
 use curta::plonky2::field::CubicParameters;
 use plonky2::field::extension::Extendable;
 use plonky2::iop::target::{BoolTarget, Target};
@@ -20,7 +19,6 @@ use plonky2x::num::nonnative::nonnative::CircuitBuilderNonNative;
 use plonky2x::num::u32::gadgets::arithmetic_u32::{CircuitBuilderU32, U32Target};
 use plonky2x::ecc::ed25519::gadgets::eddsa::{verify_signatures_circuit, EDDSATargets, EDDSASignatureTarget, EDDSAPublicKeyTarget};
 use plonky2x::ecc::ed25519::curve::ed25519::Ed25519;
-use plonky2::plonk::config::PoseidonGoldilocksConfig;
 use plonky2::plonk::config::AlgebraicHasher;
 
 use tendermint::merkle::HASH_SIZE;
@@ -854,9 +852,7 @@ pub(crate) mod tests {
     use num::BigUint;
     use subtle_encoding::hex;
 
-    use plonky2x::ecc::ed25519::curve::curve_types::{AffinePoint, Curve, CurveScalar};
     use plonky2x::ecc::ed25519::curve::ed25519::Ed25519;
-    use plonky2x::ecc::ed25519::field::ed25519_base::Ed25519Base;
     use plonky2x::ecc::ed25519::field::ed25519_scalar::Ed25519Scalar;
     use plonky2x::ecc::ed25519::gadgets::curve::decompress_point;
     use plonky2x::ecc::ed25519::gadgets::eddsa::verify_signatures_circuit;

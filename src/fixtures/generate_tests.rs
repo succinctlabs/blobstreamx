@@ -1,17 +1,25 @@
 use rand::Rng;
 use reqwest::Error;
-use serde::Deserialize;
+use serde::{Serialize, Deserialize};
 use serde_json::Value;
 use sha2::Sha256;
 use subtle_encoding::hex;
 use tendermint::{merkle::simple_hash_from_byte_vectors, vote::{ValidatorIndex, SignedVote}, validator::Set as ValidatorSet};
 use crate::merkle::{SignedBlock, non_absent_vote, TempSignedBlock};
+use std::{fs::File, io::Write};
 
 #[derive(Debug, Deserialize)]
 struct Response {
     jsonrpc: String,
     id: i32,
     result: TempSignedBlock,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct VerifySignatureData {
+    pubkey: String,
+    signature: String,
+    message: String,
 }
 
 pub fn generate_val_array(num_validators: usize) {
@@ -86,6 +94,7 @@ pub async fn get_celestia_consensus_signatures() -> Result<(), Error> {
                         })
                 });
 
+    let mut signature_verify_data = Vec::new();
     for (_, vote) in non_absent_votes {
         let validator = Box::new(
             match block.validator_set.validator(vote.validator_address) {
@@ -116,17 +125,31 @@ pub async fn get_celestia_consensus_signatures() -> Result<(), Error> {
                 signed_vote.signature(),
             )
             .expect("invalid signature");
-            
-        println!("Pubkey: {:?}", String::from_utf8(hex::encode(pub_key.as_bytes())));
-        println!("Signed Vote: {:?}", String::from_utf8(hex::encode(sign_bytes)));
+        
+        let pubkey_str = String::from_utf8(hex::encode(pub_key.as_bytes())).unwrap();
+        println!("Pubkey: {:?}", pubkey_str);
+        let message_str = String::from_utf8(hex::encode(sign_bytes.clone())).unwrap();
+        println!("Signed Vote: {:?}", message_str);
         let signature_bytes = signed_vote.signature().clone().into_bytes();
-        println!("Signature: {:?}", String::from_utf8(hex::encode(signature_bytes)));
+        let signature_str = String::from_utf8(hex::encode(signature_bytes.clone())).unwrap();
+        println!("Signature: {:?}", signature_str);
 
+        // Add pubkey, signed vote, signature into JSON object
+        signature_verify_data.push(
+            VerifySignatureData {
+                pubkey: pubkey_str,
+                signature: signature_str,
+                message: message_str,
+            });
         // TODO: We can break out of the loop when we have enough voting power.
         // See https://github.com/informalsystems/tendermint-rs/issues/235
     }
 
-    // Parse the response body as JSON
+    // Write to JSON file
+    let json = serde_json::to_string(&signature_verify_data).unwrap();
+    // Write to file named "signature_verify_data.json"
+    let mut file = File::create("src/fixtures/signature_verify_data.json").unwrap();
+    file.write_all(json.as_bytes()).unwrap();
 
     Ok(())
 }
