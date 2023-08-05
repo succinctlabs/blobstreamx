@@ -4,81 +4,14 @@ use serde::Deserialize;
 use serde_json::Value;
 use sha2::Sha256;
 use subtle_encoding::hex;
-use tendermint::merkle::simple_hash_from_byte_vectors;
+use tendermint::{merkle::simple_hash_from_byte_vectors, vote::{ValidatorIndex, SignedVote}, validator::Set as ValidatorSet};
+use crate::merkle::{SignedBlock, non_absent_vote, TempSignedBlock};
 
 #[derive(Debug, Deserialize)]
 struct Response {
     jsonrpc: String,
     id: i32,
-    result: BlockData,
-}
-
-#[derive(Debug, Deserialize)]
-struct BlockData {
-    header: HeaderData,
-    commit: CommitData,
-    validator_set: ValidatorSetData,
-}
-
-#[derive(Debug, Deserialize)]
-struct HeaderData {
-    version: VersionData,
-    chain_id: String,
-    height: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct VersionData {
-    block: String,
-    app: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct CommitData {
-    height: String,
-    round: i32,
-    block_id: BlockIdData,
-    signatures: Vec<SignatureData>,
-}
-
-#[derive(Debug, Deserialize)]
-struct BlockIdData {
-    hash: String,
-    parts: PartData,
-}
-
-#[derive(Debug, Deserialize)]
-struct PartData {
-    total: i32,
-    hash: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct SignatureData {
-    block_id_flag: i32,
-    validator_address: String,
-    timestamp: String,
-    signature: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct ValidatorSetData {
-    validators: Vec<ValidatorData>,
-    proposer: ValidatorData,
-}
-
-#[derive(Debug, Deserialize)]
-struct ValidatorData {
-    address: String,
-    pub_key: PubkeyData,
-    voting_power: String,
-    proposer_priority: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct PubkeyData {
-    r#type: String,
-    value: String,
+    result: TempSignedBlock,
 }
 
 pub fn generate_val_array(num_validators: usize) {
@@ -125,8 +58,72 @@ pub async fn get_celestia_consensus_signatures() -> Result<(), Error> {
 
     let v: Response = serde_json::from_str(&res).expect("Failed to parse JSON");
 
-    for signature in v.result.commit.signatures {
-        println!("Signature: {:?}", signature.signature);
+    let temp_block = v.result;
+
+    // Cast to SignedBlock
+    let block = SignedBlock {
+        header: temp_block.header,
+        data: temp_block.data,
+        commit: temp_block.commit,
+        validator_set: ValidatorSet::new(
+            temp_block.validator_set.validators,
+            temp_block.validator_set.proposer,
+        ),
+    };
+
+    // let block: SignedBlock = v.result.try_into().expect("Failed to parse JSON");
+
+    let non_absent_votes =
+            block.commit.signatures
+                .iter()
+                .enumerate()
+                .filter_map(|(idx, signature)| {
+                    ValidatorIndex::try_from(idx)
+                        .ok()
+                        .and_then(|validator_idx| {
+                            non_absent_vote(signature, validator_idx, &block.commit)
+                                .map(|vote| (signature, vote))
+                        })
+                });
+
+    for (_, vote) in non_absent_votes {
+        let validator = Box::new(
+            match block.validator_set.validator(vote.validator_address) {
+                Some(validator) => validator,
+                None => continue, // Cannot find matching validator, so we skip the vote
+            },
+        );
+
+        // Cast the vote into a signedVote struct (which is used to get the signed bytes)
+        let signed_vote = Box::new(
+            SignedVote::from_vote(vote.clone(), block.header.chain_id.clone())
+                .expect("missing signature"),
+        );
+
+        let pub_key = validator.pub_key.ed25519().unwrap();
+
+        // Get the encoded signed vote bytes
+        // https://github.com/celestiaorg/celestia-core/blob/main/proto/tendermint/types/canonical.proto#L30-L37
+        let sign_bytes = signed_vote.sign_bytes();
+
+        // Similar to encoding the vote: https://github.com/informalsystems/tendermint-rs/blob/c2b5c9e01eab1c740598aa14375a7453f3bfa436/tendermint/src/vote.rs#L267-L271
+        // let decoded_vote: CanonicalVote = Protobuf::<RawCanonicalVote>::decode_length_delimited_vec(&sign_bytes).expect("failed to decode sign_bytes");
+
+        // Verify that the message signed is in fact the sign_bytes
+        validator
+            .verify_signature::<tendermint::crypto::default::signature::Verifier>(
+                &sign_bytes,
+                signed_vote.signature(),
+            )
+            .expect("invalid signature");
+            
+        println!("Pubkey: {:?}", String::from_utf8(hex::encode(pub_key.as_bytes())));
+        println!("Signed Vote: {:?}", String::from_utf8(hex::encode(sign_bytes)));
+        let signature_bytes = signed_vote.signature().clone().into_bytes();
+        println!("Signature: {:?}", String::from_utf8(hex::encode(signature_bytes)));
+
+        // TODO: We can break out of the loop when we have enough voting power.
+        // See https://github.com/informalsystems/tendermint-rs/issues/235
     }
 
     // Parse the response body as JSON
