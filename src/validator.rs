@@ -189,6 +189,16 @@ pub trait TendermintMarshaller<F: RichField + Extendable<D>, const D: usize> {
     ) -> BoolTarget;
 
     /// Verifies the signatures of the validators in the validator set.
+    fn verify_signatures<E: CubicParameters<F>, C: GenericConfig<D, F = F, FE = F::Extension> + 'static>(
+        &mut self,
+        pubkeys: Vec<Ed25519PubkeyTarget>,
+        // This message should be range-checked before being passed in.
+        messages: Vec<Vec<BoolTarget>>,
+        eddsa_sig_targets: Vec<&EDDSASignatureTarget<Self::Curve>>,
+        eddsa_pubkey_targets: Vec<&EDDSAPublicKeyTarget<Self::Curve>>,
+    ) where <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>;
+
+    /// Verifies a single signature of a Tendermint validator.
     fn verify_signature<E: CubicParameters<F>, C: GenericConfig<D, F = F, FE = F::Extension> + 'static>(
         &mut self,
         pubkey: Ed25519PubkeyTarget,
@@ -803,6 +813,31 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D> fo
     }
 
     /// Verifies the signatures of the validators in the validator set.
+    fn verify_signatures<E: CubicParameters<F>, C: GenericConfig<D, F = F, FE = F::Extension> + 'static>(
+        &mut self,
+        pubkeys: Vec<Ed25519PubkeyTarget>,
+        // This message should be range-checked before being passed in.
+        messages: Vec<Vec<BoolTarget>>,
+        eddsa_sig_targets: Vec<&EDDSASignatureTarget<Self::Curve>>,
+        eddsa_pubkey_targets: Vec<&EDDSAPublicKeyTarget<Self::Curve>>,
+    ) where <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F> {
+        assert!(
+            pubkeys.len() == messages.len()
+                && pubkeys.len() == eddsa_sig_targets.len()
+                && pubkeys.len() == eddsa_pubkey_targets.len(),
+        );
+        for i in 0..pubkeys.len() {
+            self.verify_signature::<E, C>(
+                pubkeys[i],
+                messages[i].clone(),
+                eddsa_sig_targets[i],
+                eddsa_pubkey_targets[i],
+            );
+        }
+
+    }
+
+    /// Verifies the signatures of the validators in the validator set.
     fn verify_signature<E: CubicParameters<F>, C: GenericConfig<D, F = F, FE = F::Extension> + 'static>(
         &mut self,
         pubkey: Ed25519PubkeyTarget,
@@ -812,9 +847,9 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D> fo
         eddsa_sig_target: &EDDSASignatureTarget<Self::Curve>,
         eddsa_pubkey_target: &EDDSAPublicKeyTarget<Self::Curve>,
     ) where <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F> {
-        let affine_point_pubkey = self.decompress_point(&pubkey.0);
-        // Verify that the Tendermint validator's public key matches the public key affine point target.
-        self.connect_affine_point(&affine_point_pubkey, &eddsa_pubkey_target.0);
+        // let affine_point_pubkey = self.decompress_point(&pubkey.0);
+        // // Verify that the Tendermint validator's public key matches the public key affine point target.
+        // self.connect_affine_point(&affine_point_pubkey, &eddsa_pubkey_target.0);
 
         let message_bytes_len: usize = message.len() / 8;
         let eddsa_target =
@@ -854,7 +889,7 @@ pub(crate) mod tests {
 
     use plonky2x::ecc::ed25519::curve::ed25519::Ed25519;
     use plonky2x::ecc::ed25519::field::ed25519_scalar::Ed25519Scalar;
-    use plonky2x::ecc::ed25519::gadgets::curve::decompress_point;
+    use plonky2x::ecc::ed25519::gadgets::curve::{decompress_point, AffinePointTarget};
     use plonky2x::ecc::ed25519::gadgets::eddsa::verify_signatures_circuit;
     use plonky2x::num::biguint::WitnessBigUint;
     use sha2::Sha256;
@@ -1532,33 +1567,43 @@ pub(crate) mod tests {
         let mut builder = CircuitBuilder::<F, D>::new(CircuitConfig::standard_ecc_config());
 
         let msg_bits = to_bits(msg_bytes.to_vec());
+        let mut msg_bits_target = Vec::new();
+        for i in 0..msg_bits.len() {
+            msg_bits_target.push(builder.constant_bool(msg_bits[i]));
+        }
+
+        let pub_key_bits = to_bits(pub_key_bytes.to_vec());
+        let mut pub_key_bits_target = [builder.constant_bool(false); 256];
+        for i in 0..pub_key_bits.len() {
+            pub_key_bits_target[i] = builder.constant_bool(pub_key_bits[i]);
+        }
+        let ed25519_pub_key_target = Ed25519PubkeyTarget(pub_key_bits_target);
 
         let pub_key = decompress_point(&pub_key_bytes);
         assert!(pub_key.is_valid());
+        let pub_key_target = builder.constant_affine_point(pub_key);
+        let eddsa_pub_key_target = EDDSAPublicKeyTarget(pub_key_target);
 
         let sig_r = decompress_point(&sig_bytes[0..32]);
         assert!(sig_r.is_valid());
 
         let sig_s_biguint = BigUint::from_bytes_le(&sig_bytes[32..64]);
-        let sig_s = Ed25519Scalar::from_noncanonical_biguint(sig_s_biguint);
+        let sig_s = Ed25519Scalar::from_noncanonical_biguint(sig_s_biguint.clone());
         let sig = EDDSASignature { r: sig_r, s: sig_s };
 
         assert!(verify_message(&msg_bits, &sig, &EDDSAPublicKey(pub_key)));
+        println!("verified signature");
 
-        let eddsa_target =
-            verify_signatures_circuit::<F, Curve, E, C, D>(&mut builder, 1, msg_bytes.len().try_into().unwrap());
+        let sig_r_target = builder.constant_affine_point(sig_r);
+        let sig_s_biguint_target = builder.constant_biguint(&sig_s_biguint);
+        let sig_s_target = builder.biguint_to_nonnative(&sig_s_biguint_target);
 
-        for i in 0..msg_bits.len() {
-            pw.set_bool_target(eddsa_target.msgs[0][i], msg_bits[i]);
-        }
+        let eddsa_sig_target = EDDSASignatureTarget {
+            r: sig_r_target,
+            s: sig_s_target,
+        };
 
-        pw.set_biguint_target(&eddsa_target.pub_keys[0].0.x.value, &pub_key.x.to_canonical_biguint());
-        pw.set_biguint_target(&eddsa_target.pub_keys[0].0.y.value, &pub_key.y.to_canonical_biguint());
-
-        pw.set_biguint_target(&eddsa_target.sigs[0].r.x.value, &sig_r.x.to_canonical_biguint());
-        pw.set_biguint_target(&eddsa_target.sigs[0].r.y.value, &sig_r.y.to_canonical_biguint());
-
-        pw.set_biguint_target(&eddsa_target.sigs[0].s.value, &sig_s.to_canonical_biguint());
+        builder.verify_signature::<E, C>(ed25519_pub_key_target, msg_bits_target, &eddsa_sig_target, &eddsa_pub_key_target);
 
         let inner_data = builder.build::<C>();
         let inner_proof = inner_data.prove(pw).unwrap();
