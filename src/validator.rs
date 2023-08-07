@@ -885,12 +885,6 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D> fo
         eddsa_sig_target: &EDDSASignatureTarget<Self::Curve>,
         eddsa_pubkey_target: &EDDSAPublicKeyTarget<Self::Curve>,
     ) where <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F> {
-        // // TODO: Fix pubkey equivocation. Compress point is not working.
-        // let eddsa_pubkey_target_bits = self.compress_point(&eddsa_pubkey_target.0);
-        // // Verify that the Tendermint validator's public key matches the public key bits target.
-        // for i in 0..eddsa_pubkey_target_bits.len() {
-        //     self.connect(eddsa_pubkey_target_bits[i].target, pubkey.0[i].target);
-        // }
         let mut pub_key_bits = Vec::new();
 
         pubkey.0.reverse();
@@ -1632,7 +1626,6 @@ pub(crate) mod tests {
         type F = GoldilocksField;
         type E = GoldilocksCubicParameters;
         type C = PoseidonGoldilocksConfig;
-        type Curve = Ed25519;
         const D: usize = 2;
 
         let mut pw = PartialWitness::new();
@@ -1644,7 +1637,6 @@ pub(crate) mod tests {
             msg_bits_target.push(builder.constant_bool(msg_bits[i]));
         }
 
-        let pub_key_bits = to_bits(pub_key_bytes.to_vec());
         let mut pub_key = Vec::new();
         for _j in 0..PUBKEY_BYTES_LEN {
             let pub_key_byte = builder.add_virtual_target();
