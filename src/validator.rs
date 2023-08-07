@@ -17,12 +17,11 @@ use plonky2x::hash::sha::sha256::sha256;
 use plonky2x::num::biguint::CircuitBuilderBiguint;
 use plonky2x::num::nonnative::nonnative::CircuitBuilderNonNative;
 use plonky2x::num::u32::gadgets::arithmetic_u32::{CircuitBuilderU32, U32Target};
-use plonky2x::ecc::ed25519::gadgets::eddsa::{verify_signatures_circuit, EDDSATargets, EDDSASignatureTarget, EDDSAPublicKeyTarget};
-use plonky2x::hash::bit_operations::util::bits_to_biguint_target;
+use plonky2x::ecc::ed25519::gadgets::eddsa::{verify_signatures_circuit, EDDSASignatureTarget, EDDSAPublicKeyTarget};
 use plonky2x::ecc::ed25519::curve::ed25519::Ed25519;
 use plonky2::plonk::config::AlgebraicHasher;
 
-use tendermint::merkle::{HASH_SIZE};
+use tendermint::merkle::HASH_SIZE;
 
 /// The number of bytes in a SHA256 hash.
 pub const HASH_SIZE_BITS: usize = HASH_SIZE * 8;
@@ -61,10 +60,6 @@ const VALIDATOR_SET_SIZE_MAX: usize = 4;
 
 // The maximum number of bytes in a validator message (CanonicalVote toSignBytes).
 const VALIDATOR_MESSAGE_BYTES_LENGTH_MAX: usize = 124;
-
-/// The Ed25519 public key as a list of 32 byte targets.
-#[derive(Debug, Clone, Copy)]
-pub struct Ed25519PubkeyTarget(pub [Target; PUBKEY_BYTES_LEN]);
 
 /// A protobuf-encoded tendermint hash as a 34 byte target.
 #[derive(Debug, Clone, Copy)]
@@ -941,7 +936,6 @@ pub(crate) mod tests {
     use num::BigUint;
     use subtle_encoding::hex;
 
-    use plonky2x::ecc::ed25519::curve::ed25519::Ed25519;
     use plonky2x::ecc::ed25519::field::ed25519_scalar::Ed25519Scalar;
     use plonky2x::ecc::ed25519::gadgets::curve::decompress_point;
     use sha2::Sha256;
@@ -959,7 +953,7 @@ pub(crate) mod tests {
         validator::{I64Target, TendermintMarshaller},
     };
 
-    use super::{Ed25519PubkeyTarget, VALIDATOR_BYTE_LENGTH_MIN};
+    use super::{VALIDATOR_BYTE_LENGTH_MIN};
 
     type C = PoseidonGoldilocksConfig;
     type F = <C as GenericConfig<D>>::F;
@@ -1561,19 +1555,6 @@ pub(crate) mod tests {
             U32Target(builder.constant(F::from_canonical_usize(voting_power_upper as usize)));
         let voting_power_target = I64Target([voting_power_lower_target, voting_power_upper_target]);
 
-        // let mut pub_key = Vec::new();
-        // for _j in 0..PUBKEY_BYTES_LEN {
-        //     let pub_key_byte = builder.add_virtual_target();
-
-        //     // TODO:  Can also decompose the bytes into bits here, since the range check basically does that.
-        //     builder.range_check(pub_key_byte, 8);
-        //     pub_key.push(pub_key_byte);
-        // }
-
-        // let mut pubkey = Ed25519PubkeyTarget(pub_key.try_into().unwrap());
-        // for i in 0..PUBKEY_BYTES_LEN {
-        //     pw.set_target(pubkey.0[i], F::from_canonical_u8(0));
-        // }
         let mut pub_key_bits = Vec::new();
 
         pubkey.reverse();
