@@ -21,7 +21,7 @@ use plonky2x::ecc::ed25519::gadgets::eddsa::{verify_signatures_circuit, EDDSATar
 use plonky2x::ecc::ed25519::curve::ed25519::Ed25519;
 use plonky2::plonk::config::AlgebraicHasher;
 
-use tendermint::merkle::HASH_SIZE;
+use tendermint::merkle::{HASH_SIZE};
 
 /// The number of bytes in a SHA256 hash.
 pub const HASH_SIZE_BITS: usize = HASH_SIZE * 8;
@@ -65,19 +65,36 @@ const VALIDATOR_MESSAGE_BYTES_LENGTH_MAX: usize = 124;
 #[derive(Debug, Clone, Copy)]
 pub struct Ed25519PubkeyTarget(pub [BoolTarget; 256]);
 
+/// A protobuf-encoded tendermint hash as a 34 byte target.
+#[derive(Debug, Clone, Copy)]
+pub struct EncTendermintHashTarget(pub [Target; HASH_SIZE_BITS + 8 * 2]);
+
 /// The Tendermint hash as a 32 byte target.
 #[derive(Debug, Clone, Copy)]
-pub struct TendermintHashTarget(pub [Target; HASH_SIZE]);
+pub struct TendermintHashTarget(pub [BoolTarget; HASH_SIZE_BITS]);
 
 /// The voting power as a list of 2 u32 targets.
 #[derive(Debug, Clone, Copy)]
 pub struct I64Target(pub [U32Target; 2]);
+
+/// The message signed by the validator as a target.
+#[derive(Debug, Clone, Copy)]
+pub struct ValidatorMessageTarget(pub [BoolTarget; VALIDATOR_MESSAGE_BYTES_LENGTH_MAX * 8]);
 
 /// The bytes, public key, and voting power targets inside of a Tendermint validator.
 #[derive(Debug, Clone)]
 pub struct TendermintValidator {
     pub pubkey: Ed25519PubkeyTarget,
     pub voting_power: I64Target,
+}
+
+/// The protobuf-encoded leaf (a hash), and it's corresponding proof and path indices against the header.
+#[derive(Debug, Clone)]
+pub struct HeaderProofTarget {
+    pub enc_leaf: EncTendermintHashTarget,
+    // Note: Length of proof and path indices should be equal
+    pub proof: Vec<TendermintHashTarget>,
+    pub path_indices: Vec<BoolTarget>,
 }
 
 pub trait TendermintMarshaller<F: RichField + Extendable<D>, const D: usize> {
@@ -206,6 +223,22 @@ pub trait TendermintMarshaller<F: RichField + Extendable<D>, const D: usize> {
         message: Vec<BoolTarget>,
         eddsa_sig_target: &EDDSASignatureTarget<Self::Curve>,
         eddsa_pubkey_target: &EDDSAPublicKeyTarget<Self::Curve>,
+    ) where <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>;
+
+    /// Verifies a single signature of a Tendermint validator.
+    fn verify_block<E: CubicParameters<F>, C: GenericConfig<D, F = F, FE = F::Extension> + 'static>(
+        &mut self,
+        validators: &Vec<TendermintValidator>,
+        validators_enabled: &Vec<BoolTarget>,
+        validators_signed: &Vec<BoolTarget>,
+        messages: &Vec<ValidatorMessageTarget>,
+        signatures: &Vec<EDDSASignatureTarget<Self::Curve>>,
+        pubkeys: &Vec<EDDSAPublicKeyTarget<Self::Curve>>,
+        header: &Vec<BoolTarget>,
+
+        data_hash_proof: &HeaderProofTarget,
+        validator_hash_proof: &HeaderProofTarget,
+        next_validator_hash_proof: &HeaderProofTarget,
     ) where <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>;
 }
 
@@ -847,9 +880,12 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D> fo
         eddsa_sig_target: &EDDSASignatureTarget<Self::Curve>,
         eddsa_pubkey_target: &EDDSAPublicKeyTarget<Self::Curve>,
     ) where <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F> {
-        // let affine_point_pubkey = self.decompress_point(&pubkey.0);
-        // // Verify that the Tendermint validator's public key matches the public key affine point target.
-        // self.connect_affine_point(&affine_point_pubkey, &eddsa_pubkey_target.0);
+        // // TODO: Fix pubkey equivocation. Compress point is not working.
+        // let eddsa_pubkey_target_bits = self.compress_point(&eddsa_pubkey_target.0);
+        // // Verify that the Tendermint validator's public key matches the public key bits target.
+        // for i in 0..eddsa_pubkey_target_bits.len() {
+        //     self.connect(eddsa_pubkey_target_bits[i].target, pubkey.0[i].target);
+        // }
 
         let message_bytes_len: usize = message.len() / 8;
         let eddsa_target =
@@ -865,6 +901,23 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D> fo
 
         self.connect_biguint(&eddsa_target.pub_keys[0].0.x.value, &eddsa_pubkey_target.0.x.value);
         self.connect_biguint(&eddsa_target.pub_keys[0].0.y.value, &eddsa_pubkey_target.0.y.value);
+    }
+
+    fn verify_block<E: CubicParameters<F>, C: GenericConfig<D, F = F, FE = F::Extension> + 'static>(
+        &mut self,
+        validators: &Vec<TendermintValidator>,
+        validators_enabled: &Vec<BoolTarget>,
+        validators_signed: &Vec<BoolTarget>,
+        messages: &Vec<ValidatorMessageTarget>,
+        signatures: &Vec<EDDSASignatureTarget<Self::Curve>>,
+        pubkeys: &Vec<EDDSAPublicKeyTarget<Self::Curve>>,
+        header: &Vec<BoolTarget>,
+
+        data_hash_proof: &HeaderProofTarget,
+        validator_hash_proof: &HeaderProofTarget,
+        next_validator_hash_proof: &HeaderProofTarget,
+    ) where <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F> {
+
     }
 }
 
