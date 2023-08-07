@@ -18,6 +18,7 @@ use plonky2x::num::biguint::CircuitBuilderBiguint;
 use plonky2x::num::nonnative::nonnative::CircuitBuilderNonNative;
 use plonky2x::num::u32::gadgets::arithmetic_u32::{CircuitBuilderU32, U32Target};
 use plonky2x::ecc::ed25519::gadgets::eddsa::{verify_signatures_circuit, EDDSATargets, EDDSASignatureTarget, EDDSAPublicKeyTarget};
+use plonky2x::hash::bit_operations::util::bits_to_biguint_target;
 use plonky2x::ecc::ed25519::curve::ed25519::Ed25519;
 use plonky2::plonk::config::AlgebraicHasher;
 
@@ -83,8 +84,8 @@ pub struct ValidatorMessageTarget(pub [BoolTarget; VALIDATOR_MESSAGE_BYTES_LENGT
 
 /// The bytes, public key, and voting power targets inside of a Tendermint validator.
 #[derive(Debug, Clone)]
-pub struct TendermintValidator {
-    pub pubkey: Ed25519PubkeyTarget,
+pub struct TendermintValidator<C: Curve> {
+    pub pubkey: EDDSAPublicKeyTarget<C>,
     pub voting_power: I64Target,
 }
 
@@ -109,7 +110,7 @@ pub trait TendermintMarshaller<F: RichField + Extendable<D>, const D: usize> {
     /// Serializes the validator public key and voting power to bytes.
     fn marshal_tendermint_validator(
         &mut self,
-        pubkey: Ed25519PubkeyTarget,
+        pubkey: EDDSAPublicKeyTarget<Self::Curve>,
         voting_power: I64Target,
     ) -> [BoolTarget; VALIDATOR_BIT_LENGTH_MAX];
 
@@ -208,7 +209,6 @@ pub trait TendermintMarshaller<F: RichField + Extendable<D>, const D: usize> {
     /// Verifies the signatures of the validators in the validator set.
     fn verify_signatures<E: CubicParameters<F>, C: GenericConfig<D, F = F, FE = F::Extension> + 'static>(
         &mut self,
-        pubkeys: Vec<Ed25519PubkeyTarget>,
         // This message should be range-checked before being passed in.
         messages: Vec<Vec<BoolTarget>>,
         eddsa_sig_targets: Vec<&EDDSASignatureTarget<Self::Curve>>,
@@ -218,7 +218,6 @@ pub trait TendermintMarshaller<F: RichField + Extendable<D>, const D: usize> {
     /// Verifies a single signature of a Tendermint validator.
     fn verify_signature<E: CubicParameters<F>, C: GenericConfig<D, F = F, FE = F::Extension> + 'static>(
         &mut self,
-        pubkey: Ed25519PubkeyTarget,
         // This message should be range-checked before being passed in.
         message: Vec<BoolTarget>,
         eddsa_sig_target: &EDDSASignatureTarget<Self::Curve>,
@@ -228,7 +227,7 @@ pub trait TendermintMarshaller<F: RichField + Extendable<D>, const D: usize> {
     /// Verifies a single signature of a Tendermint validator.
     fn verify_block<E: CubicParameters<F>, C: GenericConfig<D, F = F, FE = F::Extension> + 'static>(
         &mut self,
-        validators: &Vec<TendermintValidator>,
+        validators: &Vec<TendermintValidator<Self::Curve>>,
         validators_enabled: &Vec<BoolTarget>,
         validators_signed: &Vec<BoolTarget>,
         messages: &Vec<ValidatorMessageTarget>,
@@ -429,7 +428,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D> fo
 
     fn marshal_tendermint_validator(
         &mut self,
-        mut pubkey: Ed25519PubkeyTarget,
+        pubkey: EDDSAPublicKeyTarget<Self::Curve>,
         voting_power: I64Target,
     ) -> [BoolTarget; VALIDATOR_BYTE_LENGTH_MAX * 8] {
         let mut ptr = 0;
@@ -445,17 +444,24 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D> fo
             }
         }
 
-        // Need to reverse the byte endianess of the pub key
-        pubkey.0.reverse();
-        println!("pubkey: {:?}", pubkey.0.len());
+        println!("pubkey: {:?}", pubkey.0);
+        let pubkey_bits = self.compress_point(&pubkey.0);
+        println!("pubkey bits len: {:?}", pubkey_bits.len());
+        // // Need to reverse the byte endianess of the pub key
+        // pubkey.0.reverse();
+        // println!("pubkey: {:?}", pubkey.0.len());
         // The next 32 bytes of the serialized validator are the public key.
-        for byte in pubkey.0.iter() {
-            let mut bits = self.split_le(*byte, 8);
-            bits.reverse();
-            for i in 0..8 {
-                buffer[ptr] = bits[i];
-                ptr += 1;
-            }
+        // for byte in pubkey.0.iter() {
+        //     let mut bits = self.split_le(*byte, 8);
+        //     bits.reverse();
+        //     for i in 0..8 {
+        //         buffer[ptr] = bits[i];
+        //         ptr += 1;
+        //     }
+        // }
+        for i in 0..pubkey_bits.len() {
+            buffer[ptr] = pubkey_bits[i];
+            ptr += 1;
         }
 
         // The next byte of the serialized validator is `16`.
@@ -853,20 +859,17 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D> fo
     /// Verifies the signatures of the validators in the validator set.
     fn verify_signatures<E: CubicParameters<F>, C: GenericConfig<D, F = F, FE = F::Extension> + 'static>(
         &mut self,
-        pubkeys: Vec<Ed25519PubkeyTarget>,
         // This message should be range-checked before being passed in.
         messages: Vec<Vec<BoolTarget>>,
         eddsa_sig_targets: Vec<&EDDSASignatureTarget<Self::Curve>>,
         eddsa_pubkey_targets: Vec<&EDDSAPublicKeyTarget<Self::Curve>>,
     ) where <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F> {
         assert!(
-            pubkeys.len() == messages.len()
-                && pubkeys.len() == eddsa_sig_targets.len()
-                && pubkeys.len() == eddsa_pubkey_targets.len(),
+                messages.len() == eddsa_sig_targets.len()
+                && messages.len() == eddsa_pubkey_targets.len(),
         );
-        for i in 0..pubkeys.len() {
+        for i in 0..messages.len() {
             self.verify_signature::<E, C>(
-                pubkeys[i],
                 messages[i].clone(),
                 eddsa_sig_targets[i],
                 eddsa_pubkey_targets[i],
@@ -878,24 +881,12 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D> fo
     /// Verifies the signatures of the validators in the validator set.
     fn verify_signature<E: CubicParameters<F>, C: GenericConfig<D, F = F, FE = F::Extension> + 'static>(
         &mut self,
-        mut pubkey: Ed25519PubkeyTarget,
         // This should be the messaged signed by the validator that the header hash is extracted from.
         // We should range check this outside of the circuit.
         message: Vec<BoolTarget>,
         eddsa_sig_target: &EDDSASignatureTarget<Self::Curve>,
         eddsa_pubkey_target: &EDDSAPublicKeyTarget<Self::Curve>,
     ) where <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F> {
-        let mut pub_key_bits = Vec::new();
-
-        pubkey.0.reverse();
-
-        for byte in pubkey.0.iter() {
-            let mut bits = self.split_le(*byte, 8);
-            bits.reverse();
-            pub_key_bits.extend(bits);
-        }
-        let pub_key_uncompressed = self.decompress_point(&pub_key_bits);
-        self.connect_affine_point(&eddsa_pubkey_target.0, &pub_key_uncompressed);
 
         let message_bytes_len: usize = message.len() / 8;
         let eddsa_target =
@@ -915,7 +906,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D> fo
 
     fn verify_block<E: CubicParameters<F>, C: GenericConfig<D, F = F, FE = F::Extension> + 'static>(
         &mut self,
-        validators: &Vec<TendermintValidator>,
+        validators: &Vec<TendermintValidator<Self::Curve>>,
         validators_enabled: &Vec<BoolTarget>,
         validators_signed: &Vec<BoolTarget>,
         messages: &Vec<ValidatorMessageTarget>,
@@ -1551,7 +1542,7 @@ pub(crate) mod tests {
         //
         // The tuples hold the form: (voting_power_i64, voting_power_varint_bytes).
         let voting_power_i64 = 724325643436111i64;
-        let pubkey_bits = [false; 256];
+        let mut pubkey = [0u8; 32];
         let expected_marshal = [
             10u8, 34, 10, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 0, 16, 207, 128, 183, 165, 211, 216, 164, 1,
@@ -1570,21 +1561,36 @@ pub(crate) mod tests {
             U32Target(builder.constant(F::from_canonical_usize(voting_power_upper as usize)));
         let voting_power_target = I64Target([voting_power_lower_target, voting_power_upper_target]);
 
-        let mut pub_key = Vec::new();
-        for _j in 0..PUBKEY_BYTES_LEN {
-            let pub_key_byte = builder.add_virtual_target();
+        // let mut pub_key = Vec::new();
+        // for _j in 0..PUBKEY_BYTES_LEN {
+        //     let pub_key_byte = builder.add_virtual_target();
 
-            // TODO:  Can also decompose the bytes into bits here, since the range check basically does that.
-            builder.range_check(pub_key_byte, 8);
-            pub_key.push(pub_key_byte);
+        //     // TODO:  Can also decompose the bytes into bits here, since the range check basically does that.
+        //     builder.range_check(pub_key_byte, 8);
+        //     pub_key.push(pub_key_byte);
+        // }
+
+        // let mut pubkey = Ed25519PubkeyTarget(pub_key.try_into().unwrap());
+        // for i in 0..PUBKEY_BYTES_LEN {
+        //     pw.set_target(pubkey.0[i], F::from_canonical_u8(0));
+        // }
+        let mut pub_key_bits = Vec::new();
+
+        pubkey.reverse();
+
+        for byte in pubkey.iter() {
+            let byte_target = builder.constant(F::from_canonical_u8(*byte));
+            let mut bits = builder.split_le(byte_target, 8);
+            bits.reverse();
+            pub_key_bits.extend(bits);
         }
+        let pub_key_uncompressed = builder.decompress_point(&pub_key_bits);
+        // let pub_key_big_uint = pub_key.compress_point();
+        // assert_eq!(pub_key_big_uint.to_bytes_le(), pub_key_bytes);
 
-        let mut pubkey = Ed25519PubkeyTarget(pub_key.try_into().unwrap());
-        for i in 0..PUBKEY_BYTES_LEN {
-            pw.set_target(pubkey.0[i], F::from_canonical_u8(0));
-        }
+        let eddsa_pub_key_target = EDDSAPublicKeyTarget(pub_key_uncompressed);
 
-        let result = builder.marshal_tendermint_validator(pubkey, voting_power_target);
+        let result = builder.marshal_tendermint_validator(eddsa_pub_key_target, voting_power_target);
 
         for i in 0..result.len() {
             builder.register_public_input(result[i].target);
@@ -1597,7 +1603,7 @@ pub(crate) mod tests {
         let expected_bytes = expected_marshal;
 
         println!("Voting Power: {:?}", voting_power_i64);
-        println!("Public Key: {:?}", bits_to_bytes(&pubkey_bits));
+        println!("Public Key: {:?}", pubkey);
         println!("Expected Validator Encoding (Bytes): {:?}", expected_bytes);
         println!(
             "Produced Validator Encoding (Bytes): {:?}",
@@ -1637,19 +1643,6 @@ pub(crate) mod tests {
             msg_bits_target.push(builder.constant_bool(msg_bits[i]));
         }
 
-        let mut pub_key = Vec::new();
-        for _j in 0..PUBKEY_BYTES_LEN {
-            let pub_key_byte = builder.add_virtual_target();
-            // TODO:  Can also decompose the bytes into bits here, since the range check basically does that.
-            builder.range_check(pub_key_byte, 8);
-            pub_key.push(pub_key_byte);
-        }
-
-        let ed25519_pub_key_target = Ed25519PubkeyTarget(pub_key.try_into().unwrap());
-        for i in 0..PUBKEY_BYTES_LEN {
-            pw.set_target(ed25519_pub_key_target.0[i], F::from_canonical_u8(pub_key_bytes[i]));
-        }
-
         let pub_key = decompress_point(&pub_key_bytes);
         // let pub_key_big_uint = pub_key.compress_point();
         // assert_eq!(pub_key_big_uint.to_bytes_le(), pub_key_bytes);
@@ -1677,7 +1670,7 @@ pub(crate) mod tests {
             s: sig_s_target,
         };
 
-        builder.verify_signature::<E, C>(ed25519_pub_key_target, msg_bits_target, &eddsa_sig_target, &eddsa_pub_key_target);
+        builder.verify_signature::<E, C>(msg_bits_target, &eddsa_sig_target, &eddsa_pub_key_target);
 
         let inner_data = builder.build::<C>();
         let inner_proof = inner_data.prove(pw).unwrap();
