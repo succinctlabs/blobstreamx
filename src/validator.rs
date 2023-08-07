@@ -63,7 +63,7 @@ const VALIDATOR_MESSAGE_BYTES_LENGTH_MAX: usize = 124;
 
 /// The Ed25519 public key as a list of 32 byte targets.
 #[derive(Debug, Clone, Copy)]
-pub struct Ed25519PubkeyTarget(pub [BoolTarget; 256]);
+pub struct Ed25519PubkeyTarget(pub [Target; PUBKEY_BYTES_LEN]);
 
 /// A protobuf-encoded tendermint hash as a 34 byte target.
 #[derive(Debug, Clone, Copy)]
@@ -429,7 +429,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D> fo
 
     fn marshal_tendermint_validator(
         &mut self,
-        pubkey: Ed25519PubkeyTarget,
+        mut pubkey: Ed25519PubkeyTarget,
         voting_power: I64Target,
     ) -> [BoolTarget; VALIDATOR_BYTE_LENGTH_MAX * 8] {
         let mut ptr = 0;
@@ -445,10 +445,15 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D> fo
             }
         }
 
+        // Need to reverse the byte endianess of the pub key
+        pubkey.0.reverse();
+        println!("pubkey: {:?}", pubkey.0.len());
         // The next 32 bytes of the serialized validator are the public key.
-        for i in 0..PUBKEY_BYTES_LEN {
-            for j in 0..8 {
-                buffer[ptr] = pubkey.0[i * 8 + j];
+        for byte in pubkey.0.iter() {
+            let mut bits = self.split_le(*byte, 8);
+            bits.reverse();
+            for i in 0..8 {
+                buffer[ptr] = bits[i];
                 ptr += 1;
             }
         }
@@ -873,7 +878,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D> fo
     /// Verifies the signatures of the validators in the validator set.
     fn verify_signature<E: CubicParameters<F>, C: GenericConfig<D, F = F, FE = F::Extension> + 'static>(
         &mut self,
-        pubkey: Ed25519PubkeyTarget,
+        mut pubkey: Ed25519PubkeyTarget,
         // This should be the messaged signed by the validator that the header hash is extracted from.
         // We should range check this outside of the circuit.
         message: Vec<BoolTarget>,
@@ -886,6 +891,17 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D> fo
         // for i in 0..eddsa_pubkey_target_bits.len() {
         //     self.connect(eddsa_pubkey_target_bits[i].target, pubkey.0[i].target);
         // }
+        let mut pub_key_bits = Vec::new();
+
+        pubkey.0.reverse();
+
+        for byte in pubkey.0.iter() {
+            let mut bits = self.split_le(*byte, 8);
+            bits.reverse();
+            pub_key_bits.extend(bits);
+        }
+        let pub_key_uncompressed = self.decompress_point(&pub_key_bits);
+        self.connect_affine_point(&eddsa_pubkey_target.0, &pub_key_uncompressed);
 
         let message_bytes_len: usize = message.len() / 8;
         let eddsa_target =
@@ -942,9 +958,7 @@ pub(crate) mod tests {
 
     use plonky2x::ecc::ed25519::curve::ed25519::Ed25519;
     use plonky2x::ecc::ed25519::field::ed25519_scalar::Ed25519Scalar;
-    use plonky2x::ecc::ed25519::gadgets::curve::{decompress_point, AffinePointTarget};
-    use plonky2x::ecc::ed25519::gadgets::eddsa::verify_signatures_circuit;
-    use plonky2x::num::biguint::WitnessBigUint;
+    use plonky2x::ecc::ed25519::gadgets::curve::decompress_point;
     use sha2::Sha256;
     use tendermint_proto::Protobuf;
 
@@ -1549,7 +1563,7 @@ pub(crate) mod tests {
             0, 0, 0, 0, 0, 0, 0, 0, 0, 16, 207, 128, 183, 165, 211, 216, 164, 1,
         ];
 
-        let pw = PartialWitness::new();
+        let mut pw = PartialWitness::new();
         let config = CircuitConfig::standard_recursion_config();
         let mut builder = CircuitBuilder::<F, D>::new(config);
 
@@ -1562,15 +1576,20 @@ pub(crate) mod tests {
             U32Target(builder.constant(F::from_canonical_usize(voting_power_upper as usize)));
         let voting_power_target = I64Target([voting_power_lower_target, voting_power_upper_target]);
 
-        let mut pubkey = [builder._false(); 256];
-        for i in 0..256 {
-            pubkey[i] = if pubkey_bits[i] {
-                builder._true()
-            } else {
-                builder._false()
-            };
+        let mut pub_key = Vec::new();
+        for _j in 0..PUBKEY_BYTES_LEN {
+            let pub_key_byte = builder.add_virtual_target();
+
+            // TODO:  Can also decompose the bytes into bits here, since the range check basically does that.
+            builder.range_check(pub_key_byte, 8);
+            pub_key.push(pub_key_byte);
         }
-        let pubkey = Ed25519PubkeyTarget(pubkey);
+
+        let mut pubkey = Ed25519PubkeyTarget(pub_key.try_into().unwrap());
+        for i in 0..PUBKEY_BYTES_LEN {
+            pw.set_target(pubkey.0[i], F::from_canonical_u8(0));
+        }
+
         let result = builder.marshal_tendermint_validator(pubkey, voting_power_target);
 
         for i in 0..result.len() {
@@ -1626,13 +1645,23 @@ pub(crate) mod tests {
         }
 
         let pub_key_bits = to_bits(pub_key_bytes.to_vec());
-        let mut pub_key_bits_target = [builder.constant_bool(false); 256];
-        for i in 0..pub_key_bits.len() {
-            pub_key_bits_target[i] = builder.constant_bool(pub_key_bits[i]);
+        let mut pub_key = Vec::new();
+        for _j in 0..PUBKEY_BYTES_LEN {
+            let pub_key_byte = builder.add_virtual_target();
+            // TODO:  Can also decompose the bytes into bits here, since the range check basically does that.
+            builder.range_check(pub_key_byte, 8);
+            pub_key.push(pub_key_byte);
         }
-        let ed25519_pub_key_target = Ed25519PubkeyTarget(pub_key_bits_target);
+
+        let ed25519_pub_key_target = Ed25519PubkeyTarget(pub_key.try_into().unwrap());
+        for i in 0..PUBKEY_BYTES_LEN {
+            pw.set_target(ed25519_pub_key_target.0[i], F::from_canonical_u8(pub_key_bytes[i]));
+        }
 
         let pub_key = decompress_point(&pub_key_bytes);
+        // let pub_key_big_uint = pub_key.compress_point();
+        // assert_eq!(pub_key_big_uint.to_bytes_le(), pub_key_bytes);
+
         assert!(pub_key.is_valid());
         let pub_key_target = builder.constant_affine_point(pub_key);
         let eddsa_pub_key_target = EDDSAPublicKeyTarget(pub_key_target);
