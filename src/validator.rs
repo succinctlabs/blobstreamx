@@ -440,8 +440,8 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D> fo
         }
 
         println!("pubkey: {:?}", pubkey.0);
-        let pubkey_bits = self.compress_point(&pubkey.0);
-        println!("pubkey bits len: {:?}", pubkey_bits.len());
+        let compressed_point = self.compress_point(&pubkey.0);
+        println!("pubkey bits len: {:?}", compressed_point.bit_targets.len());
         // // Need to reverse the byte endianess of the pub key
         // pubkey.0.reverse();
         // println!("pubkey: {:?}", pubkey.0.len());
@@ -454,8 +454,8 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D> fo
         //         ptr += 1;
         //     }
         // }
-        for i in 0..pubkey_bits.len() {
-            buffer[ptr] = pubkey_bits[i];
+        for i in 0..compressed_point.bit_targets.len() {
+            buffer[ptr] = compressed_point.bit_targets[i];
             ptr += 1;
         }
 
@@ -934,10 +934,12 @@ pub(crate) mod tests {
     use plonky2x::ecc::ed25519::curve::eddsa::{EDDSASignature, verify_message, EDDSAPublicKey};
     use curta::math::goldilocks::cubic::GoldilocksCubicParameters;
     use num::BigUint;
+    use plonky2x::ecc::ed25519::gadgets::curve::WitnessAffinePoint;
+    use plonky2x::num::biguint::WitnessBigUint;
     use subtle_encoding::hex;
 
     use plonky2x::ecc::ed25519::field::ed25519_scalar::Ed25519Scalar;
-    use plonky2x::ecc::ed25519::gadgets::curve::decompress_point;
+    use plonky2x::ecc::ed25519::curve::curve_types::AffinePoint;    
     use sha2::Sha256;
     use tendermint_proto::Protobuf;
 
@@ -957,6 +959,7 @@ pub(crate) mod tests {
 
     type C = PoseidonGoldilocksConfig;
     type F = <C as GenericConfig<D>>::F;
+    type Curve = Ed25519;
     const D: usize = 2;
 
     fn to_bits(msg: Vec<u8>) -> Vec<bool> {
@@ -1555,21 +1558,13 @@ pub(crate) mod tests {
             U32Target(builder.constant(F::from_canonical_usize(voting_power_upper as usize)));
         let voting_power_target = I64Target([voting_power_lower_target, voting_power_upper_target]);
 
-        let mut pub_key_bits = Vec::new();
+        let virtual_affine_point_target = builder.add_virtual_affine_point_target();
 
-        pubkey.reverse();
+        let pub_key_uncompressed: AffinePoint<Curve> = AffinePoint::new_from_compressed_point(&pubkey);
 
-        for byte in pubkey.iter() {
-            let byte_target = builder.constant(F::from_canonical_u8(*byte));
-            let mut bits = builder.split_le(byte_target, 8);
-            bits.reverse();
-            pub_key_bits.extend(bits);
-        }
-        let pub_key_uncompressed = builder.decompress_point(&pub_key_bits);
-        // let pub_key_big_uint = pub_key.compress_point();
-        // assert_eq!(pub_key_big_uint.to_bytes_le(), pub_key_bytes);
+        let eddsa_pub_key_target = EDDSAPublicKeyTarget(virtual_affine_point_target);
 
-        let eddsa_pub_key_target = EDDSAPublicKeyTarget(pub_key_uncompressed);
+        pw.set_affine_point_target::<Curve>(&eddsa_pub_key_target.0, &pub_key_uncompressed);
 
         let result = builder.marshal_tendermint_validator(eddsa_pub_key_target, voting_power_target);
 
@@ -1611,6 +1606,7 @@ pub(crate) mod tests {
         let sig_bytes = hex::decode(sig).unwrap();
 
         type F = GoldilocksField;
+        type Curve = Ed25519;
         type E = GoldilocksCubicParameters;
         type C = PoseidonGoldilocksConfig;
         const D: usize = 2;
@@ -1624,22 +1620,22 @@ pub(crate) mod tests {
             msg_bits_target.push(builder.constant_bool(msg_bits[i]));
         }
 
-        let pub_key = decompress_point(&pub_key_bytes);
-        // let pub_key_big_uint = pub_key.compress_point();
-        // assert_eq!(pub_key_big_uint.to_bytes_le(), pub_key_bytes);
+        let virtual_affine_point_target = builder.add_virtual_affine_point_target();
 
-        assert!(pub_key.is_valid());
-        let pub_key_target = builder.constant_affine_point(pub_key);
-        let eddsa_pub_key_target = EDDSAPublicKeyTarget(pub_key_target);
+        let pub_key_uncompressed: AffinePoint<Curve> = AffinePoint::new_from_compressed_point(&pub_key_bytes);
 
-        let sig_r = decompress_point(&sig_bytes[0..32]);
+        let eddsa_pub_key_target = EDDSAPublicKeyTarget(virtual_affine_point_target);
+
+        pw.set_affine_point_target::<Curve>(&eddsa_pub_key_target.0, &pub_key_uncompressed);
+
+        let sig_r = AffinePoint::new_from_compressed_point(&sig_bytes[0..32]);
         assert!(sig_r.is_valid());
 
         let sig_s_biguint = BigUint::from_bytes_le(&sig_bytes[32..64]);
         let sig_s = Ed25519Scalar::from_noncanonical_biguint(sig_s_biguint.clone());
         let sig = EDDSASignature { r: sig_r, s: sig_s };
 
-        assert!(verify_message(&msg_bits, &sig, &EDDSAPublicKey(pub_key)));
+        assert!(verify_message(&msg_bits, &sig, &EDDSAPublicKey(pub_key_uncompressed)));
         println!("verified signature");
 
         let sig_r_target = builder.constant_affine_point(sig_r);
