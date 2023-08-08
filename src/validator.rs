@@ -136,58 +136,58 @@ pub trait TendermintMarshaller<F: RichField + Extendable<D>, const D: usize> {
     fn verify_hash_in_message(
         &mut self,
         message: ValidatorMessageTarget,
-        header_hash: [BoolTarget; HASH_SIZE_BITS],
+        header_hash: TendermintHashTarget,
         // Should be the same for all validators
         round_present_in_message: BoolTarget,
-    ) -> [BoolTarget; HASH_SIZE_BITS];
+    ) -> TendermintHashTarget;
 
     /// Verify a merkle proof against the specified root hash.
     /// Note: This function will only work for leaves with a length of 34 bytes (protobuf-encoded SHA256 hash)
     /// Output is the merkle root
     fn get_root_from_merkle_proof(
         &mut self,
-        aunts: Vec<[BoolTarget; HASH_SIZE_BITS]>,
+        aunts: Vec<TendermintHashTarget>,
         merkle_proof_enabled: Vec<BoolTarget>,
         leaf: [BoolTarget; PROTOBUF_HASH_SIZE_BITS],
-    ) -> [BoolTarget; HASH_SIZE_BITS];
+    ) -> TendermintHashTarget;
 
     /// Hashes leaf bytes to get the leaf hash according to the Tendermint spec. (0x00 || leafBytes)
     /// Note: This function will only work for leaves with a length of 34 bytes (protobuf-encoded SHA256 hash)
     fn hash_header_leaf(
         &mut self,
         validator: &[BoolTarget; PROTOBUF_HASH_SIZE_BITS],
-    ) -> [BoolTarget; HASH_SIZE_BITS];
+    ) -> TendermintHashTarget;
 
     /// Hashes validator bytes to get the leaf according to the Tendermint spec. (0x00 || validatorBytes)
     fn hash_validator_leaf(
         &mut self,
         validator: &MarshalledValidatorTarget,
         validator_byte_length: &U32Target,
-    ) -> [BoolTarget; HASH_SIZE_BITS];
+    ) -> TendermintHashTarget;
 
     /// Hashes multiple validators to get their leaves according to the Tendermint spec using hash_validator_leaf.
     fn hash_validator_leaves(
         &mut self,
         validators: &Vec<MarshalledValidatorTarget>,
         validator_byte_lengths: &Vec<U32Target>,
-    ) -> Vec<[BoolTarget; HASH_SIZE_BITS]>;
+    ) -> Vec<TendermintHashTarget>;
 
     /// Hashes two nodes to get the inner node according to the Tendermint spec. (0x01 || left || right)
     fn inner_hash(
         &mut self,
-        left: &[BoolTarget; HASH_SIZE_BITS],
-        right: &[BoolTarget; HASH_SIZE_BITS],
-    ) -> [BoolTarget; HASH_SIZE_BITS];
+        left: &TendermintHashTarget,
+        right: &TendermintHashTarget,
+    ) -> TendermintHashTarget;
 
     /// Hashes a layer of the Merkle tree according to the Tendermint spec. (0x01 || left || right)
     /// If in a pair the right node is not enabled (empty), then the left node is passed up to the next layer.
     /// If neither the left nor right node in a pair is enabled (empty), then the parent node is set to not enabled (empty).
     fn hash_merkle_layer(
         &mut self,
-        merkle_hashes: &mut Vec<[BoolTarget; 256]>,
+        merkle_hashes: &mut Vec<TendermintHashTarget>,
         merkle_hash_enabled: &mut Vec<BoolTarget>,
         num_hashes: usize,
-    ) -> (Vec<[BoolTarget; 256]>, Vec<BoolTarget>);
+    ) -> (Vec<TendermintHashTarget>, Vec<BoolTarget>);
 
     /// Compute the expected validator hash from the validator set.
     fn hash_validator_set(
@@ -195,7 +195,7 @@ pub trait TendermintMarshaller<F: RichField + Extendable<D>, const D: usize> {
         validators: &Vec<MarshalledValidatorTarget>,
         validator_byte_length: &Vec<U32Target>,
         validator_enabled: &Vec<BoolTarget>,
-    ) -> [BoolTarget; HASH_SIZE * 8];
+    ) -> TendermintHashTarget;
 
     fn mul_i64_by_u32(&mut self, a: &I64Target, b: U32Target) -> I64Target;
 
@@ -260,10 +260,10 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D> fo
     
     fn get_root_from_merkle_proof(
         &mut self,
-        aunts: Vec<[BoolTarget; HASH_SIZE_BITS]>,
+        aunts: Vec<TendermintHashTarget>,
         path_indices: Vec<BoolTarget>,
         leaf: [BoolTarget; PROTOBUF_HASH_SIZE_BITS],
-    ) -> [BoolTarget; HASH_SIZE_BITS] {
+    ) -> TendermintHashTarget {
         let hash_leaf = self.hash_header_leaf(&leaf);
 
         let mut hash_so_far = hash_leaf;
@@ -278,11 +278,11 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D> fo
                 // If the path index is 0, then the right hash is the aunt.
                 hash_pair[j] = BoolTarget::new_unsafe(self.select(
                     path_index,
-                    right_hash_pair[j].target,
-                    left_hash_pair[j].target,
+                    right_hash_pair.0[j].target,
+                    left_hash_pair.0[j].target,
                 ));
             }
-            hash_so_far = hash_pair;
+            hash_so_far = TendermintHashTarget(hash_pair);
         }
         hash_so_far
     }
@@ -290,7 +290,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D> fo
     fn hash_header_leaf(
         &mut self,
         leaf: &[BoolTarget; PROTOBUF_HASH_SIZE_BITS],
-    ) -> [BoolTarget; HASH_SIZE_BITS] {
+    ) -> TendermintHashTarget {
         // Calculate the length of the message for the leaf hash.
         // 0x00 || leafBytes
         let bits_length = 8 + (PROTOBUF_HASH_SIZE_BITS);
@@ -314,16 +314,16 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D> fo
         for k in 0..HASH_SIZE_BITS {
             return_hash[k] = hash[k];
         }
-        return_hash
+        TendermintHashTarget(return_hash)
     }
 
     fn verify_hash_in_message(
         &mut self,
         message: ValidatorMessageTarget,
-        header_hash: [BoolTarget; HASH_SIZE_BITS],
+        header_hash: TendermintHashTarget,
         // Should be the same for all validators
         round_present_in_message: BoolTarget,
-    ) -> [BoolTarget; HASH_SIZE_BITS] {
+    ) -> TendermintHashTarget {
         // Logic:
         //      Verify that header_hash is equal to the hash in the message at the correct index.
         //      If the round is missing, then the hash starts at index 16.
@@ -343,9 +343,9 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D> fo
             vec_round_missing[i] = message.0[(missing_round_start_idx) * 8 + i];
             vec_round_present[i] = message.0[(including_round_start_idx) * 8 + i];
             let round_missing_eq =
-                self.is_equal(header_hash[i].target, vec_round_missing[i].target);
+                self.is_equal(header_hash.0[i].target, vec_round_missing[i].target);
             let round_present_eq =
-                self.is_equal(header_hash[i].target, vec_round_present[i].target);
+                self.is_equal(header_hash.0[i].target, vec_round_present[i].target);
 
             // Pick the correct bit based on whether the round is present or not.
             let hash_eq = self.select(
@@ -500,7 +500,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D> fo
         &mut self,
         validator: &MarshalledValidatorTarget,
         validator_byte_length: &U32Target,
-    ) -> [BoolTarget; HASH_SIZE_BITS] {
+    ) -> TendermintHashTarget {
         // Range check the validator byte length is between [VALIDATOR_BYTE_LENGTH_MIN, VALIDATOR_BYTE_LENGTH_MAX]
         let min_validator_bytes_length =
             self.constant(F::from_canonical_usize(VALIDATOR_BYTE_LENGTH_MIN));
@@ -571,14 +571,14 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D> fo
             }
         }
 
-        ret_validator_leaf_hash
+        TendermintHashTarget(ret_validator_leaf_hash)
     }
 
     fn hash_validator_leaves(
         &mut self,
         validators: &Vec<MarshalledValidatorTarget>,
         validator_byte_lengths: &Vec<U32Target>,
-    ) -> Vec<[BoolTarget; HASH_SIZE_BITS]> {
+    ) -> Vec<TendermintHashTarget> {
         let num_validators = self.constant(F::from_canonical_usize(validators.len()));
         let num_validator_byte_lengths =
             self.constant(F::from_canonical_usize(validator_byte_lengths.len()));
@@ -596,7 +596,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D> fo
         // 3) Return the correct hash.
 
         // Hash each of the validators into a leaf hash.
-        let mut validators_leaf_hashes = [[self._false(); HASH_SIZE_BITS]; VALIDATOR_SET_SIZE_MAX];
+        let mut validators_leaf_hashes = [TendermintHashTarget([self._false(); HASH_SIZE_BITS]); VALIDATOR_SET_SIZE_MAX];
         for i in 0..VALIDATOR_SET_SIZE_MAX {
             validators_leaf_hashes[i] =
                 self.hash_validator_leaf(&validators[i], &validator_byte_lengths[i]);
@@ -607,9 +607,9 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D> fo
 
     fn inner_hash(
         &mut self,
-        left: &[BoolTarget; HASH_SIZE_BITS],
-        right: &[BoolTarget; HASH_SIZE_BITS],
-    ) -> [BoolTarget; HASH_SIZE_BITS] {
+        left: &TendermintHashTarget,
+        right: &TendermintHashTarget,
+    ) -> TendermintHashTarget {
         // Calculate the length of the message for the inner hash.
         // 0x01 || left || right
         let bits_length = 8 + (HASH_SIZE_BITS * 2);
@@ -625,12 +625,12 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D> fo
 
         // left
         for k in 8..8 + HASH_SIZE_BITS {
-            message_bits[k] = left[k - 8];
+            message_bits[k] = left.0[k - 8];
         }
 
         // right
         for k in 8 + HASH_SIZE_BITS..bits_length {
-            message_bits[k] = right[k - (8 + HASH_SIZE_BITS)];
+            message_bits[k] = right.0[k - (8 + HASH_SIZE_BITS)];
         }
 
         // Load the output of the hash.
@@ -640,15 +640,15 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D> fo
         for k in 0..HASH_SIZE_BITS {
             ret_inner_hash[k] = inner_hash[k];
         }
-        ret_inner_hash
+        TendermintHashTarget(ret_inner_hash)
     }
 
     fn hash_merkle_layer(
         &mut self,
-        merkle_hashes: &mut Vec<[BoolTarget; 256]>,
+        merkle_hashes: &mut Vec<TendermintHashTarget>,
         merkle_hash_enabled: &mut Vec<BoolTarget>,
         num_hashes: usize,
-    ) -> (Vec<[BoolTarget; 256]>, Vec<BoolTarget>) {
+    ) -> (Vec<TendermintHashTarget>, Vec<BoolTarget>) {
         let zero = self.zero();
         let one = self.one();
 
@@ -660,14 +660,14 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D> fo
             let both_nodes_disabled = self.and(first_node_disabled, second_node_disabled);
 
             // Calculuate the inner hash.
-            let inner_hash = self.inner_hash(&merkle_hashes[i], &merkle_hashes[i + 1]);
+            let inner_hash = self.inner_hash(&TendermintHashTarget(merkle_hashes[i].0), &TendermintHashTarget(merkle_hashes[i + 1].0));
 
             for k in 0..HASH_SIZE_BITS {
                 // If the left node is enabled and the right node is disabled, we pass up the left hash instead of the inner hash.
-                merkle_hashes[i / 2][k] = BoolTarget::new_unsafe(self.select(
+                merkle_hashes[i / 2].0[k] = BoolTarget::new_unsafe(self.select(
                     both_nodes_enabled,
-                    inner_hash[k].target,
-                    merkle_hashes[i][k].target,
+                    inner_hash.0[k].target,
+                    merkle_hashes[i].0[k].target,
                 ));
             }
 
@@ -685,7 +685,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D> fo
         validators: &Vec<MarshalledValidatorTarget>,
         validator_byte_lengths: &Vec<U32Target>,
         validator_enabled: &Vec<BoolTarget>,
-    ) -> [BoolTarget; HASH_SIZE_BITS] {
+    ) -> TendermintHashTarget {
         let num_validators = self.constant(F::from_canonical_usize(validators.len()));
         let num_validator_byte_lengths =
             self.constant(F::from_canonical_usize(validator_byte_lengths.len()));
@@ -1071,9 +1071,9 @@ pub(crate) mod tests {
 
         for i in 0..HASH_SIZE_BITS {
             if validators_hash_bits[i] {
-                pw.set_target(result[i].target, F::ONE);
+                pw.set_target(result.0[i].target, F::ONE);
             } else {
-                pw.set_target(result[i].target, F::ZERO);
+                pw.set_target(result.0[i].target, F::ZERO);
             }
         }
 
@@ -1142,12 +1142,12 @@ pub(crate) mod tests {
         }
 
         let mut aunts_target =
-            vec![[builder._false(); HASH_SIZE_BITS]; proofs[leaf_index].aunts.len()];
+            vec![TendermintHashTarget([builder._false(); HASH_SIZE_BITS]); proofs[leaf_index].aunts.len()];
         for i in 0..proofs[leaf_index].aunts.len() {
             let bool_vector = to_bits(proofs[leaf_index].aunts[i].to_vec());
 
             for j in 0..HASH_SIZE_BITS {
-                aunts_target[i][j] = if bool_vector[j] {
+                aunts_target[i].0[j] = if bool_vector[j] {
                     builder._true()
                 } else {
                     builder._false()
@@ -1159,9 +1159,9 @@ pub(crate) mod tests {
 
         for i in 0..HASH_SIZE_BITS {
             if header_bits[i] {
-                pw.set_target(result[i].target, F::ONE);
+                pw.set_target(result.0[i].target, F::ONE);
             } else {
-                pw.set_target(result[i].target, F::ZERO);
+                pw.set_target(result.0[i].target, F::ZERO);
             }
         }
 
@@ -1199,9 +1199,9 @@ pub(crate) mod tests {
         // Set the target bits to the expected digest bits.
         for i in 0..HASH_SIZE_BITS {
             if digest_bits[i] {
-                pw.set_target(result[i].target, F::ONE);
+                pw.set_target(result.0[i].target, F::ONE);
             } else {
-                pw.set_target(result[i].target, F::ZERO);
+                pw.set_target(result.0[i].target, F::ZERO);
             }
         }
 
@@ -1248,9 +1248,9 @@ pub(crate) mod tests {
         for i in 0..validators.len() {
             for j in 0..HASH_SIZE_BITS {
                 if digests_bits[i][j] {
-                    pw.set_target(result[i][j].target, F::ONE);
+                    pw.set_target(result[i].0[j].target, F::ONE);
                 } else {
-                    pw.set_target(result[i][j].target, F::ZERO);
+                    pw.set_target(result[i].0[j].target, F::ZERO);
                 }
             }
         }
@@ -1291,9 +1291,9 @@ pub(crate) mod tests {
 
         for i in 0..HASH_SIZE_BITS {
             if digest_bits[i] {
-                pw.set_target(result[i].target, F::ONE);
+                pw.set_target(result.0[i].target, F::ONE);
             } else {
-                pw.set_target(result[i].target, F::ZERO);
+                pw.set_target(result.0[i].target, F::ZERO);
             }
         }
 
@@ -1336,9 +1336,9 @@ pub(crate) mod tests {
 
         for i in 0..HASH_SIZE_BITS {
             if digest_bits[i] {
-                pw.set_target(result[i].target, F::ONE);
+                pw.set_target(result.0[i].target, F::ONE);
             } else {
-                pw.set_target(result[i].target, F::ZERO);
+                pw.set_target(result.0[i].target, F::ZERO);
             }
         }
 
@@ -1464,13 +1464,13 @@ pub(crate) mod tests {
         }
 
         let result =
-            builder.verify_hash_in_message(ValidatorMessageTarget(signed_message_target), header_hash_target, zero);
+            builder.verify_hash_in_message(ValidatorMessageTarget(signed_message_target), TendermintHashTarget(header_hash_target), zero);
 
         for i in 0..HASH_SIZE_BITS {
             if header_bits[i] {
-                pw.set_target(result[i].target, F::ONE);
+                pw.set_target(result.0[i].target, F::ONE);
             } else {
-                pw.set_target(result[i].target, F::ZERO);
+                pw.set_target(result.0[i].target, F::ZERO);
             }
         }
 
