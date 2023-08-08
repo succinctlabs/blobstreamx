@@ -63,7 +63,7 @@ const VALIDATOR_MESSAGE_BYTES_LENGTH_MAX: usize = 124;
 
 /// A protobuf-encoded tendermint hash as a 34 byte target.
 #[derive(Debug, Clone, Copy)]
-pub struct EncTendermintHashTarget(pub [Target; HASH_SIZE_BITS + 8 * 2]);
+pub struct EncTendermintHashTarget(pub [BoolTarget; PROTOBUF_HASH_SIZE_BITS]);
 
 /// The Tendermint hash as a 32 byte target.
 #[derive(Debug, Clone, Copy)]
@@ -92,7 +92,7 @@ pub struct TendermintValidator<C: Curve> {
 pub struct ValidatorTarget<C: Curve> {
     pubkey: EDDSAPublicKeyTarget<C>,
     signature: EDDSASignatureTarget<C>,
-    message: EncTendermintHashTarget,
+    message: ValidatorMessageTarget,
     voting_power: I64Target,
     validator_byte_length: U32Target,
     enabled: BoolTarget,
@@ -118,6 +118,12 @@ pub struct CelestiaBlockProofTarget<C: Curve> {
 
 pub trait TendermintMarshaller<F: RichField + Extendable<D>, const D: usize> {
     type Curve: Curve;
+
+    // Extract a hash from a protobuf-encoded hash.
+    fn extract_hash_from_protobuf(
+        &mut self,
+        hash: EncTendermintHashTarget,
+    ) -> TendermintHashTarget;
 
     /// Serializes an int64 as a protobuf varint.
     fn marshal_int64_varint(
@@ -148,14 +154,14 @@ pub trait TendermintMarshaller<F: RichField + Extendable<D>, const D: usize> {
         &mut self,
         aunts: Vec<TendermintHashTarget>,
         merkle_proof_enabled: Vec<BoolTarget>,
-        leaf: [BoolTarget; PROTOBUF_HASH_SIZE_BITS],
+        leaf: EncTendermintHashTarget,
     ) -> TendermintHashTarget;
 
     /// Hashes leaf bytes to get the leaf hash according to the Tendermint spec. (0x00 || leafBytes)
     /// Note: This function will only work for leaves with a length of 34 bytes (protobuf-encoded SHA256 hash)
     fn hash_header_leaf(
         &mut self,
-        validator: &[BoolTarget; PROTOBUF_HASH_SIZE_BITS],
+        leaf: &EncTendermintHashTarget,
     ) -> TendermintHashTarget;
 
     /// Hashes validator bytes to get the leaf according to the Tendermint spec. (0x00 || validatorBytes)
@@ -250,6 +256,7 @@ pub trait TendermintMarshaller<F: RichField + Extendable<D>, const D: usize> {
         data_hash_proof: InclusionProofTarget,
         validator_hash_proof: InclusionProofTarget,
         next_validators_hash_proof: InclusionProofTarget,
+        round_present: BoolTarget
     ) where <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>;
 }
 
@@ -257,12 +264,25 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D> fo
     {
 
     type Curve = Ed25519;
+
+    fn extract_hash_from_protobuf(
+        &mut self,
+        hash: EncTendermintHashTarget,
+    ) -> TendermintHashTarget {
+        let mut result = [self._false(); HASH_SIZE_BITS];
+        // Skip first 2 bytes
+        for i in 8*2..HASH_SIZE_BITS {
+            result[i] = hash.0[i];
+        }
+        TendermintHashTarget(result)
+    }
+
     
     fn get_root_from_merkle_proof(
         &mut self,
         aunts: Vec<TendermintHashTarget>,
         path_indices: Vec<BoolTarget>,
-        leaf: [BoolTarget; PROTOBUF_HASH_SIZE_BITS],
+        leaf: EncTendermintHashTarget,
     ) -> TendermintHashTarget {
         let hash_leaf = self.hash_header_leaf(&leaf);
 
@@ -289,7 +309,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D> fo
 
     fn hash_header_leaf(
         &mut self,
-        leaf: &[BoolTarget; PROTOBUF_HASH_SIZE_BITS],
+        leaf: &EncTendermintHashTarget,
     ) -> TendermintHashTarget {
         // Calculate the length of the message for the leaf hash.
         // 0x00 || leafBytes
@@ -305,7 +325,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D> fo
 
         // validatorBytes
         for k in 8..bits_length {
-            leaf_msg_bits[k] = leaf[k - 8];
+            leaf_msg_bits[k] = leaf.0[k - 8];
         }
 
         // Load the output of the hash.
@@ -912,8 +932,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D> fo
         self.connect_nonnative(&eddsa_target.sigs[0].r.x, &eddsa_sig_target.r.x);
         self.connect_nonnative(&eddsa_target.sigs[0].r.y, &eddsa_sig_target.r.y);
 
-        self.connect_biguint(&eddsa_target.pub_keys[0].0.x.value, &eddsa_pubkey_target.0.x.value);
-        self.connect_biguint(&eddsa_target.pub_keys[0].0.y.value, &eddsa_pubkey_target.0.y.value);
+        self.connect_affine_point(&eddsa_target.pub_keys[0].0, &eddsa_pubkey_target.0);
     }
 
     fn step<E: CubicParameters<F>, C: GenericConfig<D, F = F, FE = F::Extension> + 'static>(
@@ -923,10 +942,11 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D> fo
         data_hash_proof: InclusionProofTarget,
         validator_hash_proof: InclusionProofTarget,
         next_validators_hash_proof: InclusionProofTarget,
+        round_present: BoolTarget
     ) where <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F> {
+        let one = self.one();
         // Verify each of the validators marshal correctly
         // Assumes the validators are sorted in the correct order
-        // Use zip to extract an array of validator lengths from validators
         let byte_lengths: Vec<U32Target> = validators.iter()
             .map(|v| v.validator_byte_length)
             .collect();
@@ -936,6 +956,59 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D> fo
         let validators_enabled: Vec<BoolTarget> = validators.iter()
             .map(|v| v.enabled)
             .collect();
+        let validators_enabled_u32: Vec<U32Target> = validators_enabled.iter()
+            .map(|v| {
+                let zero = self.zero_u32();
+                let one = self.one_u32();
+                U32Target(self.select(*v, one.0, zero.0))
+            })
+            .collect();
+
+        let validator_voting_power: Vec<I64Target> = validators.iter()
+            .map(|v| v.voting_power)
+            .collect();
+        
+        // Compute the validators hash
+        let validators_hash_target = self.hash_validator_set(&marshalled_validators, &byte_lengths, &validators_enabled);
+
+        // Assert that computed validator hash matches expected validator hash
+        let extracted_hash = self.extract_hash_from_protobuf(validator_hash_proof.enc_leaf);
+        for i in 0..HASH_SIZE_BITS {
+            self.connect(validators_hash_target.0[i].target, extracted_hash.0[i].target);
+        }
+
+        let total_voting_power = self.get_total_voting_power(&validator_voting_power);
+        let threshold_numerator = self.constant_u32(2);
+        let threshold_denominator = self.constant_u32(3);
+
+        // Assert the accumulated voting power is greater than the threshold
+        let check_voting_power_bool = self.check_voting_power(&validator_voting_power, &validators_enabled_u32, &total_voting_power, threshold_numerator, threshold_denominator);
+        self.connect(check_voting_power_bool.target, one);
+
+        // TODO: Replace this with a loop over VALIDATORS_MAX_LEN
+        for i in 0..validators.len() {
+            // Verify the validator's signature
+            // TODO: Handle dummies
+            let message = validators[i].message.0.clone().to_vec();
+            self.verify_signature::<E, C>(
+                message,
+                &validators[i].signature,
+                &validators[i].pubkey,
+            );
+
+            // Verify that the header is in the message in the correct location
+            self.verify_hash_in_message(validators[i].message, header, round_present);
+        }
+
+        let header_from_data_root_proof = self.get_root_from_merkle_proof(data_hash_proof.proof, data_hash_proof.path, data_hash_proof.enc_leaf);
+        let header_from_validator_root_proof = self.get_root_from_merkle_proof(validator_hash_proof.proof, validator_hash_proof.path, validator_hash_proof.enc_leaf);
+        let header_from_next_validators_root_proof = self.get_root_from_merkle_proof(next_validators_hash_proof.proof, next_validators_hash_proof.path, next_validators_hash_proof.enc_leaf);
+
+        for i in 0..HASH_SIZE_BITS {
+            self.connect(validators_hash_target.0[i].target, header_from_data_root_proof.0[i].target);
+            self.connect(validators_hash_target.0[i].target, header_from_validator_root_proof.0[i].target);
+            self.connect(validators_hash_target.0[i].target, header_from_next_validators_root_proof.0[i].target);
+        }
 
     }
 }
@@ -1067,7 +1140,7 @@ pub(crate) mod tests {
             }
         }
 
-        let result = builder.hash_header_leaf(&validators_hash_bits_target);
+        let result = builder.hash_header_leaf(&EncTendermintHashTarget(validators_hash_bits_target));
 
         for i in 0..HASH_SIZE_BITS {
             if validators_hash_bits[i] {
@@ -1155,7 +1228,7 @@ pub(crate) mod tests {
             }
         }
 
-        let result = builder.get_root_from_merkle_proof(aunts_target, path_indices, leaf_target);
+        let result = builder.get_root_from_merkle_proof(aunts_target, path_indices, EncTendermintHashTarget(leaf_target));
 
         for i in 0..HASH_SIZE_BITS {
             if header_bits[i] {
