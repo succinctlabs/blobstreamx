@@ -98,6 +98,7 @@ pub struct ValidatorTarget<C: Curve> {
     pubkey: EDDSAPublicKeyTarget<C>,
     signature: EDDSASignatureTarget<C>,
     message: ValidatorMessageTarget,
+    message_byte_length: U32Target,
     voting_power: I64Target,
     validator_byte_length: U32Target,
     enabled: BoolTarget,
@@ -1085,6 +1086,7 @@ where
         let message =
             [builder.add_virtual_bool_target_safe(); VALIDATOR_MESSAGE_BYTES_LENGTH_MAX * 8];
         let message = ValidatorMessageTarget(message);
+        let message_byte_length = builder.add_virtual_u32_target();
 
         let voting_power = I64Target([
             builder.add_virtual_u32_target(),
@@ -1098,6 +1100,7 @@ where
             pubkey,
             signature,
             message,
+            message_byte_length,
             voting_power,
             validator_byte_length,
             enabled,
@@ -1161,7 +1164,7 @@ pub(crate) mod tests {
     use curta::math::goldilocks::cubic::GoldilocksCubicParameters;
     use num::BigUint;
     use plonky2::field::goldilocks_field::GoldilocksField;
-    use plonky2::field::types::{Field, PrimeField};
+    use plonky2::field::types::Field;
     use plonky2::iop::target::BoolTarget;
     use plonky2::{
         iop::witness::{PartialWitness, WitnessWrite},
@@ -1173,7 +1176,6 @@ pub(crate) mod tests {
     };
     use plonky2x::ecc::ed25519::curve::eddsa::{verify_message, EDDSAPublicKey, EDDSASignature};
     use plonky2x::ecc::ed25519::gadgets::curve::WitnessAffinePoint;
-    use plonky2x::num::biguint::WitnessBigUint;
     use subtle_encoding::hex;
 
     use plonky2x::ecc::ed25519::curve::curve_types::AffinePoint;
