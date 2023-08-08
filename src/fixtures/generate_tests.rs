@@ -1,12 +1,16 @@
+use crate::merkle::{non_absent_vote, SignedBlock, TempSignedBlock};
 use rand::Rng;
 use reqwest::Error;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::Sha256;
-use subtle_encoding::hex;
-use tendermint::{merkle::simple_hash_from_byte_vectors, vote::{ValidatorIndex, SignedVote}, validator::Set as ValidatorSet};
-use crate::merkle::{SignedBlock, non_absent_vote, TempSignedBlock};
 use std::{fs::File, io::Write};
+use subtle_encoding::hex;
+use tendermint::{
+    merkle::simple_hash_from_byte_vectors,
+    validator::Set as ValidatorSet,
+    vote::{SignedVote, ValidatorIndex},
+};
 
 #[derive(Debug, Deserialize)]
 struct Response {
@@ -82,17 +86,19 @@ pub async fn get_celestia_consensus_signatures() -> Result<(), Error> {
     // let block: SignedBlock = v.result.try_into().expect("Failed to parse JSON");
 
     let non_absent_votes =
-            block.commit.signatures
-                .iter()
-                .enumerate()
-                .filter_map(|(idx, signature)| {
-                    ValidatorIndex::try_from(idx)
-                        .ok()
-                        .and_then(|validator_idx| {
-                            non_absent_vote(signature, validator_idx, &block.commit)
-                                .map(|vote| (signature, vote))
-                        })
-                });
+        block
+            .commit
+            .signatures
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, signature)| {
+                ValidatorIndex::try_from(idx)
+                    .ok()
+                    .and_then(|validator_idx| {
+                        non_absent_vote(signature, validator_idx, &block.commit)
+                            .map(|vote| (signature, vote))
+                    })
+            });
 
     let mut signature_verify_data = Vec::new();
     for (_, vote) in non_absent_votes {
@@ -125,7 +131,7 @@ pub async fn get_celestia_consensus_signatures() -> Result<(), Error> {
                 signed_vote.signature(),
             )
             .expect("invalid signature");
-        
+
         let pubkey_str = String::from_utf8(hex::encode(pub_key.as_bytes())).unwrap();
         println!("Pubkey: {:?}", pubkey_str);
         let message_str = String::from_utf8(hex::encode(sign_bytes.clone())).unwrap();
@@ -135,12 +141,11 @@ pub async fn get_celestia_consensus_signatures() -> Result<(), Error> {
         println!("Signature: {:?}", signature_str);
 
         // Add pubkey, signed vote, signature into JSON object
-        signature_verify_data.push(
-            VerifySignatureData {
-                pubkey: pubkey_str,
-                signature: signature_str,
-                message: message_str,
-            });
+        signature_verify_data.push(VerifySignatureData {
+            pubkey: pubkey_str,
+            signature: signature_str,
+            message: message_str,
+        });
         // TODO: We can break out of the loop when we have enough voting power.
         // See https://github.com/informalsystems/tendermint-rs/issues/235
     }

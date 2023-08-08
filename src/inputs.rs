@@ -1,8 +1,11 @@
 /// Source (tendermint-rs): https://github.com/informalsystems/tendermint-rs/blob/e930691a5639ef805c399743ac0ddbba0e9f53da/tendermint/src/merkle.rs#L32
-use crate::{merkle::{generate_proofs_from_header, non_absent_vote, SignedBlock, TempSignedBlock}, validator::{EncTendermintHashTarget, I64Target, TendermintHashTarget, self}};
+use crate::{
+    merkle::{generate_proofs_from_header, non_absent_vote, SignedBlock, TempSignedBlock},
+    validator::{self, EncTendermintHashTarget, I64Target, TendermintHashTarget},
+};
 use plonky2::iop::target::BoolTarget;
-use plonky2x::ecc::ed25519::gadgets::eddsa::{EDDSAPublicKeyTarget, EDDSASignatureTarget};
 use plonky2x::ecc::ed25519::curve::curve_types::Curve;
+use plonky2x::ecc::ed25519::gadgets::eddsa::{EDDSAPublicKeyTarget, EDDSASignatureTarget};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::cell::RefCell;
@@ -39,7 +42,7 @@ struct ValidatorTarget<C: Curve> {
 struct InclusionProofTarget {
     enc_hash: EncTendermintHashTarget,
     path: Vec<BoolTarget>,
-    proof: Vec<TendermintHashTarget>
+    proof: Vec<TendermintHashTarget>,
 }
 
 #[derive(Debug, Clone)]
@@ -118,7 +121,7 @@ fn generate_inputs() {
     //                 signed: BoolTarget::default(),
     //             }
     //         )
-            
+
     //     } else {
     //         println!("Validator {}: {:?}", i, ValidatorTarget {
     //             // TODO: Add default methods
