@@ -69,6 +69,10 @@ pub struct EncTendermintHashTarget(pub [Target; HASH_SIZE_BITS + 8 * 2]);
 #[derive(Debug, Clone, Copy)]
 pub struct TendermintHashTarget(pub [BoolTarget; HASH_SIZE_BITS]);
 
+/// The marshalled validator bits as a target.
+#[derive(Debug, Clone, Copy)]
+pub struct MarshalledValidatorTarget(pub [BoolTarget; VALIDATOR_BIT_LENGTH_MAX]);
+
 /// The voting power as a list of 2 u32 targets.
 #[derive(Debug, Clone, Copy)]
 pub struct I64Target(pub [U32Target; 2]);
@@ -84,13 +88,32 @@ pub struct TendermintValidator<C: Curve> {
     pub voting_power: I64Target,
 }
 
+#[derive(Debug, Clone)]
+pub struct ValidatorTarget<C: Curve> {
+    pubkey: EDDSAPublicKeyTarget<C>,
+    signature: EDDSASignatureTarget<C>,
+    message: EncTendermintHashTarget,
+    voting_power: I64Target,
+    validator_byte_length: U32Target,
+    enabled: BoolTarget,
+    signed: BoolTarget,
+}
+
 /// The protobuf-encoded leaf (a hash), and it's corresponding proof and path indices against the header.
 #[derive(Debug, Clone)]
-pub struct HeaderProofTarget {
-    pub enc_leaf: EncTendermintHashTarget,
-    // Note: Length of proof and path indices should be equal
-    pub proof: Vec<TendermintHashTarget>,
-    pub path_indices: Vec<BoolTarget>,
+pub struct InclusionProofTarget {
+    enc_leaf: EncTendermintHashTarget,
+    path: Vec<BoolTarget>,
+    proof: Vec<TendermintHashTarget>
+}
+
+#[derive(Debug, Clone)]
+pub struct CelestiaBlockProofTarget<C: Curve> {
+    validators: Vec<ValidatorTarget<C>>,
+    header: TendermintHashTarget,
+    data_hash_proof: InclusionProofTarget,
+    validator_hash_proof: InclusionProofTarget,
+    next_validators_hash_proof: InclusionProofTarget,
 }
 
 pub trait TendermintMarshaller<F: RichField + Extendable<D>, const D: usize> {
@@ -107,12 +130,12 @@ pub trait TendermintMarshaller<F: RichField + Extendable<D>, const D: usize> {
         &mut self,
         pubkey: EDDSAPublicKeyTarget<Self::Curve>,
         voting_power: I64Target,
-    ) -> [BoolTarget; VALIDATOR_BIT_LENGTH_MAX];
+    ) -> MarshalledValidatorTarget;
 
     /// Extract the header hash from the signed message from a validator.
     fn verify_hash_in_message(
         &mut self,
-        message: [BoolTarget; VALIDATOR_MESSAGE_BYTES_LENGTH_MAX * 8],
+        message: ValidatorMessageTarget,
         header_hash: [BoolTarget; HASH_SIZE_BITS],
         // Should be the same for all validators
         round_present_in_message: BoolTarget,
@@ -138,14 +161,14 @@ pub trait TendermintMarshaller<F: RichField + Extendable<D>, const D: usize> {
     /// Hashes validator bytes to get the leaf according to the Tendermint spec. (0x00 || validatorBytes)
     fn hash_validator_leaf(
         &mut self,
-        validator: &[BoolTarget; VALIDATOR_BIT_LENGTH_MAX],
+        validator: &MarshalledValidatorTarget,
         validator_byte_length: &U32Target,
     ) -> [BoolTarget; HASH_SIZE_BITS];
 
     /// Hashes multiple validators to get their leaves according to the Tendermint spec using hash_validator_leaf.
     fn hash_validator_leaves(
         &mut self,
-        validators: &Vec<[BoolTarget; VALIDATOR_BIT_LENGTH_MAX]>,
+        validators: &Vec<MarshalledValidatorTarget>,
         validator_byte_lengths: &Vec<U32Target>,
     ) -> Vec<[BoolTarget; HASH_SIZE_BITS]>;
 
@@ -169,7 +192,7 @@ pub trait TendermintMarshaller<F: RichField + Extendable<D>, const D: usize> {
     /// Compute the expected validator hash from the validator set.
     fn hash_validator_set(
         &mut self,
-        validators: &Vec<[BoolTarget; VALIDATOR_BIT_LENGTH_MAX]>,
+        validators: &Vec<MarshalledValidatorTarget>,
         validator_byte_length: &Vec<U32Target>,
         validator_enabled: &Vec<BoolTarget>,
     ) -> [BoolTarget; HASH_SIZE * 8];
@@ -219,20 +242,14 @@ pub trait TendermintMarshaller<F: RichField + Extendable<D>, const D: usize> {
         eddsa_pubkey_target: &EDDSAPublicKeyTarget<Self::Curve>,
     ) where <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>;
 
-    /// Verifies a single signature of a Tendermint validator.
-    fn verify_block<E: CubicParameters<F>, C: GenericConfig<D, F = F, FE = F::Extension> + 'static>(
+    /// Verifies a Tendermint consensus block.
+    fn step<E: CubicParameters<F>, C: GenericConfig<D, F = F, FE = F::Extension> + 'static>(
         &mut self,
-        validators: &Vec<TendermintValidator<Self::Curve>>,
-        validators_enabled: &Vec<BoolTarget>,
-        validators_signed: &Vec<BoolTarget>,
-        messages: &Vec<ValidatorMessageTarget>,
-        signatures: &Vec<EDDSASignatureTarget<Self::Curve>>,
-        pubkeys: &Vec<EDDSAPublicKeyTarget<Self::Curve>>,
-        header: &Vec<BoolTarget>,
-
-        data_hash_proof: &HeaderProofTarget,
-        validator_hash_proof: &HeaderProofTarget,
-        next_validator_hash_proof: &HeaderProofTarget,
+        validators: Vec<ValidatorTarget<Self::Curve>>,
+        header: TendermintHashTarget,
+        data_hash_proof: InclusionProofTarget,
+        validator_hash_proof: InclusionProofTarget,
+        next_validators_hash_proof: InclusionProofTarget,
     ) where <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>;
 }
 
@@ -302,7 +319,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D> fo
 
     fn verify_hash_in_message(
         &mut self,
-        message: [BoolTarget; VALIDATOR_MESSAGE_BYTES_LENGTH_MAX * 8],
+        message: ValidatorMessageTarget,
         header_hash: [BoolTarget; HASH_SIZE_BITS],
         // Should be the same for all validators
         round_present_in_message: BoolTarget,
@@ -323,8 +340,8 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D> fo
         let mut vec_round_present = [self._false(); HASH_SIZE_BITS];
 
         for i in 0..HASH_SIZE_BITS {
-            vec_round_missing[i] = message[(missing_round_start_idx) * 8 + i];
-            vec_round_present[i] = message[(including_round_start_idx) * 8 + i];
+            vec_round_missing[i] = message.0[(missing_round_start_idx) * 8 + i];
+            vec_round_present[i] = message.0[(including_round_start_idx) * 8 + i];
             let round_missing_eq =
                 self.is_equal(header_hash[i].target, vec_round_missing[i].target);
             let round_present_eq =
@@ -425,7 +442,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D> fo
         &mut self,
         pubkey: EDDSAPublicKeyTarget<Self::Curve>,
         voting_power: I64Target,
-    ) -> [BoolTarget; VALIDATOR_BYTE_LENGTH_MAX * 8] {
+    ) -> MarshalledValidatorTarget {
         let mut ptr = 0;
         let mut buffer = [self._false(); VALIDATOR_BYTE_LENGTH_MAX * 8];
 
@@ -476,12 +493,12 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D> fo
             }
         }
 
-        buffer
+        MarshalledValidatorTarget(buffer)
     }
 
     fn hash_validator_leaf(
         &mut self,
-        validator: &[BoolTarget; VALIDATOR_BIT_LENGTH_MAX],
+        validator: &MarshalledValidatorTarget,
         validator_byte_length: &U32Target,
     ) -> [BoolTarget; HASH_SIZE_BITS] {
         // Range check the validator byte length is between [VALIDATOR_BYTE_LENGTH_MIN, VALIDATOR_BYTE_LENGTH_MAX]
@@ -518,7 +535,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D> fo
 
             // validatorBytes
             for k in 8..bits_length {
-                validator_bits[k] = validator[k - 8];
+                validator_bits[k] = validator.0[k - 8];
             }
 
             // Load the output of the hash.
@@ -559,7 +576,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D> fo
 
     fn hash_validator_leaves(
         &mut self,
-        validators: &Vec<[BoolTarget; VALIDATOR_BIT_LENGTH_MAX]>,
+        validators: &Vec<MarshalledValidatorTarget>,
         validator_byte_lengths: &Vec<U32Target>,
     ) -> Vec<[BoolTarget; HASH_SIZE_BITS]> {
         let num_validators = self.constant(F::from_canonical_usize(validators.len()));
@@ -665,7 +682,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D> fo
 
     fn hash_validator_set(
         &mut self,
-        validators: &Vec<[BoolTarget; VALIDATOR_BIT_LENGTH_MAX]>,
+        validators: &Vec<MarshalledValidatorTarget>,
         validator_byte_lengths: &Vec<U32Target>,
         validator_enabled: &Vec<BoolTarget>,
     ) -> [BoolTarget; HASH_SIZE_BITS] {
@@ -899,20 +916,26 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D> fo
         self.connect_biguint(&eddsa_target.pub_keys[0].0.y.value, &eddsa_pubkey_target.0.y.value);
     }
 
-    fn verify_block<E: CubicParameters<F>, C: GenericConfig<D, F = F, FE = F::Extension> + 'static>(
+    fn step<E: CubicParameters<F>, C: GenericConfig<D, F = F, FE = F::Extension> + 'static>(
         &mut self,
-        validators: &Vec<TendermintValidator<Self::Curve>>,
-        validators_enabled: &Vec<BoolTarget>,
-        validators_signed: &Vec<BoolTarget>,
-        messages: &Vec<ValidatorMessageTarget>,
-        signatures: &Vec<EDDSASignatureTarget<Self::Curve>>,
-        pubkeys: &Vec<EDDSAPublicKeyTarget<Self::Curve>>,
-        header: &Vec<BoolTarget>,
-
-        data_hash_proof: &HeaderProofTarget,
-        validator_hash_proof: &HeaderProofTarget,
-        next_validator_hash_proof: &HeaderProofTarget,
+        validators: Vec<ValidatorTarget<Self::Curve>>,
+        header: TendermintHashTarget,
+        data_hash_proof: InclusionProofTarget,
+        validator_hash_proof: InclusionProofTarget,
+        next_validators_hash_proof: InclusionProofTarget,
     ) where <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F> {
+        // Verify each of the validators marshal correctly
+        // Assumes the validators are sorted in the correct order
+        // Use zip to extract an array of validator lengths from validators
+        let byte_lengths: Vec<U32Target> = validators.iter()
+            .map(|v| v.validator_byte_length)
+            .collect();
+        let marshalled_validators: Vec<MarshalledValidatorTarget> = validators.iter()
+            .map(|v| self.marshal_tendermint_validator(v.pubkey.clone(), v.voting_power))
+            .collect();
+        let validators_enabled: Vec<BoolTarget> = validators.iter()
+            .map(|v| v.enabled)
+            .collect();
 
     }
 }
@@ -982,7 +1005,7 @@ pub(crate) mod tests {
         builder: &mut CircuitBuilder<F, D>,
         validators: &Vec<&str>,
     ) -> (
-        Vec<[BoolTarget; VALIDATOR_BIT_LENGTH_MAX]>,
+        Vec<MarshalledValidatorTarget>,
         Vec<U32Target>,
         Vec<BoolTarget>,
     ) {
@@ -996,8 +1019,8 @@ pub(crate) mod tests {
 
         let mut validator_bits: Vec<Vec<bool>> = (0..256).map(|_| Vec::<bool>::new()).collect();
 
-        let mut validators_target: Vec<[BoolTarget; VALIDATOR_BIT_LENGTH_MAX]> =
-            vec![[builder._false(); VALIDATOR_BIT_LENGTH_MAX]; VALIDATOR_SET_SIZE_MAX];
+        let mut validators_target: Vec<MarshalledValidatorTarget> =
+            vec![MarshalledValidatorTarget([builder._false(); VALIDATOR_BIT_LENGTH_MAX]); VALIDATOR_SET_SIZE_MAX];
 
         // Convert the hex strings to bytes.
         for i in 0..validators.len() {
@@ -1005,9 +1028,9 @@ pub(crate) mod tests {
             validator_bits[i] = to_bits(hex::decode(validators[i]).unwrap());
             for j in 0..(val_byte_length * 8) {
                 if validator_bits[i][j] {
-                    validators_target[i][j] = builder._true();
+                    validators_target[i].0[j] = builder._true();
                 } else {
-                    validators_target[i][j] = builder._false();
+                    validators_target[i].0[j] = builder._false();
                 }
             }
             validator_byte_length[i] =
@@ -1441,7 +1464,7 @@ pub(crate) mod tests {
         }
 
         let result =
-            builder.verify_hash_in_message(signed_message_target, header_hash_target, zero);
+            builder.verify_hash_in_message(ValidatorMessageTarget(signed_message_target), header_hash_target, zero);
 
         for i in 0..HASH_SIZE_BITS {
             if header_bits[i] {
@@ -1568,8 +1591,8 @@ pub(crate) mod tests {
 
         let result = builder.marshal_tendermint_validator(eddsa_pub_key_target, voting_power_target);
 
-        for i in 0..result.len() {
-            builder.register_public_input(result[i].target);
+        for i in 0..result.0.len() {
+            builder.register_public_input(result.0[i].target);
         }
 
         let data = builder.build::<C>();
