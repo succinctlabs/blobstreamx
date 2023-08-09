@@ -1182,6 +1182,10 @@ pub(crate) mod tests {
     use plonky2x::num::u32::witness::WitnessU32;
     use subtle_encoding::hex;
 
+    use tendermint::validator::{Info, Set as ValidatorSet};
+    use crate::merkle::TempSignedBlock;
+    use crate::merkle::SignedBlock;
+
     use plonky2x::ecc::ed25519::curve::curve_types::AffinePoint;
     use plonky2x::ecc::ed25519::field::ed25519_scalar::Ed25519Scalar;
     use sha2::Sha256;
@@ -1944,9 +1948,111 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn test_generate_root_from_step_inputs() {
+        let mut pw = PartialWitness::new();
+        let config = CircuitConfig::standard_ecc_config();
+        let mut builder = CircuitBuilder::<F, D>::new(config);
+
+        type F = GoldilocksField;
+        type Curve = Ed25519;
+        type E = GoldilocksCubicParameters;
+        type C = PoseidonGoldilocksConfig;
+        const D: usize = 2;
+
+        let celestia_block_proof: CelestiaBlockProof = generate_step_inputs();
+
+        let header_bits = to_bits(celestia_block_proof.header);
+        // println!("header bits: {:?}", header_bits);
+
+        let mut data_hash_aunts = Vec::new();
+        let mut data_hash_enc_leaf = Vec::new();
+        let mut data_hash_path_indices = Vec::new();
+
+        let mut val_hash_aunts = Vec::new();
+        let mut val_hash_enc_leaf = Vec::new();
+        let mut val_hash_path_indices = Vec::new();
+
+        let mut next_val_hash_aunts = Vec::new();
+        let mut next_val_hash_enc_leaf = Vec::new();
+        let mut next_val_hash_path_indices = Vec::new();
+
+        // Set the encoded leaf for each of the proofs
+        let data_hash_enc_leaf_bits = to_bits(celestia_block_proof.data_hash_proof.enc_leaf);
+        let val_hash_enc_leaf_bits = to_bits(celestia_block_proof.validator_hash_proof.enc_leaf);
+        let next_val_hash_enc_leaf_bits = to_bits(celestia_block_proof.next_validators_hash_proof.enc_leaf);
+
+        for i in 0..PROTOBUF_HASH_SIZE_BITS {
+            data_hash_enc_leaf.push(builder.constant_bool(data_hash_enc_leaf_bits[i]));
+
+            val_hash_enc_leaf.push(builder.constant_bool(val_hash_enc_leaf_bits[i]));
+
+            next_val_hash_enc_leaf.push(builder.constant_bool(next_val_hash_enc_leaf_bits[i]));    
+        }
+
+        for i in 0..HEADER_PROOF_DEPTH {
+            // Set path indices for each of the proof indices
+            data_hash_path_indices.push(builder.constant_bool(celestia_block_proof.data_hash_proof.path[i]));
+            val_hash_path_indices.push(builder.constant_bool(celestia_block_proof.validator_hash_proof.path[i]));
+            next_val_hash_path_indices.push(builder.constant_bool(celestia_block_proof.next_validators_hash_proof.path[i]));
+
+            let data_hash_aunt_bits = to_bits(celestia_block_proof.data_hash_proof.proof[i].to_vec());
+
+            let val_hash_aunt_bits = to_bits(celestia_block_proof.validator_hash_proof.proof[i].to_vec());
+            
+            let next_val_aunt_bits = to_bits(celestia_block_proof.next_validators_hash_proof.proof[i].to_vec());
+
+            data_hash_aunts.push(Vec::new());
+            val_hash_aunts.push(Vec::new());
+            next_val_hash_aunts.push(Vec::new());
+
+            // Set aunts for each of the proofs
+            for j in 0..HASH_SIZE_BITS {
+                data_hash_aunts[i].push(builder.constant_bool(data_hash_aunt_bits[j]));
+                val_hash_aunts[i].push(builder.constant_bool(val_hash_aunt_bits[j]));
+                next_val_hash_aunts[i].push(builder.constant_bool(next_val_aunt_bits[j]));
+
+            }
+        }
+
+        let mut data_hash_aunts_new = Vec::new();
+        let mut val_hash_aunts_new = Vec::new();
+        let mut next_val_hash_aunts_new = Vec::new();
+        for i in 0..HEADER_PROOF_DEPTH {
+            data_hash_aunts_new.push(TendermintHashTarget(data_hash_aunts[i].clone().try_into().unwrap()));
+            val_hash_aunts_new.push(TendermintHashTarget(val_hash_aunts[i].clone().try_into().unwrap()));
+            next_val_hash_aunts_new.push(TendermintHashTarget(next_val_hash_aunts[i].clone().try_into().unwrap()));
+        }
+
+        // println!("data hash enc leaf: {:?}", data_hash_enc_leaf);
+
+        // let header_from_data_hash = builder.get_root_from_merkle_proof(&data_hash_aunts_new, &data_hash_path_indices, &EncTendermintHashTarget(data_hash_enc_leaf.try_into().unwrap()));
+
+        let header_from_val_hash = builder.get_root_from_merkle_proof(&val_hash_aunts_new, &val_hash_path_indices, &EncTendermintHashTarget(val_hash_enc_leaf.try_into().unwrap()));
+
+        // let header_from_next_val_hash = builder.get_root_from_merkle_proof(&next_val_hash_aunts_new, &next_val_hash_path_indices, &EncTendermintHashTarget(next_val_hash_enc_leaf.try_into().unwrap()));
+
+        for i in 0..HASH_SIZE_BITS {
+            // pw.set_bool_target(header_from_data_hash.0[i], header_bits[i]);
+            pw.set_bool_target(header_from_val_hash.0[i], header_bits[i]);
+            // pw.set_bool_target(header_from_next_val_hash.0[i], header_bits[i]);
+        }
+
+        let data = builder.build::<C>();
+        let proof = data.prove(pw).unwrap();
+
+        println!("Created proof");
+
+        data.verify(proof).unwrap();
+
+        println!("Verified proof");
+
+
+    }
+
+    #[test]
     fn test_step() {
         let mut pw = PartialWitness::new();
-        let config = CircuitConfig::standard_recursion_config();
+        let config = CircuitConfig::standard_ecc_config();
         let mut builder = CircuitBuilder::<F, D>::new(config);
 
         type F = GoldilocksField;
@@ -1958,6 +2064,8 @@ pub(crate) mod tests {
         let celestia_proof_target = make_step_circuit::<GoldilocksField, D, Curve, C, E>(&mut builder);
 
         let celestia_block_proof: CelestiaBlockProof = generate_step_inputs();
+
+        println!("celestia_block_proof: {:?}", celestia_block_proof);
 
         // Set target for header
         let header_bits = to_bits(celestia_block_proof.header);
