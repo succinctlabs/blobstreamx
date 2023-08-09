@@ -2150,7 +2150,7 @@ pub(crate) mod tests {
             pw.set_bool_target(celestia_proof_target.validators[i].signed, validator.signed);
         }
 
-        println!("Here");
+        // println!("Here");
 
         let inner_data = builder.build::<C>();
         let inner_proof = inner_data.prove(pw).unwrap();
