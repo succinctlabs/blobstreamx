@@ -486,21 +486,8 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D>
             }
         }
 
-        println!("pubkey: {:?}", pubkey.0);
         let compressed_point = self.compress_point(&pubkey.0);
-        println!("pubkey bits len: {:?}", compressed_point.bit_targets.len());
-        // // Need to reverse the byte endianess of the pub key
-        // pubkey.0.reverse();
-        // println!("pubkey: {:?}", pubkey.0.len());
-        // The next 32 bytes of the serialized validator are the public key.
-        // for byte in pubkey.0.iter() {
-        //     let mut bits = self.split_le(*byte, 8);
-        //     bits.reverse();
-        //     for i in 0..8 {
-        //         buffer[ptr] = bits[i];
-        //         ptr += 1;
-        //     }
-        // }
+
         for i in 0..compressed_point.bit_targets.len() {
             buffer[ptr] = compressed_point.bit_targets[i];
             ptr += 1;
@@ -971,29 +958,29 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D>
     ) where
         <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>,
     {
-        // let one = self.one();
-        // // Verify each of the validators marshal correctly
-        // // Assumes the validators are sorted in the correct order
-        // let byte_lengths: Vec<U32Target> =
-        //     validators.iter().map(|v| v.validator_byte_length).collect();
-        // let marshalled_validators: Vec<MarshalledValidatorTarget> = validators
-        //     .iter()
-        //     .map(|v| self.marshal_tendermint_validator(&v.pubkey, &v.voting_power))
-        //     .collect();
-        // let validators_enabled: Vec<BoolTarget> = validators.iter().map(|v| v.enabled).collect();
-        // let validators_enabled_u32: Vec<U32Target> = validators_enabled
-        //     .iter()
-        //     .map(|v| {
-        //         let zero = self.zero_u32();
-        //         let one = self.one_u32();
-        //         U32Target(self.select(*v, one.0, zero.0))
-        //     })
-        //     .collect();
+        let one = self.one();
+        // Verify each of the validators marshal correctly
+        // Assumes the validators are sorted in the correct order
+        let byte_lengths: Vec<U32Target> =
+            validators.iter().map(|v| v.validator_byte_length).collect();
+        let marshalled_validators: Vec<MarshalledValidatorTarget> = validators
+            .iter()
+            .map(|v| self.marshal_tendermint_validator(&v.pubkey, &v.voting_power))
+            .collect();
+        let validators_enabled: Vec<BoolTarget> = validators.iter().map(|v| v.enabled).collect();
+        let validators_enabled_u32: Vec<U32Target> = validators_enabled
+            .iter()
+            .map(|v| {
+                let zero = self.zero_u32();
+                let one = self.one_u32();
+                U32Target(self.select(*v, one.0, zero.0))
+            })
+            .collect();
 
-        // let validator_voting_power: Vec<I64Target> =
-        //     validators.iter().map(|v| v.voting_power).collect();
+        let validator_voting_power: Vec<I64Target> =
+            validators.iter().map(|v| v.voting_power).collect();
 
-        // Compute the validators hash
+        // // Compute the validators hash
         // let validators_hash_target =
         //     self.hash_validator_set(&marshalled_validators, &byte_lengths, &validators_enabled);
 
@@ -1006,21 +993,21 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D>
         //     );
         // }
 
-        // let total_voting_power = self.get_total_voting_power(&validator_voting_power);
-        // let threshold_numerator = self.constant_u32(2);
-        // let threshold_denominator = self.constant_u32(3);
+        let total_voting_power = self.get_total_voting_power(&validator_voting_power);
+        let threshold_numerator = self.constant_u32(2);
+        let threshold_denominator = self.constant_u32(3);
 
-        // // Assert the accumulated voting power is greater than the threshold
-        // let check_voting_power_bool = self.check_voting_power(
-        //     &validator_voting_power,
-        //     &validators_enabled_u32,
-        //     &total_voting_power,
-        //     &threshold_numerator,
-        //     &threshold_denominator,
-        // );
-        // self.connect(check_voting_power_bool.target, one);
+        // Assert the accumulated voting power is greater than the threshold
+        let check_voting_power_bool = self.check_voting_power(
+            &validator_voting_power,
+            &validators_enabled_u32,
+            &total_voting_power,
+            &threshold_numerator,
+            &threshold_denominator,
+        );
+        self.connect(check_voting_power_bool.target, one);
 
-        // TODO: Replace this with a loop over VALIDATORS_MAX_LEN
+        // // TODO: Replace this with a loop over VALIDATORS_MAX_LEN
         // for i in 0..VALIDATOR_SET_SIZE_MAX {
         //     // Verify the validator's signature
         //     // TODO: Handle dummies
@@ -2061,6 +2048,8 @@ pub(crate) mod tests {
 
     #[test]
     fn test_step() {
+        let _ = env_logger::builder().is_test(true).try_init();
+        
         let mut pw = PartialWitness::new();
         let config = CircuitConfig::standard_ecc_config();
         let mut builder = CircuitBuilder::<F, D>::new(config);
