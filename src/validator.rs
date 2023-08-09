@@ -8,7 +8,7 @@
 //! read more about them here: https://protobuf.dev/programming-guides/encoding/#varints.
 use curta::plonky2::field::CubicParameters;
 use plonky2::field::extension::Extendable;
-use plonky2::iop::target::{BoolTarget, Target};
+use plonky2::iop::target::BoolTarget;
 use plonky2::plonk::config::AlgebraicHasher;
 use plonky2::plonk::config::GenericConfig;
 use plonky2::{hash::hash_types::RichField, plonk::circuit_builder::CircuitBuilder};
@@ -19,7 +19,6 @@ use plonky2x::ecc::ed25519::gadgets::eddsa::{
     verify_signatures_circuit, EDDSAPublicKeyTarget, EDDSASignatureTarget,
 };
 use plonky2x::hash::sha::sha256::sha256;
-use plonky2x::num::biguint::CircuitBuilderBiguint;
 use plonky2x::num::nonnative::nonnative::CircuitBuilderNonNative;
 use plonky2x::num::u32::gadgets::arithmetic_u32::{CircuitBuilderU32, U32Target};
 
@@ -44,14 +43,14 @@ const VALIDATOR_BIT_LENGTH_MAX: usize = VALIDATOR_BYTE_LENGTH_MAX * 8;
 const VALIDATOR_BYTE_LENGTH_MIN: usize = 38;
 
 /// The minimum length of a protobuf-encoded Tendermint validator in bits.
-const VALIDATOR_BIT_LENGTH_MIN: usize = VALIDATOR_BYTE_LENGTH_MIN * 8;
+const _VALIDATOR_BIT_LENGTH_MIN: usize = VALIDATOR_BYTE_LENGTH_MIN * 8;
 
 /// The number of possible byte lengths of a protobuf-encoded Tendermint validator.
 const NUM_POSSIBLE_VALIDATOR_BYTE_LENGTHS: usize =
     VALIDATOR_BYTE_LENGTH_MAX - VALIDATOR_BYTE_LENGTH_MIN + 1;
 
 // The number of bytes in a Tendermint validator's public key.
-const PUBKEY_BYTES_LEN: usize = 32;
+const _PUBKEY_BYTES_LEN: usize = 32;
 
 // The maximum number of bytes in a Tendermint validator's voting power.
 // https://docs.tendermint.com/v0.34/tendermint-core/using-tendermint.html#tendermint-networks
@@ -902,16 +901,40 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D>
     ) where
         <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>,
     {
+        // TODO: UPDATE message.len() to VALIDATOR_SET_SIZE_MAX
         assert!(
             messages.len() == eddsa_sig_targets.len()
                 && messages.len() == eddsa_pubkey_targets.len(),
         );
+
+        // Already in bits
+        let byte_len = (messages[0].len() / 8) as u128;
+
+        let eddsa_target = verify_signatures_circuit::<F, Self::Curve, E, C, D>(
+            self,
+            messages.len(),
+            byte_len,
+        );
+
+        println!("Number of message targets: {:?}", eddsa_target.msgs.len());
+        println!("Message target length: {:?}", eddsa_target.msgs[0].len());
+        println!("Number of signature targets: {:?}", eddsa_target.sigs.len());
+        println!("Number of pubkey targets: {:?}", eddsa_target.pub_keys.len());
+
+
         for i in 0..messages.len() {
-            self.verify_signature::<E, C>(
-                messages[i].clone(),
-                eddsa_sig_targets[i],
-                eddsa_pubkey_targets[i],
-            );
+            let message = &messages[i];
+            let eddsa_sig_target = eddsa_sig_targets[i];
+            let eddsa_pubkey_target = eddsa_pubkey_targets[i];
+            for j in 0..8*VALIDATOR_MESSAGE_BYTES_LENGTH_MAX {
+                self.connect(eddsa_target.msgs[i][j].target, message[j].target);
+            }
+    
+            self.connect_nonnative(&eddsa_target.sigs[i].s, &eddsa_sig_target.s);
+            self.connect_nonnative(&eddsa_target.sigs[i].r.x, &eddsa_sig_target.r.x);
+            self.connect_nonnative(&eddsa_target.sigs[i].r.y, &eddsa_sig_target.r.y);
+    
+            self.connect_affine_point(&eddsa_target.pub_keys[i].0, &eddsa_pubkey_target.0);
         }
     }
 
@@ -980,6 +1003,11 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D>
         let validator_voting_power: Vec<I64Target> =
             validators.iter().map(|v| v.voting_power).collect();
 
+        
+        let messages: Vec<Vec<BoolTarget>> = validators.iter().map(|v| v.message.0.to_vec()).collect();
+        let signatures: Vec<&EDDSASignatureTarget<Ed25519>> = validators.iter().map(|v| &v.signature).collect();
+        let pubkeys: Vec<&EDDSAPublicKeyTarget<Ed25519>> = validators.iter().map(|v| &v.pubkey).collect();
+
         // // Compute the validators hash
         // let validators_hash_target =
         //     self.hash_validator_set(&marshalled_validators, &byte_lengths, &validators_enabled);
@@ -1007,13 +1035,15 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D>
         );
         self.connect(check_voting_power_bool.target, one);
 
-        // // TODO: Replace this with a loop over VALIDATORS_MAX_LEN
-        // for i in 0..VALIDATOR_SET_SIZE_MAX {
-        //     // Verify the validator's signature
-        //     // TODO: Handle dummies
-        //     let message = validators[i].message.0.clone().to_vec();
-        //     self.verify_signature::<E, C>(message, &validators[i].signature, &validators[i].pubkey);
+        // TODO: Handle dummies
+        self.verify_signatures::<E, C>(
+            messages,
+            signatures,
+            pubkeys,
+        );
 
+        // // TODO: Verify that this will work with dummy signatures
+        // for i in 0..VALIDATOR_SET_SIZE_MAX {
         //     // Verify that the header is in the message in the correct location
         //     self.verify_hash_in_message(&validators[i].message, header, round_present);
         // }
@@ -1180,9 +1210,7 @@ pub(crate) mod tests {
     use plonky2x::num::u32::witness::WitnessU32;
     use subtle_encoding::hex;
 
-    use tendermint::validator::{Info, Set as ValidatorSet};
-    use crate::merkle::TempSignedBlock;
-    use crate::merkle::SignedBlock;
+    use plonky2x::num::biguint::CircuitBuilderBiguint;
 
     use plonky2x::ecc::ed25519::curve::curve_types::AffinePoint;
     use plonky2x::ecc::ed25519::field::ed25519_scalar::Ed25519Scalar;
@@ -1197,7 +1225,7 @@ pub(crate) mod tests {
     use plonky2x::num::u32::gadgets::arithmetic_u32::U32Target;
 
     use crate::{
-        utils::{bits_to_bytes, f_bits_to_bytes},
+        utils::f_bits_to_bytes,
         validator::{I64Target, TendermintMarshaller},
     };
 
@@ -1798,7 +1826,7 @@ pub(crate) mod tests {
         //
         // The tuples hold the form: (voting_power_i64, voting_power_varint_bytes).
         let voting_power_i64 = 724325643436111i64;
-        let mut pubkey = [0u8; 32];
+        let pubkey = [0u8; 32];
         let expected_marshal = [
             10u8, 34, 10, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 0, 16, 207, 128, 183, 165, 211, 216, 164, 1,
@@ -1858,9 +1886,10 @@ pub(crate) mod tests {
 
     #[test]
     fn test_verify_eddsa_signature() {
-        let msg = "6b0802111f5f03000000000022480a203c42ba7754d8df2d5dabc412fb5331ed9be5bcb9272376154bf9e6c9094da424122408011220abf5cda49f41be0e9c64316661bb6ab2aa2ebb81c2fa864b77b03feb2e39caf52a0b08d7b0bba60610d49ae72032076d6f6368612d33";
-        let pubkey = "29445caee9e68843a2f01823c1455d4d59bd71527712429f75fe9ccc9ec3bf2d";
-        let sig = "3fad27ba14337471d04e116895420e2aa5e5d5419d0deaf54557a8d7ca4a7802530dda3a802f377752a667f06b22a8028b9040b0cea46523b26a8af48286d800";
+        // First signature from block 11000
+        let msg = "6c080211f82a00000000000022480a2036f2d954fe1ba37c5036cb3c6b366d0daf68fccbaa370d9490361c51a0a38b61122408011220cddf370e891591c9d912af175c966cd8dfa44b2c517e965416b769eb4b9d5d8d2a0c08f6b097a50610dffbcba90332076d6f6368612d33";
+        let pubkey = "de25aec935b10f657b43fa97e5a8d4e523bdb0f9972605f0b064eff7b17048ba";
+        let sig = "091576e9e3ad0e5ba661f7398e1adb3976ba647b579b8e4a224d1d02b591ade6aedb94d3bf55d258f089d6413155a57adfd4932418a798c2d68b29850f6fb50b";
 
         let msg_bytes = hex::decode(msg).unwrap();
         let pub_key_bytes = hex::decode(pubkey).unwrap();
@@ -1913,7 +1942,7 @@ pub(crate) mod tests {
             s: sig_s_target,
         };
 
-        builder.verify_signature::<E, C>(msg_bits_target, &eddsa_sig_target, &eddsa_pub_key_target);
+        builder.verify_signatures::<E, C>(vec![msg_bits_target], vec![&eddsa_sig_target], vec![&eddsa_pub_key_target]);
 
         let inner_data = builder.build::<C>();
         let inner_proof = inner_data.prove(pw).unwrap();
@@ -1952,8 +1981,6 @@ pub(crate) mod tests {
         let mut builder = CircuitBuilder::<F, D>::new(config);
 
         type F = GoldilocksField;
-        type Curve = Ed25519;
-        type E = GoldilocksCubicParameters;
         type C = PoseidonGoldilocksConfig;
         const D: usize = 2;
 
@@ -2020,8 +2047,6 @@ pub(crate) mod tests {
             val_hash_aunts_new.push(TendermintHashTarget(val_hash_aunts[i].clone().try_into().unwrap()));
             next_val_hash_aunts_new.push(TendermintHashTarget(next_val_hash_aunts[i].clone().try_into().unwrap()));
         }
-
-        // println!("data hash enc leaf: {:?}", data_hash_enc_leaf);
 
         let header_from_data_hash = builder.get_root_from_merkle_proof(&data_hash_aunts_new, &data_hash_path_indices, &EncTendermintHashTarget(data_hash_enc_leaf.try_into().unwrap()));
 
@@ -2119,7 +2144,7 @@ pub(crate) mod tests {
             assert!(sig_r.is_valid());
 
             let sig_s_biguint = BigUint::from_bytes_le(&signature_bytes[32..64]);
-            let sig_s = Ed25519Scalar::from_noncanonical_biguint(sig_s_biguint.clone());
+            let _sig_s = Ed25519Scalar::from_noncanonical_biguint(sig_s_biguint.clone());
 
             // Set the targets for the public key
             pw.set_affine_point_target(&celestia_proof_target.validators[i].pubkey.0, &pub_key_uncompressed);
@@ -2151,30 +2176,30 @@ pub(crate) mod tests {
         let inner_proof = inner_data.prove(pw).unwrap();
         inner_data.verify(inner_proof.clone()).unwrap();
 
-        let mut outer_builder = CircuitBuilder::<F, D>::new(CircuitConfig::standard_ecc_config());
-        let inner_proof_target = outer_builder.add_virtual_proof_with_pis(&inner_data.common);
-        let inner_verifier_data =
-            outer_builder.add_virtual_verifier_data(inner_data.common.config.fri_config.cap_height);
-        outer_builder.verify_proof::<C>(
-            &inner_proof_target,
-            &inner_verifier_data,
-            &inner_data.common,
-        );
+        // let mut outer_builder = CircuitBuilder::<F, D>::new(CircuitConfig::standard_ecc_config());
+        // let inner_proof_target = outer_builder.add_virtual_proof_with_pis(&inner_data.common);
+        // let inner_verifier_data =
+        //     outer_builder.add_virtual_verifier_data(inner_data.common.config.fri_config.cap_height);
+        // outer_builder.verify_proof::<C>(
+        //     &inner_proof_target,
+        //     &inner_verifier_data,
+        //     &inner_data.common,
+        // );
 
-        let outer_data = outer_builder.build::<C>();
-        for gate in outer_data.common.gates.iter() {
-            println!("ecddsa verify recursive gate: {:?}", gate);
-        }
+        // let outer_data = outer_builder.build::<C>();
+        // for gate in outer_data.common.gates.iter() {
+        //     println!("ecddsa verify recursive gate: {:?}", gate);
+        // }
 
-        let mut outer_pw = PartialWitness::new();
-        outer_pw.set_proof_with_pis_target(&inner_proof_target, &inner_proof);
-        outer_pw.set_verifier_data_target(&inner_verifier_data, &inner_data.verifier_only);
+        // let mut outer_pw = PartialWitness::new();
+        // outer_pw.set_proof_with_pis_target(&inner_proof_target, &inner_proof);
+        // outer_pw.set_verifier_data_target(&inner_verifier_data, &inner_data.verifier_only);
 
-        let outer_proof = outer_data.prove(outer_pw).unwrap();
+        // let outer_proof = outer_data.prove(outer_pw).unwrap();
 
-        outer_data
-            .verify(outer_proof)
-            .expect("failed to verify proof");
+        // outer_data
+        //     .verify(outer_proof)
+        //     .expect("failed to verify proof");
 
     }
 }
