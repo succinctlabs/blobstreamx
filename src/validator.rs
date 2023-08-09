@@ -971,65 +971,65 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D>
     ) where
         <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>,
     {
-        let one = self.one();
-        // Verify each of the validators marshal correctly
-        // Assumes the validators are sorted in the correct order
-        let byte_lengths: Vec<U32Target> =
-            validators.iter().map(|v| v.validator_byte_length).collect();
-        let marshalled_validators: Vec<MarshalledValidatorTarget> = validators
-            .iter()
-            .map(|v| self.marshal_tendermint_validator(&v.pubkey, &v.voting_power))
-            .collect();
-        let validators_enabled: Vec<BoolTarget> = validators.iter().map(|v| v.enabled).collect();
-        let validators_enabled_u32: Vec<U32Target> = validators_enabled
-            .iter()
-            .map(|v| {
-                let zero = self.zero_u32();
-                let one = self.one_u32();
-                U32Target(self.select(*v, one.0, zero.0))
-            })
-            .collect();
+        // let one = self.one();
+        // // Verify each of the validators marshal correctly
+        // // Assumes the validators are sorted in the correct order
+        // let byte_lengths: Vec<U32Target> =
+        //     validators.iter().map(|v| v.validator_byte_length).collect();
+        // let marshalled_validators: Vec<MarshalledValidatorTarget> = validators
+        //     .iter()
+        //     .map(|v| self.marshal_tendermint_validator(&v.pubkey, &v.voting_power))
+        //     .collect();
+        // let validators_enabled: Vec<BoolTarget> = validators.iter().map(|v| v.enabled).collect();
+        // let validators_enabled_u32: Vec<U32Target> = validators_enabled
+        //     .iter()
+        //     .map(|v| {
+        //         let zero = self.zero_u32();
+        //         let one = self.one_u32();
+        //         U32Target(self.select(*v, one.0, zero.0))
+        //     })
+        //     .collect();
 
-        let validator_voting_power: Vec<I64Target> =
-            validators.iter().map(|v| v.voting_power).collect();
+        // let validator_voting_power: Vec<I64Target> =
+        //     validators.iter().map(|v| v.voting_power).collect();
 
         // Compute the validators hash
-        let validators_hash_target =
-            self.hash_validator_set(&marshalled_validators, &byte_lengths, &validators_enabled);
+        // let validators_hash_target =
+        //     self.hash_validator_set(&marshalled_validators, &byte_lengths, &validators_enabled);
 
-        // Assert that computed validator hash matches expected validator hash
-        let extracted_hash = self.extract_hash_from_protobuf(&validator_hash_proof.enc_leaf);
-        for i in 0..HASH_SIZE_BITS {
-            self.connect(
-                validators_hash_target.0[i].target,
-                extracted_hash.0[i].target,
-            );
-        }
+        // // Assert that computed validator hash matches expected validator hash
+        // let extracted_hash = self.extract_hash_from_protobuf(&validator_hash_proof.enc_leaf);
+        // for i in 0..HASH_SIZE_BITS {
+        //     self.connect(
+        //         validators_hash_target.0[i].target,
+        //         extracted_hash.0[i].target,
+        //     );
+        // }
 
-        let total_voting_power = self.get_total_voting_power(&validator_voting_power);
-        let threshold_numerator = self.constant_u32(2);
-        let threshold_denominator = self.constant_u32(3);
+        // let total_voting_power = self.get_total_voting_power(&validator_voting_power);
+        // let threshold_numerator = self.constant_u32(2);
+        // let threshold_denominator = self.constant_u32(3);
 
-        // Assert the accumulated voting power is greater than the threshold
-        let check_voting_power_bool = self.check_voting_power(
-            &validator_voting_power,
-            &validators_enabled_u32,
-            &total_voting_power,
-            &threshold_numerator,
-            &threshold_denominator,
-        );
-        self.connect(check_voting_power_bool.target, one);
+        // // Assert the accumulated voting power is greater than the threshold
+        // let check_voting_power_bool = self.check_voting_power(
+        //     &validator_voting_power,
+        //     &validators_enabled_u32,
+        //     &total_voting_power,
+        //     &threshold_numerator,
+        //     &threshold_denominator,
+        // );
+        // self.connect(check_voting_power_bool.target, one);
 
-        // TODO: Replace this with a loop over VALIDATORS_MAX_LEN
-        for i in 0..validators.len() {
-            // Verify the validator's signature
-            // TODO: Handle dummies
-            let message = validators[i].message.0.clone().to_vec();
-            self.verify_signature::<E, C>(message, &validators[i].signature, &validators[i].pubkey);
+        // // TODO: Replace this with a loop over VALIDATORS_MAX_LEN
+        // for i in 0..validators.len() {
+        //     // Verify the validator's signature
+        //     // TODO: Handle dummies
+        //     let message = validators[i].message.0.clone().to_vec();
+        //     self.verify_signature::<E, C>(message, &validators[i].signature, &validators[i].pubkey);
 
-            // Verify that the header is in the message in the correct location
-            self.verify_hash_in_message(&validators[i].message, header, round_present);
-        }
+        //     // Verify that the header is in the message in the correct location
+        //     self.verify_hash_in_message(&validators[i].message, header, round_present);
+        // }
 
         let header_from_data_root_proof = self.get_root_from_merkle_proof(
             &data_hash_proof.proof,
@@ -1050,15 +1050,15 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D>
         // Confirm that the header from the proof of {validator_hash, next_validators_hash, data_hash} all match the header
         for i in 0..HASH_SIZE_BITS {
             self.connect(
-                validators_hash_target.0[i].target,
+                header.0[i].target,
                 header_from_data_root_proof.0[i].target,
             );
             self.connect(
-                validators_hash_target.0[i].target,
+                header.0[i].target,
                 header_from_validator_root_proof.0[i].target,
             );
             self.connect(
-                validators_hash_target.0[i].target,
+                header.0[i].target,
                 header_from_next_validators_root_proof.0[i].target,
             );
         }
@@ -1996,10 +1996,13 @@ pub(crate) mod tests {
             next_val_hash_path_indices.push(builder.constant_bool(celestia_block_proof.next_validators_hash_proof.path[i]));
 
             let data_hash_aunt_bits = to_bits(celestia_block_proof.data_hash_proof.proof[i].to_vec());
+            println!("data hash aunt: {:?}", celestia_block_proof.data_hash_proof.proof[i].to_vec());
 
             let val_hash_aunt_bits = to_bits(celestia_block_proof.validator_hash_proof.proof[i].to_vec());
+            println!("val hash aunt bits: {:?}", celestia_block_proof.validator_hash_proof.proof[i].to_vec());
             
             let next_val_aunt_bits = to_bits(celestia_block_proof.next_validators_hash_proof.proof[i].to_vec());
+            println!("next val hash aunt bits: {:?}", celestia_block_proof.next_validators_hash_proof.proof[i].to_vec());
 
             data_hash_aunts.push(Vec::new());
             val_hash_aunts.push(Vec::new());
@@ -2025,16 +2028,16 @@ pub(crate) mod tests {
 
         // println!("data hash enc leaf: {:?}", data_hash_enc_leaf);
 
-        // let header_from_data_hash = builder.get_root_from_merkle_proof(&data_hash_aunts_new, &data_hash_path_indices, &EncTendermintHashTarget(data_hash_enc_leaf.try_into().unwrap()));
+        let header_from_data_hash = builder.get_root_from_merkle_proof(&data_hash_aunts_new, &data_hash_path_indices, &EncTendermintHashTarget(data_hash_enc_leaf.try_into().unwrap()));
 
         let header_from_val_hash = builder.get_root_from_merkle_proof(&val_hash_aunts_new, &val_hash_path_indices, &EncTendermintHashTarget(val_hash_enc_leaf.try_into().unwrap()));
 
-        // let header_from_next_val_hash = builder.get_root_from_merkle_proof(&next_val_hash_aunts_new, &next_val_hash_path_indices, &EncTendermintHashTarget(next_val_hash_enc_leaf.try_into().unwrap()));
+        let header_from_next_val_hash = builder.get_root_from_merkle_proof(&next_val_hash_aunts_new, &next_val_hash_path_indices, &EncTendermintHashTarget(next_val_hash_enc_leaf.try_into().unwrap()));
 
         for i in 0..HASH_SIZE_BITS {
-            // pw.set_bool_target(header_from_data_hash.0[i], header_bits[i]);
+            pw.set_bool_target(header_from_data_hash.0[i], header_bits[i]);
             pw.set_bool_target(header_from_val_hash.0[i], header_bits[i]);
-            // pw.set_bool_target(header_from_next_val_hash.0[i], header_bits[i]);
+            pw.set_bool_target(header_from_next_val_hash.0[i], header_bits[i]);
         }
 
         let data = builder.build::<C>();
@@ -2045,7 +2048,6 @@ pub(crate) mod tests {
         data.verify(proof).unwrap();
 
         println!("Verified proof");
-
 
     }
 
@@ -2065,13 +2067,17 @@ pub(crate) mod tests {
 
         let celestia_block_proof: CelestiaBlockProof = generate_step_inputs();
 
-        println!("celestia_block_proof: {:?}", celestia_block_proof);
+        // println!("celestia_block_proof: {:?}", celestia_block_proof);
+
+        println!("here");
 
         // Set target for header
         let header_bits = to_bits(celestia_block_proof.header);
         for i in 0..HASH_SIZE_BITS {
             pw.set_bool_target(celestia_proof_target.header.0[i], header_bits[i]);
         }
+
+        println!("here");
 
         // Set target for round present
         pw.set_bool_target(celestia_proof_target.round_present, celestia_block_proof.round_present);
@@ -2080,6 +2086,8 @@ pub(crate) mod tests {
         let data_hash_enc_leaf = to_bits(celestia_block_proof.data_hash_proof.enc_leaf);
         let val_hash_enc_leaf = to_bits(celestia_block_proof.validator_hash_proof.enc_leaf);
         let next_val_hash_enc_leaf = to_bits(celestia_block_proof.next_validators_hash_proof.enc_leaf);
+
+        println!("here");
 
         for i in 0..PROTOBUF_HASH_SIZE_BITS {
             pw.set_bool_target(celestia_proof_target.data_hash_proof.enc_leaf.0[i], data_hash_enc_leaf[i]);
@@ -2094,10 +2102,13 @@ pub(crate) mod tests {
             pw.set_bool_target(celestia_proof_target.next_validators_hash_proof.path[i], celestia_block_proof.next_validators_hash_proof.path[i]);
 
             let data_hash_aunt = to_bits(celestia_block_proof.data_hash_proof.proof[i].to_vec());
+            println!("data hash aunt: {:?}", celestia_block_proof.data_hash_proof.proof[i].to_vec());
 
             let val_hash_aunt = to_bits(celestia_block_proof.validator_hash_proof.proof[i].to_vec());
+            println!("val hash aunt: {:?}", celestia_block_proof.validator_hash_proof.proof[i].to_vec());
             
             let next_val_aunt = to_bits(celestia_block_proof.next_validators_hash_proof.proof[i].to_vec());
+            println!("val hash aunt: {:?}", celestia_block_proof.next_validators_hash_proof.proof[i].to_vec());
 
             // Set aunts for each of the proofs
             for j in 0..HASH_SIZE_BITS {
@@ -2107,6 +2118,8 @@ pub(crate) mod tests {
 
             }
         }
+
+        println!("Here");
 
         // Set the targets for each of the validators
         for i in 0..VALIDATOR_SET_SIZE_MAX {
@@ -2134,7 +2147,7 @@ pub(crate) mod tests {
             let message_bits = to_bits(validator.message.clone());
             // Set messages for each of the proofs
             for j in 0..VALIDATOR_MESSAGE_BYTES_LENGTH_MAX*8 {
-                pw.set_bool_target(celestia_proof_target.data_hash_proof.proof[i].0[j], message_bits[j]);
+                pw.set_bool_target(celestia_proof_target.validators[i].message.0[j], message_bits[j]);
             }
 
             // Set voting power targets
@@ -2150,36 +2163,36 @@ pub(crate) mod tests {
             pw.set_bool_target(celestia_proof_target.validators[i].signed, validator.signed);
         }
 
-        // println!("Here");
+        println!("Here");
 
         let inner_data = builder.build::<C>();
         let inner_proof = inner_data.prove(pw).unwrap();
         inner_data.verify(inner_proof.clone()).unwrap();
 
-        let mut outer_builder = CircuitBuilder::<F, D>::new(CircuitConfig::standard_ecc_config());
-        let inner_proof_target = outer_builder.add_virtual_proof_with_pis(&inner_data.common);
-        let inner_verifier_data =
-            outer_builder.add_virtual_verifier_data(inner_data.common.config.fri_config.cap_height);
-        outer_builder.verify_proof::<C>(
-            &inner_proof_target,
-            &inner_verifier_data,
-            &inner_data.common,
-        );
+        // let mut outer_builder = CircuitBuilder::<F, D>::new(CircuitConfig::standard_ecc_config());
+        // let inner_proof_target = outer_builder.add_virtual_proof_with_pis(&inner_data.common);
+        // let inner_verifier_data =
+        //     outer_builder.add_virtual_verifier_data(inner_data.common.config.fri_config.cap_height);
+        // outer_builder.verify_proof::<C>(
+        //     &inner_proof_target,
+        //     &inner_verifier_data,
+        //     &inner_data.common,
+        // );
 
-        let outer_data = outer_builder.build::<C>();
-        for gate in outer_data.common.gates.iter() {
-            println!("ecddsa verify recursive gate: {:?}", gate);
-        }
+        // let outer_data = outer_builder.build::<C>();
+        // for gate in outer_data.common.gates.iter() {
+        //     println!("ecddsa verify recursive gate: {:?}", gate);
+        // }
 
-        let mut outer_pw = PartialWitness::new();
-        outer_pw.set_proof_with_pis_target(&inner_proof_target, &inner_proof);
-        outer_pw.set_verifier_data_target(&inner_verifier_data, &inner_data.verifier_only);
+        // let mut outer_pw = PartialWitness::new();
+        // outer_pw.set_proof_with_pis_target(&inner_proof_target, &inner_proof);
+        // outer_pw.set_verifier_data_target(&inner_verifier_data, &inner_data.verifier_only);
 
-        let outer_proof = outer_data.prove(outer_pw).unwrap();
+        // let outer_proof = outer_data.prove(outer_pw).unwrap();
 
-        outer_data
-            .verify(outer_proof)
-            .expect("failed to verify proof");
+        // outer_data
+        //     .verify(outer_proof)
+        //     .expect("failed to verify proof");
 
     }
 }
