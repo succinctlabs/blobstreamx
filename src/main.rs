@@ -45,7 +45,7 @@ async fn main() {
                 .expect("Failed to get Celestia consensus signatures");
         }
         Function::GenerateStepInputs => {
-            let celestia_step_inputs = inputs::generate_step_inputs();
+            let _celestia_step_inputs = inputs::generate_step_inputs();
             // println!("celestia_step_inputs: {:?}", celestia_step_inputs);
         }
     }

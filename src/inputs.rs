@@ -1,20 +1,11 @@
 /// Source (tendermint-rs): https://github.com/informalsystems/tendermint-rs/blob/e930691a5639ef805c399743ac0ddbba0e9f53da/tendermint/src/merkle.rs#L32
 use crate::merkle::{generate_proofs_from_header, non_absent_vote, SignedBlock, TempSignedBlock};
-use crate::validator::VALIDATOR_SET_SIZE_MAX;
-use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
-use std::cell::RefCell;
-use std::rc::Rc;
-use subtle_encoding::hex;
-use tendermint::PublicKey;
 use tendermint::{
-    block::Header,
-    block::{Commit, CommitSig},
-    merkle::{Hash, MerkleHash},
-    validator::{Info, Set as ValidatorSet},
-    vote::{Power, SignedVote},
-    vote::{ValidatorIndex, Vote},
+    validator::Set as ValidatorSet,
+    vote::SignedVote,
+    vote::ValidatorIndex,
 };
+use subtle_encoding::hex;
 use tendermint::crypto::ed25519::VerificationKey;
 use tendermint::Signature;
 use tendermint_proto::Protobuf;
@@ -56,34 +47,12 @@ fn get_path_indices(index: u64, total: u64) -> Vec<bool> {
 
     let mut current_total = total;
     let mut current_index = index;
-    while (current_total >= 1) {
+    while current_total >= 1 {
         path_indices.push(current_index % 2 == 1);
         current_total = current_total / 2;
         current_index = current_index / 2;
     }
     path_indices
-}
-
-fn dummy_celestia_header() {
-    // Generate dummy header from signature, pubkey, message
-
-    let header = 
-
-    for i in 0..VALIDATOR_SET_SIZE_MAX {
-
-        const EXAMPLE_SECRET_CONN_KEY: &str = "F7FEB0B5BA0760B2C58893E329475D1EA81781DD636E37144B6D599AD38AA825";
-        let pub_key = PublicKey::from_raw_ed25519(&hex::decode_upper(EXAMPLE_SECRET_CONN_KEY).unwrap());
-        let voting_power = 10; 
-        
-    };
-
-    // Generate validators hash from validators
-
-    // Generate header from fields_bytes
-    
-    PublicKey::from_raw_ed25519(&[0u8; 32]).unwrap();
-    // Generate EDDSA public key
-
 }
 
 pub fn generate_step_inputs() -> CelestiaBlockProof {
@@ -133,6 +102,9 @@ pub fn generate_step_inputs() -> CelestiaBlockProof {
             );
             let sig = signed_vote.signature();
             let val_bytes = validator.hash_bytes();
+            println!("signed message: {:?}", String::from_utf8(hex::encode(signed_vote.sign_bytes())));
+            println!("pubkey: {:?}", String::from_utf8(hex::encode(validator.pub_key.ed25519().unwrap().as_bytes())));
+            println!("signature: {:?}", String::from_utf8(hex::encode(sig.as_bytes())));
             validators.push(Validator {
                 pubkey: validator.pub_key.ed25519().unwrap(),
                 signature: sig.clone(),
@@ -168,7 +140,7 @@ pub fn generate_step_inputs() -> CelestiaBlockProof {
     // Generate the merkle proofs for enc_next_validators_hash, enc_validators_hash, and enc_data_hash
     // These can be read into aunts_target for get_root_from_merkle_proof
 
-    let (root, proofs) = generate_proofs_from_header(&block.header);
+    let (_root, proofs) = generate_proofs_from_header(&block.header);
     let total = proofs[0].total;
     let enc_data_hash_proof = proofs[6].clone();
     let enc_data_hash_proof_indices = get_path_indices(6, total);

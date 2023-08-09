@@ -1,21 +1,19 @@
-use crate::merkle::{non_absent_vote, SignedBlock, TempSignedBlock};
+use crate::merkle::{SignedBlock, TempSignedBlock};
 use rand::Rng;
 use reqwest::Error;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use sha2::Sha256;
 use std::{fs::File, io::Write};
 use subtle_encoding::hex;
 use tendermint::{
     merkle::simple_hash_from_byte_vectors,
     validator::Set as ValidatorSet,
-    vote::{SignedVote, ValidatorIndex},
 };
 
 #[derive(Debug, Deserialize)]
 struct Response {
-    jsonrpc: String,
-    id: i32,
+    _jsonrpc: String,
+    _id: i32,
     result: TempSignedBlock,
 }
 
