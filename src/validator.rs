@@ -1020,8 +1020,8 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D>
         // );
         // self.connect(check_voting_power_bool.target, one);
 
-        // // TODO: Replace this with a loop over VALIDATORS_MAX_LEN
-        // for i in 0..validators.len() {
+        // TODO: Replace this with a loop over VALIDATORS_MAX_LEN
+        // for i in 0..VALIDATOR_SET_SIZE_MAX {
         //     // Verify the validator's signature
         //     // TODO: Handle dummies
         //     let message = validators[i].message.0.clone().to_vec();
@@ -1065,6 +1065,39 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D>
     }
 }
 
+fn create_virtual_bool_target_array<
+    F: RichField + Extendable<D>,
+    const D: usize
+>(
+    builder: &mut CircuitBuilder<F, D>,
+    size: usize,
+) -> Vec<BoolTarget> {
+    let mut result = Vec::new();
+    for _i in 0..size {
+        result.push(builder.add_virtual_bool_target_safe());
+    }
+    result
+}
+
+fn create_virtual_inclusion_proof_target<
+    F: RichField + Extendable<D>,
+    const D: usize
+>(
+    builder: &mut CircuitBuilder<F, D>,
+) -> InclusionProofTarget {
+    let mut proof = Vec::new();
+    for _i in 0..HEADER_PROOF_DEPTH {
+        proof.push(TendermintHashTarget(create_virtual_bool_target_array(builder, HASH_SIZE_BITS).try_into().unwrap()));
+    }
+    InclusionProofTarget {
+        enc_leaf: EncTendermintHashTarget(
+            create_virtual_bool_target_array(builder, PROTOBUF_HASH_SIZE_BITS).try_into().unwrap(),
+        ),
+        path: create_virtual_bool_target_array(builder, HEADER_PROOF_DEPTH),
+        proof,
+    }
+}
+
 pub fn make_step_circuit<
     F: RichField + Extendable<D>,
     const D: usize,
@@ -1085,9 +1118,9 @@ where
             r: builder.add_virtual_affine_point_target(),
             s: builder.add_virtual_nonnative_target(),
         };
-        let message =
-            [builder.add_virtual_bool_target_safe(); VALIDATOR_MESSAGE_BYTES_LENGTH_MAX * 8];
-        let message = ValidatorMessageTarget(message);
+        let message = create_virtual_bool_target_array(builder, VALIDATOR_MESSAGE_BYTES_LENGTH_MAX * 8);
+        let message = ValidatorMessageTarget(message.try_into().unwrap());
+
         let message_byte_length = builder.add_virtual_u32_target();
 
         let voting_power = I64Target([
@@ -1110,34 +1143,12 @@ where
         })
     }
 
-    let header = TendermintHashTarget([builder.add_virtual_bool_target_safe(); HASH_SIZE_BITS]);
-    let data_hash_proof = InclusionProofTarget {
-        enc_leaf: EncTendermintHashTarget(
-            [builder.add_virtual_bool_target_safe(); PROTOBUF_HASH_SIZE_BITS],
-        ),
-        path: [builder.add_virtual_bool_target_safe(); HEADER_PROOF_DEPTH].to_vec(),
-        proof: [TendermintHashTarget([builder.add_virtual_bool_target_safe(); HASH_SIZE_BITS]);
-            HEADER_PROOF_DEPTH]
-            .to_vec(),
-    };
-    let validator_hash_proof = InclusionProofTarget {
-        enc_leaf: EncTendermintHashTarget(
-            [builder.add_virtual_bool_target_safe(); PROTOBUF_HASH_SIZE_BITS],
-        ),
-        path: [builder.add_virtual_bool_target_safe(); HEADER_PROOF_DEPTH].to_vec(),
-        proof: [TendermintHashTarget([builder.add_virtual_bool_target_safe(); HASH_SIZE_BITS]);
-            HEADER_PROOF_DEPTH]
-            .to_vec(),
-    };
-    let next_validators_hash_proof = InclusionProofTarget {
-        enc_leaf: EncTendermintHashTarget(
-            [builder.add_virtual_bool_target_safe(); PROTOBUF_HASH_SIZE_BITS],
-        ),
-        path: [builder.add_virtual_bool_target_safe(); HEADER_PROOF_DEPTH].to_vec(),
-        proof: [TendermintHashTarget([builder.add_virtual_bool_target_safe(); HASH_SIZE_BITS]);
-            HEADER_PROOF_DEPTH]
-            .to_vec(),
-    };
+    let header = create_virtual_bool_target_array(builder, HASH_SIZE_BITS);
+    let header = TendermintHashTarget(header.try_into().unwrap());
+
+    let data_hash_proof = create_virtual_inclusion_proof_target(builder);
+    let validator_hash_proof = create_virtual_inclusion_proof_target(builder);
+    let next_validators_hash_proof = create_virtual_inclusion_proof_target(builder);
 
     let round_present = builder.add_virtual_bool_target_safe();
 
@@ -1996,13 +2007,10 @@ pub(crate) mod tests {
             next_val_hash_path_indices.push(builder.constant_bool(celestia_block_proof.next_validators_hash_proof.path[i]));
 
             let data_hash_aunt_bits = to_bits(celestia_block_proof.data_hash_proof.proof[i].to_vec());
-            println!("data hash aunt: {:?}", celestia_block_proof.data_hash_proof.proof[i].to_vec());
 
             let val_hash_aunt_bits = to_bits(celestia_block_proof.validator_hash_proof.proof[i].to_vec());
-            println!("val hash aunt bits: {:?}", celestia_block_proof.validator_hash_proof.proof[i].to_vec());
             
             let next_val_aunt_bits = to_bits(celestia_block_proof.next_validators_hash_proof.proof[i].to_vec());
-            println!("next val hash aunt bits: {:?}", celestia_block_proof.next_validators_hash_proof.proof[i].to_vec());
 
             data_hash_aunts.push(Vec::new());
             val_hash_aunts.push(Vec::new());
@@ -2067,17 +2075,11 @@ pub(crate) mod tests {
 
         let celestia_block_proof: CelestiaBlockProof = generate_step_inputs();
 
-        // println!("celestia_block_proof: {:?}", celestia_block_proof);
-
-        println!("here");
-
         // Set target for header
         let header_bits = to_bits(celestia_block_proof.header);
         for i in 0..HASH_SIZE_BITS {
             pw.set_bool_target(celestia_proof_target.header.0[i], header_bits[i]);
         }
-
-        println!("here");
 
         // Set target for round present
         pw.set_bool_target(celestia_proof_target.round_present, celestia_block_proof.round_present);
@@ -2086,8 +2088,6 @@ pub(crate) mod tests {
         let data_hash_enc_leaf = to_bits(celestia_block_proof.data_hash_proof.enc_leaf);
         let val_hash_enc_leaf = to_bits(celestia_block_proof.validator_hash_proof.enc_leaf);
         let next_val_hash_enc_leaf = to_bits(celestia_block_proof.next_validators_hash_proof.enc_leaf);
-
-        println!("here");
 
         for i in 0..PROTOBUF_HASH_SIZE_BITS {
             pw.set_bool_target(celestia_proof_target.data_hash_proof.enc_leaf.0[i], data_hash_enc_leaf[i]);
@@ -2102,13 +2102,10 @@ pub(crate) mod tests {
             pw.set_bool_target(celestia_proof_target.next_validators_hash_proof.path[i], celestia_block_proof.next_validators_hash_proof.path[i]);
 
             let data_hash_aunt = to_bits(celestia_block_proof.data_hash_proof.proof[i].to_vec());
-            println!("data hash aunt: {:?}", celestia_block_proof.data_hash_proof.proof[i].to_vec());
 
             let val_hash_aunt = to_bits(celestia_block_proof.validator_hash_proof.proof[i].to_vec());
-            println!("val hash aunt: {:?}", celestia_block_proof.validator_hash_proof.proof[i].to_vec());
             
             let next_val_aunt = to_bits(celestia_block_proof.next_validators_hash_proof.proof[i].to_vec());
-            println!("val hash aunt: {:?}", celestia_block_proof.next_validators_hash_proof.proof[i].to_vec());
 
             // Set aunts for each of the proofs
             for j in 0..HASH_SIZE_BITS {
@@ -2118,8 +2115,6 @@ pub(crate) mod tests {
 
             }
         }
-
-        println!("Here");
 
         // Set the targets for each of the validators
         for i in 0..VALIDATOR_SET_SIZE_MAX {
@@ -2163,36 +2158,34 @@ pub(crate) mod tests {
             pw.set_bool_target(celestia_proof_target.validators[i].signed, validator.signed);
         }
 
-        println!("Here");
-
         let inner_data = builder.build::<C>();
         let inner_proof = inner_data.prove(pw).unwrap();
         inner_data.verify(inner_proof.clone()).unwrap();
 
-        // let mut outer_builder = CircuitBuilder::<F, D>::new(CircuitConfig::standard_ecc_config());
-        // let inner_proof_target = outer_builder.add_virtual_proof_with_pis(&inner_data.common);
-        // let inner_verifier_data =
-        //     outer_builder.add_virtual_verifier_data(inner_data.common.config.fri_config.cap_height);
-        // outer_builder.verify_proof::<C>(
-        //     &inner_proof_target,
-        //     &inner_verifier_data,
-        //     &inner_data.common,
-        // );
+        let mut outer_builder = CircuitBuilder::<F, D>::new(CircuitConfig::standard_ecc_config());
+        let inner_proof_target = outer_builder.add_virtual_proof_with_pis(&inner_data.common);
+        let inner_verifier_data =
+            outer_builder.add_virtual_verifier_data(inner_data.common.config.fri_config.cap_height);
+        outer_builder.verify_proof::<C>(
+            &inner_proof_target,
+            &inner_verifier_data,
+            &inner_data.common,
+        );
 
-        // let outer_data = outer_builder.build::<C>();
-        // for gate in outer_data.common.gates.iter() {
-        //     println!("ecddsa verify recursive gate: {:?}", gate);
-        // }
+        let outer_data = outer_builder.build::<C>();
+        for gate in outer_data.common.gates.iter() {
+            println!("ecddsa verify recursive gate: {:?}", gate);
+        }
 
-        // let mut outer_pw = PartialWitness::new();
-        // outer_pw.set_proof_with_pis_target(&inner_proof_target, &inner_proof);
-        // outer_pw.set_verifier_data_target(&inner_verifier_data, &inner_data.verifier_only);
+        let mut outer_pw = PartialWitness::new();
+        outer_pw.set_proof_with_pis_target(&inner_proof_target, &inner_proof);
+        outer_pw.set_verifier_data_target(&inner_verifier_data, &inner_data.verifier_only);
 
-        // let outer_proof = outer_data.prove(outer_pw).unwrap();
+        let outer_proof = outer_data.prove(outer_pw).unwrap();
 
-        // outer_data
-        //     .verify(outer_proof)
-        //     .expect("failed to verify proof");
+        outer_data
+            .verify(outer_proof)
+            .expect("failed to verify proof");
 
     }
 }
