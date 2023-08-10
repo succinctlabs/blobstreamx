@@ -517,11 +517,11 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D>
         // Flip the bit order.
         let mut temp_buffer = [self._false(); VALIDATOR_BYTE_LENGTH_MAX * 8];
         let mut temp_ptr = 0;
-        for (byte_num, bits) in buffer
+        for (_, bits) in buffer
             .chunks_mut(8)
             .enumerate()
         {
-            for (bit_num, bit) in bits.iter().enumerate() {
+            for (bit_num, _) in bits.iter().enumerate() {
                 temp_buffer[temp_ptr] = bits[7 - bit_num];
                 temp_ptr += 1;
             }
@@ -1039,64 +1039,64 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D>
             );
         }
 
-        // let total_voting_power = self.get_total_voting_power(&validator_voting_power);
-        // let threshold_numerator = self.constant_u32(2);
-        // let threshold_denominator = self.constant_u32(3);
+        let total_voting_power = self.get_total_voting_power(&validator_voting_power);
+        let threshold_numerator = self.constant_u32(2);
+        let threshold_denominator = self.constant_u32(3);
 
-        // // Assert the accumulated voting power is greater than the threshold
-        // let check_voting_power_bool = self.check_voting_power(
-        //     &validator_voting_power,
-        //     &validators_enabled_u32,
-        //     &total_voting_power,
-        //     &threshold_numerator,
-        //     &threshold_denominator,
-        // );
-        // self.connect(check_voting_power_bool.target, one);
+        // Assert the accumulated voting power is greater than the threshold
+        let check_voting_power_bool = self.check_voting_power(
+            &validator_voting_power,
+            &validators_enabled_u32,
+            &total_voting_power,
+            &threshold_numerator,
+            &threshold_denominator,
+        );
+        self.connect(check_voting_power_bool.target, one);
 
-        // // TODO: Handle dummies
-        // self.verify_signatures::<E, C>(
-        //     messages,
-        //     signatures,
-        //     pubkeys,
-        // );
+        // TODO: Handle dummies
+        self.verify_signatures::<E, C>(
+            messages,
+            signatures,
+            pubkeys,
+        );
 
-        // // TODO: Verify that this will work with dummy signatures
-        // for i in 0..VALIDATOR_SET_SIZE_MAX {
-        //     // Verify that the header is in the message in the correct location
-        //     self.verify_hash_in_message(&validators[i].message, header, round_present);
-        // }
+        // TODO: Verify that this will work with dummy signatures
+        for i in 0..VALIDATOR_SET_SIZE_MAX {
+            // Verify that the header is in the message in the correct location
+            self.verify_hash_in_message(&validators[i].message, header, round_present);
+        }
 
-        // let header_from_data_root_proof = self.get_root_from_merkle_proof(
-        //     &data_hash_proof.proof,
-        //     &data_hash_proof.path,
-        //     &data_hash_proof.enc_leaf,
-        // );
-        // let header_from_validator_root_proof = self.get_root_from_merkle_proof(
-        //     &validator_hash_proof.proof,
-        //     &validator_hash_proof.path,
-        //     &validator_hash_proof.enc_leaf,
-        // );
-        // let header_from_next_validators_root_proof = self.get_root_from_merkle_proof(
-        //     &next_validators_hash_proof.proof,
-        //     &next_validators_hash_proof.path,
-        //     &next_validators_hash_proof.enc_leaf,
-        // );
+        let header_from_data_root_proof = self.get_root_from_merkle_proof(
+            &data_hash_proof.proof,
+            &data_hash_proof.path,
+            &data_hash_proof.enc_leaf,
+        );
+        let header_from_validator_root_proof = self.get_root_from_merkle_proof(
+            &validator_hash_proof.proof,
+            &validator_hash_proof.path,
+            &validator_hash_proof.enc_leaf,
+        );
+        let header_from_next_validators_root_proof = self.get_root_from_merkle_proof(
+            &next_validators_hash_proof.proof,
+            &next_validators_hash_proof.path,
+            &next_validators_hash_proof.enc_leaf,
+        );
 
-        // // Confirm that the header from the proof of {validator_hash, next_validators_hash, data_hash} all match the header
-        // for i in 0..HASH_SIZE_BITS {
-        //     self.connect(
-        //         header.0[i].target,
-        //         header_from_data_root_proof.0[i].target,
-        //     );
-        //     self.connect(
-        //         header.0[i].target,
-        //         header_from_validator_root_proof.0[i].target,
-        //     );
-        //     self.connect(
-        //         header.0[i].target,
-        //         header_from_next_validators_root_proof.0[i].target,
-        //     );
-        // }
+        // Confirm that the header from the proof of {validator_hash, next_validators_hash, data_hash} all match the header
+        for i in 0..HASH_SIZE_BITS {
+            self.connect(
+                header.0[i].target,
+                header_from_data_root_proof.0[i].target,
+            );
+            self.connect(
+                header.0[i].target,
+                header_from_validator_root_proof.0[i].target,
+            );
+            self.connect(
+                header.0[i].target,
+                header_from_next_validators_root_proof.0[i].target,
+            );
+        }
     }
 }
 
@@ -1234,7 +1234,6 @@ pub(crate) mod tests {
     use plonky2x::ecc::ed25519::field::ed25519_scalar::Ed25519Scalar;
     use sha2::Sha256;
     use tendermint_proto::Protobuf;
-    use crate::utils::bytes_to_le_f_bits;
 
     use crate::inputs::{generate_step_inputs, CelestiaBlockProof};
     use crate::validator::{VALIDATOR_BIT_LENGTH_MAX, VALIDATOR_SET_SIZE_MAX};
@@ -1869,7 +1868,7 @@ pub(crate) mod tests {
         let pubkey = "de25aec935b10f657b43fa97e5a8d4e523bdb0f9972605f0b064eff7b17048ba";
         let expected_marshal = "0a220a20de25aec935b10f657b43fa97e5a8d4e523bdb0f9972605f0b064eff7b17048ba10aa8d06";
 
-        let mut pw = PartialWitness::new();
+        let pw = PartialWitness::new();
         let config = CircuitConfig::standard_ecc_config();
         let mut builder = CircuitBuilder::<F, D>::new(config);
 
@@ -1906,7 +1905,7 @@ pub(crate) mod tests {
         println!("result: {:?}", result.0[32..(32+256)].to_vec());
         
         // let mut expected_bits: Vec<F> = bytes_to_le_f_bits(&hex::decode(expected_marshal).unwrap().to_vec());
-        let mut expected_bits = to_be_bits(hex::decode(expected_marshal).unwrap().to_vec());
+        let expected_bits = to_be_bits(hex::decode(expected_marshal).unwrap().to_vec());
 
         // Only check the hash bits
         for i in 0..result.0.len() {
