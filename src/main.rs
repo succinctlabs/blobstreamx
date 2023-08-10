@@ -1,6 +1,6 @@
+pub mod fixtures;
 pub mod inputs;
 pub mod merkle;
-pub mod fixtures;
 pub mod utils;
 pub mod validator;
 

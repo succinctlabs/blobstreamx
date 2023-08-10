@@ -5,10 +5,7 @@ use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 use std::{fs::File, io::Write};
 use subtle_encoding::hex;
-use tendermint::{
-    merkle::simple_hash_from_byte_vectors,
-    validator::Set as ValidatorSet,
-};
+use tendermint::{merkle::simple_hash_from_byte_vectors, validator::Set as ValidatorSet};
 
 #[derive(Debug, Deserialize)]
 struct Response {
@@ -60,7 +57,8 @@ pub async fn get_celestia_consensus_signatures() -> Result<(), Error> {
     // Read from https://rpc-t.celestia.nodestake.top/signed_block?height=131950 using
     // Serves latest block
     let height = 11000;
-    let mut url = "http://rpc.testnet.celestia.citizencosmos.space/signed_block?height=".to_string();
+    let mut url =
+        "http://rpc.testnet.celestia.citizencosmos.space/signed_block?height=".to_string();
     url.push_str(height.to_string().as_str());
 
     // Send a GET request and wait for the response

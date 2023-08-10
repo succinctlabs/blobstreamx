@@ -1,13 +1,9 @@
 /// Source (tendermint-rs): https://github.com/informalsystems/tendermint-rs/blob/e930691a5639ef805c399743ac0ddbba0e9f53da/tendermint/src/merkle.rs#L32
 use crate::merkle::{generate_proofs_from_header, non_absent_vote, SignedBlock, TempSignedBlock};
-use tendermint::{
-    validator::Set as ValidatorSet,
-    vote::SignedVote,
-    vote::ValidatorIndex,
-};
 use subtle_encoding::hex;
 use tendermint::crypto::ed25519::VerificationKey;
 use tendermint::Signature;
+use tendermint::{validator::Set as ValidatorSet, vote::SignedVote, vote::ValidatorIndex};
 use tendermint_proto::Protobuf;
 
 #[derive(Debug, Clone)]
@@ -58,10 +54,8 @@ fn get_path_indices(index: u64, total: u64) -> Vec<bool> {
 pub fn generate_step_inputs() -> CelestiaBlockProof {
     // Generate test cases from Celestia block:
     let temp_block = Box::new(TempSignedBlock::from(
-        serde_json::from_str::<TempSignedBlock>(include_str!(
-            "./fixtures/11000/signed_block.json"
-        ))
-        .unwrap(),
+        serde_json::from_str::<TempSignedBlock>(include_str!("./fixtures/11000/signed_block.json"))
+            .unwrap(),
     ));
 
     // Cast to SignedBlock
@@ -75,7 +69,10 @@ pub fn generate_step_inputs() -> CelestiaBlockProof {
         ),
     });
 
-    println!("header hash: {:?}", String::from_utf8(hex::encode(block.header.hash().as_bytes())));
+    println!(
+        "header hash: {:?}",
+        String::from_utf8(hex::encode(block.header.hash().as_bytes()))
+    );
 
     let mut validators = Vec::new();
 
@@ -91,22 +88,24 @@ pub fn generate_step_inputs() -> CelestiaBlockProof {
             },
         );
         if block.commit.signatures[i].is_commit() {
-            let vote = non_absent_vote(
-                &block.commit.signatures[i],
-                val_idx,
-                &block.commit,
-            )
-            .unwrap();
-            
+            let vote =
+                non_absent_vote(&block.commit.signatures[i], val_idx, &block.commit).unwrap();
+
             let signed_vote = Box::new(
                 SignedVote::from_vote(vote.clone(), block.header.chain_id.clone())
                     .expect("missing signature"),
             );
             let sig = signed_vote.signature();
             let val_bytes = validator.hash_bytes();
-            println!("pubkey: {:?}", String::from_utf8(hex::encode(validator.pub_key.ed25519().unwrap().as_bytes())));
+            println!(
+                "pubkey: {:?}",
+                String::from_utf8(hex::encode(validator.pub_key.ed25519().unwrap().as_bytes()))
+            );
             println!("voting_power: {:?}", validator.power());
-            println!("val_bytes: {:?}", String::from_utf8(hex::encode(&val_bytes)));
+            println!(
+                "val_bytes: {:?}",
+                String::from_utf8(hex::encode(&val_bytes))
+            );
             println!("val_bytes len: {:?}", val_bytes.len());
 
             validators.push(Validator {
@@ -169,7 +168,12 @@ pub fn generate_step_inputs() -> CelestiaBlockProof {
         proof: enc_next_validators_hash_proof.aunts,
     };
 
-    CelestiaBlockProof { validators, header: header_hash.into(), data_hash_proof, validator_hash_proof: validators_hash_proof, next_validators_hash_proof, round_present: false }
-
-
+    CelestiaBlockProof {
+        validators,
+        header: header_hash.into(),
+        data_hash_proof,
+        validator_hash_proof: validators_hash_proof,
+        next_validators_hash_proof,
+        round_present: false,
+    }
 }
