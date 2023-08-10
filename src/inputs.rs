@@ -104,7 +104,10 @@ pub fn generate_step_inputs() -> CelestiaBlockProof {
             );
             let sig = signed_vote.signature();
             let val_bytes = validator.hash_bytes();
+            println!("pubkey: {:?}", String::from_utf8(hex::encode(validator.pub_key.ed25519().unwrap().as_bytes())));
+            println!("voting_power: {:?}", validator.power());
             println!("val_bytes: {:?}", String::from_utf8(hex::encode(&val_bytes)));
+            println!("val_bytes len: {:?}", val_bytes.len());
 
             validators.push(Validator {
                 pubkey: validator.pub_key.ed25519().unwrap(),

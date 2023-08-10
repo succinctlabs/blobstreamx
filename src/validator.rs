@@ -14,7 +14,7 @@ use plonky2::plonk::config::GenericConfig;
 use plonky2::{hash::hash_types::RichField, plonk::circuit_builder::CircuitBuilder};
 use plonky2x::ecc::ed25519::curve::curve_types::Curve;
 use plonky2x::ecc::ed25519::curve::ed25519::Ed25519;
-use plonky2x::ecc::ed25519::gadgets::curve::CircuitBuilderCurve;
+use plonky2x::ecc::ed25519::gadgets::curve::{AffinePointTarget, CircuitBuilderCurve};
 use plonky2x::ecc::ed25519::gadgets::eddsa::{
     verify_signatures_circuit, EDDSAPublicKeyTarget, EDDSASignatureTarget,
 };
@@ -140,7 +140,7 @@ pub trait TendermintMarshaller<F: RichField + Extendable<D>, const D: usize> {
     /// Serializes the validator public key and voting power to bytes.
     fn marshal_tendermint_validator(
         &mut self,
-        pubkey: &EDDSAPublicKeyTarget<Self::Curve>,
+        pubkey: &AffinePointTarget<Self::Curve>,
         voting_power: &I64Target,
     ) -> MarshalledValidatorTarget;
 
@@ -469,7 +469,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D>
 
     fn marshal_tendermint_validator(
         &mut self,
-        pubkey: &EDDSAPublicKeyTarget<Self::Curve>,
+        pubkey: &AffinePointTarget<Self::Curve>,
         voting_power: &I64Target,
     ) -> MarshalledValidatorTarget {
         let mut ptr = 0;
@@ -485,7 +485,12 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D>
             }
         }
 
-        let compressed_point = self.compress_point(&pubkey.0);
+        self.curve_assert_valid(pubkey);
+
+        let mut compressed_point = self.compress_point(pubkey);
+
+        // Reverse to le bytes and le bits
+        compressed_point.bit_targets.reverse();
 
         for i in 0..compressed_point.bit_targets.len() {
             buffer[ptr] = compressed_point.bit_targets[i];
@@ -988,7 +993,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D>
             validators.iter().map(|v| v.validator_byte_length).collect();
         let marshalled_validators: Vec<MarshalledValidatorTarget> = validators
             .iter()
-            .map(|v| self.marshal_tendermint_validator(&v.pubkey, &v.voting_power))
+            .map(|v| self.marshal_tendermint_validator(&v.pubkey.0, &v.voting_power))
             .collect();
         let validators_enabled: Vec<BoolTarget> = validators.iter().map(|v| v.enabled).collect();
         let validators_enabled_u32: Vec<U32Target> = validators_enabled
@@ -1216,6 +1221,7 @@ pub(crate) mod tests {
     use plonky2x::ecc::ed25519::field::ed25519_scalar::Ed25519Scalar;
     use sha2::Sha256;
     use tendermint_proto::Protobuf;
+    use crate::utils::bytes_to_le_f_bits;
 
     use crate::inputs::{generate_step_inputs, CelestiaBlockProof};
     use crate::validator::{VALIDATOR_BIT_LENGTH_MAX, VALIDATOR_SET_SIZE_MAX};
@@ -1236,12 +1242,27 @@ pub(crate) mod tests {
     type Curve = Ed25519;
     const D: usize = 2;
 
-    fn to_bits(msg: Vec<u8>) -> Vec<bool> {
+    fn to_be_bits(msg: Vec<u8>) -> Vec<bool> {
         let mut res = Vec::new();
         for i in 0..msg.len() {
             let char = msg[i];
             for j in 0..8 {
                 if (char & (1 << 7 - j)) != 0 {
+                    res.push(true);
+                } else {
+                    res.push(false);
+                }
+            }
+        }
+        res
+    }
+
+    fn to_le_bits(msg: Vec<u8>) -> Vec<bool> {
+        let mut res = Vec::new();
+        for i in 0..msg.len() {
+            let char = msg[i];
+            for j in 0..8 {
+                if (char & (1 << j)) != 0 {
                     res.push(true);
                 } else {
                     res.push(false);
@@ -1279,7 +1300,7 @@ pub(crate) mod tests {
         // Convert the hex strings to bytes.
         for i in 0..validators.len() {
             let val_byte_length = validators[i].len() / 2;
-            validator_bits[i] = to_bits(hex::decode(validators[i]).unwrap());
+            validator_bits[i] = to_be_bits(hex::decode(validators[i]).unwrap());
             for j in 0..(val_byte_length * 8) {
                 if validator_bits[i][j] {
                     validators_target[i].0[j] = builder._true();
@@ -1303,12 +1324,12 @@ pub(crate) mod tests {
             .unwrap(),
         );
 
-        let encoded_validators_hash_bits = to_bits(block.header.validators_hash.encode_vec());
+        let encoded_validators_hash_bits = to_be_bits(block.header.validators_hash.encode_vec());
         // Note: Make sure to encode_vec()
         let validators_leaf_hash =
             leaf_hash::<Sha256>(&block.header.validators_hash.encode_vec()).to_vec();
 
-        let validators_hash_bits = to_bits(validators_leaf_hash);
+        let validators_hash_bits = to_be_bits(validators_leaf_hash);
 
         let mut pw = PartialWitness::new();
         let config = CircuitConfig::standard_recursion_config();
@@ -1353,7 +1374,7 @@ pub(crate) mod tests {
         );
 
         let header_hash = block.header.hash().to_string();
-        let header_bits = to_bits(hex::decode(header_hash.to_lowercase()).unwrap());
+        let header_bits = to_be_bits(hex::decode(header_hash.to_lowercase()).unwrap());
 
         let mut pw = PartialWitness::new();
         let config = CircuitConfig::standard_recursion_config();
@@ -1375,7 +1396,7 @@ pub(crate) mod tests {
             "encoded leaf: {:?}",
             String::from_utf8(hex::encode(leaf.clone()))
         );
-        let leaf_bits = to_bits(leaf);
+        let leaf_bits = to_be_bits(leaf);
 
         let mut path_indices = vec![];
 
@@ -1401,7 +1422,7 @@ pub(crate) mod tests {
             proofs[leaf_index].aunts.len()
         ];
         for i in 0..proofs[leaf_index].aunts.len() {
-            let bool_vector = to_bits(proofs[leaf_index].aunts[i].to_vec());
+            let bool_vector = to_be_bits(proofs[leaf_index].aunts[i].to_vec());
 
             for j in 0..HASH_SIZE_BITS {
                 aunts_target[i].0[j] = if bool_vector[j] {
@@ -1444,7 +1465,7 @@ pub(crate) mod tests {
 
         // Computed the leaf hashes corresponding to the first validator bytes. SHA256(0x00 || validatorBytes)
         let expected_digest = "84f633a570a987326947aafd434ae37f151e98d5e6d429137a4cc378d4a7988e";
-        let digest_bits = to_bits(hex::decode(expected_digest).unwrap());
+        let digest_bits = to_be_bits(hex::decode(expected_digest).unwrap());
 
         let validators: Vec<&str> = vec![
             "de6ad0941095ada2a7996e6a888581928203b8b69e07ee254d289f5b9c9caea193c2ab01902d",
@@ -1498,7 +1519,7 @@ pub(crate) mod tests {
         // Convert the expected hashes bytes to bits.
         let digests_bits: Vec<Vec<bool>> = expected_digests
             .iter()
-            .map(|x| to_bits(hex::decode(x).unwrap()))
+            .map(|x| to_be_bits(hex::decode(x).unwrap()))
             .collect();
 
         let (validators_target, validator_byte_length, _) =
@@ -1537,10 +1558,10 @@ pub(crate) mod tests {
             generate_inputs(&mut builder, &validators);
         
         let validator_hash_enc_leaf = "0a20bb5b8b1239565451dcd5ab52b47c26032016cdf1ef2d2115ff104dc9dde3988c";
-        let enc_leaf_bits = to_bits(hex::decode(validator_hash_enc_leaf.to_lowercase().as_bytes()).unwrap());
+        let enc_leaf_bits = to_be_bits(hex::decode(validator_hash_enc_leaf.to_lowercase().as_bytes()).unwrap());
 
         let expected_digest = String::from("BB5B8B1239565451DCD5AB52B47C26032016CDF1EF2D2115FF104DC9DDE3988C").to_lowercase();
-        let digest_bits = to_bits(hex::decode(expected_digest.as_bytes()).unwrap());
+        let digest_bits = to_be_bits(hex::decode(expected_digest.as_bytes()).unwrap());
 
         println!(
             "Expected Val Hash: {:?}", String::from_utf8(hex::encode(hex::decode(expected_digest.as_bytes()).unwrap()))
@@ -1588,7 +1609,7 @@ pub(crate) mod tests {
             generate_inputs(&mut builder, &validators);
 
         let expected_digest = "be110ff9abb6bdeaebf48ac8e179a76fda1f6eaef0150ca6159587f489722204";
-        let digest_bits = to_bits(hex::decode(expected_digest).unwrap());
+        let digest_bits = to_be_bits(hex::decode(expected_digest).unwrap());
 
         println!(
             "Expected Val Hash Encoding (Bytes): {:?}",
@@ -1709,10 +1730,10 @@ pub(crate) mod tests {
         // No round exists in present the message that was signed above
 
         let header_hash = "8909e1b73b7d987e95a7541d96ed484c17a4b0411e98ee4b7c890ad21302ff8c";
-        let header_bits = to_bits(hex::decode(header_hash).unwrap());
+        let header_bits = to_be_bits(hex::decode(header_hash).unwrap());
 
         let signed_message = "6b080211de3202000000000022480a208909e1b73b7d987e95a7541d96ed484c17a4b0411e98ee4b7c890ad21302ff8c12240801122061263df4855e55fcab7aab0a53ee32cf4f29a1101b56de4a9d249d44e4cf96282a0b089dce84a60610ebb7a81932076d6f6368612d33";
-        let signed_message_bits = to_bits(hex::decode(signed_message).unwrap());
+        let signed_message_bits = to_be_bits(hex::decode(signed_message).unwrap());
 
         let mut pw = PartialWitness::new();
         let config = CircuitConfig::standard_recursion_config();
@@ -1831,15 +1852,12 @@ pub(crate) mod tests {
         // fmt.Println(minValidator.Bytes())
         //
         // The tuples hold the form: (voting_power_i64, voting_power_varint_bytes).
-        let voting_power_i64 = 724325643436111i64;
-        let pubkey = [0u8; 32];
-        let expected_marshal = [
-            10u8, 34, 10, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 16, 207, 128, 183, 165, 211, 216, 164, 1,
-        ];
+        let voting_power_i64 = 100010 as i64;
+        let pubkey = "de25aec935b10f657b43fa97e5a8d4e523bdb0f9972605f0b064eff7b17048ba";
+        let expected_marshal = "0a220a20de25aec935b10f657b43fa97e5a8d4e523bdb0f9972605f0b064eff7b17048ba10aa8d06";
 
         let mut pw = PartialWitness::new();
-        let config = CircuitConfig::standard_recursion_config();
+        let config = CircuitConfig::standard_ecc_config();
         let mut builder = CircuitBuilder::<F, D>::new(config);
 
         let voting_power_lower = voting_power_i64 & ((1 << 32) - 1);
@@ -1851,43 +1869,53 @@ pub(crate) mod tests {
             U32Target(builder.constant(F::from_canonical_usize(voting_power_upper as usize)));
         let voting_power_target = I64Target([voting_power_lower_target, voting_power_upper_target]);
 
-        let virtual_affine_point_target = builder.add_virtual_affine_point_target();
+        // let virtual_affine_point_target = builder.add_virtual_affine_point_target();
 
         let pub_key_uncompressed: AffinePoint<Curve> =
-            AffinePoint::new_from_compressed_point(&pubkey);
+            AffinePoint::new_from_compressed_point(&hex::decode(pubkey).unwrap());
+        
+        let pub_key_affine_t = builder.constant_affine_point(pub_key_uncompressed);
 
-        let eddsa_pub_key_target = EDDSAPublicKeyTarget(virtual_affine_point_target);
+        // Correct encoding (LE from pub_key)
+        let pub_key = pub_key_uncompressed.compress_point();
+        // Convert pub_key to bytes from biguint
+        let pub_key_bytes = pub_key.to_bytes_le();
 
-        pw.set_affine_point_target::<Curve>(&eddsa_pub_key_target.0, &pub_key_uncompressed);
+        println!("pub_key: {:?}", pub_key_bytes);
+        println!("expected marshal: {:?}", hex::decode(expected_marshal));
+
+
+        // pw.set_affine_point_target::<Curve>(&eddsa_pub_key_target.0, &pub_key_uncompressed);
 
         let result =
-            builder.marshal_tendermint_validator(&eddsa_pub_key_target, &voting_power_target);
+            builder.marshal_tendermint_validator(&pub_key_affine_t, &voting_power_target);
+        
+        println!("result: {:?}", result.0[32..(32+256)].to_vec());
+        
+        // let mut expected_bits: Vec<F> = bytes_to_le_f_bits(&hex::decode(expected_marshal).unwrap().to_vec());
+        let mut expected_bits = to_le_bits(hex::decode(expected_marshal).unwrap().to_vec());
+        // expected_bits.reverse();
 
+        // Only check the hash bits
         for i in 0..result.0.len() {
-            builder.register_public_input(result.0[i].target);
+            if i < expected_bits.len() {
+                let expected_bit_t = builder.constant_bool(expected_bits[i]);
+                builder.connect(result.0[i].target, expected_bit_t.target);
+            }
+            else {
+                let expected_bit_t = builder.constant_bool(false);
+                builder.connect(result.0[i].target, expected_bit_t.target);
+            }
         }
 
         let data = builder.build::<C>();
         let proof = data.prove(pw).unwrap();
 
-        let marshalled_bytes = f_bits_to_bytes(&proof.public_inputs);
-        let expected_bytes = expected_marshal;
+        println!("Created proof");
 
-        println!("Voting Power: {:?}", voting_power_i64);
-        println!("Public Key: {:?}", pubkey);
-        println!("Expected Validator Encoding (Bytes): {:?}", expected_bytes);
-        println!(
-            "Produced Validator Encoding (Bytes): {:?}",
-            marshalled_bytes
-        );
+        data.verify(proof).unwrap();
 
-        for i in 0..marshalled_bytes.len() {
-            if i >= expected_bytes.len() {
-                assert_eq!(marshalled_bytes[i], 0);
-                continue;
-            }
-            assert_eq!(marshalled_bytes[i], expected_bytes[i]);
-        }
+        println!("Verified proof");
     }
 
     #[test]
@@ -1910,7 +1938,7 @@ pub(crate) mod tests {
         let mut pw = PartialWitness::new();
         let mut builder = CircuitBuilder::<F, D>::new(CircuitConfig::standard_ecc_config());
 
-        let msg_bits = to_bits(msg_bytes.to_vec());
+        let msg_bits = to_be_bits(msg_bytes.to_vec());
         let mut msg_bits_target = Vec::new();
         for i in 0..msg_bits.len() {
             msg_bits_target.push(builder.constant_bool(msg_bits[i]));
@@ -1992,7 +2020,7 @@ pub(crate) mod tests {
 
         let celestia_block_proof: CelestiaBlockProof = generate_step_inputs();
 
-        let header_bits = to_bits(celestia_block_proof.header);
+        let header_bits = to_be_bits(celestia_block_proof.header);
         // println!("header bits: {:?}", header_bits);
 
         let mut data_hash_aunts = Vec::new();
@@ -2008,9 +2036,9 @@ pub(crate) mod tests {
         let mut next_val_hash_path_indices = Vec::new();
 
         // Set the encoded leaf for each of the proofs
-        let data_hash_enc_leaf_bits = to_bits(celestia_block_proof.data_hash_proof.enc_leaf);
-        let val_hash_enc_leaf_bits = to_bits(celestia_block_proof.validator_hash_proof.enc_leaf);
-        let next_val_hash_enc_leaf_bits = to_bits(celestia_block_proof.next_validators_hash_proof.enc_leaf);
+        let data_hash_enc_leaf_bits = to_be_bits(celestia_block_proof.data_hash_proof.enc_leaf);
+        let val_hash_enc_leaf_bits = to_be_bits(celestia_block_proof.validator_hash_proof.enc_leaf);
+        let next_val_hash_enc_leaf_bits = to_be_bits(celestia_block_proof.next_validators_hash_proof.enc_leaf);
 
         for i in 0..PROTOBUF_HASH_SIZE_BITS {
             data_hash_enc_leaf.push(builder.constant_bool(data_hash_enc_leaf_bits[i]));
@@ -2026,11 +2054,11 @@ pub(crate) mod tests {
             val_hash_path_indices.push(builder.constant_bool(celestia_block_proof.validator_hash_proof.path[i]));
             next_val_hash_path_indices.push(builder.constant_bool(celestia_block_proof.next_validators_hash_proof.path[i]));
 
-            let data_hash_aunt_bits = to_bits(celestia_block_proof.data_hash_proof.proof[i].to_vec());
+            let data_hash_aunt_bits = to_be_bits(celestia_block_proof.data_hash_proof.proof[i].to_vec());
 
-            let val_hash_aunt_bits = to_bits(celestia_block_proof.validator_hash_proof.proof[i].to_vec());
+            let val_hash_aunt_bits = to_be_bits(celestia_block_proof.validator_hash_proof.proof[i].to_vec());
             
-            let next_val_aunt_bits = to_bits(celestia_block_proof.next_validators_hash_proof.proof[i].to_vec());
+            let next_val_aunt_bits = to_be_bits(celestia_block_proof.next_validators_hash_proof.proof[i].to_vec());
 
             data_hash_aunts.push(Vec::new());
             val_hash_aunts.push(Vec::new());
@@ -2096,7 +2124,7 @@ pub(crate) mod tests {
         let celestia_block_proof: CelestiaBlockProof = generate_step_inputs();
 
         // Set target for header
-        let header_bits = to_bits(celestia_block_proof.header);
+        let header_bits = to_be_bits(celestia_block_proof.header);
         for i in 0..HASH_SIZE_BITS {
             pw.set_bool_target(celestia_proof_target.header.0[i], header_bits[i]);
         }
@@ -2105,9 +2133,9 @@ pub(crate) mod tests {
         pw.set_bool_target(celestia_proof_target.round_present, celestia_block_proof.round_present);
 
         // Set the encoded leaf for each of the proofs
-        let data_hash_enc_leaf = to_bits(celestia_block_proof.data_hash_proof.enc_leaf);
-        let val_hash_enc_leaf = to_bits(celestia_block_proof.validator_hash_proof.enc_leaf);
-        let next_val_hash_enc_leaf = to_bits(celestia_block_proof.next_validators_hash_proof.enc_leaf);
+        let data_hash_enc_leaf = to_be_bits(celestia_block_proof.data_hash_proof.enc_leaf);
+        let val_hash_enc_leaf = to_be_bits(celestia_block_proof.validator_hash_proof.enc_leaf);
+        let next_val_hash_enc_leaf = to_be_bits(celestia_block_proof.next_validators_hash_proof.enc_leaf);
 
         for i in 0..PROTOBUF_HASH_SIZE_BITS {
             pw.set_bool_target(celestia_proof_target.data_hash_proof.enc_leaf.0[i], data_hash_enc_leaf[i]);
@@ -2121,11 +2149,11 @@ pub(crate) mod tests {
             pw.set_bool_target(celestia_proof_target.validator_hash_proof.path[i], celestia_block_proof.validator_hash_proof.path[i]);
             pw.set_bool_target(celestia_proof_target.next_validators_hash_proof.path[i], celestia_block_proof.next_validators_hash_proof.path[i]);
 
-            let data_hash_aunt = to_bits(celestia_block_proof.data_hash_proof.proof[i].to_vec());
+            let data_hash_aunt = to_be_bits(celestia_block_proof.data_hash_proof.proof[i].to_vec());
 
-            let val_hash_aunt = to_bits(celestia_block_proof.validator_hash_proof.proof[i].to_vec());
+            let val_hash_aunt = to_be_bits(celestia_block_proof.validator_hash_proof.proof[i].to_vec());
             
-            let next_val_aunt = to_bits(celestia_block_proof.next_validators_hash_proof.proof[i].to_vec());
+            let next_val_aunt = to_be_bits(celestia_block_proof.next_validators_hash_proof.proof[i].to_vec());
 
             // Set aunts for each of the proofs
             for j in 0..HASH_SIZE_BITS {
@@ -2159,7 +2187,7 @@ pub(crate) mod tests {
             pw.set_affine_point_target(&celestia_proof_target.validators[i].signature.r, &sig_r);
             pw.set_biguint_target(&celestia_proof_target.validators[i].signature.s.value, &sig_s_biguint);
 
-            let message_bits = to_bits(validator.message.clone());
+            let message_bits = to_be_bits(validator.message.clone());
             // Set messages for each of the proofs
             for j in 0..VALIDATOR_MESSAGE_BYTES_LENGTH_MAX*8 {
                 pw.set_bool_target(celestia_proof_target.validators[i].message.0[j], message_bits[j]);
