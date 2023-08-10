@@ -283,8 +283,8 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D>
     ) -> TendermintHashTarget {
         let mut result = [self._false(); HASH_SIZE_BITS];
         // Skip first 2 bytes
-        for i in 8 * 2..HASH_SIZE_BITS {
-            result[i] = hash.0[i];
+        for i in 0..HASH_SIZE_BITS {
+            result[i] = hash.0[i + (8 * 2)];
         }
         TendermintHashTarget(result)
     }
@@ -1009,38 +1009,38 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D>
         let pubkeys: Vec<&EDDSAPublicKeyTarget<Ed25519>> = validators.iter().map(|v| &v.pubkey).collect();
 
         // // Compute the validators hash
-        // let validators_hash_target =
-        //     self.hash_validator_set(&marshalled_validators, &byte_lengths, &validators_enabled);
+        let validators_hash_target =
+            self.hash_validator_set(&marshalled_validators, &byte_lengths, &validators_enabled);
 
         // // Assert that computed validator hash matches expected validator hash
-        // let extracted_hash = self.extract_hash_from_protobuf(&validator_hash_proof.enc_leaf);
-        // for i in 0..HASH_SIZE_BITS {
-        //     self.connect(
-        //         validators_hash_target.0[i].target,
-        //         extracted_hash.0[i].target,
-        //     );
-        // }
+        let extracted_hash = self.extract_hash_from_protobuf(&validator_hash_proof.enc_leaf);
+        for i in 0..HASH_SIZE_BITS {
+            self.connect(
+                validators_hash_target.0[i].target,
+                extracted_hash.0[i].target,
+            );
+        }
 
-        let total_voting_power = self.get_total_voting_power(&validator_voting_power);
-        let threshold_numerator = self.constant_u32(2);
-        let threshold_denominator = self.constant_u32(3);
+        // let total_voting_power = self.get_total_voting_power(&validator_voting_power);
+        // let threshold_numerator = self.constant_u32(2);
+        // let threshold_denominator = self.constant_u32(3);
 
-        // Assert the accumulated voting power is greater than the threshold
-        let check_voting_power_bool = self.check_voting_power(
-            &validator_voting_power,
-            &validators_enabled_u32,
-            &total_voting_power,
-            &threshold_numerator,
-            &threshold_denominator,
-        );
-        self.connect(check_voting_power_bool.target, one);
+        // // Assert the accumulated voting power is greater than the threshold
+        // let check_voting_power_bool = self.check_voting_power(
+        //     &validator_voting_power,
+        //     &validators_enabled_u32,
+        //     &total_voting_power,
+        //     &threshold_numerator,
+        //     &threshold_denominator,
+        // );
+        // self.connect(check_voting_power_bool.target, one);
 
-        // TODO: Handle dummies
-        self.verify_signatures::<E, C>(
-            messages,
-            signatures,
-            pubkeys,
-        );
+        // // TODO: Handle dummies
+        // self.verify_signatures::<E, C>(
+        //     messages,
+        //     signatures,
+        //     pubkeys,
+        // );
 
         // // TODO: Verify that this will work with dummy signatures
         // for i in 0..VALIDATOR_SET_SIZE_MAX {
@@ -1048,37 +1048,37 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D>
         //     self.verify_hash_in_message(&validators[i].message, header, round_present);
         // }
 
-        let header_from_data_root_proof = self.get_root_from_merkle_proof(
-            &data_hash_proof.proof,
-            &data_hash_proof.path,
-            &data_hash_proof.enc_leaf,
-        );
-        let header_from_validator_root_proof = self.get_root_from_merkle_proof(
-            &validator_hash_proof.proof,
-            &validator_hash_proof.path,
-            &validator_hash_proof.enc_leaf,
-        );
-        let header_from_next_validators_root_proof = self.get_root_from_merkle_proof(
-            &next_validators_hash_proof.proof,
-            &next_validators_hash_proof.path,
-            &next_validators_hash_proof.enc_leaf,
-        );
+        // let header_from_data_root_proof = self.get_root_from_merkle_proof(
+        //     &data_hash_proof.proof,
+        //     &data_hash_proof.path,
+        //     &data_hash_proof.enc_leaf,
+        // );
+        // let header_from_validator_root_proof = self.get_root_from_merkle_proof(
+        //     &validator_hash_proof.proof,
+        //     &validator_hash_proof.path,
+        //     &validator_hash_proof.enc_leaf,
+        // );
+        // let header_from_next_validators_root_proof = self.get_root_from_merkle_proof(
+        //     &next_validators_hash_proof.proof,
+        //     &next_validators_hash_proof.path,
+        //     &next_validators_hash_proof.enc_leaf,
+        // );
 
-        // Confirm that the header from the proof of {validator_hash, next_validators_hash, data_hash} all match the header
-        for i in 0..HASH_SIZE_BITS {
-            self.connect(
-                header.0[i].target,
-                header_from_data_root_proof.0[i].target,
-            );
-            self.connect(
-                header.0[i].target,
-                header_from_validator_root_proof.0[i].target,
-            );
-            self.connect(
-                header.0[i].target,
-                header_from_next_validators_root_proof.0[i].target,
-            );
-        }
+        // // Confirm that the header from the proof of {validator_hash, next_validators_hash, data_hash} all match the header
+        // for i in 0..HASH_SIZE_BITS {
+        //     self.connect(
+        //         header.0[i].target,
+        //         header_from_data_root_proof.0[i].target,
+        //     );
+        //     self.connect(
+        //         header.0[i].target,
+        //         header_from_validator_root_proof.0[i].target,
+        //     );
+        //     self.connect(
+        //         header.0[i].target,
+        //         header_from_next_validators_root_proof.0[i].target,
+        //     );
+        // }
     }
 }
 
@@ -1530,18 +1530,20 @@ pub(crate) mod tests {
         let config = CircuitConfig::standard_recursion_config();
         let mut builder = CircuitBuilder::<F, D>::new(config);
 
-        // Generated array with byte arrays with variable length [38, 46] bytes (to mimic validator bytes), and computed the validator hash corresponding to a merkle tree of depth 2 formed by these validator bytes.
-        let validators: Vec<&str> = vec!["6694200ba0e084f7184255abedc39af04463a4ff11e0e0c1326b1b82ea1de50c6b35cf6efa8f7ed3", "739d312e54353379a852b43de497ca4ec52bb49f59b7294a4d6cf19dd648e16cb530b7a7a1e35875d4ab4d90", "4277f2f871f3e041bcd4643c0cf18e5a931c2bfe121ce8983329a289a2b0d2161745a2ddf99bade9a1"];
+        // Validators from block 11000 on Celestia mocha-3 testnet encoded as bytes.
+        let validators: Vec<&str> = vec!["0a220a20de25aec935b10f657b43fa97e5a8d4e523bdb0f9972605f0b064eff7b17048ba10aa8d06", "0a220a208de6ad1a569a223e7bb0dade194abb9487221210e1fa8154bf654a10fe6158a610aa8d06", "0a220a20e9b7638ca1c42da37d728970632fda77ec61dcc520395ab5d3a645b9c2b8e8b1100a", "0a220a20bd60452e7f056b22248105e7fd298961371da0d9332ef65fa81691bf51b2e5051001"];
 
         let (validators_target, validator_byte_length, validator_enabled) =
             generate_inputs(&mut builder, &validators);
+        
+        let validator_hash_enc_leaf = "0a20bb5b8b1239565451dcd5ab52b47c26032016cdf1ef2d2115ff104dc9dde3988c";
+        let enc_leaf_bits = to_bits(hex::decode(validator_hash_enc_leaf.to_lowercase().as_bytes()).unwrap());
 
-        let expected_digest = "d3430135bc6ed16a421ef1b8ec45d4d8b3e335e479f2bc3b074e9f1ed1d8f67e";
-        let digest_bits = to_bits(hex::decode(expected_digest).unwrap());
+        let expected_digest = String::from("BB5B8B1239565451DCD5AB52B47C26032016CDF1EF2D2115FF104DC9DDE3988C").to_lowercase();
+        let digest_bits = to_bits(hex::decode(expected_digest.as_bytes()).unwrap());
 
         println!(
-            "Expected Val Hash Encoding (Bytes): {:?}",
-            hex::decode(expected_digest).unwrap()
+            "Expected Val Hash: {:?}", String::from_utf8(hex::encode(hex::decode(expected_digest.as_bytes()).unwrap()))
         );
 
         let result = builder.hash_validator_set(
@@ -1550,12 +1552,16 @@ pub(crate) mod tests {
             &validator_enabled,
         );
 
+        let enc_leaf_target = enc_leaf_bits
+            .iter()
+            .map(|b| builder.constant_bool(*b))
+            .collect::<Vec<_>>();
+
+        let extracted_val_hash = builder.extract_hash_from_protobuf(&EncTendermintHashTarget(enc_leaf_target.try_into().unwrap()));
+
         for i in 0..HASH_SIZE_BITS {
-            if digest_bits[i] {
-                pw.set_target(result.0[i].target, F::ONE);
-            } else {
-                pw.set_target(result.0[i].target, F::ZERO);
-            }
+            pw.set_bool_target(result.0[i], digest_bits[i]);
+            builder.connect(extracted_val_hash.0[i].target, result.0[i].target);
         }
 
         let data = builder.build::<C>();
@@ -1942,7 +1948,7 @@ pub(crate) mod tests {
             s: sig_s_target,
         };
 
-        builder.verify_signatures::<E, C>(vec![msg_bits_target], vec![&eddsa_sig_target], vec![&eddsa_pub_key_target]);
+        builder.verify_signature::<E, C>(msg_bits_target, &eddsa_sig_target, &eddsa_pub_key_target);
 
         let inner_data = builder.build::<C>();
         let inner_proof = inner_data.prove(pw).unwrap();

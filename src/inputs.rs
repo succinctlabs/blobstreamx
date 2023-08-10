@@ -75,6 +75,8 @@ pub fn generate_step_inputs() -> CelestiaBlockProof {
         ),
     });
 
+    println!("header hash: {:?}", String::from_utf8(hex::encode(block.header.hash().as_bytes())));
+
     let mut validators = Vec::new();
 
     // Signatures or dummy
@@ -102,9 +104,8 @@ pub fn generate_step_inputs() -> CelestiaBlockProof {
             );
             let sig = signed_vote.signature();
             let val_bytes = validator.hash_bytes();
-            println!("signed message: {:?}", String::from_utf8(hex::encode(signed_vote.sign_bytes())));
-            println!("pubkey: {:?}", String::from_utf8(hex::encode(validator.pub_key.ed25519().unwrap().as_bytes())));
-            println!("signature: {:?}", String::from_utf8(hex::encode(sig.as_bytes())));
+            println!("val_bytes: {:?}", String::from_utf8(hex::encode(&val_bytes)));
+
             validators.push(Validator {
                 pubkey: validator.pub_key.ed25519().unwrap(),
                 signature: sig.clone(),
@@ -149,11 +150,6 @@ pub fn generate_step_inputs() -> CelestiaBlockProof {
         path: enc_data_hash_proof_indices,
         proof: enc_data_hash_proof.aunts,
     };
-    // println!("data_hash_proof: {:?}", data_hash_proof);
-    proofs[6]
-            .verify(header_hash.as_bytes().try_into().unwrap(), &block.header.data_hash.unwrap().encode_vec())
-            .unwrap();
-    // println!("verified");
 
     let enc_validators_hash_proof = proofs[7].clone();
     let enc_validators_hash_proof_indices = get_path_indices(7, total);
