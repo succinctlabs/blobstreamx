@@ -514,7 +514,20 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D>
             }
         }
 
-        MarshalledValidatorTarget(buffer)
+        // Flip the bit order.
+        let mut temp_buffer = [self._false(); VALIDATOR_BYTE_LENGTH_MAX * 8];
+        let mut temp_ptr = 0;
+        for (byte_num, bits) in buffer
+            .chunks_mut(8)
+            .enumerate()
+        {
+            for (bit_num, bit) in bits.iter().enumerate() {
+                temp_buffer[temp_ptr] = bits[7 - bit_num];
+                temp_ptr += 1;
+            }
+        }
+
+        MarshalledValidatorTarget(temp_buffer)
     }
 
     fn hash_validator_leaf(
@@ -1893,8 +1906,7 @@ pub(crate) mod tests {
         println!("result: {:?}", result.0[32..(32+256)].to_vec());
         
         // let mut expected_bits: Vec<F> = bytes_to_le_f_bits(&hex::decode(expected_marshal).unwrap().to_vec());
-        let mut expected_bits = to_le_bits(hex::decode(expected_marshal).unwrap().to_vec());
-        // expected_bits.reverse();
+        let mut expected_bits = to_be_bits(hex::decode(expected_marshal).unwrap().to_vec());
 
         // Only check the hash bits
         for i in 0..result.0.len() {
