@@ -18,6 +18,80 @@ use tendermint_proto::{
     types::BlockId as RawBlockId, types::Data as RawData,
     version::Consensus as RawConsensusVersion, Protobuf,
 };
+use tendermint::merkle::HASH_SIZE;
+use plonky2::iop::target::BoolTarget;
+use plonky2x::num::u32::gadgets::arithmetic_u32::U32Target;
+use plonky2x::ecc::ed25519::curve::curve_types::Curve;
+use plonky2x::ecc::ed25519::gadgets::eddsa::EDDSAPublicKeyTarget;
+
+/// The number of bytes in a SHA256 hash.
+pub const HASH_SIZE_BITS: usize = HASH_SIZE * 8;
+
+/// The number of bytes in a protobuf-encoded SHA256 hash.
+pub const PROTOBUF_HASH_SIZE_BITS: usize = HASH_SIZE_BITS + 8 * 2;
+
+// Depth of the proofs against the header.
+pub const HEADER_PROOF_DEPTH: usize = 4;
+
+/// The maximum length of a protobuf-encoded Tendermint validator in bytes.
+pub const VALIDATOR_BYTE_LENGTH_MAX: usize = 46;
+
+/// The maximum length of a protobuf-encoded Tendermint validator in bits.
+pub const VALIDATOR_BIT_LENGTH_MAX: usize = VALIDATOR_BYTE_LENGTH_MAX * 8;
+
+/// The minimum length of a protobuf-encoded Tendermint validator in bytes.
+pub const VALIDATOR_BYTE_LENGTH_MIN: usize = 38;
+
+/// The minimum length of a protobuf-encoded Tendermint validator in bits.
+const _VALIDATOR_BIT_LENGTH_MIN: usize = VALIDATOR_BYTE_LENGTH_MIN * 8;
+
+/// The number of possible byte lengths of a protobuf-encoded Tendermint validator.
+pub const NUM_POSSIBLE_VALIDATOR_BYTE_LENGTHS: usize =
+    VALIDATOR_BYTE_LENGTH_MAX - VALIDATOR_BYTE_LENGTH_MIN + 1;
+
+// The number of bytes in a Tendermint validator's public key.
+const _PUBKEY_BYTES_LEN: usize = 32;
+
+// The maximum number of bytes in a Tendermint validator's voting power.
+// https://docs.tendermint.com/v0.34/tendermint-core/using-tendermint.html#tendermint-networks
+pub const VOTING_POWER_BYTES_LENGTH_MAX: usize = 9;
+
+// The maximum number of bits in a Tendermint validator's voting power.
+pub const VOTING_POWER_BITS_LENGTH_MAX: usize = VOTING_POWER_BYTES_LENGTH_MAX * 8;
+
+// The maximum number of validators in a Tendermint validator set.
+pub const VALIDATOR_SET_SIZE_MAX: usize = 4;
+
+// The maximum number of bytes in a validator message (CanonicalVote toSignBytes).
+// const VALIDATOR_MESSAGE_BYTES_LENGTH_MAX: usize = 124;
+pub const VALIDATOR_MESSAGE_BYTES_LENGTH_MAX: usize = 109;
+
+/// A protobuf-encoded tendermint hash as a 34 byte target.
+#[derive(Debug, Clone, Copy)]
+pub struct EncTendermintHashTarget(pub [BoolTarget; PROTOBUF_HASH_SIZE_BITS]);
+
+/// The Tendermint hash as a 32 byte target.
+#[derive(Debug, Clone, Copy)]
+pub struct TendermintHashTarget(pub [BoolTarget; HASH_SIZE_BITS]);
+
+/// The marshalled validator bits as a target.
+#[derive(Debug, Clone, Copy)]
+pub struct MarshalledValidatorTarget(pub [BoolTarget; VALIDATOR_BIT_LENGTH_MAX]);
+
+/// The voting power as a list of 2 u32 targets.
+#[derive(Debug, Clone, Copy)]
+pub struct I64Target(pub [U32Target; 2]);
+
+/// The message signed by the validator as a target.
+#[derive(Debug, Clone, Copy)]
+pub struct ValidatorMessageTarget(pub [BoolTarget; VALIDATOR_MESSAGE_BYTES_LENGTH_MAX * 8]);
+
+/// The bytes, public key, and voting power targets inside of a Tendermint validator.
+#[derive(Debug, Clone)]
+pub struct TendermintValidator<C: Curve> {
+    pub pubkey: EDDSAPublicKeyTarget<C>,
+    pub voting_power: I64Target,
+}
 
 pub fn bits_to_bytes(bits: &[bool]) -> Vec<u8> {
     let mut bytes = Vec::new();
@@ -68,6 +142,41 @@ pub fn bytes_to_le_f_bits<F: RichField>(bytes: &[u8]) -> Vec<F> {
     }
     bits
 }
+
+pub fn to_be_bits(msg: Vec<u8>) -> Vec<bool> {
+    let mut res = Vec::new();
+    for i in 0..msg.len() {
+        let char = msg[i];
+        for j in 0..8 {
+            if (char & (1 << 7 - j)) != 0 {
+                res.push(true);
+            } else {
+                res.push(false);
+            }
+        }
+    }
+    res
+}
+
+pub fn to_le_bits(msg: Vec<u8>) -> Vec<bool> {
+    let mut res = Vec::new();
+    for i in 0..msg.len() {
+        let char = msg[i];
+        for j in 0..8 {
+            if (char & (1 << j)) != 0 {
+                res.push(true);
+            } else {
+                res.push(false);
+            }
+        }
+    }
+    res
+}
+
+/*
+* Mocking comet-bft proof logic in Rust
+* TODO: Upstream to tendermint-rs
+*/
 
 /// Compute leaf hashes for arbitrary byte vectors.
 /// The leaves of the tree are the bytes of the given byte vectors in

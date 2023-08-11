@@ -2,6 +2,9 @@ pub mod inputs;
 pub mod utils;
 pub mod validator;
 pub mod generate_tests;
+pub mod step;
+pub mod voting;
+pub mod signature;
 
 use clap::Parser;
 
