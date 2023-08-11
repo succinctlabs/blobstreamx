@@ -24,7 +24,7 @@ pub fn hash_all_leaves<H>(byte_vecs: &[impl AsRef<[u8]>]) -> Vec<Hash>
 where
     H: MerkleHash + Default,
 {
-    let mut hasher = H::default();
+    let mut _hasher = H::default();
     let hashed_leaves = byte_vecs
         .iter()
         .map(|b| leaf_hash::<Sha256>(b.as_ref()))
@@ -540,16 +540,16 @@ pub(crate) mod tests {
                     .expect("missing signature"),
             );
 
-            let pub_key = validator.pub_key.ed25519().unwrap();
+            let _pub_key = validator.pub_key.ed25519().unwrap();
 
             // Get the encoded signed vote bytes
             // https://github.com/celestiaorg/celestia-core/blob/main/proto/tendermint/types/canonical.proto#L30-L37
             let sign_bytes = signed_vote.sign_bytes();
 
-            if (sign_bytes.len() < min_sign_bytes_len) {
+            if sign_bytes.len() < min_sign_bytes_len {
                 min_sign_bytes_len = sign_bytes.len();
             }
-            if (sign_bytes.len() > max_sign_bytes_len) {
+            if sign_bytes.len() > max_sign_bytes_len {
                 max_sign_bytes_len = sign_bytes.len();
             }
 
@@ -606,7 +606,7 @@ pub(crate) mod tests {
 
         let mut current_total = proofs[validator_hash_index].total;
         let mut current_index = proofs[validator_hash_index].index;
-        while (current_total >= 1) {
+        while current_total >= 1 {
             path_indices.push(current_index % 2 == 1);
             current_total = current_total / 2;
             current_index = current_index / 2;
@@ -617,7 +617,7 @@ pub(crate) mod tests {
 
         let mut current_hash = leaf_hash;
         for i in 0..path_indices.len() {
-            if (path_indices[i]) {
+            if path_indices[i] {
                 current_hash = inner_hash::<Sha256>(path_values[i], current_hash);
             } else {
                 current_hash = inner_hash::<Sha256>(current_hash, path_values[i]);

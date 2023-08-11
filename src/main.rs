@@ -1,6 +1,6 @@
+pub mod fixtures;
 pub mod inputs;
 pub mod merkle;
-pub mod fixtures;
 pub mod utils;
 pub mod validator;
 
@@ -18,6 +18,8 @@ enum Function {
     },
     /// Calls the get_celestia_consensus_signatures function
     GetCelestiaConsensusSignatures,
+    /// Generates step inputs
+    GenerateStepInputs,
 }
 
 #[derive(Parser, Debug)]
@@ -41,6 +43,10 @@ async fn main() {
             generate_tests::get_celestia_consensus_signatures()
                 .await
                 .expect("Failed to get Celestia consensus signatures");
+        }
+        Function::GenerateStepInputs => {
+            let _celestia_step_inputs = inputs::generate_step_inputs();
+            // println!("celestia_step_inputs: {:?}", celestia_step_inputs);
         }
     }
 }

@@ -1,84 +1,24 @@
+use crate::merkle::{SignedBlock, TempSignedBlock};
 use rand::Rng;
 use reqwest::Error;
-use serde::Deserialize;
-use serde_json::Value;
+use serde::{Deserialize, Serialize};
 use sha2::Sha256;
+use std::{fs::File, io::Write};
 use subtle_encoding::hex;
-use tendermint::merkle::simple_hash_from_byte_vectors;
+use tendermint::{merkle::simple_hash_from_byte_vectors, validator::Set as ValidatorSet};
 
 #[derive(Debug, Deserialize)]
 struct Response {
-    jsonrpc: String,
-    id: i32,
-    result: BlockData,
+    _jsonrpc: String,
+    _id: i32,
+    result: TempSignedBlock,
 }
 
-#[derive(Debug, Deserialize)]
-struct BlockData {
-    header: HeaderData,
-    commit: CommitData,
-    validator_set: ValidatorSetData,
-}
-
-#[derive(Debug, Deserialize)]
-struct HeaderData {
-    version: VersionData,
-    chain_id: String,
-    height: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct VersionData {
-    block: String,
-    app: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct CommitData {
-    height: String,
-    round: i32,
-    block_id: BlockIdData,
-    signatures: Vec<SignatureData>,
-}
-
-#[derive(Debug, Deserialize)]
-struct BlockIdData {
-    hash: String,
-    parts: PartData,
-}
-
-#[derive(Debug, Deserialize)]
-struct PartData {
-    total: i32,
-    hash: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct SignatureData {
-    block_id_flag: i32,
-    validator_address: String,
-    timestamp: String,
-    signature: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct ValidatorSetData {
-    validators: Vec<ValidatorData>,
-    proposer: ValidatorData,
-}
-
-#[derive(Debug, Deserialize)]
-struct ValidatorData {
-    address: String,
-    pub_key: PubkeyData,
-    voting_power: String,
-    proposer_priority: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct PubkeyData {
-    r#type: String,
-    value: String,
+#[derive(Debug, Serialize, Deserialize)]
+struct VerifySignatureData {
+    pubkey: String,
+    signature: String,
+    message: String,
 }
 
 pub fn generate_val_array(num_validators: usize) {
@@ -116,7 +56,10 @@ pub fn generate_val_array(num_validators: usize) {
 pub async fn get_celestia_consensus_signatures() -> Result<(), Error> {
     // Read from https://rpc-t.celestia.nodestake.top/signed_block?height=131950 using
     // Serves latest block
-    let url = "https://rpc-t.celestia.nodestake.top/signed_block";
+    let height = 11000;
+    let mut url =
+        "http://rpc.testnet.celestia.citizencosmos.space/signed_block?height=".to_string();
+    url.push_str(height.to_string().as_str());
 
     // Send a GET request and wait for the response
 
@@ -125,11 +68,30 @@ pub async fn get_celestia_consensus_signatures() -> Result<(), Error> {
 
     let v: Response = serde_json::from_str(&res).expect("Failed to parse JSON");
 
-    for signature in v.result.commit.signatures {
-        println!("Signature: {:?}", signature.signature);
-    }
+    let temp_block = v.result;
 
-    // Parse the response body as JSON
+    // Cast to SignedBlock
+    let block = SignedBlock {
+        header: temp_block.header,
+        data: temp_block.data,
+        commit: temp_block.commit,
+        validator_set: ValidatorSet::new(
+            temp_block.validator_set.validators,
+            temp_block.validator_set.proposer,
+        ),
+    };
+
+    println!("here");
+
+    // Write to JSON file
+    let json = serde_json::to_string(&block).unwrap();
+
+    let mut path = "src/fixtures/".to_string();
+    path.push_str(height.to_string().as_str());
+    path.push_str("/signed_block.json");
+    println!("Path: {:?}", path);
+    let mut file = File::create(path).unwrap();
+    file.write_all(json.as_bytes()).unwrap();
 
     Ok(())
 }
