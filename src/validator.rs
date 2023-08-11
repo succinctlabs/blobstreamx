@@ -566,7 +566,7 @@ pub(crate) mod tests {
     // Generate the inputs from the validator byte arrays.
     fn generate_inputs(
         builder: &mut CircuitBuilder<F, D>,
-        validators: &Vec<&str>,
+        validators: &Vec<String>,
     ) -> (
         Vec<MarshalledValidatorTarget>,
         Vec<U32Target>,
@@ -591,7 +591,7 @@ pub(crate) mod tests {
         // Convert the hex strings to bytes.
         for i in 0..validators.len() {
             let val_byte_length = validators[i].len() / 2;
-            validator_bits[i] = to_be_bits(hex::decode(validators[i]).unwrap());
+            validator_bits[i] = to_be_bits(hex::decode(&validators[i]).unwrap());
             for j in 0..(val_byte_length * 8) {
                 if validator_bits[i][j] {
                     validators_target[i].0[j] = builder._true();
@@ -752,10 +752,10 @@ pub(crate) mod tests {
         let expected_digest = "84f633a570a987326947aafd434ae37f151e98d5e6d429137a4cc378d4a7988e";
         let digest_bits = to_be_bits(hex::decode(expected_digest).unwrap());
 
-        let validators: Vec<&str> = vec![
-            "de6ad0941095ada2a7996e6a888581928203b8b69e07ee254d289f5b9c9caea193c2ab01902d",
-            "92fbe0c52937d80c5ea643c7832620b84bfdf154ec7129b8b471a63a763f2fe955af1ac65fd3",
-            "e902f88b2371ff6243bf4b0ebe8f46205e00749dd4dad07b2ea34350a1f9ceedb7620ab913c2",
+        let validators: Vec<String> = vec![
+            String::from("de6ad0941095ada2a7996e6a888581928203b8b69e07ee254d289f5b9c9caea193c2ab01902d"),
+            String::from("92fbe0c52937d80c5ea643c7832620b84bfdf154ec7129b8b471a63a763f2fe955af1ac65fd3"),
+            String::from("e902f88b2371ff6243bf4b0ebe8f46205e00749dd4dad07b2ea34350a1f9ceedb7620ab913c2"),
         ];
 
         let (validators_target, validator_byte_length, _) =
@@ -787,6 +787,11 @@ pub(crate) mod tests {
         let mut builder = CircuitBuilder::<F, D>::new(config);
 
         let validators: Vec<&str> = vec!["6694200ba0e084f7184255abedc39af04463a4ff11e0e0c1326b1b82ea1de50c6b35cf6efa8f7ed3", "739d312e54353379a852b43de497ca4ec52bb49f59b7294a4d6cf19dd648e16cb530b7a7a1e35875d4ab4d90", "4277f2f871f3e041bcd4643c0cf18e5a931c2bfe121ce8983329a289a2b0d2161745a2ddf99bade9a1"];
+
+        let validators = validators
+            .iter()
+            .map(|x| String::from(*x))
+            .collect::<Vec<_>>();
 
         let validators_bytes: Vec<Vec<u8>> = validators
             .iter()
@@ -831,112 +836,68 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn test_generate_val_hash_normal() {
-        let mut pw = PartialWitness::new();
-        let config = CircuitConfig::standard_recursion_config();
-        let mut builder = CircuitBuilder::<F, D>::new(config);
+    fn test_generate_val_hash() {
 
+        struct TestCase {
+            validators: Vec<String>,
+            expected_digest: String,
+        }
+        
         // Validators from block 11000 on Celestia mocha-3 testnet encoded as bytes.
-        let validators: Vec<&str> = vec![
+        let validators_arr: Vec<Vec<&str>> = vec![vec![
             "0a220a20de25aec935b10f657b43fa97e5a8d4e523bdb0f9972605f0b064eff7b17048ba10aa8d06",
             "0a220a208de6ad1a569a223e7bb0dade194abb9487221210e1fa8154bf654a10fe6158a610aa8d06",
             "0a220a20e9b7638ca1c42da37d728970632fda77ec61dcc520395ab5d3a645b9c2b8e8b1100a",
             "0a220a20bd60452e7f056b22248105e7fd298961371da0d9332ef65fa81691bf51b2e5051001",
-        ];
+        ], vec!["364db94241a02b701d0dc85ac016fab2366fba326178e6f11d8294931969072b7441fd6b0ff5129d6867", "6fa0cef8f328eb8e2aef2084599662b1ee0595d842058966166029e96bd263e5367185f19af67b099645ec08aa"]];
 
-        let (validators_target, validator_byte_length, validator_enabled) =
-            generate_inputs(&mut builder, &validators);
+        let digest_arr: Vec<&str> = vec!["BB5B8B1239565451DCD5AB52B47C26032016CDF1EF2D2115FF104DC9DDE3988C", "be110ff9abb6bdeaebf48ac8e179a76fda1f6eaef0150ca6159587f489722204"];
 
-        let validator_hash_enc_leaf =
-            "0a20bb5b8b1239565451dcd5ab52b47c26032016cdf1ef2d2115ff104dc9dde3988c";
-        let enc_leaf_bits =
-            to_be_bits(hex::decode(validator_hash_enc_leaf.to_lowercase().as_bytes()).unwrap());
-
-        let expected_digest =
-            String::from("BB5B8B1239565451DCD5AB52B47C26032016CDF1EF2D2115FF104DC9DDE3988C")
-                .to_lowercase();
-        let digest_bits = to_be_bits(hex::decode(expected_digest.as_bytes()).unwrap());
-
-        println!(
-            "Expected Val Hash: {:?}",
-            String::from_utf8(hex::encode(
-                hex::decode(expected_digest.as_bytes()).unwrap()
-            ))
-        );
-
-        let result = builder.hash_validator_set(
-            &validators_target,
-            &validator_byte_length,
-            &validator_enabled,
-        );
-
-        let enc_leaf_target = enc_leaf_bits
+        let test_cases: Vec<TestCase> = validators_arr
             .iter()
-            .map(|b| builder.constant_bool(*b))
-            .collect::<Vec<_>>();
+            .zip(digest_arr.iter())
+            .map(|(validators, expected_digest)| TestCase {
+                validators: validators.iter().map(|x| String::from(*x).to_lowercase()).collect(),
+                expected_digest: String::from(*expected_digest).to_lowercase(),
+            })
+            .collect();
 
-        let extracted_val_hash = builder.extract_hash_from_protobuf(&EncTendermintHashTarget(
-            enc_leaf_target.try_into().unwrap(),
-        ));
+        for test_case in test_cases {
+            let mut pw = PartialWitness::new();
+            let config = CircuitConfig::standard_recursion_config();
+            let mut builder = CircuitBuilder::<F, D>::new(config);
 
-        for i in 0..HASH_SIZE_BITS {
-            pw.set_bool_target(result.0[i], digest_bits[i]);
-            builder.connect(extracted_val_hash.0[i].target, result.0[i].target);
-        }
+            let (validators_target, validator_byte_length, validator_enabled) =
+                generate_inputs(&mut builder, &test_case.validators);
 
-        let data = builder.build::<C>();
-        let proof = data.prove(pw).unwrap();
+            let digest_bits = to_be_bits(hex::decode(test_case.expected_digest.as_bytes()).unwrap());
 
-        println!("Created proof");
+            println!(
+                "Expected Val Hash: {:?}",
+                String::from_utf8(hex::encode(
+                    hex::decode(test_case.expected_digest.as_bytes()).unwrap()
+                ))
+            );
 
-        data.verify(proof).unwrap();
+            let result = builder.hash_validator_set(
+                &validators_target,
+                &validator_byte_length,
+                &validator_enabled,
+            );
 
-        println!("Verified proof");
-    }
-
-    #[test]
-    fn test_generate_val_hash_small() {
-        // Generate the val hash for a small number of validators (would fit in a tree of less than max depth)
-        let mut pw = PartialWitness::new();
-        let config = CircuitConfig::standard_recursion_config();
-        let mut builder = CircuitBuilder::<F, D>::new(config);
-
-        // Generated array with byte arrays with variable length [38, 46] bytes (to mimic validator bytes), and computed the validator hash corresponding to a merkle tree of depth 2 formed by these validator bytes.
-        let validators: Vec<&str> = vec!["364db94241a02b701d0dc85ac016fab2366fba326178e6f11d8294931969072b7441fd6b0ff5129d6867", "6fa0cef8f328eb8e2aef2084599662b1ee0595d842058966166029e96bd263e5367185f19af67b099645ec08aa"];
-
-        let (validators_target, validator_byte_length, validator_enabled) =
-            generate_inputs(&mut builder, &validators);
-
-        let expected_digest = "be110ff9abb6bdeaebf48ac8e179a76fda1f6eaef0150ca6159587f489722204";
-        let digest_bits = to_be_bits(hex::decode(expected_digest).unwrap());
-
-        println!(
-            "Expected Val Hash Encoding (Bytes): {:?}",
-            hex::decode(expected_digest).unwrap()
-        );
-
-        let result = builder.hash_validator_set(
-            &validators_target,
-            &validator_byte_length,
-            &validator_enabled,
-        );
-
-        for i in 0..HASH_SIZE_BITS {
-            if digest_bits[i] {
-                pw.set_target(result.0[i].target, F::ONE);
-            } else {
-                pw.set_target(result.0[i].target, F::ZERO);
+            for i in 0..HASH_SIZE_BITS {
+                pw.set_bool_target(result.0[i], digest_bits[i]);
             }
+
+            let data = builder.build::<C>();
+            let proof = data.prove(pw).unwrap();
+
+            println!("Created proof");
+
+            data.verify(proof).unwrap();
+
+            println!("Verified proof");
         }
-
-        let data = builder.build::<C>();
-        let proof = data.prove(pw).unwrap();
-
-        println!("Created proof");
-
-        data.verify(proof).unwrap();
-
-        println!("Verified proof");
     }
 
     #[test]
