@@ -62,7 +62,7 @@ pub fn generate_step_inputs(block: usize) -> CelestiaBlockProof {
     let file_content = fs::read_to_string(file.as_str()).expect("error reading file");
 
     let temp_block = Box::new(TempSignedBlock::from(
-        serde_json::from_str::<TempSignedBlock>(&file_content).expect("failed to parse json")
+        serde_json::from_str::<TempSignedBlock>(&file_content).expect("failed to parse json"),
     ));
 
     // Cast to SignedBlock

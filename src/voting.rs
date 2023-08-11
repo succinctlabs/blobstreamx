@@ -13,10 +13,7 @@ use plonky2x::ecc::ed25519::curve::curve_types::Curve;
 use plonky2x::ecc::ed25519::curve::ed25519::Ed25519;
 use plonky2x::num::u32::gadgets::arithmetic_u32::{CircuitBuilderU32, U32Target};
 
-use crate::utils::{
-    I64Target,
-    VALIDATOR_SET_SIZE_MAX,
-};
+use crate::utils::{I64Target, VALIDATOR_SET_SIZE_MAX};
 
 pub trait TendermintVoting<F: RichField + Extendable<D>, const D: usize> {
     type Curve: Curve;
@@ -49,9 +46,7 @@ pub trait TendermintVoting<F: RichField + Extendable<D>, const D: usize> {
     ) -> BoolTarget;
 }
 
-impl<F: RichField + Extendable<D>, const D: usize> TendermintVoting<F, D>
-    for CircuitBuilder<F, D>
-{
+impl<F: RichField + Extendable<D>, const D: usize> TendermintVoting<F, D> for CircuitBuilder<F, D> {
     type Curve = Ed25519;
 
     fn mul_i64_by_u32(&mut self, a: &I64Target, b: U32Target) -> I64Target {

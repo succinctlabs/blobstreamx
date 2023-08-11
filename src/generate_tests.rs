@@ -3,7 +3,11 @@ use rand::Rng;
 use reqwest::Error;
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
-use std::{fs::{File, self}, io::Write, path::Path};
+use std::{
+    fs::{self, File},
+    io::Write,
+    path::Path,
+};
 use subtle_encoding::hex;
 use tendermint::{merkle::simple_hash_from_byte_vectors, validator::Set as ValidatorSet};
 

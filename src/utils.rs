@@ -1,10 +1,15 @@
 use plonky2::hash::hash_types::RichField;
 
+use plonky2::iop::target::BoolTarget;
+use plonky2x::ecc::ed25519::curve::curve_types::Curve;
+use plonky2x::ecc::ed25519::gadgets::eddsa::EDDSAPublicKeyTarget;
+use plonky2x::num::u32::gadgets::arithmetic_u32::U32Target;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::cell::RefCell;
 use std::rc::Rc;
 use subtle_encoding::hex;
+use tendermint::merkle::HASH_SIZE;
 /// Source (tendermint-rs): https://github.com/informalsystems/tendermint-rs/blob/e930691a5639ef805c399743ac0ddbba0e9f53da/tendermint/src/merkle.rs#L32
 use tendermint::{
     block::Header,
@@ -18,11 +23,6 @@ use tendermint_proto::{
     types::BlockId as RawBlockId, types::Data as RawData,
     version::Consensus as RawConsensusVersion, Protobuf,
 };
-use tendermint::merkle::HASH_SIZE;
-use plonky2::iop::target::BoolTarget;
-use plonky2x::num::u32::gadgets::arithmetic_u32::U32Target;
-use plonky2x::ecc::ed25519::curve::curve_types::Curve;
-use plonky2x::ecc::ed25519::gadgets::eddsa::EDDSAPublicKeyTarget;
 
 /// The number of bytes in a SHA256 hash.
 pub const HASH_SIZE_BITS: usize = HASH_SIZE * 8;
@@ -788,6 +788,3 @@ pub(crate) mod tests {
         assert_eq!(current_hash, root_hash);
     }
 }
-
-
-

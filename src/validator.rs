@@ -16,18 +16,10 @@ use plonky2x::hash::sha::sha256::sha256;
 use plonky2x::num::u32::gadgets::arithmetic_u32::{CircuitBuilderU32, U32Target};
 
 use crate::utils::{
-    EncTendermintHashTarget,
-    TendermintHashTarget,
-    I64Target,
-    MarshalledValidatorTarget,
-    HASH_SIZE_BITS,
-    PROTOBUF_HASH_SIZE_BITS,
-    VALIDATOR_SET_SIZE_MAX,
-    VOTING_POWER_BITS_LENGTH_MAX,
-    VOTING_POWER_BYTES_LENGTH_MAX,
-    VALIDATOR_BYTE_LENGTH_MAX,
-    VALIDATOR_BYTE_LENGTH_MIN,
-    NUM_POSSIBLE_VALIDATOR_BYTE_LENGTHS
+    EncTendermintHashTarget, I64Target, MarshalledValidatorTarget, TendermintHashTarget,
+    HASH_SIZE_BITS, NUM_POSSIBLE_VALIDATOR_BYTE_LENGTHS, PROTOBUF_HASH_SIZE_BITS,
+    VALIDATOR_BYTE_LENGTH_MAX, VALIDATOR_BYTE_LENGTH_MIN, VALIDATOR_SET_SIZE_MAX,
+    VOTING_POWER_BITS_LENGTH_MAX, VOTING_POWER_BYTES_LENGTH_MAX,
 };
 
 pub trait TendermintMarshaller<F: RichField + Extendable<D>, const D: usize> {
@@ -559,9 +551,9 @@ pub(crate) mod tests {
     use plonky2x::num::u32::gadgets::arithmetic_u32::U32Target;
 
     use crate::{
+        signature::TendermintSignature,
         utils::{f_bits_to_bytes, to_be_bits},
         validator::{I64Target, TendermintMarshaller},
-        signature::TendermintSignature
     };
 
     use super::VALIDATOR_BYTE_LENGTH_MIN;

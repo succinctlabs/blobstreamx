@@ -21,10 +21,7 @@ use plonky2x::ecc::ed25519::gadgets::eddsa::{
 use plonky2x::num::nonnative::nonnative::CircuitBuilderNonNative;
 
 use crate::utils::{
-    ValidatorMessageTarget,
-    EncTendermintHashTarget,
-    TendermintHashTarget,
-    HASH_SIZE_BITS,
+    EncTendermintHashTarget, TendermintHashTarget, ValidatorMessageTarget, HASH_SIZE_BITS,
     VALIDATOR_MESSAGE_BYTES_LENGTH_MAX,
 };
 
@@ -217,8 +214,7 @@ pub(crate) mod tests {
     use plonky2::{
         iop::witness::{PartialWitness, WitnessWrite},
         plonk::{
-            circuit_builder::CircuitBuilder,
-            circuit_data::CircuitConfig,
+            circuit_builder::CircuitBuilder, circuit_data::CircuitConfig,
             config::PoseidonGoldilocksConfig,
         },
     };
