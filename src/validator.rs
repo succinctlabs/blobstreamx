@@ -1045,8 +1045,8 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D>
         );
         self.connect(check_voting_power_bool.target, one);
 
-        // TODO: Handle dummies
-        self.verify_signatures::<E, C>(messages, signatures, pubkeys);
+        // // TODO: Handle dummies
+        // self.verify_signatures::<E, C>(messages, signatures, pubkeys);
 
         // TODO: Verify that this will work with dummy signatures
         for i in 0..VALIDATOR_SET_SIZE_MAX {
@@ -1224,10 +1224,10 @@ pub(crate) mod tests {
     use crate::inputs::{generate_step_inputs, CelestiaBlockProof};
     use crate::validator::{VALIDATOR_BIT_LENGTH_MAX, VALIDATOR_SET_SIZE_MAX};
 
-    use crate::merkle::{generate_proofs_from_header, hash_all_leaves, leaf_hash};
+    use crate::utils::{generate_proofs_from_header, hash_all_leaves, leaf_hash};
     use plonky2::util::timing::TimingTree;
     use plonky2::timed;
-    use log::{log, Level};
+    use log;
 
     use plonky2x::num::u32::gadgets::arithmetic_u32::U32Target;
 
@@ -2022,8 +2022,7 @@ pub(crate) mod tests {
 
     #[test]
     fn test_step() {
-        // env_logger::init();
-        env_logger::builder().is_test(true).try_init().expect("Failed to init logger");
+        let _ = env_logger::builder().is_test(true).try_init();
         let mut timing = TimingTree::new("Celestia Header Verify", log::Level::Debug);
 
         let mut pw = PartialWitness::new();

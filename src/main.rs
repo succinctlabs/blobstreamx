@@ -1,5 +1,4 @@
 pub mod inputs;
-pub mod merkle;
 pub mod utils;
 pub mod validator;
 pub mod generate_tests;
@@ -51,7 +50,7 @@ async fn main() {
                 .expect("Failed to create new fixture");
         }
         Function::GenerateStepInputs { block } => {
-            let celestia_step_inputs = inputs::generate_step_inputs(block);
+            let _ = inputs::generate_step_inputs(block);
         }
     }
 }

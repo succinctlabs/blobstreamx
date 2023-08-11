@@ -1,8 +1,7 @@
 use std::fs;
 
 /// Source (tendermint-rs): https://github.com/informalsystems/tendermint-rs/blob/e930691a5639ef805c399743ac0ddbba0e9f53da/tendermint/src/merkle.rs#L32
-use crate::merkle::{generate_proofs_from_header, non_absent_vote, SignedBlock, TempSignedBlock};
-use subtle_encoding::hex;
+use crate::utils::{generate_proofs_from_header, non_absent_vote, SignedBlock, TempSignedBlock};
 use tendermint::crypto::ed25519::VerificationKey;
 use tendermint::Signature;
 use tendermint::{validator::Set as ValidatorSet, vote::SignedVote, vote::ValidatorIndex};

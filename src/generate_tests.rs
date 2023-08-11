@@ -1,4 +1,4 @@
-use crate::merkle::{SignedBlock, TempSignedBlock};
+use crate::utils::{SignedBlock, TempSignedBlock};
 use rand::Rng;
 use reqwest::Error;
 use serde::{Deserialize, Serialize};
