@@ -1,3 +1,5 @@
+use std::fs;
+
 /// Source (tendermint-rs): https://github.com/informalsystems/tendermint-rs/blob/e930691a5639ef805c399743ac0ddbba0e9f53da/tendermint/src/merkle.rs#L32
 use crate::merkle::{generate_proofs_from_header, non_absent_vote, SignedBlock, TempSignedBlock};
 use subtle_encoding::hex;
@@ -51,11 +53,17 @@ fn get_path_indices(index: u64, total: u64) -> Vec<bool> {
     path_indices
 }
 
-pub fn generate_step_inputs() -> CelestiaBlockProof {
+pub fn generate_step_inputs(block: usize) -> CelestiaBlockProof {
     // Generate test cases from Celestia block:
+    let mut file = String::new();
+    file.push_str("./src/fixtures/");
+    file.push_str(&block.to_string());
+    file.push_str("/signed_block.json");
+
+    let file_content = fs::read_to_string(file.as_str()).expect("error reading file");
+
     let temp_block = Box::new(TempSignedBlock::from(
-        serde_json::from_str::<TempSignedBlock>(include_str!("./fixtures/11000/signed_block.json"))
-            .unwrap(),
+        serde_json::from_str::<TempSignedBlock>(&file_content).expect("failed to parse json")
     ));
 
     // Cast to SignedBlock
@@ -68,11 +76,6 @@ pub fn generate_step_inputs() -> CelestiaBlockProof {
             temp_block.validator_set.proposer,
         ),
     });
-
-    println!(
-        "header hash: {:?}",
-        String::from_utf8(hex::encode(block.header.hash().as_bytes()))
-    );
 
     let mut validators = Vec::new();
 
@@ -97,16 +100,6 @@ pub fn generate_step_inputs() -> CelestiaBlockProof {
             );
             let sig = signed_vote.signature();
             let val_bytes = validator.hash_bytes();
-            println!(
-                "pubkey: {:?}",
-                String::from_utf8(hex::encode(validator.pub_key.ed25519().unwrap().as_bytes()))
-            );
-            println!("voting_power: {:?}", validator.power());
-            println!(
-                "val_bytes: {:?}",
-                String::from_utf8(hex::encode(&val_bytes))
-            );
-            println!("val_bytes len: {:?}", val_bytes.len());
 
             validators.push(Validator {
                 pubkey: validator.pub_key.ed25519().unwrap(),

@@ -195,6 +195,7 @@ dependencies = [
  "curta",
  "digest 0.10.7",
  "env_logger",
+ "log",
  "num",
  "plonky2",
  "plonky2x",

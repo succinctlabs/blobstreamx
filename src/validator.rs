@@ -930,14 +930,6 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D>
         let eddsa_target =
             verify_signatures_circuit::<F, Self::Curve, E, C, D>(self, messages.len(), byte_len);
 
-        println!("Number of message targets: {:?}", eddsa_target.msgs.len());
-        println!("Message target length: {:?}", eddsa_target.msgs[0].len());
-        println!("Number of signature targets: {:?}", eddsa_target.sigs.len());
-        println!(
-            "Number of pubkey targets: {:?}",
-            eddsa_target.pub_keys.len()
-        );
-
         for i in 0..messages.len() {
             let message = &messages[i];
             let eddsa_sig_target = eddsa_sig_targets[i];
@@ -1233,6 +1225,9 @@ pub(crate) mod tests {
     use crate::validator::{VALIDATOR_BIT_LENGTH_MAX, VALIDATOR_SET_SIZE_MAX};
 
     use crate::merkle::{generate_proofs_from_header, hash_all_leaves, leaf_hash};
+    use plonky2::util::timing::TimingTree;
+    use plonky2::timed;
+    use log::{log, Level};
 
     use plonky2x::num::u32::gadgets::arithmetic_u32::U32Target;
 
@@ -2026,129 +2021,10 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn test_generate_root_from_step_inputs() {
-        let mut pw = PartialWitness::new();
-        let config = CircuitConfig::standard_ecc_config();
-        let mut builder = CircuitBuilder::<F, D>::new(config);
-
-        type F = GoldilocksField;
-        type C = PoseidonGoldilocksConfig;
-        const D: usize = 2;
-
-        let celestia_block_proof: CelestiaBlockProof = generate_step_inputs();
-
-        let header_bits = to_be_bits(celestia_block_proof.header);
-        // println!("header bits: {:?}", header_bits);
-
-        let mut data_hash_aunts = Vec::new();
-        let mut data_hash_enc_leaf = Vec::new();
-        let mut data_hash_path_indices = Vec::new();
-
-        let mut val_hash_aunts = Vec::new();
-        let mut val_hash_enc_leaf = Vec::new();
-        let mut val_hash_path_indices = Vec::new();
-
-        let mut next_val_hash_aunts = Vec::new();
-        let mut next_val_hash_enc_leaf = Vec::new();
-        let mut next_val_hash_path_indices = Vec::new();
-
-        // Set the encoded leaf for each of the proofs
-        let data_hash_enc_leaf_bits = to_be_bits(celestia_block_proof.data_hash_proof.enc_leaf);
-        let val_hash_enc_leaf_bits = to_be_bits(celestia_block_proof.validator_hash_proof.enc_leaf);
-        let next_val_hash_enc_leaf_bits =
-            to_be_bits(celestia_block_proof.next_validators_hash_proof.enc_leaf);
-
-        for i in 0..PROTOBUF_HASH_SIZE_BITS {
-            data_hash_enc_leaf.push(builder.constant_bool(data_hash_enc_leaf_bits[i]));
-
-            val_hash_enc_leaf.push(builder.constant_bool(val_hash_enc_leaf_bits[i]));
-
-            next_val_hash_enc_leaf.push(builder.constant_bool(next_val_hash_enc_leaf_bits[i]));
-        }
-
-        for i in 0..HEADER_PROOF_DEPTH {
-            // Set path indices for each of the proof indices
-            data_hash_path_indices
-                .push(builder.constant_bool(celestia_block_proof.data_hash_proof.path[i]));
-            val_hash_path_indices
-                .push(builder.constant_bool(celestia_block_proof.validator_hash_proof.path[i]));
-            next_val_hash_path_indices.push(
-                builder.constant_bool(celestia_block_proof.next_validators_hash_proof.path[i]),
-            );
-
-            let data_hash_aunt_bits =
-                to_be_bits(celestia_block_proof.data_hash_proof.proof[i].to_vec());
-
-            let val_hash_aunt_bits =
-                to_be_bits(celestia_block_proof.validator_hash_proof.proof[i].to_vec());
-
-            let next_val_aunt_bits =
-                to_be_bits(celestia_block_proof.next_validators_hash_proof.proof[i].to_vec());
-
-            data_hash_aunts.push(Vec::new());
-            val_hash_aunts.push(Vec::new());
-            next_val_hash_aunts.push(Vec::new());
-
-            // Set aunts for each of the proofs
-            for j in 0..HASH_SIZE_BITS {
-                data_hash_aunts[i].push(builder.constant_bool(data_hash_aunt_bits[j]));
-                val_hash_aunts[i].push(builder.constant_bool(val_hash_aunt_bits[j]));
-                next_val_hash_aunts[i].push(builder.constant_bool(next_val_aunt_bits[j]));
-            }
-        }
-
-        let mut data_hash_aunts_new = Vec::new();
-        let mut val_hash_aunts_new = Vec::new();
-        let mut next_val_hash_aunts_new = Vec::new();
-        for i in 0..HEADER_PROOF_DEPTH {
-            data_hash_aunts_new.push(TendermintHashTarget(
-                data_hash_aunts[i].clone().try_into().unwrap(),
-            ));
-            val_hash_aunts_new.push(TendermintHashTarget(
-                val_hash_aunts[i].clone().try_into().unwrap(),
-            ));
-            next_val_hash_aunts_new.push(TendermintHashTarget(
-                next_val_hash_aunts[i].clone().try_into().unwrap(),
-            ));
-        }
-
-        let header_from_data_hash = builder.get_root_from_merkle_proof(
-            &data_hash_aunts_new,
-            &data_hash_path_indices,
-            &EncTendermintHashTarget(data_hash_enc_leaf.try_into().unwrap()),
-        );
-
-        let header_from_val_hash = builder.get_root_from_merkle_proof(
-            &val_hash_aunts_new,
-            &val_hash_path_indices,
-            &EncTendermintHashTarget(val_hash_enc_leaf.try_into().unwrap()),
-        );
-
-        let header_from_next_val_hash = builder.get_root_from_merkle_proof(
-            &next_val_hash_aunts_new,
-            &next_val_hash_path_indices,
-            &EncTendermintHashTarget(next_val_hash_enc_leaf.try_into().unwrap()),
-        );
-
-        for i in 0..HASH_SIZE_BITS {
-            pw.set_bool_target(header_from_data_hash.0[i], header_bits[i]);
-            pw.set_bool_target(header_from_val_hash.0[i], header_bits[i]);
-            pw.set_bool_target(header_from_next_val_hash.0[i], header_bits[i]);
-        }
-
-        let data = builder.build::<C>();
-        let proof = data.prove(pw).unwrap();
-
-        println!("Created proof");
-
-        data.verify(proof).unwrap();
-
-        println!("Verified proof");
-    }
-
-    #[test]
     fn test_step() {
-        let _ = env_logger::builder().is_test(true).try_init();
+        // env_logger::init();
+        env_logger::builder().is_test(true).try_init().expect("Failed to init logger");
+        let mut timing = TimingTree::new("Celestia Header Verify", log::Level::Debug);
 
         let mut pw = PartialWitness::new();
         let config = CircuitConfig::standard_ecc_config();
@@ -2163,176 +2039,192 @@ pub(crate) mod tests {
         let celestia_proof_target =
             make_step_circuit::<GoldilocksField, D, Curve, C, E>(&mut builder);
 
-        let celestia_block_proof: CelestiaBlockProof = generate_step_inputs();
+        // Testing block 11000
+        let block = 11000;
+        let celestia_block_proof: CelestiaBlockProof = generate_step_inputs(block);
+        timed!(
+            timing,
+            "assigning inputs",
+            {
+                // Set target for header
+                let header_bits = to_be_bits(celestia_block_proof.header);
+                for i in 0..HASH_SIZE_BITS {
+                    pw.set_bool_target(celestia_proof_target.header.0[i], header_bits[i]);
+                }
 
-        // Set target for header
-        let header_bits = to_be_bits(celestia_block_proof.header);
-        for i in 0..HASH_SIZE_BITS {
-            pw.set_bool_target(celestia_proof_target.header.0[i], header_bits[i]);
-        }
+                // Set target for round present
+                pw.set_bool_target(
+                    celestia_proof_target.round_present,
+                    celestia_block_proof.round_present,
+                );
 
-        // Set target for round present
-        pw.set_bool_target(
-            celestia_proof_target.round_present,
-            celestia_block_proof.round_present,
+                // Set the encoded leaf for each of the proofs
+                let data_hash_enc_leaf = to_be_bits(celestia_block_proof.data_hash_proof.enc_leaf);
+                let val_hash_enc_leaf = to_be_bits(celestia_block_proof.validator_hash_proof.enc_leaf);
+                let next_val_hash_enc_leaf =
+                    to_be_bits(celestia_block_proof.next_validators_hash_proof.enc_leaf);
+
+                for i in 0..PROTOBUF_HASH_SIZE_BITS {
+                    pw.set_bool_target(
+                        celestia_proof_target.data_hash_proof.enc_leaf.0[i],
+                        data_hash_enc_leaf[i],
+                    );
+                    pw.set_bool_target(
+                        celestia_proof_target.validator_hash_proof.enc_leaf.0[i],
+                        val_hash_enc_leaf[i],
+                    );
+                    pw.set_bool_target(
+                        celestia_proof_target.next_validators_hash_proof.enc_leaf.0[i],
+                        next_val_hash_enc_leaf[i],
+                    );
+                }
+
+                for i in 0..HEADER_PROOF_DEPTH {
+                    // Set path indices for each of the proof indices
+                    pw.set_bool_target(
+                        celestia_proof_target.data_hash_proof.path[i],
+                        celestia_block_proof.data_hash_proof.path[i],
+                    );
+                    pw.set_bool_target(
+                        celestia_proof_target.validator_hash_proof.path[i],
+                        celestia_block_proof.validator_hash_proof.path[i],
+                    );
+                    pw.set_bool_target(
+                        celestia_proof_target.next_validators_hash_proof.path[i],
+                        celestia_block_proof.next_validators_hash_proof.path[i],
+                    );
+
+                    let data_hash_aunt = to_be_bits(celestia_block_proof.data_hash_proof.proof[i].to_vec());
+
+                    let val_hash_aunt =
+                        to_be_bits(celestia_block_proof.validator_hash_proof.proof[i].to_vec());
+
+                    let next_val_aunt =
+                        to_be_bits(celestia_block_proof.next_validators_hash_proof.proof[i].to_vec());
+
+                    // Set aunts for each of the proofs
+                    for j in 0..HASH_SIZE_BITS {
+                        pw.set_bool_target(
+                            celestia_proof_target.data_hash_proof.proof[i].0[j],
+                            data_hash_aunt[j],
+                        );
+                        pw.set_bool_target(
+                            celestia_proof_target.validator_hash_proof.proof[i].0[j],
+                            val_hash_aunt[j],
+                        );
+                        pw.set_bool_target(
+                            celestia_proof_target.next_validators_hash_proof.proof[i].0[j],
+                            next_val_aunt[j],
+                        );
+                    }
+                }
+
+                // Set the targets for each of the validators
+                for i in 0..VALIDATOR_SET_SIZE_MAX {
+                    let validator = &celestia_block_proof.validators[i];
+                    let signature_bytes = validator.signature.clone().into_bytes();
+
+                    let voting_power_lower = (validator.voting_power & ((1 << 32) - 1)) as u32;
+                    let voting_power_upper = (validator.voting_power >> 32) as u32;
+
+                    let pub_key_uncompressed: AffinePoint<Curve> =
+                        AffinePoint::new_from_compressed_point(validator.pubkey.as_bytes());
+
+                    let sig_r: AffinePoint<Curve> =
+                        AffinePoint::new_from_compressed_point(&signature_bytes[0..32]);
+                    assert!(sig_r.is_valid());
+
+                    let sig_s_biguint = BigUint::from_bytes_le(&signature_bytes[32..64]);
+                    let _sig_s = Ed25519Scalar::from_noncanonical_biguint(sig_s_biguint.clone());
+
+                    // Set the targets for the public key
+                    pw.set_affine_point_target(
+                        &celestia_proof_target.validators[i].pubkey.0,
+                        &pub_key_uncompressed,
+                    );
+
+                    // Set signature targets
+                    pw.set_affine_point_target(&celestia_proof_target.validators[i].signature.r, &sig_r);
+                    pw.set_biguint_target(
+                        &celestia_proof_target.validators[i].signature.s.value,
+                        &sig_s_biguint,
+                    );
+
+                    let message_bits = to_be_bits(validator.message.clone());
+                    // Set messages for each of the proofs
+                    for j in 0..VALIDATOR_MESSAGE_BYTES_LENGTH_MAX * 8 {
+                        pw.set_bool_target(
+                            celestia_proof_target.validators[i].message.0[j],
+                            message_bits[j],
+                        );
+                    }
+
+                    // Set voting power targets
+                    pw.set_u32_target(
+                        celestia_proof_target.validators[i].voting_power.0[0],
+                        voting_power_lower,
+                    );
+                    pw.set_u32_target(
+                        celestia_proof_target.validators[i].voting_power.0[1],
+                        voting_power_upper,
+                    );
+
+                    // Set length targets
+                    pw.set_u32_target(
+                        celestia_proof_target.validators[i].validator_byte_length,
+                        validator.validator_byte_length as u32,
+                    );
+                    pw.set_u32_target(
+                        celestia_proof_target.validators[i].message_byte_length,
+                        validator.message_byte_length as u32,
+                    );
+
+                    // Set enabled and signed
+                    pw.set_bool_target(
+                        celestia_proof_target.validators[i].enabled,
+                        validator.enabled,
+                    );
+                    pw.set_bool_target(celestia_proof_target.validators[i].signed, validator.signed);
+                }
+            }
+        );
+        timed!(
+            timing,
+            "Generate proof",
+            {
+                let inner_data = builder.build::<C>();
+                let inner_proof = inner_data.prove(pw).unwrap();
+                inner_data.verify(inner_proof.clone()).unwrap();
+        
+                // let mut outer_builder = CircuitBuilder::<F, D>::new(CircuitConfig::standard_ecc_config());
+                // let inner_proof_target = outer_builder.add_virtual_proof_with_pis(&inner_data.common);
+                // let inner_verifier_data =
+                //     outer_builder.add_virtual_verifier_data(inner_data.common.config.fri_config.cap_height);
+                // outer_builder.verify_proof::<C>(
+                //     &inner_proof_target,
+                //     &inner_verifier_data,
+                //     &inner_data.common,
+                // );
+        
+                // let outer_data = outer_builder.build::<C>();
+                // for gate in outer_data.common.gates.iter() {
+                //     println!("ecddsa verify recursive gate: {:?}", gate);
+                // }
+        
+                // let mut outer_pw = PartialWitness::new();
+                // outer_pw.set_proof_with_pis_target(&inner_proof_target, &inner_proof);
+                // outer_pw.set_verifier_data_target(&inner_verifier_data, &inner_data.verifier_only);
+        
+                // let outer_proof = outer_data.prove(outer_pw).unwrap();
+        
+                // outer_data
+                //     .verify(outer_proof)
+                //     .expect("failed to verify proof");
+            }
         );
 
-        // Set the encoded leaf for each of the proofs
-        let data_hash_enc_leaf = to_be_bits(celestia_block_proof.data_hash_proof.enc_leaf);
-        let val_hash_enc_leaf = to_be_bits(celestia_block_proof.validator_hash_proof.enc_leaf);
-        let next_val_hash_enc_leaf =
-            to_be_bits(celestia_block_proof.next_validators_hash_proof.enc_leaf);
+        timing.print();
 
-        for i in 0..PROTOBUF_HASH_SIZE_BITS {
-            pw.set_bool_target(
-                celestia_proof_target.data_hash_proof.enc_leaf.0[i],
-                data_hash_enc_leaf[i],
-            );
-            pw.set_bool_target(
-                celestia_proof_target.validator_hash_proof.enc_leaf.0[i],
-                val_hash_enc_leaf[i],
-            );
-            pw.set_bool_target(
-                celestia_proof_target.next_validators_hash_proof.enc_leaf.0[i],
-                next_val_hash_enc_leaf[i],
-            );
-        }
 
-        for i in 0..HEADER_PROOF_DEPTH {
-            // Set path indices for each of the proof indices
-            pw.set_bool_target(
-                celestia_proof_target.data_hash_proof.path[i],
-                celestia_block_proof.data_hash_proof.path[i],
-            );
-            pw.set_bool_target(
-                celestia_proof_target.validator_hash_proof.path[i],
-                celestia_block_proof.validator_hash_proof.path[i],
-            );
-            pw.set_bool_target(
-                celestia_proof_target.next_validators_hash_proof.path[i],
-                celestia_block_proof.next_validators_hash_proof.path[i],
-            );
-
-            let data_hash_aunt = to_be_bits(celestia_block_proof.data_hash_proof.proof[i].to_vec());
-
-            let val_hash_aunt =
-                to_be_bits(celestia_block_proof.validator_hash_proof.proof[i].to_vec());
-
-            let next_val_aunt =
-                to_be_bits(celestia_block_proof.next_validators_hash_proof.proof[i].to_vec());
-
-            // Set aunts for each of the proofs
-            for j in 0..HASH_SIZE_BITS {
-                pw.set_bool_target(
-                    celestia_proof_target.data_hash_proof.proof[i].0[j],
-                    data_hash_aunt[j],
-                );
-                pw.set_bool_target(
-                    celestia_proof_target.validator_hash_proof.proof[i].0[j],
-                    val_hash_aunt[j],
-                );
-                pw.set_bool_target(
-                    celestia_proof_target.next_validators_hash_proof.proof[i].0[j],
-                    next_val_aunt[j],
-                );
-            }
-        }
-
-        // Set the targets for each of the validators
-        for i in 0..VALIDATOR_SET_SIZE_MAX {
-            let validator = &celestia_block_proof.validators[i];
-            let signature_bytes = validator.signature.clone().into_bytes();
-
-            let voting_power_lower = (validator.voting_power & ((1 << 32) - 1)) as u32;
-            let voting_power_upper = (validator.voting_power >> 32) as u32;
-
-            let pub_key_uncompressed: AffinePoint<Curve> =
-                AffinePoint::new_from_compressed_point(validator.pubkey.as_bytes());
-
-            let sig_r: AffinePoint<Curve> =
-                AffinePoint::new_from_compressed_point(&signature_bytes[0..32]);
-            assert!(sig_r.is_valid());
-
-            let sig_s_biguint = BigUint::from_bytes_le(&signature_bytes[32..64]);
-            let _sig_s = Ed25519Scalar::from_noncanonical_biguint(sig_s_biguint.clone());
-
-            // Set the targets for the public key
-            pw.set_affine_point_target(
-                &celestia_proof_target.validators[i].pubkey.0,
-                &pub_key_uncompressed,
-            );
-
-            // Set signature targets
-            pw.set_affine_point_target(&celestia_proof_target.validators[i].signature.r, &sig_r);
-            pw.set_biguint_target(
-                &celestia_proof_target.validators[i].signature.s.value,
-                &sig_s_biguint,
-            );
-
-            let message_bits = to_be_bits(validator.message.clone());
-            // Set messages for each of the proofs
-            for j in 0..VALIDATOR_MESSAGE_BYTES_LENGTH_MAX * 8 {
-                pw.set_bool_target(
-                    celestia_proof_target.validators[i].message.0[j],
-                    message_bits[j],
-                );
-            }
-
-            // Set voting power targets
-            pw.set_u32_target(
-                celestia_proof_target.validators[i].voting_power.0[0],
-                voting_power_lower,
-            );
-            pw.set_u32_target(
-                celestia_proof_target.validators[i].voting_power.0[1],
-                voting_power_upper,
-            );
-
-            // Set length targets
-            pw.set_u32_target(
-                celestia_proof_target.validators[i].validator_byte_length,
-                validator.validator_byte_length as u32,
-            );
-            pw.set_u32_target(
-                celestia_proof_target.validators[i].message_byte_length,
-                validator.message_byte_length as u32,
-            );
-
-            // Set enabled and signed
-            pw.set_bool_target(
-                celestia_proof_target.validators[i].enabled,
-                validator.enabled,
-            );
-            pw.set_bool_target(celestia_proof_target.validators[i].signed, validator.signed);
-        }
-
-        let inner_data = builder.build::<C>();
-        let inner_proof = inner_data.prove(pw).unwrap();
-        inner_data.verify(inner_proof.clone()).unwrap();
-
-        // let mut outer_builder = CircuitBuilder::<F, D>::new(CircuitConfig::standard_ecc_config());
-        // let inner_proof_target = outer_builder.add_virtual_proof_with_pis(&inner_data.common);
-        // let inner_verifier_data =
-        //     outer_builder.add_virtual_verifier_data(inner_data.common.config.fri_config.cap_height);
-        // outer_builder.verify_proof::<C>(
-        //     &inner_proof_target,
-        //     &inner_verifier_data,
-        //     &inner_data.common,
-        // );
-
-        // let outer_data = outer_builder.build::<C>();
-        // for gate in outer_data.common.gates.iter() {
-        //     println!("ecddsa verify recursive gate: {:?}", gate);
-        // }
-
-        // let mut outer_pw = PartialWitness::new();
-        // outer_pw.set_proof_with_pis_target(&inner_proof_target, &inner_proof);
-        // outer_pw.set_verifier_data_target(&inner_verifier_data, &inner_data.verifier_only);
-
-        // let outer_proof = outer_data.prove(outer_pw).unwrap();
-
-        // outer_data
-        //     .verify(outer_proof)
-        //     .expect("failed to verify proof");
     }
 }

@@ -9,6 +9,7 @@ clap = { version = "4.3.18", features = ["derive"] }
 curta = { git = "https://github.com/succinctlabs/curta.git" }
 digest = "0.10.7"
 env_logger = "0.10.0"
+log = "0.4.19"
 num = "0.4.1"
 plonky2 = { git = "https://github.com/mir-protocol/plonky2.git" }
 plonky2x = { git = "ssh://git@github.com/succinctlabs/sdk.git" }

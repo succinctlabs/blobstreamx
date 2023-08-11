@@ -1,10 +1,8 @@
-pub mod fixtures;
 pub mod inputs;
 pub mod merkle;
 pub mod utils;
 pub mod validator;
-
-use crate::fixtures::generate_tests;
+pub mod generate_tests;
 
 use clap::Parser;
 
@@ -17,9 +15,17 @@ enum Function {
         validators: usize,
     },
     /// Calls the get_celestia_consensus_signatures function
-    GetCelestiaConsensusSignatures,
+    CreateNewFixture {
+        /// The block number to create a new fixture for
+        #[clap(short, long)]
+        block: usize,
+    },
     /// Generates step inputs
-    GenerateStepInputs,
+    GenerateStepInputs {
+        /// Number of validators to generate test cases for
+        #[clap(short, long)]
+        block: usize,
+    },
 }
 
 #[derive(Parser, Debug)]
@@ -39,14 +45,13 @@ async fn main() {
             println!("Number of validators: {}", validators);
             generate_tests::generate_val_array(validators);
         }
-        Function::GetCelestiaConsensusSignatures => {
-            generate_tests::get_celestia_consensus_signatures()
+        Function::CreateNewFixture { block } => {
+            generate_tests::create_new_fixture(block)
                 .await
-                .expect("Failed to get Celestia consensus signatures");
+                .expect("Failed to create new fixture");
         }
-        Function::GenerateStepInputs => {
-            let _celestia_step_inputs = inputs::generate_step_inputs();
-            // println!("celestia_step_inputs: {:?}", celestia_step_inputs);
+        Function::GenerateStepInputs { block } => {
+            let celestia_step_inputs = inputs::generate_step_inputs(block);
         }
     }
 }
