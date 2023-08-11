@@ -6,6 +6,7 @@
 //! The `pubkey` is encoded as the raw list of bytes used in the public key. The `varint` is
 //! encoded using protobuf's default integer encoding, which consist of 7 bit payloads. You can
 //! read more about them here: https://protobuf.dev/programming-guides/encoding/#varints.
+use curta::plonky2::field::CubicParameters;
 use plonky2::field::extension::Extendable;
 use plonky2::iop::target::BoolTarget;
 use plonky2::{hash::hash_types::RichField, plonk::circuit_builder::CircuitBuilder};
@@ -528,6 +529,9 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D>
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
+    use curta::math::goldilocks::cubic::GoldilocksCubicParameters;
+    use num::BigUint;
+    use plonky2::field::goldilocks_field::GoldilocksField;
     use plonky2::field::types::Field;
     use plonky2::iop::target::BoolTarget;
     use plonky2::{
