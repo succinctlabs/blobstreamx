@@ -1,16 +1,20 @@
-use crate::merkle::{SignedBlock, TempSignedBlock};
+use crate::utils::{SignedBlock, TempSignedBlock};
 use rand::Rng;
 use reqwest::Error;
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
-use std::{fs::File, io::Write};
+use std::{
+    fs::{self, File},
+    io::Write,
+    path::Path,
+};
 use subtle_encoding::hex;
 use tendermint::{merkle::simple_hash_from_byte_vectors, validator::Set as ValidatorSet};
 
 #[derive(Debug, Deserialize)]
 struct Response {
-    _jsonrpc: String,
-    _id: i32,
+    jsonrpc: String,
+    id: i32,
     result: TempSignedBlock,
 }
 
@@ -53,13 +57,12 @@ pub fn generate_val_array(num_validators: usize) {
     );
 }
 
-pub async fn get_celestia_consensus_signatures() -> Result<(), Error> {
+pub async fn create_new_fixture(block_number: usize) -> Result<(), Error> {
     // Read from https://rpc-t.celestia.nodestake.top/signed_block?height=131950 using
     // Serves latest block
-    let height = 11000;
     let mut url =
         "http://rpc.testnet.celestia.citizencosmos.space/signed_block?height=".to_string();
-    url.push_str(height.to_string().as_str());
+    url.push_str(block_number.to_string().as_str());
 
     // Send a GET request and wait for the response
 
@@ -81,16 +84,19 @@ pub async fn get_celestia_consensus_signatures() -> Result<(), Error> {
         ),
     };
 
-    println!("here");
-
     // Write to JSON file
     let json = serde_json::to_string(&block).unwrap();
 
-    let mut path = "src/fixtures/".to_string();
-    path.push_str(height.to_string().as_str());
+    let mut path = "./src/fixtures/".to_string();
+    path.push_str(block_number.to_string().as_str());
     path.push_str("/signed_block.json");
-    println!("Path: {:?}", path);
-    let mut file = File::create(path).unwrap();
+
+    // Ensure the directory exists
+    if let Some(parent) = Path::new(&path).parent() {
+        fs::create_dir_all(parent).unwrap();
+    }
+
+    let mut file = File::create(&path).unwrap();
     file.write_all(json.as_bytes()).unwrap();
 
     Ok(())
