@@ -55,9 +55,5 @@ async fn main() {
         Function::GenerateStepInputs { block } => {
             let _ = inputs::generate_step_inputs(block);
         }
-        Function::GenerateStepInputs => {
-            let _celestia_step_inputs = inputs::generate_step_inputs();
-            // println!("celestia_step_inputs: {:?}", celestia_step_inputs);
-        }
     }
 }
