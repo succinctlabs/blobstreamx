@@ -6,7 +6,6 @@
 //! The `pubkey` is encoded as the raw list of bytes used in the public key. The `varint` is
 //! encoded using protobuf's default integer encoding, which consist of 7 bit payloads. You can
 //! read more about them here: https://protobuf.dev/programming-guides/encoding/#varints.
-use curta::plonky2::field::CubicParameters;
 use plonky2::field::extension::Extendable;
 use plonky2::iop::target::BoolTarget;
 use plonky2::{hash::hash_types::RichField, plonk::circuit_builder::CircuitBuilder};
@@ -14,13 +13,13 @@ use plonky2x::ecc::ed25519::curve::curve_types::Curve;
 use plonky2x::ecc::ed25519::curve::ed25519::Ed25519;
 use plonky2x::ecc::ed25519::gadgets::curve::{AffinePointTarget, CircuitBuilderCurve};
 use plonky2x::hash::sha::sha256::{sha256, sha256_variable_length_single_chunk};
-use plonky2x::num::u32::gadgets::arithmetic_u32::{CircuitBuilderU32, U32Target};
+use plonky2x::num::u32::gadgets::arithmetic_u32::CircuitBuilderU32;
 use plonky2::iop::target::Target;
 
 use crate::utils::{
     EncTendermintHashTarget, I64Target, MarshalledValidatorTarget, TendermintHashTarget,
-    HASH_SIZE_BITS, NUM_POSSIBLE_VALIDATOR_BYTE_LENGTHS, PROTOBUF_HASH_SIZE_BITS,
-    VALIDATOR_BYTE_LENGTH_MAX, VALIDATOR_BYTE_LENGTH_MIN, VALIDATOR_SET_SIZE_MAX,
+    HASH_SIZE_BITS, PROTOBUF_HASH_SIZE_BITS,
+    VALIDATOR_BYTE_LENGTH_MAX, VALIDATOR_SET_SIZE_MAX,
     VOTING_POWER_BITS_LENGTH_MAX, VOTING_POWER_BYTES_LENGTH_MAX, VALIDATOR_BIT_LENGTH_MAX,
 };
 
@@ -475,9 +474,6 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D>
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use curta::math::goldilocks::cubic::GoldilocksCubicParameters;
-    use num::BigUint;
-    use plonky2::field::goldilocks_field::GoldilocksField;
     use plonky2::field::types::Field;
     use plonky2::iop::target::BoolTarget;
     use plonky2::{
@@ -501,12 +497,9 @@ pub(crate) mod tests {
     use plonky2x::num::u32::gadgets::arithmetic_u32::U32Target;
 
     use crate::{
-        signature::TendermintSignature,
         utils::{f_bits_to_bytes, to_be_bits},
         validator::{I64Target, TendermintMarshaller},
     };
-
-    use super::VALIDATOR_BYTE_LENGTH_MIN;
 
     type C = PoseidonGoldilocksConfig;
     type F = <C as GenericConfig<D>>::F;
@@ -543,7 +536,7 @@ pub(crate) mod tests {
             validator_enabled[i] = builder._true();
         }
 
-        for i in validators.len()..VALIDATOR_SET_SIZE_MAX {
+        for _ in validators.len()..VALIDATOR_SET_SIZE_MAX {
             validator_byte_length.push(builder.constant(F::from_canonical_usize(0)));
         }
         return (validators_target, validator_byte_length, validator_enabled);

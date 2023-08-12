@@ -14,7 +14,7 @@ pub struct Validator {
     pub message: Vec<u8>,
     pub message_byte_length: u32,
     pub voting_power: u64,
-    pub validator_byte_length: u32,
+    pub validator_byte_length: usize,
     pub enabled: bool,
     pub signed: bool,
 }
@@ -106,7 +106,7 @@ pub fn generate_step_inputs(block: usize) -> CelestiaBlockProof {
                 message: signed_vote.sign_bytes(),
                 message_byte_length: signed_vote.sign_bytes().len() as u32,
                 voting_power: validator.power(),
-                validator_byte_length: val_bytes.len() as u32,
+                validator_byte_length: val_bytes.len(),
                 enabled: true,
                 signed: true,
             });
