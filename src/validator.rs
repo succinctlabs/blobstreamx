@@ -302,7 +302,9 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D>
         let one = self.one();
         let eight = self.constant(F::from_canonical_usize(8));
 
+        // Add one to account for the 0x00 byte.
         let enc_validator_byte_length = self.add(one, validator_byte_length);
+        // Multiply by 8 to get the bit length.
         let enc_validator_bit_length = self.mul(enc_validator_byte_length, eight);
 
         // Encode leaf 0x00 || validator_bits
