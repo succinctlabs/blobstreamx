@@ -18,6 +18,7 @@ use plonky2x::ecc::ed25519::gadgets::curve::CircuitBuilderCurve;
 use plonky2x::ecc::ed25519::gadgets::eddsa::{EDDSAPublicKeyTarget, EDDSASignatureTarget};
 use plonky2x::num::nonnative::nonnative::CircuitBuilderNonNative;
 use plonky2x::num::u32::gadgets::arithmetic_u32::{CircuitBuilderU32, U32Target};
+use plonky2::iop::target::Target;
 
 use crate::signature::TendermintSignature;
 use crate::utils::{
@@ -35,7 +36,7 @@ pub struct ValidatorTarget<C: Curve> {
     message: ValidatorMessageTarget,
     message_byte_length: U32Target,
     voting_power: I64Target,
-    validator_byte_length: U32Target,
+    validator_byte_length: Target,
     enabled: BoolTarget,
     signed: BoolTarget,
 }
@@ -92,7 +93,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintStep<F, D> for Circ
         let one = self.one();
         // Verify each of the validators marshal correctly
         // Assumes the validators are sorted in the correct order
-        let byte_lengths: Vec<U32Target> =
+        let byte_lengths: Vec<Target> =
             validators.iter().map(|v| v.validator_byte_length).collect();
         let marshalled_validators: Vec<MarshalledValidatorTarget> = validators
             .iter()
@@ -248,7 +249,7 @@ where
             builder.add_virtual_u32_target(),
             builder.add_virtual_u32_target(),
         ]);
-        let validator_byte_length = builder.add_virtual_u32_target();
+        let validator_byte_length = builder.add_virtual_target();
         let enabled = builder.add_virtual_bool_target_safe();
         let signed = builder.add_virtual_bool_target_safe();
 
@@ -528,9 +529,9 @@ pub(crate) mod tests {
                 );
 
                 // Set length targets
-                pw.set_u32_target(
+                pw.set_target(
                     celestia_proof_target.validators[i].validator_byte_length,
-                    validator.validator_byte_length as u32,
+                    F::from_canonical_usize(validator.validator_byte_length as usize),
                 );
                 pw.set_u32_target(
                     celestia_proof_target.validators[i].message_byte_length,
