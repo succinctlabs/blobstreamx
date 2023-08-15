@@ -14,7 +14,9 @@ use plonky2::plonk::config::GenericConfig;
 use plonky2::{hash::hash_types::RichField, plonk::circuit_builder::CircuitBuilder};
 use plonky2x::ecc::ed25519::curve::curve_types::Curve;
 use plonky2x::ecc::ed25519::curve::ed25519::Ed25519;
+use plonky2::iop::target::Target;
 use plonky2x::ecc::ed25519::gadgets::curve::CircuitBuilderCurve;
+use plonky2x::ecc::ed25519::gadgets::eddsa::verify_variable_signatures_circuit;
 use plonky2x::ecc::ed25519::gadgets::eddsa::{
     verify_signatures_circuit, EDDSAPublicKeyTarget, EDDSASignatureTarget,
 };
@@ -51,6 +53,9 @@ pub trait TendermintSignature<F: RichField + Extendable<D>, const D: usize> {
         &mut self,
         // This message should be range-checked before being passed in.
         messages: Vec<Vec<BoolTarget>>,
+        message_byte_lengths: Vec<Target>,
+        // Last chunk in SHA-512 hash of message
+        message_last_chunks: Vec<Target>,
         eddsa_sig_targets: Vec<&EDDSASignatureTarget<Self::Curve>>,
         eddsa_pubkey_targets: Vec<&EDDSAPublicKeyTarget<Self::Curve>>,
     ) where
@@ -137,7 +142,11 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintSignature<F, D>
     >(
         &mut self,
         // This message should be range-checked before being passed in.
+        // Note: These are all VALIDATOR_MESSAGE_BYTES_LENGTH_MAX*8 long
         messages: Vec<Vec<BoolTarget>>,
+        // Note: byte_length and last_chunk include the length of the compressed sig.r and pk.x in bits prepended (512)
+        message_byte_lengths: Vec<Target>,
+        message_last_chunks: Vec<Target>,
         eddsa_sig_targets: Vec<&EDDSASignatureTarget<Self::Curve>>,
         eddsa_pubkey_targets: Vec<&EDDSAPublicKeyTarget<Self::Curve>>,
     ) where
@@ -149,11 +158,8 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintSignature<F, D>
                 && messages.len() == eddsa_pubkey_targets.len(),
         );
 
-        // Already in bits
-        let byte_len = (messages[0].len() / 8) as u128;
-
         let eddsa_target =
-            verify_signatures_circuit::<F, Self::Curve, E, C, D>(self, messages.len(), byte_len);
+            verify_variable_signatures_circuit::<F, Self::Curve, E, C, D, VALIDATOR_MESSAGE_BYTES_LENGTH_MAX>(self, messages.len());
 
         for i in 0..messages.len() {
             let message = &messages[i];
@@ -162,6 +168,9 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintSignature<F, D>
             for j in 0..8 * VALIDATOR_MESSAGE_BYTES_LENGTH_MAX {
                 self.connect(eddsa_target.msgs[i][j].target, message[j].target);
             }
+
+            self.connect(eddsa_target.msgs_lengths[i], message_byte_lengths[i]);
+            self.connect(eddsa_target.msgs_last_chunks[i], message_last_chunks[i]);
 
             self.connect_nonnative(&eddsa_target.sigs[i].s, &eddsa_sig_target.s);
             self.connect_nonnative(&eddsa_target.sigs[i].r.x, &eddsa_sig_target.r.x);

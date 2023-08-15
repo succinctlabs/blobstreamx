@@ -2583,7 +2583,7 @@ checksum = "5696e2e2a6bb5c48a6e33fb0dd4d20d0a9472784b709964f337f224e99bd6d06"
 [[package]]
 name = "plonky2x"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/sdk.git#df0987a3dfc76bbb22d5f594917a595fb496c27c"
+source = "git+ssh://git@github.com/succinctlabs/sdk.git?branch=ratan/eddsa-variable#d37405a56b3634308ed3e2d794cb2ae81c80da9a"
 dependencies = [
  "anyhow",
  "curta",
