@@ -6,6 +6,7 @@ use tendermint::crypto::ed25519::VerificationKey;
 use tendermint::Signature;
 use tendermint::{validator::Set as ValidatorSet, vote::SignedVote, vote::ValidatorIndex};
 use tendermint_proto::Protobuf;
+use subtle_encoding::hex;
 
 #[derive(Debug, Clone)]
 pub struct Validator {
@@ -99,6 +100,11 @@ pub fn generate_step_inputs(block: usize) -> CelestiaBlockProof {
             );
             let sig = signed_vote.signature();
             let val_bytes = validator.hash_bytes();
+
+            println!("signature: {:?}", String::from_utf8(hex::encode(sig.clone().into_bytes())));
+            println!("signed message: {:?}", String::from_utf8(hex::encode(signed_vote.sign_bytes())));
+            println!("length of signed message: {:?}", signed_vote.sign_bytes().len() * 8);
+            println!("pubkey: {:?}", String::from_utf8(hex::encode(validator.pub_key.ed25519().unwrap().as_bytes())));
 
             validators.push(Validator {
                 pubkey: validator.pub_key.ed25519().unwrap(),
