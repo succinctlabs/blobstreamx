@@ -20,6 +20,7 @@ use plonky2x::ecc::ed25519::gadgets::eddsa::verify_variable_signatures_circuit;
 use plonky2x::ecc::ed25519::gadgets::eddsa::{
     verify_signatures_circuit, EDDSAPublicKeyTarget, EDDSASignatureTarget,
 };
+use plonky2x::hash::sha::sha512::calculate_num_chunks;
 use plonky2x::num::nonnative::nonnative::CircuitBuilderNonNative;
 
 use crate::utils::{
@@ -53,9 +54,7 @@ pub trait TendermintSignature<F: RichField + Extendable<D>, const D: usize> {
         &mut self,
         // This message should be range-checked before being passed in.
         messages: Vec<Vec<BoolTarget>>,
-        message_byte_lengths: Vec<Target>,
-        // Last chunk in SHA-512 hash of message
-        message_last_chunks: Vec<Target>,
+        message_bit_lengths: Vec<Target>,
         eddsa_sig_targets: Vec<&EDDSASignatureTarget<Self::Curve>>,
         eddsa_pubkey_targets: Vec<&EDDSAPublicKeyTarget<Self::Curve>>,
     ) where
@@ -144,9 +143,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintSignature<F, D>
         // This message should be range-checked before being passed in.
         // Note: These are all VALIDATOR_MESSAGE_BYTES_LENGTH_MAX*8 long
         messages: Vec<Vec<BoolTarget>>,
-        // Note: byte_length and last_chunk include the length of the compressed sig.r and pk.x in bits prepended (512)
-        message_byte_lengths: Vec<Target>,
-        message_last_chunks: Vec<Target>,
+        message_bit_lengths: Vec<Target>,
         eddsa_sig_targets: Vec<&EDDSASignatureTarget<Self::Curve>>,
         eddsa_pubkey_targets: Vec<&EDDSAPublicKeyTarget<Self::Curve>>,
     ) where
@@ -158,19 +155,26 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintSignature<F, D>
                 && messages.len() == eddsa_pubkey_targets.len(),
         );
 
+        println!("messages.len(): {}", messages.len());
+
+        const VALIDATOR_MESSAGE_BITS_LENGTH_MAX: usize =
+            VALIDATOR_MESSAGE_BYTES_LENGTH_MAX * 8;
+        
+        // Note: Add 512 bits for the sig.r and pk_compressed in EDDSA
+        const MAX_NUM_CHUNKS: usize = calculate_num_chunks(VALIDATOR_MESSAGE_BITS_LENGTH_MAX + 512);
+
         let eddsa_target =
-            verify_variable_signatures_circuit::<F, Self::Curve, E, C, D, VALIDATOR_MESSAGE_BYTES_LENGTH_MAX>(self, messages.len());
+            verify_variable_signatures_circuit::<F, Self::Curve, E, C, D, VALIDATOR_MESSAGE_BITS_LENGTH_MAX, MAX_NUM_CHUNKS>(self, messages.len());
 
         for i in 0..messages.len() {
             let message = &messages[i];
             let eddsa_sig_target = eddsa_sig_targets[i];
             let eddsa_pubkey_target = eddsa_pubkey_targets[i];
-            for j in 0..8 * VALIDATOR_MESSAGE_BYTES_LENGTH_MAX {
+            for j in 0..VALIDATOR_MESSAGE_BYTES_LENGTH_MAX * 8 {
                 self.connect(eddsa_target.msgs[i][j].target, message[j].target);
             }
 
-            self.connect(eddsa_target.msgs_lengths[i], message_byte_lengths[i]);
-            self.connect(eddsa_target.msgs_last_chunks[i], message_last_chunks[i]);
+            self.connect(eddsa_target.msgs_lengths[i], message_bit_lengths[i]);
 
             self.connect_nonnative(&eddsa_target.sigs[i].s, &eddsa_sig_target.s);
             self.connect_nonnative(&eddsa_target.sigs[i].r.x, &eddsa_sig_target.r.x);

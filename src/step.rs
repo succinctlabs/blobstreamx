@@ -35,7 +35,6 @@ pub struct ValidatorTarget<C: Curve> {
     signature: EDDSASignatureTarget<C>,
     message: ValidatorMessageTarget,
     message_bit_length: Target,
-    last_chunk: Target,
     voting_power: I64Target,
     validator_byte_length: Target,
     enabled: BoolTarget,
@@ -117,8 +116,6 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintStep<F, D> for Circ
             validators.iter().map(|v| v.message.0.to_vec()).collect();
         let message_bit_lengths: Vec<Target> =
             validators.iter().map(|v| v.message_bit_length).collect();
-        let message_last_chunks: Vec<Target> =
-            validators.iter().map(|v| v.last_chunk).collect();
 
         let signatures: Vec<&EDDSASignatureTarget<Ed25519>> =
             validators.iter().map(|v| &v.signature).collect();
@@ -153,7 +150,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintStep<F, D> for Circ
         self.connect(check_voting_power_bool.target, one);
 
         // TODO: Handle dummies
-        self.verify_signatures::<E, C>(messages, message_bit_lengths, message_last_chunks, signatures, pubkeys);
+        self.verify_signatures::<E, C>(messages, message_bit_lengths, signatures, pubkeys);
 
         // TODO: Verify that this will work with dummy signatures
         for i in 0..VALIDATOR_SET_SIZE_MAX {
@@ -250,7 +247,6 @@ where
         let message = ValidatorMessageTarget(message.try_into().unwrap());
 
         let message_bit_length = builder.add_virtual_target();
-        let last_chunk = builder.add_virtual_target();
 
         let voting_power = I64Target([
             builder.add_virtual_u32_target(),
@@ -265,7 +261,6 @@ where
             signature,
             message,
             message_bit_length,
-            last_chunk,
             voting_power,
             validator_byte_length,
             enabled,
@@ -543,20 +538,10 @@ pub(crate) mod tests {
                     F::from_canonical_usize(validator.validator_byte_length),
                 );
                 let message_bit_length = validator.message_bit_length;
-                // Note: msg_length needs to add 512 bits for the length of sig.r and pk_compressed in hash_msg
-                // TODO: Can remove this if we want to add constraints to add 512 bits to message_bit_length in plonky2x
-                let hash_message_bit_length = message_bit_length + 512;
-
-                let last_chunk = calculate_num_chunks(hash_message_bit_length) - 1;
 
                 pw.set_target(
                     celestia_proof_target.validators[i].message_bit_length,
-                    F::from_canonical_usize(hash_message_bit_length),
-                );
-
-                pw.set_target(
-                    celestia_proof_target.validators[i].last_chunk,
-                    F::from_canonical_usize(last_chunk),
+                    F::from_canonical_usize(message_bit_length),
                 );
 
                 // Set enabled and signed
