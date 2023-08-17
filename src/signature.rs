@@ -159,12 +159,9 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintSignature<F, D>
 
         const VALIDATOR_MESSAGE_BITS_LENGTH_MAX: usize =
             VALIDATOR_MESSAGE_BYTES_LENGTH_MAX * 8;
-        
-        // Note: Add 512 bits for the sig.r and pk_compressed in EDDSA
-        const MAX_NUM_CHUNKS: usize = calculate_num_chunks(VALIDATOR_MESSAGE_BITS_LENGTH_MAX + 512);
 
         let eddsa_target =
-            verify_variable_signatures_circuit::<F, Self::Curve, E, C, D, VALIDATOR_MESSAGE_BITS_LENGTH_MAX, MAX_NUM_CHUNKS>(self, messages.len());
+            verify_variable_signatures_circuit::<F, Self::Curve, E, C, D, VALIDATOR_MESSAGE_BITS_LENGTH_MAX>(self, messages.len());
 
         for i in 0..messages.len() {
             let message = &messages[i];
