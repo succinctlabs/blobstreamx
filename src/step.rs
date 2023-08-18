@@ -383,8 +383,7 @@ pub(crate) mod tests {
         println!("Verified proof");
     }
 
-    #[test]
-    fn test_step() {
+    fn test_step_template(block: usize) {
         let _ = env_logger::builder().is_test(true).try_init();
         let mut timing = TimingTree::new("Celestia Header Verify", log::Level::Debug);
 
@@ -401,8 +400,6 @@ pub(crate) mod tests {
         let celestia_proof_target =
             make_step_circuit::<GoldilocksField, D, Curve, C, E>(&mut builder);
 
-        // Testing block 11000
-        let block = 11000;
         let celestia_block_proof: CelestiaBlockProof = generate_step_inputs(block);
         timed!(timing, "assigning inputs", {
             // Set target for header
@@ -515,10 +512,16 @@ pub(crate) mod tests {
 
                 let message_bits = to_be_bits(validator.message.clone());
                 // Set messages for each of the proofs
-                for j in 0..VALIDATOR_MESSAGE_BYTES_LENGTH_MAX * 8 {
+                for j in 0..message_bits.len() {
                     pw.set_bool_target(
                         celestia_proof_target.validators[i].message.0[j],
                         message_bits[j],
+                    );
+                }
+                for j in message_bits.len()..VALIDATOR_MESSAGE_BYTES_LENGTH_MAX * 8 {
+                    pw.set_bool_target(
+                        celestia_proof_target.validators[i].message.0[j],
+                        false,
                     );
                 }
 
@@ -594,5 +597,22 @@ pub(crate) mod tests {
         });
 
         timing.print();
+    }
+
+    #[test]
+    fn test_step_with_dummy_sigs() {
+        // Testing block 11105 (4 validators, 2 signed)
+        // Need to handle empty validators as well
+        // Should set some dummy values
+        let block = 11105;
+
+        test_step_template(block);  
+    }
+
+    #[test]
+    fn test_step() {
+        // Testing block 11000
+        let block = 11000;
+        test_step_template(block);
     }
 }
