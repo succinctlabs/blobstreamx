@@ -1,9 +1,10 @@
 use std::fs;
 
 /// Source (tendermint-rs): https://github.com/informalsystems/tendermint-rs/blob/e930691a5639ef805c399743ac0ddbba0e9f53da/tendermint/src/merkle.rs#L32
-use crate::utils::{generate_proofs_from_header, non_absent_vote, SignedBlock, TempSignedBlock};
+use crate::utils::{generate_proofs_from_header, non_absent_vote, SignedBlock, TempSignedBlock, VALIDATOR_SET_SIZE_MAX};
+use ed25519_consensus::SigningKey;
 use tendermint::crypto::ed25519::VerificationKey;
-use tendermint::Signature;
+use tendermint::{Signature, private_key};
 use tendermint::{validator::Set as ValidatorSet, vote::SignedVote, vote::ValidatorIndex};
 use tendermint_proto::Protobuf;
 use subtle_encoding::hex;
@@ -117,19 +118,42 @@ pub fn generate_step_inputs(block: usize) -> CelestiaBlockProof {
                 signed: true,
             });
         } else {
-            // TODO: Fix dummy signatures!
+            // These are dummy signatures (included in val hash, did not vote)
             validators.push(Validator {
                 pubkey: validator.pub_key.ed25519().unwrap(),
-                signature: Signature::try_from(vec![0u8; 32]).expect("missing signature"),
+                signature: Signature::try_from(vec![0u8; 64]).expect("missing signature"),
                 // TODO: Replace these with correct outputs
-                message: vec![0u8; 120],
-                message_bit_length: 120,
+                message: vec![0u8; 32],
+                message_bit_length: 256,
                 voting_power: validator.power(),
                 validator_byte_length: 38,
                 enabled: true,
-                signed: true,
+                signed: false,
             });
         }
+    }
+
+    // These are empty signatures (not included in val hash)
+    for i in block.commit.signatures.len()..VALIDATOR_SET_SIZE_MAX {
+        let priv_key_bytes = vec![0u8; 32];
+        let signing_key =
+            private_key::Ed25519::try_from(&priv_key_bytes[..]).expect("failed to create key");
+        let signing_key = SigningKey::try_from(signing_key).unwrap();
+        let signing_key = ed25519_consensus::SigningKey::try_from(signing_key).unwrap();
+
+        let verification_key = signing_key.verification_key();
+        // TODO: Fix dummy signatures!
+        validators.push(Validator {
+            pubkey: VerificationKey::try_from(verification_key.as_bytes().as_ref()).expect("failed to create verification key"),
+            signature: Signature::try_from(vec![0u8; 64]).expect("missing signature"),
+            // TODO: Replace these with correct outputs
+            message: vec![0u8; 32],
+            message_bit_length: 256,
+            voting_power: 0,
+            validator_byte_length: 38,
+            enabled: false,
+            signed: false,
+        });
     }
 
     // TODO: Compute inluded when casting to array of targets that is NUM_VALIDATORS_LEN long'

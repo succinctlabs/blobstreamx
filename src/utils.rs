@@ -64,7 +64,7 @@ pub const VALIDATOR_SET_SIZE_MAX: usize = 4;
 
 // The maximum number of bytes in a validator message (CanonicalVote toSignBytes).
 // const VALIDATOR_MESSAGE_BYTES_LENGTH_MAX: usize = 124;
-pub const VALIDATOR_MESSAGE_BYTES_LENGTH_MAX: usize = 109;
+pub const VALIDATOR_MESSAGE_BYTES_LENGTH_MAX: usize = 124;
 
 /// A protobuf-encoded tendermint hash as a 34 byte target.
 #[derive(Debug, Clone, Copy)]
