@@ -99,6 +99,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintStep<F, D> for Circ
             .iter()
             .map(|v| self.marshal_tendermint_validator(&v.pubkey.0, &v.voting_power))
             .collect();
+        let validators_signed: Vec<BoolTarget> = validators.iter().map(|v| v.signed).collect();
         let validators_enabled: Vec<BoolTarget> = validators.iter().map(|v| v.enabled).collect();
         let validators_enabled_u32: Vec<U32Target> = validators_enabled
             .iter()
@@ -150,7 +151,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintStep<F, D> for Circ
         self.connect(check_voting_power_bool.target, one);
 
         // TODO: Handle dummies
-        self.verify_signatures::<E, C>(messages, message_bit_lengths, signatures, pubkeys);
+        self.verify_signatures::<E, C>(validators_signed, messages, message_bit_lengths, signatures, pubkeys);
 
         // TODO: Verify that this will work with dummy signatures
         for i in 0..VALIDATOR_SET_SIZE_MAX {
@@ -311,7 +312,6 @@ pub(crate) mod tests {
         },
     };
     use plonky2x::ecc::ed25519::gadgets::curve::WitnessAffinePoint;
-    use plonky2x::hash::sha::sha512::calculate_num_chunks;
     use plonky2x::num::biguint::WitnessBigUint;
     use plonky2x::num::u32::witness::WitnessU32;
 

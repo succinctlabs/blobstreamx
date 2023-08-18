@@ -403,6 +403,7 @@ dependencies = [
  "clap",
  "curta",
  "digest 0.10.7",
+ "ed25519-consensus",
  "env_logger",
  "log",
  "num",
@@ -875,7 +876,9 @@ dependencies = [
  "curve25519-dalek-ng",
  "hex",
  "rand_core",
+ "serde",
  "sha2 0.9.9",
+ "thiserror",
  "zeroize",
 ]
 
