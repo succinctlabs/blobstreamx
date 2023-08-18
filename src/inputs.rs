@@ -8,6 +8,7 @@ use tendermint::{Signature, private_key};
 use tendermint::{validator::Set as ValidatorSet, vote::SignedVote, vote::ValidatorIndex};
 use tendermint_proto::Protobuf;
 use subtle_encoding::hex;
+use crate::utils::to_be_bits;
 
 #[derive(Debug, Clone)]
 pub struct Validator {
@@ -77,6 +78,7 @@ pub fn generate_step_inputs(block: usize) -> CelestiaBlockProof {
             temp_block.validator_set.proposer,
         ),
     });
+
 
     let mut validators = Vec::new();
 
@@ -191,12 +193,16 @@ pub fn generate_step_inputs(block: usize) -> CelestiaBlockProof {
         proof: enc_next_validators_hash_proof.aunts,
     };
 
-    CelestiaBlockProof {
+
+
+    let celestia_block_proof = CelestiaBlockProof {
         validators,
         header: header_hash.into(),
         data_hash_proof,
         validator_hash_proof: validators_hash_proof,
         next_validators_hash_proof,
-        round_present: false,
-    }
+        round_present: block.commit.round.value() > 0,
+    };
+
+    celestia_block_proof
 }

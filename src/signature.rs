@@ -168,9 +168,9 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintSignature<F, D>
         //      If the round is missing, then the hash starts at index 16.
         //      If the round is present, then the hash starts at index 25.
 
-        let missing_round_start_idx = 16;
+        const MISSING_ROUND_START_IDX: usize = 16;
 
-        let including_round_start_idx = 25;
+        const INCLUDING_ROUND_START_IDX: usize = 25;
 
         let one = self.one();
 
@@ -179,8 +179,8 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintSignature<F, D>
         let mut vec_round_present = [self._false(); HASH_SIZE_BITS];
 
         for i in 0..HASH_SIZE_BITS {
-            vec_round_missing[i] = message.0[(missing_round_start_idx) * 8 + i];
-            vec_round_present[i] = message.0[(including_round_start_idx) * 8 + i];
+            vec_round_missing[i] = message.0[(MISSING_ROUND_START_IDX) * 8 + i];
+            vec_round_present[i] = message.0[(INCLUDING_ROUND_START_IDX) * 8 + i];
             let round_missing_eq =
                 self.is_equal(header_hash.0[i].target, vec_round_missing[i].target);
             let round_present_eq =
@@ -378,13 +378,7 @@ pub(crate) mod tests {
         verification_key.verify(&signature, &[0u8; 32]).expect("failed to verify signature");
     }
 
-    #[test]
-    fn test_verify_eddsa_signature() {
-        // First signature from block 11000
-        let msg = "6c080211f82a00000000000022480a2036f2d954fe1ba37c5036cb3c6b366d0daf68fccbaa370d9490361c51a0a38b61122408011220cddf370e891591c9d912af175c966cd8dfa44b2c517e965416b769eb4b9d5d8d2a0c08f6b097a50610dffbcba90332076d6f6368612d33";
-        let pubkey = "de25aec935b10f657b43fa97e5a8d4e523bdb0f9972605f0b064eff7b17048ba";
-        let sig = "091576e9e3ad0e5ba661f7398e1adb3976ba647b579b8e4a224d1d02b591ade6aedb94d3bf55d258f089d6413155a57adfd4932418a798c2d68b29850f6fb50b";
-
+    fn verify_eddsa_signature(msg: &str, pubkey: &str, sig: &str) {
         let msg_bytes = hex::decode(msg).unwrap();
         let pub_key_bytes = hex::decode(pubkey).unwrap();
         let sig_bytes = hex::decode(sig).unwrap();
@@ -466,5 +460,22 @@ pub(crate) mod tests {
         outer_data
             .verify(outer_proof)
             .expect("failed to verify proof");
+    }
+
+    #[test]
+    fn test_verify_eddsa_signature() {
+        // First signature from block 11000
+        let msg = "6c080211f82a00000000000022480a2036f2d954fe1ba37c5036cb3c6b366d0daf68fccbaa370d9490361c51a0a38b61122408011220cddf370e891591c9d912af175c966cd8dfa44b2c517e965416b769eb4b9d5d8d2a0c08f6b097a50610dffbcba90332076d6f6368612d33";
+        let pubkey = "de25aec935b10f657b43fa97e5a8d4e523bdb0f9972605f0b064eff7b17048ba";
+        let sig = "091576e9e3ad0e5ba661f7398e1adb3976ba647b579b8e4a224d1d02b591ade6aedb94d3bf55d258f089d6413155a57adfd4932418a798c2d68b29850f6fb50b";
+        verify_eddsa_signature(msg, pubkey, sig)
+    }
+    #[test]
+    fn test_verify_eddsa_signature_round_present() {
+        // First signature from block 11105 (round present)
+        let msg = "74080211612b00000000000019010000000000000022480a205047a5a855854ca8bc610fb47ee849084c04fe25a2f037a07de6ae343c55216b122408011220cb05d8adc7c24d55f06d3bd0aea50620d3f0d73a9656a9073cc47a959a0961672a0b08acbd97a50610b1a5f31132076d6f6368612d33";
+        let pubkey = "de25aec935b10f657b43fa97e5a8d4e523bdb0f9972605f0b064eff7b17048ba";
+        let sig = "b4ea1e808fa88073ae8fe9d9d33d99ae7990cb148c81f2158e56c90aa45d9c3457aaffb875853956b0093ab1b3606b4eb450f5b476e54c508375a25c78376e0d";
+        verify_eddsa_signature(msg, pubkey, sig)
     }
 }
