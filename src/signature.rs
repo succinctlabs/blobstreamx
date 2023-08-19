@@ -6,8 +6,8 @@
 //! The `pubkey` is encoded as the raw list of bytes used in the public key. The `varint` is
 //! encoded using protobuf's default integer encoding, which consist of 7 bit payloads. You can
 //! read more about them here: https://protobuf.dev/programming-guides/encoding/#varints.
-use curta::plonky2::field::CubicParameters;
-use curta::plonky2::field::Field;
+use curta::math::extension::CubicParameters;
+use curta::math::field::Field;
 use num::BigUint;
 use plonky2::field::extension::Extendable;
 use plonky2::iop::target::BoolTarget;
@@ -323,10 +323,9 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintSignature<F, D>
         for i in 0..message.len() {
             self.connect(eddsa_target.msgs[0][i].target, message[i].target);
         }
-
+        
+        self.connect_affine_point(&eddsa_target.sigs[0].r, &eddsa_sig_target.r);
         self.connect_nonnative(&eddsa_target.sigs[0].s, &eddsa_sig_target.s);
-        self.connect_nonnative(&eddsa_target.sigs[0].r.x, &eddsa_sig_target.r.x);
-        self.connect_nonnative(&eddsa_target.sigs[0].r.y, &eddsa_sig_target.r.y);
 
         self.connect_affine_point(&eddsa_target.pub_keys[0].0, &eddsa_pubkey_target.0);
     }
@@ -398,14 +397,11 @@ pub(crate) mod tests {
             msg_bits_target.push(builder.constant_bool(msg_bits[i]));
         }
 
-        let virtual_affine_point_target = builder.add_virtual_affine_point_target();
 
         let pub_key_uncompressed: AffinePoint<Curve> =
             AffinePoint::new_from_compressed_point(&pub_key_bytes);
 
-        let eddsa_pub_key_target = EDDSAPublicKeyTarget(virtual_affine_point_target);
-
-        pw.set_affine_point_target::<Curve>(&eddsa_pub_key_target.0, &pub_key_uncompressed);
+        let eddsa_pub_key_target = EDDSAPublicKeyTarget(builder.constant_affine_point(pub_key_uncompressed));
 
         let sig_r = AffinePoint::new_from_compressed_point(&sig_bytes[0..32]);
         assert!(sig_r.is_valid());
@@ -463,7 +459,7 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn test_verify_eddsa_signature() {
+    fn test_verify_round_absent_eddsa_signature() {
         // First signature from block 11000
         let msg = "6c080211f82a00000000000022480a2036f2d954fe1ba37c5036cb3c6b366d0daf68fccbaa370d9490361c51a0a38b61122408011220cddf370e891591c9d912af175c966cd8dfa44b2c517e965416b769eb4b9d5d8d2a0c08f6b097a50610dffbcba90332076d6f6368612d33";
         let pubkey = "de25aec935b10f657b43fa97e5a8d4e523bdb0f9972605f0b064eff7b17048ba";
@@ -471,7 +467,7 @@ pub(crate) mod tests {
         verify_eddsa_signature(msg, pubkey, sig)
     }
     #[test]
-    fn test_verify_eddsa_signature_round_present() {
+    fn test_verify_round_present_eddsa_signature() {
         // First signature from block 11105 (round present)
         let msg = "74080211612b00000000000019010000000000000022480a205047a5a855854ca8bc610fb47ee849084c04fe25a2f037a07de6ae343c55216b122408011220cb05d8adc7c24d55f06d3bd0aea50620d3f0d73a9656a9073cc47a959a0961672a0b08acbd97a50610b1a5f31132076d6f6368612d33";
         let pubkey = "de25aec935b10f657b43fa97e5a8d4e523bdb0f9972605f0b064eff7b17048ba";
