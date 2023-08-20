@@ -123,11 +123,11 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintStep<F, D> for Circ
         let pubkeys: Vec<&EDDSAPublicKeyTarget<Ed25519>> =
             validators.iter().map(|v| &v.pubkey).collect();
 
-        // // Compute the validators hash
+        // Compute the validators hash
         let validators_hash_target =
             self.hash_validator_set(&marshalled_validators, &byte_lengths, &validators_enabled);
 
-        // // Assert that computed validator hash matches expected validator hash
+        // Assert that computed validator hash matches expected validator hash
         let extracted_hash = self.extract_hash_from_protobuf(&validator_hash_proof.enc_leaf);
         for i in 0..HASH_SIZE_BITS {
             self.connect(
@@ -156,7 +156,10 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintStep<F, D> for Circ
         // TODO: Verify that this will work with dummy signatures
         for i in 0..VALIDATOR_SET_SIZE_MAX {
             // Verify that the header is in the message in the correct location
-            self.verify_hash_in_message(&validators[i].message, header, round_present);
+            let hash_in_message = self.verify_hash_in_message(&validators[i].message, header, round_present);
+
+            // If the validator is enabled, then the hash should be in the message
+            self.connect(hash_in_message.target, validators_enabled[i].target);
         }
 
         let header_from_data_root_proof = self.get_root_from_merkle_proof(
@@ -365,13 +368,7 @@ pub(crate) mod tests {
             &zero,
         );
 
-        for i in 0..HASH_SIZE_BITS {
-            if header_bits[i] {
-                pw.set_target(result.0[i].target, F::ONE);
-            } else {
-                pw.set_target(result.0[i].target, F::ZERO);
-            }
-        }
+        pw.set_target(result.target, F::ONE);
 
         let data = builder.build::<C>();
         let proof = data.prove(pw).unwrap();
@@ -552,6 +549,7 @@ pub(crate) mod tests {
                     celestia_proof_target.validators[i].enabled,
                     validator.enabled,
                 );
+                println!("validator {} signed: {}", i, validator.signed);
                 pw.set_bool_target(celestia_proof_target.validators[i].signed, validator.signed);
             }
         });

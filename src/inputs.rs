@@ -93,6 +93,7 @@ pub fn generate_step_inputs(block: usize) -> CelestiaBlockProof {
                 None => continue, // Cannot find matching validator, so we skip the vote
             },
         );
+        let val_bytes = validator.hash_bytes();
         if block.commit.signatures[i].is_commit() {
             let vote =
                 non_absent_vote(&block.commit.signatures[i], val_idx, &block.commit).unwrap();
@@ -102,7 +103,6 @@ pub fn generate_step_inputs(block: usize) -> CelestiaBlockProof {
                     .expect("missing signature"),
             );
             let sig = signed_vote.signature();
-            let val_bytes = validator.hash_bytes();
 
             println!("signature: {:?}", String::from_utf8(hex::encode(sig.clone().into_bytes())));
             println!("signed message: {:?}", String::from_utf8(hex::encode(signed_vote.sign_bytes())));
@@ -128,11 +128,12 @@ pub fn generate_step_inputs(block: usize) -> CelestiaBlockProof {
                 message: vec![0u8; 32],
                 message_bit_length: 256,
                 voting_power: validator.power(),
-                validator_byte_length: 38,
+                validator_byte_length: val_bytes.len(),
                 enabled: true,
                 signed: false,
             });
         }
+        println!("Validator: {:?}", validators.last().unwrap());
     }
 
     // These are empty signatures (not included in val hash)

@@ -66,7 +66,7 @@ pub trait TendermintSignature<F: RichField + Extendable<D>, const D: usize> {
         header_hash: &TendermintHashTarget,
         // Should be the same for all validators
         round_present_in_message: &BoolTarget,
-    ) -> TendermintHashTarget;
+    ) -> BoolTarget;
 
     /// Verifies the signatures of the validators in the validator set.
     fn verify_signatures<
@@ -162,7 +162,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintSignature<F, D>
         header_hash: &TendermintHashTarget,
         // Should be the same for all validators
         round_present_in_message: &BoolTarget,
-    ) -> TendermintHashTarget {
+    ) -> BoolTarget {
         // Logic:
         //      Verify that header_hash is equal to the hash in the message at the correct index.
         //      If the round is missing, then the hash starts at index 16.
@@ -172,31 +172,37 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintSignature<F, D>
 
         const INCLUDING_ROUND_START_IDX: usize = 25;
 
-        let one = self.one();
+        let round_absent_in_message = self.not(*round_present_in_message);
 
         let mut vec_round_missing = [self._false(); HASH_SIZE_BITS];
 
         let mut vec_round_present = [self._false(); HASH_SIZE_BITS];
 
+        let mut eq_so_far = self._true();
+
         for i in 0..HASH_SIZE_BITS {
-            vec_round_missing[i] = message.0[(MISSING_ROUND_START_IDX) * 8 + i];
             vec_round_present[i] = message.0[(INCLUDING_ROUND_START_IDX) * 8 + i];
-            let round_missing_eq =
-                self.is_equal(header_hash.0[i].target, vec_round_missing[i].target);
+            vec_round_missing[i] = message.0[(MISSING_ROUND_START_IDX) * 8 + i];
+
             let round_present_eq =
                 self.is_equal(header_hash.0[i].target, vec_round_present[i].target);
+            let round_missing_eq =
+                self.is_equal(header_hash.0[i].target, vec_round_missing[i].target);
+
 
             // Pick the correct bit based on whether the round is present or not.
-            let hash_eq = self.select(
-                *round_present_in_message,
-                round_present_eq.target,
-                round_missing_eq.target,
-            );
+            // Select operation as boolean (A & B) | (!A & C) where A is the selector bit.
+            let left = self.and(*round_present_in_message, round_present_eq);
 
-            self.connect(hash_eq, one);
+            let right = self.and(round_absent_in_message, round_missing_eq);
+
+            let hash_eq = self.or(left, right);
+
+            // AND the check of the bits so far
+            eq_so_far = self.and(eq_so_far, hash_eq);
         }
 
-        *header_hash
+        eq_so_far
     }
 
     /// Verifies the signatures of the validators in the validator set.
@@ -206,8 +212,8 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintSignature<F, D>
     >(
         &mut self,
         // This message should be range-checked before being passed in.
-        // Note: These are all VALIDATOR_MESSAGE_BYTES_LENGTH_MAX*8 long
         validator_active: Vec<BoolTarget>,
+        // Variable length messages, need to be cast into VALIDATOR_MESSAGE_BYTES_LENGTH_MAX*8 long
         messages: Vec<Vec<BoolTarget>>,
         message_bit_lengths: Vec<Target>,
         eddsa_sig_targets: Vec<&EDDSASignatureTarget<Self::Curve>>,
@@ -273,13 +279,17 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintSignature<F, D>
             let eddsa_sig_target = EDDSASignatureTarget { r: sig_r, s: sig_s };
 
             // Select correct message based on whether the validator signed this round
-            for j in 0..VALIDATOR_MESSAGE_BYTES_LENGTH_MAX * 8 {
+            for j in 0..message.len() {
                 let bit = self.select(
                     validator_active[i],
                     message[j].target,
-                    dummy_target.message.0[j].target,
+                    // All dummy message bits are zero
+                    zero
                 );
                 self.connect(eddsa_target.msgs[i][j].target, bit);
+            }
+            for j in message.len()..VALIDATOR_MESSAGE_BYTES_LENGTH_MAX * 8 {
+                self.connect(eddsa_target.msgs[i][j].target, zero);
             }
 
             let bit_length = self.select(
@@ -346,7 +356,6 @@ pub(crate) mod tests {
         },
     };
     use plonky2x::ecc::ed25519::curve::eddsa::{verify_message, EDDSAPublicKey, EDDSASignature};
-    use plonky2x::ecc::ed25519::gadgets::curve::WitnessAffinePoint;
     use subtle_encoding::hex;
 
     use plonky2x::num::biguint::CircuitBuilderBiguint;
@@ -377,10 +386,7 @@ pub(crate) mod tests {
         verification_key.verify(&signature, &[0u8; 32]).expect("failed to verify signature");
     }
 
-    fn verify_eddsa_signature(msg: &str, pubkey: &str, sig: &str) {
-        let msg_bytes = hex::decode(msg).unwrap();
-        let pub_key_bytes = hex::decode(pubkey).unwrap();
-        let sig_bytes = hex::decode(sig).unwrap();
+    fn verify_eddsa_signature(msg_bytes: Vec<u8>, pub_key_bytes: Vec<u8>, sig_bytes: Vec<u8>) {
 
         type F = GoldilocksField;
         type Curve = Ed25519;
@@ -392,6 +398,8 @@ pub(crate) mod tests {
         let mut builder = CircuitBuilder::<F, D>::new(CircuitConfig::standard_ecc_config());
 
         let msg_bits = to_be_bits(msg_bytes.to_vec());
+        let msg_bit_length = msg_bits.len();
+        let msg_bit_length_t = builder.constant(F::from_canonical_usize(msg_bit_length));
         let mut msg_bits_target = Vec::new();
         for i in 0..msg_bits.len() {
             msg_bits_target.push(builder.constant_bool(msg_bits[i]));
@@ -426,7 +434,9 @@ pub(crate) mod tests {
             s: sig_s_target,
         };
 
-        builder.verify_signature::<E, C>(msg_bits_target, &eddsa_sig_target, &eddsa_pub_key_target);
+        let validator_active = vec![builder._true()];
+
+        builder.verify_signatures::<E, C>(validator_active, vec![msg_bits_target], vec![msg_bit_length_t], vec![&eddsa_sig_target], vec![&eddsa_pub_key_target]);
 
         let inner_data = builder.build::<C>();
         let inner_proof = inner_data.prove(pw).unwrap();
@@ -464,7 +474,10 @@ pub(crate) mod tests {
         let msg = "6c080211f82a00000000000022480a2036f2d954fe1ba37c5036cb3c6b366d0daf68fccbaa370d9490361c51a0a38b61122408011220cddf370e891591c9d912af175c966cd8dfa44b2c517e965416b769eb4b9d5d8d2a0c08f6b097a50610dffbcba90332076d6f6368612d33";
         let pubkey = "de25aec935b10f657b43fa97e5a8d4e523bdb0f9972605f0b064eff7b17048ba";
         let sig = "091576e9e3ad0e5ba661f7398e1adb3976ba647b579b8e4a224d1d02b591ade6aedb94d3bf55d258f089d6413155a57adfd4932418a798c2d68b29850f6fb50b";
-        verify_eddsa_signature(msg, pubkey, sig)
+        let msg_bytes = hex::decode(msg).unwrap();
+        let pub_key_bytes = hex::decode(pubkey).unwrap();
+        let sig_bytes = hex::decode(sig).unwrap();
+        verify_eddsa_signature(msg_bytes, pub_key_bytes, sig_bytes)
     }
     #[test]
     fn test_verify_round_present_eddsa_signature() {
@@ -472,6 +485,13 @@ pub(crate) mod tests {
         let msg = "74080211612b00000000000019010000000000000022480a205047a5a855854ca8bc610fb47ee849084c04fe25a2f037a07de6ae343c55216b122408011220cb05d8adc7c24d55f06d3bd0aea50620d3f0d73a9656a9073cc47a959a0961672a0b08acbd97a50610b1a5f31132076d6f6368612d33";
         let pubkey = "de25aec935b10f657b43fa97e5a8d4e523bdb0f9972605f0b064eff7b17048ba";
         let sig = "b4ea1e808fa88073ae8fe9d9d33d99ae7990cb148c81f2158e56c90aa45d9c3457aaffb875853956b0093ab1b3606b4eb450f5b476e54c508375a25c78376e0d";
-        verify_eddsa_signature(msg, pubkey, sig)
+        let msg_bytes = hex::decode(msg).unwrap();
+        let pub_key_bytes = hex::decode(pubkey).unwrap();
+        let sig_bytes = hex::decode(sig).unwrap();
+        verify_eddsa_signature(msg_bytes, pub_key_bytes, sig_bytes)
+    }
+    #[test]
+    fn test_verify_dummy_signature() {
+        verify_eddsa_signature(DUMMY_MSG.to_vec(), DUMMY_PUBLIC_KEY.to_vec(), DUMMY_SIGNATURE.to_vec())
     }
 }
