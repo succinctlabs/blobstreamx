@@ -6,7 +6,7 @@
 //! The `pubkey` is encoded as the raw list of bytes used in the public key. The `varint` is
 //! encoded using protobuf's default integer encoding, which consist of 7 bit payloads. You can
 //! read more about them here: https://protobuf.dev/programming-guides/encoding/#varints.
-use curta::plonky2::field::CubicParameters;
+use curta::math::prelude::CubicParameters;
 use plonky2::field::extension::Extendable;
 use plonky2::iop::target::BoolTarget;
 use plonky2::plonk::config::AlgebraicHasher;
@@ -20,7 +20,6 @@ use plonky2x::ecc::ed25519::gadgets::eddsa::verify_variable_signatures_circuit;
 use plonky2x::ecc::ed25519::gadgets::eddsa::{
     verify_signatures_circuit, EDDSAPublicKeyTarget, EDDSASignatureTarget,
 };
-use plonky2x::hash::sha::sha512::calculate_num_chunks;
 use plonky2x::num::nonnative::nonnative::CircuitBuilderNonNative;
 
 use crate::utils::{
