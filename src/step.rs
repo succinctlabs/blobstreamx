@@ -9,6 +9,7 @@
 use curta::math::extension::CubicParameters;
 use plonky2::field::extension::Extendable;
 use plonky2::iop::target::BoolTarget;
+use plonky2::iop::target::Target;
 use plonky2::plonk::config::AlgebraicHasher;
 use plonky2::plonk::config::GenericConfig;
 use plonky2::{hash::hash_types::RichField, plonk::circuit_builder::CircuitBuilder};
@@ -18,7 +19,6 @@ use plonky2x::ecc::ed25519::gadgets::curve::CircuitBuilderCurve;
 use plonky2x::ecc::ed25519::gadgets::eddsa::{EDDSAPublicKeyTarget, EDDSASignatureTarget};
 use plonky2x::num::nonnative::nonnative::CircuitBuilderNonNative;
 use plonky2x::num::u32::gadgets::arithmetic_u32::{CircuitBuilderU32, U32Target};
-use plonky2::iop::target::Target;
 
 use crate::signature::TendermintSignature;
 use crate::utils::{
@@ -160,12 +160,19 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintStep<F, D> for Circ
         self.connect(check_voting_power_bool.target, one);
 
         // TODO: Handle dummies
-        self.verify_signatures::<E, C>(&validators_signed, messages, message_bit_lengths, signatures, pubkeys);
+        self.verify_signatures::<E, C>(
+            &validators_signed,
+            messages,
+            message_bit_lengths,
+            signatures,
+            pubkeys,
+        );
 
         // TODO: Verify that this will work with dummy signatures
         for i in 0..VALIDATOR_SET_SIZE_MAX {
             // Verify that the header is in the message in the correct location
-            let hash_in_message = self.verify_hash_in_message(&validators[i].message, header, round_present);
+            let hash_in_message =
+                self.verify_hash_in_message(&validators[i].message, header, round_present);
 
             // If the validator is enabled, then the hash should be in the message
             self.connect(hash_in_message.target, validators_signed[i].target);
@@ -525,10 +532,7 @@ pub(crate) mod tests {
                     );
                 }
                 for j in message_bits.len()..VALIDATOR_MESSAGE_BYTES_LENGTH_MAX * 8 {
-                    pw.set_bool_target(
-                        celestia_proof_target.validators[i].message.0[j],
-                        false,
-                    );
+                    pw.set_bool_target(celestia_proof_target.validators[i].message.0[j], false);
                 }
 
                 // Set voting power targets
@@ -613,7 +617,7 @@ pub(crate) mod tests {
         // Should set some dummy values
         let block = 11105;
 
-        test_step_template(block);  
+        test_step_template(block);
     }
 
     #[test]

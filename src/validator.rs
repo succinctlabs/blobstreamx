@@ -8,19 +8,18 @@
 //! read more about them here: https://protobuf.dev/programming-guides/encoding/#varints.
 use plonky2::field::extension::Extendable;
 use plonky2::iop::target::BoolTarget;
+use plonky2::iop::target::Target;
 use plonky2::{hash::hash_types::RichField, plonk::circuit_builder::CircuitBuilder};
 use plonky2x::ecc::ed25519::curve::curve_types::Curve;
 use plonky2x::ecc::ed25519::curve::ed25519::Ed25519;
 use plonky2x::ecc::ed25519::gadgets::curve::{AffinePointTarget, CircuitBuilderCurve};
 use plonky2x::hash::sha::sha256::{sha256, sha256_variable_length_single_chunk};
 use plonky2x::num::u32::gadgets::arithmetic_u32::CircuitBuilderU32;
-use plonky2::iop::target::Target;
 
 use crate::utils::{
     EncTendermintHashTarget, I64Target, MarshalledValidatorTarget, TendermintHashTarget,
-    HASH_SIZE_BITS, PROTOBUF_HASH_SIZE_BITS,
-    VALIDATOR_BYTE_LENGTH_MAX, VALIDATOR_SET_SIZE_MAX,
-    VOTING_POWER_BITS_LENGTH_MAX, VOTING_POWER_BYTES_LENGTH_MAX, VALIDATOR_BIT_LENGTH_MAX,
+    HASH_SIZE_BITS, PROTOBUF_HASH_SIZE_BITS, VALIDATOR_BIT_LENGTH_MAX, VALIDATOR_BYTE_LENGTH_MAX,
+    VALIDATOR_SET_SIZE_MAX, VOTING_POWER_BITS_LENGTH_MAX, VOTING_POWER_BYTES_LENGTH_MAX,
 };
 
 pub trait TendermintMarshaller<F: RichField + Extendable<D>, const D: usize> {
@@ -311,7 +310,11 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D>
         for i in 0..VALIDATOR_BIT_LENGTH_MAX {
             enc_validator_bits[i + 8] = validator.0[i];
         }
-        let hash = sha256_variable_length_single_chunk(self, &enc_validator_bits, enc_validator_bit_length);
+        let hash = sha256_variable_length_single_chunk(
+            self,
+            &enc_validator_bits,
+            enc_validator_bit_length,
+        );
 
         TendermintHashTarget(hash.try_into().unwrap())
     }
@@ -510,11 +513,7 @@ pub(crate) mod tests {
     fn generate_inputs(
         builder: &mut CircuitBuilder<F, D>,
         validators: &Vec<String>,
-    ) -> (
-        Vec<MarshalledValidatorTarget>,
-        Vec<Target>,
-        Vec<BoolTarget>,
-    ) {
+    ) -> (Vec<MarshalledValidatorTarget>, Vec<Target>, Vec<BoolTarget>) {
         let mut validator_byte_length: Vec<Target> = Vec::new();
 
         let mut validator_enabled: Vec<BoolTarget> = vec![builder._false(); VALIDATOR_SET_SIZE_MAX];
@@ -689,9 +688,15 @@ pub(crate) mod tests {
         let digest_bits = to_be_bits(hex::decode(expected_digest).unwrap());
 
         let validators: Vec<String> = vec![
-            String::from("de6ad0941095ada2a7996e6a888581928203b8b69e07ee254d289f5b9c9caea193c2ab01902d"),
-            String::from("92fbe0c52937d80c5ea643c7832620b84bfdf154ec7129b8b471a63a763f2fe955af1ac65fd3"),
-            String::from("e902f88b2371ff6243bf4b0ebe8f46205e00749dd4dad07b2ea34350a1f9ceedb7620ab913c2"),
+            String::from(
+                "de6ad0941095ada2a7996e6a888581928203b8b69e07ee254d289f5b9c9caea193c2ab01902d",
+            ),
+            String::from(
+                "92fbe0c52937d80c5ea643c7832620b84bfdf154ec7129b8b471a63a763f2fe955af1ac65fd3",
+            ),
+            String::from(
+                "e902f88b2371ff6243bf4b0ebe8f46205e00749dd4dad07b2ea34350a1f9ceedb7620ab913c2",
+            ),
         ];
 
         let (validators_target, validator_byte_length, _) =
@@ -773,12 +778,11 @@ pub(crate) mod tests {
 
     #[test]
     fn test_generate_val_hash() {
-
         struct TestCase {
             validators: Vec<String>,
             expected_digest: String,
         }
-        
+
         // Validators from block 11000 on Celestia mocha-3 testnet encoded as bytes.
         let validators_arr: Vec<Vec<&str>> = vec![vec![
             "0a220a20de25aec935b10f657b43fa97e5a8d4e523bdb0f9972605f0b064eff7b17048ba10aa8d06",
@@ -787,13 +791,19 @@ pub(crate) mod tests {
             "0a220a20bd60452e7f056b22248105e7fd298961371da0d9332ef65fa81691bf51b2e5051001",
         ], vec!["364db94241a02b701d0dc85ac016fab2366fba326178e6f11d8294931969072b7441fd6b0ff5129d6867", "6fa0cef8f328eb8e2aef2084599662b1ee0595d842058966166029e96bd263e5367185f19af67b099645ec08aa"]];
 
-        let digest_arr: Vec<&str> = vec!["BB5B8B1239565451DCD5AB52B47C26032016CDF1EF2D2115FF104DC9DDE3988C", "be110ff9abb6bdeaebf48ac8e179a76fda1f6eaef0150ca6159587f489722204"];
+        let digest_arr: Vec<&str> = vec![
+            "BB5B8B1239565451DCD5AB52B47C26032016CDF1EF2D2115FF104DC9DDE3988C",
+            "be110ff9abb6bdeaebf48ac8e179a76fda1f6eaef0150ca6159587f489722204",
+        ];
 
         let test_cases: Vec<TestCase> = validators_arr
             .iter()
             .zip(digest_arr.iter())
             .map(|(validators, expected_digest)| TestCase {
-                validators: validators.iter().map(|x| String::from(*x).to_lowercase()).collect(),
+                validators: validators
+                    .iter()
+                    .map(|x| String::from(*x).to_lowercase())
+                    .collect(),
                 expected_digest: String::from(*expected_digest).to_lowercase(),
             })
             .collect();
@@ -806,7 +816,8 @@ pub(crate) mod tests {
             let (validators_target, validator_byte_length, validator_enabled) =
                 generate_inputs(&mut builder, &test_case.validators);
 
-            let digest_bits = to_be_bits(hex::decode(test_case.expected_digest.as_bytes()).unwrap());
+            let digest_bits =
+                to_be_bits(hex::decode(test_case.expected_digest.as_bytes()).unwrap());
 
             println!(
                 "Expected Val Hash: {:?}",

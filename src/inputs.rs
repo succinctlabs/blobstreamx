@@ -1,14 +1,17 @@
 use std::fs;
 
+use crate::utils::to_be_bits;
 /// Source (tendermint-rs): https://github.com/informalsystems/tendermint-rs/blob/e930691a5639ef805c399743ac0ddbba0e9f53da/tendermint/src/merkle.rs#L32
-use crate::utils::{generate_proofs_from_header, non_absent_vote, SignedBlock, TempSignedBlock, VALIDATOR_SET_SIZE_MAX};
+use crate::utils::{
+    generate_proofs_from_header, non_absent_vote, SignedBlock, TempSignedBlock,
+    VALIDATOR_SET_SIZE_MAX,
+};
 use ed25519_consensus::SigningKey;
+use subtle_encoding::hex;
 use tendermint::crypto::ed25519::VerificationKey;
-use tendermint::{Signature, private_key};
+use tendermint::{private_key, Signature};
 use tendermint::{validator::Set as ValidatorSet, vote::SignedVote, vote::ValidatorIndex};
 use tendermint_proto::Protobuf;
-use subtle_encoding::hex;
-use crate::utils::to_be_bits;
 
 #[derive(Debug, Clone)]
 pub struct Validator {
@@ -79,7 +82,6 @@ pub fn generate_step_inputs(block: usize) -> CelestiaBlockProof {
         ),
     });
 
-
     let mut validators = Vec::new();
 
     // Signatures or dummy
@@ -141,7 +143,8 @@ pub fn generate_step_inputs(block: usize) -> CelestiaBlockProof {
         let verification_key = signing_key.verification_key();
         // TODO: Fix dummy signatures!
         validators.push(Validator {
-            pubkey: VerificationKey::try_from(verification_key.as_bytes().as_ref()).expect("failed to create verification key"),
+            pubkey: VerificationKey::try_from(verification_key.as_bytes().as_ref())
+                .expect("failed to create verification key"),
             signature: Signature::try_from(vec![0u8; 64]).expect("missing signature"),
             // TODO: Replace these with correct outputs
             message: vec![0u8; 32],
@@ -187,8 +190,6 @@ pub fn generate_step_inputs(block: usize) -> CelestiaBlockProof {
         path: enc_next_validators_hash_proof_indices,
         proof: enc_next_validators_hash_proof.aunts,
     };
-
-
 
     let celestia_block_proof = CelestiaBlockProof {
         validators,

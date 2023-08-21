@@ -11,13 +11,13 @@ use curta::math::field::Field;
 use num::BigUint;
 use plonky2::field::extension::Extendable;
 use plonky2::iop::target::BoolTarget;
+use plonky2::iop::target::Target;
 use plonky2::plonk::config::AlgebraicHasher;
 use plonky2::plonk::config::GenericConfig;
 use plonky2::{hash::hash_types::RichField, plonk::circuit_builder::CircuitBuilder};
 use plonky2x::ecc::ed25519::curve::curve_types::AffinePoint;
 use plonky2x::ecc::ed25519::curve::curve_types::Curve;
 use plonky2x::ecc::ed25519::curve::ed25519::Ed25519;
-use plonky2::iop::target::Target;
 use plonky2x::ecc::ed25519::field::ed25519_scalar::Ed25519Scalar;
 use plonky2x::ecc::ed25519::gadgets::curve::CircuitBuilderCurve;
 use plonky2x::ecc::ed25519::gadgets::eddsa::verify_variable_signatures_circuit;
@@ -41,11 +41,19 @@ pub struct DummySignatureTarget<C: Curve> {
 }
 
 // Private key is [0u8; 32]
-const DUMMY_PUBLIC_KEY: [u8; 32] = [59, 106, 39, 188, 206, 182, 164, 45, 98, 163, 168, 208, 42, 111, 13, 115, 101, 50, 21, 119, 29, 226, 67, 166, 58, 192, 72, 161, 139, 89, 218, 41];
+const DUMMY_PUBLIC_KEY: [u8; 32] = [
+    59, 106, 39, 188, 206, 182, 164, 45, 98, 163, 168, 208, 42, 111, 13, 115, 101, 50, 21, 119, 29,
+    226, 67, 166, 58, 192, 72, 161, 139, 89, 218, 41,
+];
 const DUMMY_MSG: [u8; 32] = [0u8; 32];
 const DUMMY_MSG_LENGTH_BITS: usize = 256;
 // dummy_msg signed by the dummy private key
-const DUMMY_SIGNATURE: [u8; 64] = [61, 161, 235, 223, 169, 110, 221, 24, 29, 190, 54, 89, 209, 192, 81, 196, 49, 240, 86, 165, 173, 106, 151, 166, 13, 92, 202, 16, 70, 4, 56, 120, 53, 70, 70, 30, 49, 40, 95, 197, 159, 145, 199, 7, 38, 66, 116, 80, 97, 226, 69, 29, 95, 243, 59, 204, 216, 195, 199, 77, 171, 202, 246, 10];
+const DUMMY_SIGNATURE: [u8; 64] = [
+    61, 161, 235, 223, 169, 110, 221, 24, 29, 190, 54, 89, 209, 192, 81, 196, 49, 240, 86, 165,
+    173, 106, 151, 166, 13, 92, 202, 16, 70, 4, 56, 120, 53, 70, 70, 30, 49, 40, 95, 197, 159, 145,
+    199, 7, 38, 66, 116, 80, 97, 226, 69, 29, 95, 243, 59, 204, 216, 195, 199, 77, 171, 202, 246,
+    10,
+];
 
 pub trait TendermintSignature<F: RichField + Extendable<D>, const D: usize> {
     type Curve: Curve;
@@ -105,7 +113,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintSignature<F, D>
     fn get_dummy_targets(&mut self) -> DummySignatureTarget<Self::Curve> {
         // Convert the dummy public key to a target
         let pub_key_uncompressed: AffinePoint<Self::Curve> =
-                AffinePoint::new_from_compressed_point(&DUMMY_PUBLIC_KEY);
+            AffinePoint::new_from_compressed_point(&DUMMY_PUBLIC_KEY);
 
         let sig_r: AffinePoint<Self::Curve> =
             AffinePoint::new_from_compressed_point(&DUMMY_SIGNATURE[0..32]);
@@ -142,7 +150,6 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintSignature<F, D>
             message_bit_length: dummy_msg_length,
         }
     }
-
 
     fn extract_hash_from_protobuf(
         &mut self,
@@ -189,7 +196,6 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintSignature<F, D>
             let round_missing_eq =
                 self.is_equal(header_hash.0[i].target, vec_round_missing[i].target);
 
-
             // Pick the correct bit based on whether the round is present or not.
             // Select operation as boolean (A & B) | (!A & C) where A is the selector bit.
             let left = self.and(*round_present_in_message, round_present_eq);
@@ -229,15 +235,20 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintSignature<F, D>
 
         println!("messages.len(): {}", messages.len());
 
-        const VALIDATOR_MESSAGE_BITS_LENGTH_MAX: usize =
-            VALIDATOR_MESSAGE_BYTES_LENGTH_MAX * 8;
+        const VALIDATOR_MESSAGE_BITS_LENGTH_MAX: usize = VALIDATOR_MESSAGE_BYTES_LENGTH_MAX * 8;
 
         let zero = self.zero();
         let one = self.one();
         let dummy_target = self.get_dummy_targets();
 
-        let eddsa_target =
-            verify_variable_signatures_circuit::<F, Self::Curve, E, C, D, VALIDATOR_MESSAGE_BITS_LENGTH_MAX>(self, messages.len());
+        let eddsa_target = verify_variable_signatures_circuit::<
+            F,
+            Self::Curve,
+            E,
+            C,
+            D,
+            VALIDATOR_MESSAGE_BITS_LENGTH_MAX,
+        >(self, messages.len());
 
         for i in 0..messages.len() {
             let message = &messages[i];
@@ -252,29 +263,16 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintSignature<F, D>
 
             let sig_s_target = [eddsa_sig_target.s.clone(), dummy_target.signature.s.clone()];
 
-            let idx = self.select(
-                validator_active[i],
-                zero,
-                one
-            );
+            let idx = self.select(validator_active[i], zero, one);
 
             // Select the correct pubkey based on whether the validator signed this round.
-            let eddsa_pubkey_target = self.random_access_affine_point(
-                idx,
-                pubkey_targets.to_vec(),
-            );
+            let eddsa_pubkey_target = self.random_access_affine_point(idx, pubkey_targets.to_vec());
 
             // Select the correct sig r based on whether the validator signed this round
-            let sig_r = self.random_access_affine_point(
-                idx,
-                sig_r_target.to_vec(),
-            );
+            let sig_r = self.random_access_affine_point(idx, sig_r_target.to_vec());
 
             // Select the correct sig s based on whether the validator signed this round
-            let sig_s = self.random_access_nonnative(
-                idx,
-                sig_s_target.to_vec(),
-            );
+            let sig_s = self.random_access_nonnative(idx, sig_s_target.to_vec());
 
             let eddsa_sig_target = EDDSASignatureTarget { r: sig_r, s: sig_s };
 
@@ -284,7 +282,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintSignature<F, D>
                     validator_active[i],
                     message.0[j].target,
                     // All dummy message bits are zero
-                    zero
+                    zero,
                 );
                 self.connect(eddsa_target.msgs[i][j].target, bit);
             }
@@ -330,7 +328,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintSignature<F, D>
         for i in 0..message.len() {
             self.connect(eddsa_target.msgs[0][i].target, message[i].target);
         }
-        
+
         self.connect_affine_point(&eddsa_target.sigs[0].r, &eddsa_sig_target.r);
         self.connect_nonnative(&eddsa_target.sigs[0].s, &eddsa_sig_target.s);
 
@@ -359,8 +357,8 @@ pub(crate) mod tests {
 
     use plonky2x::ecc::ed25519::curve::curve_types::AffinePoint;
     use plonky2x::ecc::ed25519::field::ed25519_scalar::Ed25519Scalar;
-    use tendermint::private_key;
     use tendermint::crypto::ed25519::SigningKey;
+    use tendermint::private_key;
 
     use crate::utils::to_be_bits;
 
@@ -380,11 +378,12 @@ pub(crate) mod tests {
         println!("signature: {:?}", hex::encode(signature.clone().to_bytes()));
         println!("signature: {:?}", signature.clone().to_bytes());
 
-        verification_key.verify(&signature, &[0u8; 32]).expect("failed to verify signature");
+        verification_key
+            .verify(&signature, &[0u8; 32])
+            .expect("failed to verify signature");
     }
 
     fn verify_eddsa_signature(msg_bytes: Vec<u8>, pub_key_bytes: Vec<u8>, sig_bytes: Vec<u8>) {
-
         type F = GoldilocksField;
         type Curve = Ed25519;
         type E = GoldilocksCubicParameters;
@@ -410,7 +409,8 @@ pub(crate) mod tests {
         let pub_key_uncompressed: AffinePoint<Curve> =
             AffinePoint::new_from_compressed_point(&pub_key_bytes);
 
-        let eddsa_pub_key_target = EDDSAPublicKeyTarget(builder.constant_affine_point(pub_key_uncompressed));
+        let eddsa_pub_key_target =
+            EDDSAPublicKeyTarget(builder.constant_affine_point(pub_key_uncompressed));
 
         let sig_r = AffinePoint::new_from_compressed_point(&sig_bytes[0..32]);
         assert!(sig_r.is_valid());
@@ -437,7 +437,13 @@ pub(crate) mod tests {
 
         let validator_active = vec![builder._false()];
 
-        builder.verify_signatures::<E, C>(&validator_active, vec![msg_bits_target], vec![msg_bit_length_t], vec![&eddsa_sig_target], vec![&eddsa_pub_key_target]);
+        builder.verify_signatures::<E, C>(
+            &validator_active,
+            vec![msg_bits_target],
+            vec![msg_bit_length_t],
+            vec![&eddsa_sig_target],
+            vec![&eddsa_pub_key_target],
+        );
 
         let inner_data = builder.build::<C>();
         let inner_proof = inner_data.prove(pw).unwrap();
@@ -493,6 +499,10 @@ pub(crate) mod tests {
     }
     #[test]
     fn test_verify_dummy_signature() {
-        verify_eddsa_signature(DUMMY_MSG.to_vec(), DUMMY_PUBLIC_KEY.to_vec(), DUMMY_SIGNATURE.to_vec())
+        verify_eddsa_signature(
+            DUMMY_MSG.to_vec(),
+            DUMMY_PUBLIC_KEY.to_vec(),
+            DUMMY_SIGNATURE.to_vec(),
+        )
     }
 }
