@@ -141,7 +141,7 @@ pub fn generate_step_inputs(block: usize) -> CelestiaBlockProof {
         let signing_key = ed25519_consensus::SigningKey::try_from(signing_key).unwrap();
 
         let verification_key = signing_key.verification_key();
-        // TODO: Fix dummy signatures!
+        // TODO: Fix empty signatures
         validators.push(Validator {
             pubkey: VerificationKey::try_from(verification_key.as_bytes().as_ref())
                 .expect("failed to create verification key"),
@@ -190,6 +190,8 @@ pub fn generate_step_inputs(block: usize) -> CelestiaBlockProof {
         path: enc_next_validators_hash_proof_indices,
         proof: enc_next_validators_hash_proof.aunts,
     };
+
+    println!("num validators: {}", validators.len());
 
     let celestia_block_proof = CelestiaBlockProof {
         validators,
