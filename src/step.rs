@@ -132,73 +132,73 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintStep<F, D> for Circ
         let pubkeys: Vec<&EDDSAPublicKeyTarget<Ed25519>> =
             validators.iter().map(|v| &v.pubkey).collect();
 
-        // // Compute the validators hash
-        // let validators_hash_target =
-        //     self.hash_validator_set(&marshalled_validators, &byte_lengths, &validators_enabled);
+        // Compute the validators hash
+        let validators_hash_target =
+            self.hash_validator_set(&marshalled_validators, &byte_lengths, &validators_enabled);
 
-        // // Assert that computed validator hash matches expected validator hash
-        // let extracted_hash = self.extract_hash_from_protobuf(&validator_hash_proof.enc_leaf);
-        // for i in 0..HASH_SIZE_BITS {
-        //     self.connect(
-        //         validators_hash_target.0[i].target,
-        //         extracted_hash.0[i].target,
-        //     );
-        // }
+        // Assert that computed validator hash matches expected validator hash
+        let extracted_hash = self.extract_hash_from_protobuf(&validator_hash_proof.enc_leaf);
+        for i in 0..HASH_SIZE_BITS {
+            self.connect(
+                validators_hash_target.0[i].target,
+                extracted_hash.0[i].target,
+            );
+        }
 
-        // let total_voting_power = self.get_total_voting_power(&validator_voting_power);
-        // let threshold_numerator = self.constant_u32(2);
-        // let threshold_denominator = self.constant_u32(3);
+        let total_voting_power = self.get_total_voting_power(&validator_voting_power);
+        let threshold_numerator = self.constant_u32(2);
+        let threshold_denominator = self.constant_u32(3);
 
-        // // Assert the accumulated voting power is greater than the threshold
-        // let check_voting_power_bool = self.check_voting_power(
-        //     &validator_voting_power,
-        //     &validators_enabled_u32,
-        //     &total_voting_power,
-        //     &threshold_numerator,
-        //     &threshold_denominator,
-        // );
-        // self.connect(check_voting_power_bool.target, one);
+        // Assert the accumulated voting power is greater than the threshold
+        let check_voting_power_bool = self.check_voting_power(
+            &validator_voting_power,
+            &validators_enabled_u32,
+            &total_voting_power,
+            &threshold_numerator,
+            &threshold_denominator,
+        );
+        self.connect(check_voting_power_bool.target, one);
 
         // TODO: Handle dummies
         self.verify_signatures::<E, C>(&validators_signed, messages, message_bit_lengths, signatures, pubkeys);
 
         // TODO: Verify that this will work with dummy signatures
-        // for i in 0..VALIDATOR_SET_SIZE_MAX {
-        //     // Verify that the header is in the message in the correct location
-        //     let hash_in_message = self.verify_hash_in_message(&validators[i].message, header, round_present);
+        for i in 0..VALIDATOR_SET_SIZE_MAX {
+            // Verify that the header is in the message in the correct location
+            let hash_in_message = self.verify_hash_in_message(&validators[i].message, header, round_present);
 
-        //     // If the validator is enabled, then the hash should be in the message
-        //     self.connect(hash_in_message.target, validators_signed[i].target);
-        // }
+            // If the validator is enabled, then the hash should be in the message
+            self.connect(hash_in_message.target, validators_signed[i].target);
+        }
 
-        // let header_from_data_root_proof = self.get_root_from_merkle_proof(
-        //     &data_hash_proof.proof,
-        //     &data_hash_proof.path,
-        //     &data_hash_proof.enc_leaf,
-        // );
-        // let header_from_validator_root_proof = self.get_root_from_merkle_proof(
-        //     &validator_hash_proof.proof,
-        //     &validator_hash_proof.path,
-        //     &validator_hash_proof.enc_leaf,
-        // );
-        // let header_from_next_validators_root_proof = self.get_root_from_merkle_proof(
-        //     &next_validators_hash_proof.proof,
-        //     &next_validators_hash_proof.path,
-        //     &next_validators_hash_proof.enc_leaf,
-        // );
+        let header_from_data_root_proof = self.get_root_from_merkle_proof(
+            &data_hash_proof.proof,
+            &data_hash_proof.path,
+            &data_hash_proof.enc_leaf,
+        );
+        let header_from_validator_root_proof = self.get_root_from_merkle_proof(
+            &validator_hash_proof.proof,
+            &validator_hash_proof.path,
+            &validator_hash_proof.enc_leaf,
+        );
+        let header_from_next_validators_root_proof = self.get_root_from_merkle_proof(
+            &next_validators_hash_proof.proof,
+            &next_validators_hash_proof.path,
+            &next_validators_hash_proof.enc_leaf,
+        );
 
-        // // Confirm that the header from the proof of {validator_hash, next_validators_hash, data_hash} all match the header
-        // for i in 0..HASH_SIZE_BITS {
-        //     self.connect(header.0[i].target, header_from_data_root_proof.0[i].target);
-        //     self.connect(
-        //         header.0[i].target,
-        //         header_from_validator_root_proof.0[i].target,
-        //     );
-        //     self.connect(
-        //         header.0[i].target,
-        //         header_from_next_validators_root_proof.0[i].target,
-        //     );
-        // }
+        // Confirm that the header from the proof of {validator_hash, next_validators_hash, data_hash} all match the header
+        for i in 0..HASH_SIZE_BITS {
+            self.connect(header.0[i].target, header_from_data_root_proof.0[i].target);
+            self.connect(
+                header.0[i].target,
+                header_from_validator_root_proof.0[i].target,
+            );
+            self.connect(
+                header.0[i].target,
+                header_from_next_validators_root_proof.0[i].target,
+            );
+        }
     }
 }
 
