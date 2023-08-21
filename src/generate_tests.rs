@@ -58,7 +58,6 @@ pub fn generate_val_array(num_validators: usize) {
 }
 
 pub async fn create_new_fixture(block_number: usize) -> Result<(), Error> {
-    // Read from https://rpc-t.celestia.nodestake.top/signed_block?height=131950 using
     // Serves latest block
     let mut url =
         "http://rpc.testnet.celestia.citizencosmos.space/signed_block?height=".to_string();

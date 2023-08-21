@@ -119,7 +119,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintStep<F, D> for Circ
             messages[i].resize(VALIDATOR_MESSAGE_BYTES_LENGTH_MAX * 8, self._false());
         }
 
-        let messages = messages
+        let messages: Vec<ValidatorMessageTarget> = messages
             .iter()
             .map(|v| ValidatorMessageTarget(v.clone().try_into().unwrap()))
             .collect();
@@ -159,7 +159,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintStep<F, D> for Circ
         );
         self.connect(check_voting_power_bool.target, one);
 
-        // TODO: Handle dummies
+        // // TODO: Handle dummies
         self.verify_signatures::<E, C>(
             &validators_signed,
             messages,
@@ -624,6 +624,21 @@ pub(crate) mod tests {
     fn test_step() {
         // Testing block 11000
         let block = 11000;
+        test_step_template(block);
+    }
+
+    #[test]
+    fn test_step_with_empty() {
+        // Testing block 10000
+        let block = 10000;
+        test_step_template(block);
+    }
+
+    #[test]
+    fn test_step_large() {
+        // Testing block 11500
+        // 7 validators, 1 disabled (valhash)
+        let block = 11500;
         test_step_template(block);
     }
 }
