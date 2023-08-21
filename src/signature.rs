@@ -75,8 +75,8 @@ pub trait TendermintSignature<F: RichField + Extendable<D>, const D: usize> {
     >(
         &mut self,
         // This message should be range-checked before being passed in.
-        validator_active: Vec<BoolTarget>,
-        messages: Vec<Vec<BoolTarget>>,
+        validator_active: &Vec<BoolTarget>,
+        messages: Vec<ValidatorMessageTarget>,
         message_bit_lengths: Vec<Target>,
         eddsa_sig_targets: Vec<&EDDSASignatureTarget<Self::Curve>>,
         eddsa_pubkey_targets: Vec<&EDDSAPublicKeyTarget<Self::Curve>>,
@@ -211,10 +211,10 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintSignature<F, D>
         C: GenericConfig<D, F = F, FE = F::Extension> + 'static,
     >(
         &mut self,
-        // This message should be range-checked before being passed in.
-        validator_active: Vec<BoolTarget>,
+        validator_active: &Vec<BoolTarget>,
         // Variable length messages, need to be cast into VALIDATOR_MESSAGE_BYTES_LENGTH_MAX*8 long
-        messages: Vec<Vec<BoolTarget>>,
+        messages: Vec<ValidatorMessageTarget>,
+        // This message should be range-checked before being passed in.
         message_bit_lengths: Vec<Target>,
         eddsa_sig_targets: Vec<&EDDSASignatureTarget<Self::Curve>>,
         eddsa_pubkey_targets: Vec<&EDDSAPublicKeyTarget<Self::Curve>>,
@@ -279,17 +279,14 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintSignature<F, D>
             let eddsa_sig_target = EDDSASignatureTarget { r: sig_r, s: sig_s };
 
             // Select correct message based on whether the validator signed this round
-            for j in 0..message.len() {
+            for j in 0..VALIDATOR_MESSAGE_BITS_LENGTH_MAX {
                 let bit = self.select(
                     validator_active[i],
-                    message[j].target,
+                    message.0[j].target,
                     // All dummy message bits are zero
                     zero
                 );
                 self.connect(eddsa_target.msgs[i][j].target, bit);
-            }
-            for j in message.len()..VALIDATOR_MESSAGE_BYTES_LENGTH_MAX * 8 {
-                self.connect(eddsa_target.msgs[i][j].target, zero);
             }
 
             let bit_length = self.select(
@@ -404,7 +401,11 @@ pub(crate) mod tests {
         for i in 0..msg_bits.len() {
             msg_bits_target.push(builder.constant_bool(msg_bits[i]));
         }
+        for i in msg_bits.len()..VALIDATOR_MESSAGE_BYTES_LENGTH_MAX * 8 {
+            msg_bits_target.push(builder._false());
+        }
 
+        let msg_bits_target = ValidatorMessageTarget(msg_bits_target.try_into().unwrap());
 
         let pub_key_uncompressed: AffinePoint<Curve> =
             AffinePoint::new_from_compressed_point(&pub_key_bytes);
@@ -434,9 +435,9 @@ pub(crate) mod tests {
             s: sig_s_target,
         };
 
-        let validator_active = vec![builder._true()];
+        let validator_active = vec![builder._false()];
 
-        builder.verify_signatures::<E, C>(validator_active, vec![msg_bits_target], vec![msg_bit_length_t], vec![&eddsa_sig_target], vec![&eddsa_pub_key_target]);
+        builder.verify_signatures::<E, C>(&validator_active, vec![msg_bits_target], vec![msg_bit_length_t], vec![&eddsa_sig_target], vec![&eddsa_pub_key_target]);
 
         let inner_data = builder.build::<C>();
         let inner_proof = inner_data.prove(pw).unwrap();
