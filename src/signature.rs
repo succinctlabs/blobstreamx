@@ -155,8 +155,6 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintSignature<F, D>
                 && messages.len() == eddsa_pubkey_targets.len(),
         );
 
-        println!("messages.len(): {}", messages.len());
-
         const VALIDATOR_MESSAGE_BITS_LENGTH_MAX: usize =
             VALIDATOR_MESSAGE_BYTES_LENGTH_MAX * 8;
 

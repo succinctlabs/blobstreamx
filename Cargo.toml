@@ -12,7 +12,7 @@ env_logger = "0.10.0"
 log = "0.4.19"
 num = "0.4.1"
 plonky2 = { git = "https://github.com/mir-protocol/plonky2.git" }
-plonky2x = { git = "ssh://git@github.com/succinctlabs/sdk.git", branch = "ratan/eddsa-variable" }
+plonky2x = { git = "ssh://git@github.com/succinctlabs/sdk.git" }
 rand = "0.8.5"
 reqwest = "0.11.18"
 serde = "1.0.175"
