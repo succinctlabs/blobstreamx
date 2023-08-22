@@ -61,7 +61,7 @@ pub const VOTING_POWER_BITS_LENGTH_MAX: usize = VOTING_POWER_BYTES_LENGTH_MAX * 
 
 // The maximum number of validators in a Tendermint validator set.
 // Note: Must be a power of 2.
-pub const VALIDATOR_SET_SIZE_MAX: usize = 8;
+pub const VALIDATOR_SET_SIZE_MAX: usize = 32;
 
 // The maximum number of bytes in a validator message (CanonicalVote toSignBytes).
 // const VALIDATOR_MESSAGE_BYTES_LENGTH_MAX: usize = 124;
