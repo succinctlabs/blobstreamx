@@ -159,14 +159,14 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintStep<F, D> for Circ
         );
         self.connect(check_voting_power_bool.target, one);
 
-        // // // TODO: Handle dummies
-        // self.verify_signatures::<E, C>(
-        //     &validators_signed,
-        //     messages,
-        //     message_bit_lengths,
-        //     signatures,
-        //     pubkeys,
-        // );
+        // // TODO: Handle dummies
+        self.verify_signatures::<E, C>(
+            &validators_signed,
+            messages,
+            message_bit_lengths,
+            signatures,
+            pubkeys,
+        );
 
         // TODO: Verify that this will work with dummy signatures
         for i in 0..VALIDATOR_SET_SIZE_MAX {
@@ -651,8 +651,15 @@ pub(crate) mod tests {
 
     #[test]
     fn test_step_large() {
+        // Testing block 75000
+        // 77 validators (128)
+        // Block 50000
+        // 32 validators
+        // Block 15000
+        // 16 validators
         // Testing block 60000
         // 60 validators, 4 disabled (valhash)
+
         let block = 60000;
 
         const VALIDATOR_SET_SIZE_MAX: usize = 64;
