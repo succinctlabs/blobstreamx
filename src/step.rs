@@ -645,14 +645,14 @@ pub(crate) mod tests {
         test_step_template::<VALIDATOR_SET_SIZE_MAX>(block);
     }
 
-    // #[test]
-    // fn test_step_large() {
-    //     // Testing block 11500
-    //     // 100 validators, 28 disabled (valhash)
-    //     let block = 336715;
+    #[test]
+    fn test_step_large() {
+        // Testing block 15000
+        // 11 validators, 5 disabled (valhash)
+        let block = 50000;
 
-    //     const VALIDATOR_SET_SIZE_MAX: usize = 128;
+        const VALIDATOR_SET_SIZE_MAX: usize = 32;
 
-    //     test_step_template::<VALIDATOR_SET_SIZE_MAX>(block);
-    // }
+        test_step_template::<VALIDATOR_SET_SIZE_MAX>(block);
+    }
 }
