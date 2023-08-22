@@ -1,13 +1,10 @@
 use std::fs;
 
-use crate::utils::to_be_bits;
 /// Source (tendermint-rs): https://github.com/informalsystems/tendermint-rs/blob/e930691a5639ef805c399743ac0ddbba0e9f53da/tendermint/src/merkle.rs#L32
 use crate::utils::{
     generate_proofs_from_header, non_absent_vote, SignedBlock, TempSignedBlock,
-    VALIDATOR_SET_SIZE_MAX,
 };
 use ed25519_consensus::SigningKey;
-use subtle_encoding::hex;
 use tendermint::crypto::ed25519::VerificationKey;
 use tendermint::{private_key, Signature};
 use tendermint::{validator::Set as ValidatorSet, vote::SignedVote, vote::ValidatorIndex};
@@ -87,6 +84,13 @@ pub fn generate_step_inputs(block: usize) -> CelestiaBlockProof {
     // Signatures or dummy
     // Need signature to output either verify or no verify (then we can assert that it matches or doesn't match)
     let block_validators = block.validator_set.validators();
+
+    // Find closest power of 2 greater than or equal to the number of validators
+    let mut total = 1;
+    while total < block_validators.len() {
+        total *= 2;
+    }
+
     for i in 0..block.commit.signatures.len() {
         let val_idx = ValidatorIndex::try_from(i).unwrap();
         let validator = Box::new(
@@ -133,7 +137,7 @@ pub fn generate_step_inputs(block: usize) -> CelestiaBlockProof {
     }
 
     // These are empty signatures (not included in val hash)
-    for i in block.commit.signatures.len()..VALIDATOR_SET_SIZE_MAX {
+    for i in block.commit.signatures.len()..total {
         let priv_key_bytes = vec![0u8; 32];
         let signing_key =
             private_key::Ed25519::try_from(&priv_key_bytes[..]).expect("failed to create key");

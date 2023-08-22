@@ -19,7 +19,7 @@ use plonky2x::num::u32::gadgets::arithmetic_u32::CircuitBuilderU32;
 use crate::utils::{
     EncTendermintHashTarget, I64Target, MarshalledValidatorTarget, TendermintHashTarget,
     HASH_SIZE_BITS, PROTOBUF_HASH_SIZE_BITS, VALIDATOR_BIT_LENGTH_MAX, VALIDATOR_BYTE_LENGTH_MAX,
-    VALIDATOR_SET_SIZE_MAX, VOTING_POWER_BITS_LENGTH_MAX, VOTING_POWER_BYTES_LENGTH_MAX,
+    VOTING_POWER_BITS_LENGTH_MAX, VOTING_POWER_BYTES_LENGTH_MAX,
 };
 
 pub trait TendermintMarshaller<F: RichField + Extendable<D>, const D: usize> {
@@ -60,7 +60,7 @@ pub trait TendermintMarshaller<F: RichField + Extendable<D>, const D: usize> {
     ) -> TendermintHashTarget;
 
     /// Hashes multiple validators to get their leaves according to the Tendermint spec using hash_validator_leaf.
-    fn hash_validator_leaves(
+    fn hash_validator_leaves<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
         validators: &Vec<MarshalledValidatorTarget>,
         validator_byte_lengths: &Vec<Target>,
@@ -84,7 +84,7 @@ pub trait TendermintMarshaller<F: RichField + Extendable<D>, const D: usize> {
     ) -> (Vec<TendermintHashTarget>, Vec<BoolTarget>);
 
     /// Compute the expected validator hash from the validator set.
-    fn hash_validator_set(
+    fn hash_validator_set<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
         validators: &Vec<MarshalledValidatorTarget>,
         validator_byte_lengths: &Vec<Target>,
@@ -319,7 +319,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D>
         TendermintHashTarget(hash.try_into().unwrap())
     }
 
-    fn hash_validator_leaves(
+    fn hash_validator_leaves<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
         validators: &Vec<MarshalledValidatorTarget>,
         validator_byte_lengths: &Vec<Target>,
@@ -429,7 +429,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D>
         (merkle_hashes.to_vec(), merkle_hash_enabled.to_vec())
     }
 
-    fn hash_validator_set(
+    fn hash_validator_set<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
         validators: &Vec<MarshalledValidatorTarget>,
         validator_byte_lengths: &Vec<Target>,
@@ -452,7 +452,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D>
 
         // Hash each of the validators to get their corresponding leaf hash.
         let mut current_validator_hashes =
-            self.hash_validator_leaves(validators, validator_byte_lengths);
+            self.hash_validator_leaves::<VALIDATOR_SET_SIZE_MAX>(validators, validator_byte_lengths);
 
         // Whether to treat the validator as empty.
         let mut current_validator_enabled = validator_enabled.clone();
@@ -493,7 +493,7 @@ pub(crate) mod tests {
     use sha2::Sha256;
     use tendermint_proto::Protobuf;
 
-    use crate::utils::{VALIDATOR_BIT_LENGTH_MAX, VALIDATOR_SET_SIZE_MAX};
+    use crate::utils::{VALIDATOR_BIT_LENGTH_MAX};
 
     use crate::utils::{generate_proofs_from_header, hash_all_leaves, leaf_hash};
 
@@ -508,9 +508,10 @@ pub(crate) mod tests {
     type F = <C as GenericConfig<D>>::F;
     type Curve = Ed25519;
     const D: usize = 2;
+    const VALIDATOR_SET_SIZE_MAX: usize = 4;
 
     // Generate the inputs from the validator byte arrays.
-    fn generate_inputs(
+    fn generate_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
         builder: &mut CircuitBuilder<F, D>,
         validators: &Vec<String>,
     ) -> (Vec<MarshalledValidatorTarget>, Vec<Target>, Vec<BoolTarget>) {
@@ -700,7 +701,7 @@ pub(crate) mod tests {
         ];
 
         let (validators_target, validator_byte_length, _) =
-            generate_inputs(&mut builder, &validators);
+            generate_inputs::<VALIDATOR_SET_SIZE_MAX>(&mut builder, &validators);
 
         let result = builder.hash_validator_leaf(&validators_target[0], validator_byte_length[0]);
 
@@ -754,9 +755,9 @@ pub(crate) mod tests {
             .collect();
 
         let (validators_target, validator_byte_length, _) =
-            generate_inputs(&mut builder, &validators);
+            generate_inputs::<VALIDATOR_SET_SIZE_MAX>(&mut builder, &validators);
 
-        let result = builder.hash_validator_leaves(&validators_target, &validator_byte_length);
+        let result = builder.hash_validator_leaves::<VALIDATOR_SET_SIZE_MAX>(&validators_target, &validator_byte_length);
         println!("Got all leaf hashes: {}", result.len());
         for i in 0..validators.len() {
             for j in 0..HASH_SIZE_BITS {
@@ -814,7 +815,7 @@ pub(crate) mod tests {
             let mut builder = CircuitBuilder::<F, D>::new(config);
 
             let (validators_target, validator_byte_length, validator_enabled) =
-                generate_inputs(&mut builder, &test_case.validators);
+                generate_inputs::<VALIDATOR_SET_SIZE_MAX>(&mut builder, &test_case.validators);
 
             let digest_bits =
                 to_be_bits(hex::decode(test_case.expected_digest.as_bytes()).unwrap());
@@ -826,7 +827,7 @@ pub(crate) mod tests {
                 ))
             );
 
-            let result = builder.hash_validator_set(
+            let result = builder.hash_validator_set::<VALIDATOR_SET_SIZE_MAX>(
                 &validators_target,
                 &validator_byte_length,
                 &validator_enabled,
