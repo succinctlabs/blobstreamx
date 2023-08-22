@@ -411,11 +411,15 @@ pub(crate) mod tests {
         type C = PoseidonGoldilocksConfig;
         const D: usize = 2;
 
+        println!("Making step circuit");
+
         let celestia_proof_target =
             make_step_circuit::<GoldilocksField, D, Curve, C, E, VALIDATOR_SET_SIZE_MAX>(&mut builder);
 
         // Note: Length of output is the closest power of 2 gte the number of validators for this block.
         let celestia_block_proof: CelestiaBlockProof = generate_step_inputs(block);
+        println!("Generated inputs");
+        println!("Number of validators: {}", celestia_block_proof.validators.len());
         timed!(timing, "assigning inputs", {
             // Set target for header
             let header_bits = to_be_bits(celestia_block_proof.header);
@@ -647,11 +651,11 @@ pub(crate) mod tests {
 
     #[test]
     fn test_step_large() {
-        // Testing block 15000
-        // 11 validators, 5 disabled (valhash)
-        let block = 50000;
+        // Testing block 60000
+        // 60 validators, 4 disabled (valhash)
+        let block = 60000;
 
-        const VALIDATOR_SET_SIZE_MAX: usize = 32;
+        const VALIDATOR_SET_SIZE_MAX: usize = 64;
 
         test_step_template::<VALIDATOR_SET_SIZE_MAX>(block);
     }
