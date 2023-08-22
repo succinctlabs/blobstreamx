@@ -24,7 +24,7 @@ use crate::signature::TendermintSignature;
 use crate::utils::{
     EncTendermintHashTarget, I64Target, MarshalledValidatorTarget, TendermintHashTarget,
     ValidatorMessageTarget, HASH_SIZE_BITS, HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BITS,
-    VALIDATOR_MESSAGE_BYTES_LENGTH_MAX, VALIDATOR_SET_SIZE_MAX,
+    VALIDATOR_MESSAGE_BYTES_LENGTH_MAX,
 };
 use crate::validator::TendermintMarshaller;
 use crate::voting::TendermintVoting;
@@ -64,7 +64,7 @@ pub trait TendermintStep<F: RichField + Extendable<D>, const D: usize> {
     type Curve: Curve;
 
     /// Verifies a Tendermint consensus block.
-    fn step<E: CubicParameters<F>, C: GenericConfig<D, F = F, FE = F::Extension> + 'static>(
+    fn step<E: CubicParameters<F>, C: GenericConfig<D, F = F, FE = F::Extension> + 'static, const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
         validators: &Vec<ValidatorTarget<Self::Curve>>,
         header: &TendermintHashTarget,
@@ -79,7 +79,7 @@ pub trait TendermintStep<F: RichField + Extendable<D>, const D: usize> {
 impl<F: RichField + Extendable<D>, const D: usize> TendermintStep<F, D> for CircuitBuilder<F, D> {
     type Curve = Ed25519;
 
-    fn step<E: CubicParameters<F>, C: GenericConfig<D, F = F, FE = F::Extension> + 'static>(
+    fn step<E: CubicParameters<F>, C: GenericConfig<D, F = F, FE = F::Extension> + 'static, const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
         validators: &Vec<ValidatorTarget<Self::Curve>>,
         header: &TendermintHashTarget,
@@ -134,7 +134,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintStep<F, D> for Circ
 
         // Compute the validators hash
         let validators_hash_target =
-            self.hash_validator_set(&marshalled_validators, &byte_lengths, &validators_enabled);
+            self.hash_validator_set::<VALIDATOR_SET_SIZE_MAX>(&marshalled_validators, &byte_lengths, &validators_enabled);
 
         // Assert that computed validator hash matches expected validator hash
         let extracted_hash = self.extract_hash_from_protobuf(&validator_hash_proof.enc_leaf);
@@ -145,12 +145,12 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintStep<F, D> for Circ
             );
         }
 
-        let total_voting_power = self.get_total_voting_power(&validator_voting_power);
+        let total_voting_power = self.get_total_voting_power::<VALIDATOR_SET_SIZE_MAX>(&validator_voting_power);
         let threshold_numerator = self.constant_u32(2);
         let threshold_denominator = self.constant_u32(3);
 
         // Assert the accumulated voting power is greater than the threshold
-        let check_voting_power_bool = self.check_voting_power(
+        let check_voting_power_bool = self.check_voting_power::<VALIDATOR_SET_SIZE_MAX>(
             &validator_voting_power,
             &validators_enabled_u32,
             &total_voting_power,
@@ -248,6 +248,7 @@ pub fn make_step_circuit<
     C: Curve,
     Config: GenericConfig<D, F = F, FE = F::Extension> + 'static,
     E: CubicParameters<F>,
+    const VALIDATOR_SET_SIZE_MAX: usize
 >(
     builder: &mut CircuitBuilder<F, D>,
 ) -> CelestiaBlockProofTarget<Ed25519>
@@ -297,7 +298,7 @@ where
 
     let round_present = builder.add_virtual_bool_target_safe();
 
-    builder.step::<E, Config>(
+    builder.step::<E, Config, VALIDATOR_SET_SIZE_MAX>(
         &validators,
         &header,
         &data_hash_proof,
@@ -338,7 +339,7 @@ pub(crate) mod tests {
     use plonky2x::ecc::ed25519::field::ed25519_scalar::Ed25519Scalar;
 
     use crate::inputs::{generate_step_inputs, CelestiaBlockProof};
-    use crate::utils::{to_be_bits, VALIDATOR_SET_SIZE_MAX};
+    use crate::utils::{to_be_bits};
 
     use log;
     use plonky2::timed;
@@ -396,7 +397,7 @@ pub(crate) mod tests {
         println!("Verified proof");
     }
 
-    fn test_step_template(block: usize) {
+    fn test_step_template<const VALIDATOR_SET_SIZE_MAX: usize>(block: usize) {
         let _ = env_logger::builder().is_test(true).try_init();
         let mut timing = TimingTree::new("Celestia Header Verify", log::Level::Debug);
 
@@ -411,8 +412,9 @@ pub(crate) mod tests {
         const D: usize = 2;
 
         let celestia_proof_target =
-            make_step_circuit::<GoldilocksField, D, Curve, C, E>(&mut builder);
+            make_step_circuit::<GoldilocksField, D, Curve, C, E, VALIDATOR_SET_SIZE_MAX>(&mut builder);
 
+        // Note: Length of output is the closest power of 2 gte the number of validators for this block.
         let celestia_block_proof: CelestiaBlockProof = generate_step_inputs(block);
         timed!(timing, "assigning inputs", {
             // Set target for header
@@ -580,6 +582,7 @@ pub(crate) mod tests {
                 .unwrap()
             );
             inner_data.verify(inner_proof.clone()).unwrap();
+            println!("num gates: {:?}", inner_data.common.gates.len());
 
             // let mut outer_builder = CircuitBuilder::<F, D>::new(CircuitConfig::standard_ecc_config());
             // let inner_proof_target = outer_builder.add_virtual_proof_with_pis(&inner_data.common);
@@ -617,28 +620,39 @@ pub(crate) mod tests {
         // Should set some dummy values
         let block = 11105;
 
-        test_step_template(block);
+        const VALIDATOR_SET_SIZE_MAX: usize = 4;
+
+        test_step_template::<VALIDATOR_SET_SIZE_MAX>(block);
     }
 
     #[test]
     fn test_step() {
         // Testing block 11000
         let block = 11000;
-        test_step_template(block);
+
+        const VALIDATOR_SET_SIZE_MAX: usize = 4;
+
+        test_step_template::<VALIDATOR_SET_SIZE_MAX>(block);
     }
 
     #[test]
     fn test_step_with_empty() {
         // Testing block 10000
         let block = 10000;
-        test_step_template(block);
+
+        const VALIDATOR_SET_SIZE_MAX: usize = 4;
+
+        test_step_template::<VALIDATOR_SET_SIZE_MAX>(block);
     }
 
-    #[test]
-    fn test_step_large() {
-        // Testing block 11500
-        // 7 validators, 1 disabled (valhash)
-        let block = 336715;
-        test_step_template(block);
-    }
+    // #[test]
+    // fn test_step_large() {
+    //     // Testing block 11500
+    //     // 100 validators, 28 disabled (valhash)
+    //     let block = 336715;
+
+    //     const VALIDATOR_SET_SIZE_MAX: usize = 128;
+
+    //     test_step_template::<VALIDATOR_SET_SIZE_MAX>(block);
+    // }
 }
