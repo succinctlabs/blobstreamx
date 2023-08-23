@@ -62,9 +62,9 @@ pub trait TendermintSignature<F: RichField + Extendable<D>, const D: usize> {
     fn get_dummy_targets(&mut self) -> DummySignatureTarget<Self::Curve>;
 
     // Extract a hash from a protobuf-encoded array of bits.
-    fn extract_hash_from_protobuf<const START_BYTE: usize>(
+    fn extract_hash_from_protobuf<const START_BYTE: usize, const PROTOBUF_MSG_LENGTH_BITS: usize>(
         &mut self,
-        hash: &Vec<BoolTarget>,
+        hash: &[BoolTarget; PROTOBUF_MSG_LENGTH_BITS],
     ) -> TendermintHashTarget;
 
     /// Extract the header hash from the signed message from a validator.
@@ -151,9 +151,9 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintSignature<F, D>
         }
     }
 
-    fn extract_hash_from_protobuf<const START_BYTE: usize>(
+    fn extract_hash_from_protobuf<const START_BYTE: usize, const PROTOBUF_MSG_LENGTH_BITS: usize>(
         &mut self,
-        hash: &Vec<BoolTarget>,
+        hash: &[BoolTarget; PROTOBUF_MSG_LENGTH_BITS],
     ) -> TendermintHashTarget {
         let mut result = [self._false(); HASH_SIZE_BITS];
         // Skip first 2 bytes
