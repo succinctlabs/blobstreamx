@@ -5,6 +5,7 @@ use crate::utils::{
     generate_proofs_from_header, non_absent_vote, SignedBlock, TempSignedBlock, generate_proofs_from_block_id, compute_hash_from_aunts, compute_hash_from_proof, leaf_hash,
 };
 use ed25519_consensus::SigningKey;
+use sha2::Sha256;
 use tendermint::crypto::ed25519::VerificationKey;
 use tendermint::{private_key, Signature};
 use tendermint::{validator::Set as ValidatorSet, vote::SignedVote, vote::ValidatorIndex};
@@ -47,7 +48,7 @@ pub struct CelestiaBlockProof {
 }
 
 // If hash_so_far is on the left, False, else True
-fn get_path_indices(index: u64, total: u64) -> Vec<bool> {
+pub fn get_path_indices(index: u64, total: u64) -> Vec<bool> {
     let mut path_indices = vec![];
 
     let mut current_total = total - 1;
@@ -208,11 +209,17 @@ pub fn generate_step_inputs(block: usize) -> CelestiaBlockProof {
 
     let enc_last_block_id_proof = proofs[4].clone();
     let enc_last_block_id_proof_indices = get_path_indices(4, total);
+    println!("last block proof indices: {:?}", enc_last_block_id_proof_indices);
+    let enc_leaf = Protobuf::<RawBlockId>::encode_vec(block.header.last_block_id.unwrap_or_default());
     let last_block_id_proof = InclusionProof {
-        enc_leaf: Protobuf::<RawBlockId>::encode_vec(block.header.last_block_id.unwrap_or_default()),
+        enc_leaf: enc_leaf.clone(),
         path: enc_last_block_id_proof_indices,
         proof: enc_last_block_id_proof.clone().aunts,
     };
+    assert_eq!(leaf_hash::<Sha256>(&enc_leaf), enc_last_block_id_proof.leaf_hash);
+
+    let computed_root = compute_hash_from_aunts(4, 14, leaf_hash::<Sha256>(&enc_leaf), enc_last_block_id_proof.clone().aunts);
+    assert_eq!(computed_root.unwrap(), block.header.hash().as_bytes());
 
     let prev_header_hash = block.header.last_block_id.unwrap().hash;
     let last_block_id = Protobuf::<RawBlockId>::encode_vec(block.header.last_block_id.unwrap_or_default());
@@ -224,12 +231,12 @@ pub fn generate_step_inputs(block: usize) -> CelestiaBlockProof {
 
     let celestia_block_proof = CelestiaBlockProof {
         validators,
-        header: header_hash.into(),
-        prev_header: prev_header_hash.into(),
+        header: header_hash.as_bytes().to_vec(),
+        prev_header: prev_header_hash.as_bytes().to_vec(),
         data_hash_proof,
         validator_hash_proof: validators_hash_proof,
-        last_block_id_proof,
         next_validators_hash_proof,
+        last_block_id_proof,
         round_present: block.commit.round.value() > 0,
     };
 
