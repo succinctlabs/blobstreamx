@@ -16,6 +16,8 @@ use plonky2x::ecc::ed25519::gadgets::curve::{AffinePointTarget, CircuitBuilderCu
 use plonky2x::hash::sha::sha256::{sha256, sha256_variable_length_single_chunk};
 use plonky2x::num::u32::gadgets::arithmetic_u32::CircuitBuilderU32;
 
+use crate::utils::EncBlockIDTarget;
+use crate::utils::PROTOBUF_BLOCK_ID_SIZE_BITS;
 use crate::utils::{
     EncTendermintHashTarget, I64Target, MarshalledValidatorTarget, TendermintHashTarget,
     HASH_SIZE_BITS, PROTOBUF_HASH_SIZE_BITS, VALIDATOR_BIT_LENGTH_MAX, VALIDATOR_BYTE_LENGTH_MAX,
@@ -45,12 +47,16 @@ pub trait TendermintMarshaller<F: RichField + Extendable<D>, const D: usize> {
         &mut self,
         aunts: &Vec<TendermintHashTarget>,
         merkle_proof_enabled: &Vec<BoolTarget>,
-        leaf: &EncTendermintHashTarget,
+        leaf_hash: &TendermintHashTarget,
     ) -> TendermintHashTarget;
 
     /// Hashes leaf bytes to get the leaf hash according to the Tendermint spec. (0x00 || leafBytes)
     /// Note: This function will only work for leaves with a length of 34 bytes (protobuf-encoded SHA256 hash)
-    fn hash_header_leaf(&mut self, leaf: &EncTendermintHashTarget) -> TendermintHashTarget;
+    fn hash_enc_hash(&mut self, leaf: &EncTendermintHashTarget) -> TendermintHashTarget;
+
+    /// Hashes leaf bytes to get the leaf hash according to the Tendermint spec. (0x00 || leafBytes)
+    /// Note: This function will only work for leaves with a length of 72 bytes (protobuf-encoded tendermint block ID)
+    fn hash_enc_block_id(&mut self, leaf: &EncBlockIDTarget) -> TendermintHashTarget;
 
     /// Hashes validator bytes to get the leaf according to the Tendermint spec. (0x00 || validatorBytes)
     fn hash_validator_leaf(
@@ -102,11 +108,10 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D>
         aunts: &Vec<TendermintHashTarget>,
         // TODO: Should we hard-code path_indices to correspond to dataHash, validatorsHash and nextValidatorsHash?
         path_indices: &Vec<BoolTarget>,
-        leaf: &EncTendermintHashTarget,
+        // This leaf should already be hashed. (0x00 || leafBytes)
+        leaf_hash: &TendermintHashTarget,
     ) -> TendermintHashTarget {
-        let hash_leaf = self.hash_header_leaf(&leaf);
-
-        let mut hash_so_far = hash_leaf;
+        let mut hash_so_far = *leaf_hash;
         for i in 0..aunts.len() {
             let aunt = aunts[i];
             let path_index = path_indices[i];
@@ -127,10 +132,37 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D>
         hash_so_far
     }
 
-    fn hash_header_leaf(&mut self, leaf: &EncTendermintHashTarget) -> TendermintHashTarget {
+    fn hash_enc_hash(&mut self, leaf: &EncTendermintHashTarget) -> TendermintHashTarget {
         // Calculate the length of the message for the leaf hash.
         // 0x00 || leafBytes
         let bits_length = 8 + (PROTOBUF_HASH_SIZE_BITS);
+
+        // Calculate the message for the leaf hash.
+        let mut leaf_msg_bits = vec![self._false(); bits_length];
+
+        // 0x00
+        for k in 0..8 {
+            leaf_msg_bits[k] = self._false();
+        }
+
+        // validatorBytes
+        for k in 8..bits_length {
+            leaf_msg_bits[k] = leaf.0[k - 8];
+        }
+
+        // Load the output of the hash.
+        let hash = sha256(self, &leaf_msg_bits);
+        let mut return_hash = [self._false(); HASH_SIZE_BITS];
+        for k in 0..HASH_SIZE_BITS {
+            return_hash[k] = hash[k];
+        }
+        TendermintHashTarget(return_hash)
+    }
+
+    fn hash_enc_block_id(&mut self, leaf: &EncBlockIDTarget) -> TendermintHashTarget {
+        // Calculate the length of the message for the leaf hash.
+        // 0x00 || leafBytes
+        let bits_length = PROTOBUF_BLOCK_ID_SIZE_BITS;
 
         // Calculate the message for the leaf hash.
         let mut leaf_msg_bits = vec![self._false(); bits_length];
@@ -570,7 +602,7 @@ pub(crate) mod tests {
         }
 
         let result =
-            builder.hash_header_leaf(&EncTendermintHashTarget(validators_hash_bits_target));
+            builder.hash_enc_hash(&EncTendermintHashTarget(validators_hash_bits_target));
 
         for i in 0..HASH_SIZE_BITS {
             if validators_hash_bits[i] {
@@ -654,10 +686,12 @@ pub(crate) mod tests {
             }
         }
 
+        let leaf_hash = builder.hash_enc_hash(&EncTendermintHashTarget(leaf_target));
+
         let result = builder.get_root_from_merkle_proof(
             &aunts_target,
             &path_indices,
-            &EncTendermintHashTarget(leaf_target),
+            &leaf_hash,
         );
 
         for i in 0..HASH_SIZE_BITS {
