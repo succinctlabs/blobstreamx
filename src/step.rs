@@ -155,8 +155,10 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintStep<F, D> for Circ
         let validators_hash_target =
             self.hash_validator_set::<VALIDATOR_SET_SIZE_MAX>(&marshalled_validators, &byte_lengths, &validators_enabled);
 
+        /// Start of the hash in protobuf encoded validator hash & last block id
+        const HASH_START_BYTE: usize = 2;
         // Assert that computed validator hash matches expected validator hash
-        let extracted_hash = self.extract_hash_from_protobuf::<2>(&validator_hash_proof.enc_leaf.0.to_vec());
+        let extracted_hash = self.extract_hash_from_protobuf::<HASH_START_BYTE, PROTOBUF_HASH_SIZE_BITS>(&validator_hash_proof.enc_leaf.0);
         for i in 0..HASH_SIZE_BITS {
             self.connect(
                 validators_hash_target.0[i].target,
@@ -203,28 +205,28 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintStep<F, D> for Circ
         let next_val_hash_path = vec![false_t, false_t, false_t, true_t];
         let last_block_id_path = vec![false_t, false_t, true_t, false_t];
 
-        let data_hash_leaf_hash = self.hash_enc_hash(&data_hash_proof.enc_leaf);
+        let data_hash_leaf_hash = self.leaf_hash::<PROTOBUF_HASH_SIZE_BITS>(&data_hash_proof.enc_leaf.0);
         let header_from_data_root_proof = self.get_root_from_merkle_proof(
             &data_hash_proof.proof,
             &data_hash_path,
             &data_hash_leaf_hash,
         );
 
-        let validator_hash_leaf_hash = self.hash_enc_hash(&validator_hash_proof.enc_leaf);
+        let validator_hash_leaf_hash = self.leaf_hash::<PROTOBUF_HASH_SIZE_BITS>(&validator_hash_proof.enc_leaf.0);
         let header_from_validator_root_proof = self.get_root_from_merkle_proof(
             &validator_hash_proof.proof,
             &val_hash_path,
             &validator_hash_leaf_hash,
         );
 
-        let next_validators_hash_leaf_hash = self.hash_enc_hash(&next_validators_hash_proof.enc_leaf);
+        let next_validators_hash_leaf_hash = self.leaf_hash::<PROTOBUF_HASH_SIZE_BITS>(&next_validators_hash_proof.enc_leaf.0);
         let header_from_next_validators_root_proof = self.get_root_from_merkle_proof(
             &next_validators_hash_proof.proof,
             &next_val_hash_path,
             &next_validators_hash_leaf_hash,
         );
 
-        let last_block_id_leaf_hash = self.hash_enc_block_id(&last_block_id_proof.enc_leaf);
+        let last_block_id_leaf_hash = self.leaf_hash::<PROTOBUF_BLOCK_ID_SIZE_BITS>(&last_block_id_proof.enc_leaf.0);
         let header_from_last_block_id_proof = self.get_root_from_merkle_proof(
             &last_block_id_proof.proof,
             &last_block_id_path,
@@ -249,7 +251,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintStep<F, D> for Circ
         }
 
         // Extract prev header hash from the encoded leaf (starts at second byte)
-        let extracted_prev_header_hash = self.extract_hash_from_protobuf::<2>(&last_block_id_proof.enc_leaf.0.to_vec());
+        let extracted_prev_header_hash = self.extract_hash_from_protobuf::<HASH_START_BYTE, PROTOBUF_BLOCK_ID_SIZE_BITS>(&last_block_id_proof.enc_leaf.0);
         for i in 0..HASH_SIZE_BITS {
             self.connect(
                 prev_header.0[i].target,
