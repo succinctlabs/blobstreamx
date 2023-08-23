@@ -24,11 +24,14 @@ use tendermint_proto::{
     version::Consensus as RawConsensusVersion, Protobuf,
 };
 
-/// The number of bytes in a SHA256 hash.
+/// The number of bits in a SHA256 hash.
 pub const HASH_SIZE_BITS: usize = HASH_SIZE * 8;
 
-/// The number of bytes in a protobuf-encoded SHA256 hash.
+/// The number of bits in a protobuf-encoded SHA256 hash.
 pub const PROTOBUF_HASH_SIZE_BITS: usize = HASH_SIZE_BITS + 8 * 2;
+
+/// The number of bits in a protobuf-encoded tendermint block ID.
+pub const PROTOBUF_BLOCK_ID_SIZE_BITS: usize = 72 * 8;
 
 // Depth of the proofs against the header.
 pub const HEADER_PROOF_DEPTH: usize = 4;
@@ -66,6 +69,10 @@ pub const VOTING_POWER_BITS_LENGTH_MAX: usize = VOTING_POWER_BYTES_LENGTH_MAX * 
 // The maximum number of bytes in a validator message (CanonicalVote toSignBytes).
 // const VALIDATOR_MESSAGE_BYTES_LENGTH_MAX: usize = 124;
 pub const VALIDATOR_MESSAGE_BYTES_LENGTH_MAX: usize = 124;
+
+/// A protobuf-encoded tendermint block ID as a 72 byte target.
+#[derive(Debug, Clone, Copy)]
+pub struct EncBlockIDTarget(pub [BoolTarget; PROTOBUF_BLOCK_ID_SIZE_BITS]);
 
 /// A protobuf-encoded tendermint hash as a 34 byte target.
 #[derive(Debug, Clone, Copy)]
@@ -334,7 +341,23 @@ impl ProofNode {
     }
 }
 
-fn compute_hash_from_aunts(
+pub fn compute_hash_from_proof(
+    enc_leaf: &Vec<u8>,
+    path: &Vec<bool>,
+    aunts: &Vec<Hash>,
+) -> Option<Hash> {
+    let mut hash_so_far = leaf_hash::<Sha256>(enc_leaf);
+    for i in 0..path.len() {
+        hash_so_far = if path[i] {
+            inner_hash::<Sha256>(aunts[i], hash_so_far)
+        } else {
+            inner_hash::<Sha256>(hash_so_far, aunts[i])
+        };
+    }
+    Some(hash_so_far)
+}
+
+pub fn compute_hash_from_aunts(
     index: u64,
     total: u64,
     leaf_hash: Hash,
@@ -504,6 +527,15 @@ pub fn generate_proofs_from_header(h: &Header) -> (Hash, Vec<Proof>) {
         h.last_results_hash.unwrap_or_default().encode_vec(),
         h.evidence_hash.unwrap_or_default().encode_vec(),
         h.proposer_address.encode_vec(),
+    ];
+
+    proofs_from_byte_slices(fields_bytes)
+}
+
+pub fn generate_proofs_from_block_id(id: &tendermint::block::Id) -> (tendermint::merkle::Hash, Vec<crate::utils::Proof>) {
+    let fields_bytes = vec![
+        id.hash.encode_vec(),
+        id.part_set_header.hash.encode_vec(),
     ];
 
     proofs_from_byte_slices(fields_bytes)

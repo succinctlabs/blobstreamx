@@ -2,13 +2,16 @@ use std::fs;
 
 /// Source (tendermint-rs): https://github.com/informalsystems/tendermint-rs/blob/e930691a5639ef805c399743ac0ddbba0e9f53da/tendermint/src/merkle.rs#L32
 use crate::utils::{
-    generate_proofs_from_header, non_absent_vote, SignedBlock, TempSignedBlock,
+    generate_proofs_from_header, non_absent_vote, SignedBlock, TempSignedBlock, generate_proofs_from_block_id, compute_hash_from_aunts, compute_hash_from_proof, leaf_hash,
 };
 use ed25519_consensus::SigningKey;
 use tendermint::crypto::ed25519::VerificationKey;
 use tendermint::{private_key, Signature};
 use tendermint::{validator::Set as ValidatorSet, vote::SignedVote, vote::ValidatorIndex};
 use tendermint_proto::Protobuf;
+use tendermint_proto::{
+    types::BlockId as RawBlockId
+};
 
 #[derive(Debug, Clone)]
 pub struct Validator {
@@ -35,9 +38,11 @@ pub struct InclusionProof {
 pub struct CelestiaBlockProof {
     pub validators: Vec<Validator>,
     pub header: Vec<u8>,
+    pub prev_header: Vec<u8>,
     pub data_hash_proof: InclusionProof,
     pub validator_hash_proof: InclusionProof,
     pub next_validators_hash_proof: InclusionProof,
+    pub last_block_id_proof: InclusionProof,
     pub round_present: bool,
 }
 
@@ -45,7 +50,7 @@ pub struct CelestiaBlockProof {
 fn get_path_indices(index: u64, total: u64) -> Vec<bool> {
     let mut path_indices = vec![];
 
-    let mut current_total = total;
+    let mut current_total = total - 1;
     let mut current_index = index;
     while current_total >= 1 {
         path_indices.push(current_index % 2 == 1);
@@ -55,8 +60,7 @@ fn get_path_indices(index: u64, total: u64) -> Vec<bool> {
     path_indices
 }
 
-pub fn generate_step_inputs(block: usize) -> CelestiaBlockProof {
-    // Generate test cases from Celestia block:
+fn get_signed_block(block: usize) -> Box<SignedBlock> {
     let mut file = String::new();
     file.push_str("./src/fixtures/");
     file.push_str(&block.to_string());
@@ -78,6 +82,13 @@ pub fn generate_step_inputs(block: usize) -> CelestiaBlockProof {
             temp_block.validator_set.proposer,
         ),
     });
+
+    block
+}
+
+pub fn generate_step_inputs(block: usize) -> CelestiaBlockProof {
+    // Generate test cases from Celestia block:
+    let block = get_signed_block(block);
 
     let mut validators = Vec::new();
 
@@ -195,16 +206,63 @@ pub fn generate_step_inputs(block: usize) -> CelestiaBlockProof {
         proof: enc_next_validators_hash_proof.aunts,
     };
 
+    let enc_last_block_id_proof = proofs[4].clone();
+    let enc_last_block_id_proof_indices = get_path_indices(4, total);
+    let last_block_id_proof = InclusionProof {
+        enc_leaf: Protobuf::<RawBlockId>::encode_vec(block.header.last_block_id.unwrap_or_default()),
+        path: enc_last_block_id_proof_indices,
+        proof: enc_last_block_id_proof.clone().aunts,
+    };
+
+    let prev_header_hash = block.header.last_block_id.unwrap().hash;
+    let last_block_id = Protobuf::<RawBlockId>::encode_vec(block.header.last_block_id.unwrap_or_default());
+    println!("last block id (len): {}", last_block_id.len());
+    assert_eq!(prev_header_hash.as_bytes(), &last_block_id[2..34], "computed hash does not match");
+
+
     println!("num validators: {}", validators.len());
 
     let celestia_block_proof = CelestiaBlockProof {
         validators,
         header: header_hash.into(),
+        prev_header: prev_header_hash.into(),
         data_hash_proof,
         validator_hash_proof: validators_hash_proof,
+        last_block_id_proof,
         next_validators_hash_proof,
         round_present: block.commit.round.value() > 0,
     };
 
     celestia_block_proof
+}
+
+#[cfg(test)]
+pub(crate) mod tests {
+    use crate::utils::generate_proofs_from_block_id;
+
+    use super::*;
+
+    #[test]
+    fn test_prev_header_check() {
+        let block_1 = get_signed_block(11000);
+        let block_2 = get_signed_block(11001);
+
+        assert_eq!(block_1.header.hash(), block_2.header.last_block_id.unwrap().hash);
+
+        let (_root, proofs) = generate_proofs_from_header(&block_2.header);
+        let total = proofs[0].total;
+        let last_block_id_proof = proofs[4].clone();
+        let last_block_id_proof_indices = get_path_indices(4, total);
+        println!("last_block_id_proof: {:?}", last_block_id_proof.aunts);
+
+        let (_root, proofs) = generate_proofs_from_block_id(&block_2.header.last_block_id.unwrap());
+        let last_block_id = block_2.header.last_block_id.unwrap();
+
+        let total = proofs[0].total;
+        let prev_header_hash_proof = proofs[0].clone();
+        let prev_header_hash_proof_indices = get_path_indices(0, total);
+        println!("prev_header_hash_proof: {:?}", prev_header_hash_proof.aunts);
+    }
+
+
 }
