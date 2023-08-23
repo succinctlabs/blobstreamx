@@ -162,7 +162,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D>
     fn hash_enc_block_id(&mut self, leaf: &EncBlockIDTarget) -> TendermintHashTarget {
         // Calculate the length of the message for the leaf hash.
         // 0x00 || leafBytes
-        let bits_length = PROTOBUF_BLOCK_ID_SIZE_BITS;
+        let bits_length = 8 + PROTOBUF_BLOCK_ID_SIZE_BITS;
 
         // Calculate the message for the leaf hash.
         let mut leaf_msg_bits = vec![self._false(); bits_length];
@@ -524,7 +524,11 @@ pub(crate) mod tests {
     use plonky2x::ecc::ed25519::curve::curve_types::AffinePoint;
     use sha2::Sha256;
     use tendermint_proto::Protobuf;
+    use tendermint_proto::{
+        types::BlockId as RawBlockId
+    };
 
+    use crate::inputs::get_path_indices;
     use crate::utils::{VALIDATOR_BIT_LENGTH_MAX};
 
     use crate::utils::{generate_proofs_from_header, hash_all_leaves, leaf_hash};
@@ -642,27 +646,25 @@ pub(crate) mod tests {
         let (_, proofs) = generate_proofs_from_header(&block.header);
 
         // Can test with leaf_index 6, 7 or 8 (data_hash, validators_hash, next_validators_hash)
-        let leaf_index = 8;
+        let leaf_index = 4;
 
         // Note: Make sure to encode_vec()
         // let leaf = block.header.data_hash.expect("data hash present").encode_vec();
         // let leaf = block.header.validators_hash.encode_vec();
-        let leaf = block.header.next_validators_hash.encode_vec();
+        // let leaf = block.header.next_validators_hash.encode_vec();
+        let leaf = Protobuf::<RawBlockId>::encode_vec(block.header.last_block_id.unwrap_or_default());
 
         let leaf_bits = to_be_bits(leaf);
 
-        let mut path_indices = vec![];
+        let path_indices = get_path_indices(leaf_index as u64, proofs[0].total);
 
-        let mut current_total = proofs[leaf_index].total as usize;
-        let mut current_index = leaf_index as usize;
-        while current_total >= 1 {
-            path_indices.push(builder.constant_bool(current_index % 2 == 1));
-            current_total = current_total / 2;
-            current_index = current_index / 2;
-        }
+        let path_indices = path_indices
+            .iter()
+            .map(|x| builder.constant_bool(*x))
+            .collect::<Vec<_>>();
 
-        let mut leaf_target = [builder._false(); PROTOBUF_HASH_SIZE_BITS];
-        for i in 0..PROTOBUF_HASH_SIZE_BITS {
+        let mut leaf_target = [builder._false(); PROTOBUF_BLOCK_ID_SIZE_BITS];
+        for i in 0..PROTOBUF_BLOCK_ID_SIZE_BITS {
             leaf_target[i] = if leaf_bits[i] {
                 builder._true()
             } else {
@@ -686,7 +688,7 @@ pub(crate) mod tests {
             }
         }
 
-        let leaf_hash = builder.hash_enc_hash(&EncTendermintHashTarget(leaf_target));
+        let leaf_hash = builder.hash_enc_block_id(&EncBlockIDTarget(leaf_target));
 
         let result = builder.get_root_from_merkle_proof(
             &aunts_target,
