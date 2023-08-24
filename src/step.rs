@@ -81,7 +81,28 @@ pub struct BaseBlockProofTarget<C: Curve> {
 pub trait TendermintStep<F: RichField + Extendable<D>, const D: usize> {
     type Curve: Curve;
 
+    /// Verifies that the previous header hash in the block matches the previous header hash in the last block ID.
+    fn verify_prev_header<E: CubicParameters<F>, C: GenericConfig<D, F = F, FE = F::Extension> + 'static>(
+        &mut self,
+        header: &TendermintHashTarget,
+        prev_header: &TendermintHashTarget,
+        last_block_id_proof: &BlockIDInclusionProofTarget,
+    ) where
+        <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>;
+
     /// Verifies a Tendermint consensus block.
+    fn verify_header<E: CubicParameters<F>, C: GenericConfig<D, F = F, FE = F::Extension> + 'static, const VALIDATOR_SET_SIZE_MAX: usize>(
+        &mut self,
+        validators: &Vec<ValidatorTarget<Self::Curve>>,
+        header: &TendermintHashTarget,
+        data_hash_proof: &HashInclusionProofTarget,
+        validator_hash_proof: &HashInclusionProofTarget,
+        next_validators_hash_proof: &HashInclusionProofTarget,
+        round_present: &BoolTarget,
+    ) where
+        <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>;
+
+    /// Sequentially verifies a Tendermint consensus block.
     fn step<E: CubicParameters<F>, C: GenericConfig<D, F = F, FE = F::Extension> + 'static, const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
         validators: &Vec<ValidatorTarget<Self::Curve>>,
@@ -112,6 +133,30 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintStep<F, D> for Circ
     ) where
         <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>,
     {
+        // Verifies that 2/3 of the validators signed the headers
+        self.verify_header::<E, C, VALIDATOR_SET_SIZE_MAX>(
+            validators,
+            header,
+            data_hash_proof,
+            validator_hash_proof,
+            next_validators_hash_proof,
+            round_present,
+        );
+
+        // Verifies that the previous header hash in the block matches the previous header hash in the last block ID.
+        self.verify_prev_header::<E, C>(header, prev_header, last_block_id_proof);
+    }
+
+    fn verify_header<E: CubicParameters<F>, C: GenericConfig<D, F = F, FE = F::Extension> + 'static, const VALIDATOR_SET_SIZE_MAX: usize>(
+        &mut self,
+        validators: &Vec<ValidatorTarget<Self::Curve>>,
+        header: &TendermintHashTarget,
+        data_hash_proof: &HashInclusionProofTarget,
+        validator_hash_proof: &HashInclusionProofTarget,
+        next_validators_hash_proof: &HashInclusionProofTarget,
+        round_present: &BoolTarget,
+    ) where
+        <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F> {
         let one = self.one();
         let false_t = self._false();
         let true_t = self._true();
@@ -208,7 +253,6 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintStep<F, D> for Circ
         let data_hash_path = vec![false_t, true_t, true_t, false_t];
         let val_hash_path = vec![true_t, true_t, true_t, false_t];
         let next_val_hash_path = vec![false_t, false_t, false_t, true_t];
-        let last_block_id_path = vec![false_t, false_t, true_t, false_t];
 
         let data_hash_leaf_hash = self.leaf_hash::<PROTOBUF_HASH_SIZE_BITS>(&data_hash_proof.enc_leaf.0);
         let header_from_data_root_proof = self.get_root_from_merkle_proof::<HEADER_PROOF_DEPTH>(
@@ -231,13 +275,6 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintStep<F, D> for Circ
             &next_validators_hash_leaf_hash,
         );
 
-        let last_block_id_leaf_hash = self.leaf_hash::<PROTOBUF_BLOCK_ID_SIZE_BITS>(&last_block_id_proof.enc_leaf.0);
-        let header_from_last_block_id_proof = self.get_root_from_merkle_proof::<HEADER_PROOF_DEPTH>(
-            &last_block_id_proof.proof,
-            &last_block_id_path,
-            &last_block_id_leaf_hash,
-        );
-
         // Confirm that the header from the proof of {validator_hash, next_validators_hash, data_hash, last_block_id} all match the header
         for i in 0..HASH_SIZE_BITS {
             self.connect(header.0[i].target, header_from_data_root_proof.0[i].target);
@@ -249,11 +286,38 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintStep<F, D> for Circ
                 header.0[i].target,
                 header_from_next_validators_root_proof.0[i].target,
             );
-            self.connect(
-                header.0[i].target,
-                header_from_last_block_id_proof.0[i].target,
-            );
         }
+    }
+
+    fn verify_prev_header<E: CubicParameters<F>, C: GenericConfig<D, F = F, FE = F::Extension> + 'static>(
+        &mut self,
+        header: &TendermintHashTarget,
+        prev_header: &TendermintHashTarget,
+        last_block_id_proof: &BlockIDInclusionProofTarget,
+    ) where
+        <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F> {
+            let false_t = self._false();
+            let true_t = self._true();
+
+            /// Start of the hash in protobuf encoded validator hash & last block id
+            const HASH_START_BYTE: usize = 2;
+
+            let last_block_id_path = vec![false_t, false_t, true_t, false_t];
+
+            let last_block_id_leaf_hash = self.leaf_hash::<PROTOBUF_BLOCK_ID_SIZE_BITS>(&last_block_id_proof.enc_leaf.0);
+            let header_from_last_block_id_proof = self.get_root_from_merkle_proof::<HEADER_PROOF_DEPTH>(
+                &last_block_id_proof.proof,
+                &last_block_id_path,
+                &last_block_id_leaf_hash,
+            );
+    
+            // Confirm that the header from the proof of {validator_hash, next_validators_hash, data_hash, last_block_id} all match the header
+            for i in 0..HASH_SIZE_BITS {
+                self.connect(
+                    header.0[i].target,
+                    header_from_last_block_id_proof.0[i].target,
+                );
+            }
 
         // Extract prev header hash from the encoded leaf (starts at second byte)
         let extracted_prev_header_hash = self.extract_hash_from_protobuf::<HASH_START_BYTE, PROTOBUF_BLOCK_ID_SIZE_BITS>(&last_block_id_proof.enc_leaf.0);
