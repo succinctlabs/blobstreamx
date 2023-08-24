@@ -43,10 +43,10 @@ pub trait TendermintMarshaller<F: RichField + Extendable<D>, const D: usize> {
     /// Verify a merkle proof against the specified root hash.
     /// Note: This function will only work for leaves with a length of 34 bytes (protobuf-encoded SHA256 hash)
     /// Output is the merkle root
-    fn get_root_from_merkle_proof(
+    fn get_root_from_merkle_proof<const PROOF_DEPTH: usize>(
         &mut self,
         aunts: &Vec<TendermintHashTarget>,
-        merkle_proof_enabled: &Vec<BoolTarget>,
+        path_indices: &Vec<BoolTarget>,
         leaf_hash: &TendermintHashTarget,
     ) -> TendermintHashTarget;
 
@@ -99,7 +99,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D>
 {
     type Curve = Ed25519;
 
-    fn get_root_from_merkle_proof(
+    fn get_root_from_merkle_proof<const PROOF_DEPTH: usize>(
         &mut self,
         aunts: &Vec<TendermintHashTarget>,
         // TODO: Should we hard-code path_indices to correspond to dataHash, validatorsHash and nextValidatorsHash?
@@ -108,7 +108,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D>
         leaf_hash: &TendermintHashTarget,
     ) -> TendermintHashTarget {
         let mut hash_so_far = *leaf_hash;
-        for i in 0..aunts.len() {
+        for i in 0..PROOF_DEPTH {
             let aunt = aunts[i];
             let path_index = path_indices[i];
             let left_hash_pair = self.inner_hash(&hash_so_far, &aunt);
@@ -498,7 +498,7 @@ pub(crate) mod tests {
     };
 
     use crate::inputs::get_path_indices;
-    use crate::utils::{VALIDATOR_BIT_LENGTH_MAX};
+    use crate::utils::{VALIDATOR_BIT_LENGTH_MAX, HEADER_PROOF_DEPTH};
 
     use crate::utils::{generate_proofs_from_header, hash_all_leaves, leaf_hash};
 
@@ -643,9 +643,9 @@ pub(crate) mod tests {
 
         let mut aunts_target = vec![
             TendermintHashTarget([builder._false(); HASH_SIZE_BITS]);
-            proofs[leaf_index].aunts.len()
+            HEADER_PROOF_DEPTH
         ];
-        for i in 0..proofs[leaf_index].aunts.len() {
+        for i in 0..HEADER_PROOF_DEPTH {
             let bool_vector = to_be_bits(proofs[leaf_index].aunts[i].to_vec());
 
             for j in 0..HASH_SIZE_BITS {
@@ -659,9 +659,9 @@ pub(crate) mod tests {
 
         let leaf_hash = builder.leaf_hash::<PROTOBUF_BLOCK_ID_SIZE_BITS>(&leaf_target);
 
-        let result = builder.get_root_from_merkle_proof(
-            &aunts_target,
-            &path_indices,
+        let result = builder.get_root_from_merkle_proof::<HEADER_PROOF_DEPTH>(
+            &aunts_target.try_into().unwrap(),
+            &path_indices.try_into().unwrap(),
             &leaf_hash,
         );
 

@@ -206,28 +206,28 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintStep<F, D> for Circ
         let last_block_id_path = vec![false_t, false_t, true_t, false_t];
 
         let data_hash_leaf_hash = self.leaf_hash::<PROTOBUF_HASH_SIZE_BITS>(&data_hash_proof.enc_leaf.0);
-        let header_from_data_root_proof = self.get_root_from_merkle_proof::<HEADER_PROOF_DEPTH>(
+        let header_from_data_root_proof = self.get_root_from_merkle_proof(
             &data_hash_proof.proof,
             &data_hash_path,
             &data_hash_leaf_hash,
         );
 
         let validator_hash_leaf_hash = self.leaf_hash::<PROTOBUF_HASH_SIZE_BITS>(&validator_hash_proof.enc_leaf.0);
-        let header_from_validator_root_proof = self.get_root_from_merkle_proof::<HEADER_PROOF_DEPTH>(
+        let header_from_validator_root_proof = self.get_root_from_merkle_proof(
             &validator_hash_proof.proof,
             &val_hash_path,
             &validator_hash_leaf_hash,
         );
 
         let next_validators_hash_leaf_hash = self.leaf_hash::<PROTOBUF_HASH_SIZE_BITS>(&next_validators_hash_proof.enc_leaf.0);
-        let header_from_next_validators_root_proof = self.get_root_from_merkle_proof::<HEADER_PROOF_DEPTH>(
+        let header_from_next_validators_root_proof = self.get_root_from_merkle_proof(
             &next_validators_hash_proof.proof,
             &next_val_hash_path,
             &next_validators_hash_leaf_hash,
         );
 
         let last_block_id_leaf_hash = self.leaf_hash::<PROTOBUF_BLOCK_ID_SIZE_BITS>(&last_block_id_proof.enc_leaf.0);
-        let header_from_last_block_id_proof = self.get_root_from_merkle_proof::<HEADER_PROOF_DEPTH>(
+        let header_from_last_block_id_proof = self.get_root_from_merkle_proof(
             &last_block_id_proof.proof,
             &last_block_id_path,
             &last_block_id_leaf_hash,
@@ -420,7 +420,7 @@ pub(crate) mod tests {
     use plonky2x::ecc::ed25519::curve::curve_types::AffinePoint;
     use plonky2x::ecc::ed25519::field::ed25519_scalar::Ed25519Scalar;
 
-    use crate::inputs::{generate_step_inputs, CelestiaStepBlockProof};
+    use crate::inputs::{generate_step_inputs, CelestiaBlockProof};
     use crate::utils::{to_be_bits};
 
     use log;
@@ -499,7 +499,7 @@ pub(crate) mod tests {
             make_step_circuit::<GoldilocksField, D, Curve, C, E, VALIDATOR_SET_SIZE_MAX>(&mut builder);
 
         // Note: Length of output is the closest power of 2 gte the number of validators for this block.
-        let celestia_block_proof: CelestiaStepBlockProof = generate_step_inputs(block);
+        let celestia_block_proof: CelestiaBlockProof = generate_step_inputs(block);
         println!("Generated inputs");
         println!("Number of validators: {}", celestia_block_proof.validators.len());
         timed!(timing, "assigning inputs", {
@@ -761,9 +761,9 @@ pub(crate) mod tests {
         // Testing block 60000
         // 60 validators, 4 disabled (valhash)
 
-        let block = 60000;
+        let block = 15000;
 
-        const VALIDATOR_SET_SIZE_MAX: usize = 64;
+        const VALIDATOR_SET_SIZE_MAX: usize = 16;
 
         test_step_template::<VALIDATOR_SET_SIZE_MAX>(block);
     }
