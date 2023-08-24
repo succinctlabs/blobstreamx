@@ -1,7 +1,7 @@
 pub mod generate_tests;
 pub mod inputs;
 pub mod signature;
-pub mod step;
+pub mod verify;
 pub mod utils;
 pub mod validator;
 pub mod voting;
