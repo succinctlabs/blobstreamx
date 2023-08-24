@@ -6,6 +6,7 @@
 //! The `pubkey` is encoded as the raw list of bytes used in the public key. The `varint` is
 //! encoded using protobuf's default integer encoding, which consist of 7 bit payloads. You can
 //! read more about them here: https://protobuf.dev/programming-guides/encoding/#varints.
+
 use curta::math::extension::CubicParameters;
 use plonky2::field::extension::Extendable;
 use plonky2::iop::target::BoolTarget;
@@ -41,6 +42,15 @@ pub struct ValidatorTarget<C: Curve> {
     validator_byte_length: Target,
     enabled: BoolTarget,
     signed: BoolTarget,
+    present_on_trusted_header: BoolTarget,
+}
+
+#[derive(Debug, Clone)]
+pub struct ValidatorHashFieldTarget<C: Curve> {
+    pubkey: EDDSAPublicKeyTarget<C>,
+    voting_power: I64Target,
+    validator_byte_length: Target,
+    enabled: BoolTarget,
 }
 
 /// The protobuf-encoded leaf (a hash), and it's corresponding proof and path indices against the header.
@@ -115,6 +125,31 @@ pub trait TendermintStep<F: RichField + Extendable<D>, const D: usize> {
         round_present: &BoolTarget,
     ) where
         <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>;
+    
+    /// Verifies that the trusted validators have signed the current header.
+    fn verify_trusted_validators<E: CubicParameters<F>, C: GenericConfig<D, F = F, FE = F::Extension> + 'static, const VALIDATOR_SET_SIZE_MAX: usize>(
+        &mut self,
+        validators: &Vec<ValidatorTarget<Self::Curve>>,
+        trusted_header: &TendermintHashTarget,
+        trusted_validator_hash_proof: &HashInclusionProofTarget,
+        trusted_validator_hash_fields: &Vec<ValidatorHashFieldTarget<Self::Curve>>
+    ) where
+        <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>;
+    
+    /// Verifies a Tendermint block that is non-sequential with the trusted block.
+    fn skip<E: CubicParameters<F>, C: GenericConfig<D, F = F, FE = F::Extension> + 'static, const VALIDATOR_SET_SIZE_MAX: usize>(
+        &mut self,
+        validators: &Vec<ValidatorTarget<Self::Curve>>,
+        header: &TendermintHashTarget,
+        data_hash_proof: &HashInclusionProofTarget,
+        validator_hash_proof: &HashInclusionProofTarget,
+        next_validators_hash_proof: &HashInclusionProofTarget,
+        round_present: &BoolTarget,
+        trusted_header: &TendermintHashTarget,
+        trusted_validator_hash_proof: &HashInclusionProofTarget,
+        trusted_validator_hash_fields: &Vec<ValidatorHashFieldTarget<Self::Curve>>
+    ) where
+        <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>;
 }
 
 impl<F: RichField + Extendable<D>, const D: usize> TendermintStep<F, D> for CircuitBuilder<F, D> {
@@ -170,7 +205,8 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintStep<F, D> for Circ
             .collect();
         let validators_signed: Vec<BoolTarget> = validators.iter().map(|v| v.signed).collect();
         let validators_enabled: Vec<BoolTarget> = validators.iter().map(|v| v.enabled).collect();
-        let validators_enabled_u32: Vec<U32Target> = validators_enabled
+
+        let validators_signed_u32: Vec<U32Target> = validators_signed
             .iter()
             .map(|v| {
                 let zero = self.zero_u32();
@@ -223,14 +259,15 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintStep<F, D> for Circ
         // Assert the accumulated voting power is greater than the threshold
         let check_voting_power_bool = self.check_voting_power::<VALIDATOR_SET_SIZE_MAX>(
             &validator_voting_power,
-            &validators_enabled_u32,
+            // Check if the signed validators are greater than the threshold
+            &validators_signed_u32,
             &total_voting_power,
             &threshold_numerator,
             &threshold_denominator,
         );
         self.connect(check_voting_power_bool.target, one);
 
-        // // TODO: Handle dummies
+        // Verifies signatures of the validators
         self.verify_signatures::<E, C>(
             &validators_signed,
             messages,
@@ -328,6 +365,142 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintStep<F, D> for Circ
             );
         }
     }
+
+    fn skip<E: CubicParameters<F>, C: GenericConfig<D, F = F, FE = F::Extension> + 'static, const VALIDATOR_SET_SIZE_MAX: usize>(
+        &mut self,
+        validators: &Vec<ValidatorTarget<Self::Curve>>,
+        header: &TendermintHashTarget,
+        data_hash_proof: &HashInclusionProofTarget,
+        validator_hash_proof: &HashInclusionProofTarget,
+        next_validators_hash_proof: &HashInclusionProofTarget,
+        round_present: &BoolTarget,
+        trusted_header: &TendermintHashTarget,
+        trusted_validator_hash_proof: &HashInclusionProofTarget,
+        trusted_validator_hash_fields: &Vec<ValidatorHashFieldTarget<Self::Curve>>
+    ) where
+        <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F> {
+        self.verify_trusted_validators::<E, C, VALIDATOR_SET_SIZE_MAX>(validators, trusted_header, trusted_validator_hash_proof, trusted_validator_hash_fields);
+
+        self.verify_header::<E, C, VALIDATOR_SET_SIZE_MAX>(
+            validators,
+            header,
+            data_hash_proof,
+            validator_hash_proof,
+            next_validators_hash_proof,
+            round_present,
+        );
+    }
+
+    fn verify_trusted_validators<E: CubicParameters<F>, C: GenericConfig<D, F = F, FE = F::Extension, > + 'static, const VALIDATOR_SET_SIZE_MAX: usize>(
+        &mut self,
+        validators: &Vec<ValidatorTarget<Self::Curve>>,
+        trusted_header: &TendermintHashTarget,
+        trusted_validator_hash_proof: &HashInclusionProofTarget,
+        trusted_validator_hash_fields: &Vec<ValidatorHashFieldTarget<Self::Curve>>
+    ) where
+        <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F> {
+
+        // Note: A trusted validator is one who is present on the trusted header
+        let false_t = self._false();
+        let true_t = self._true();
+        let one = self.one();
+
+        // Get the header from the validator hash merkle proof
+        let val_hash_path = vec![true_t, true_t, true_t, false_t];
+        let validator_hash_leaf_hash = self.leaf_hash::<PROTOBUF_HASH_SIZE_BITS>(&trusted_validator_hash_proof.enc_leaf.0);
+        let header_from_validator_root_proof = self.get_root_from_merkle_proof::<HEADER_PROOF_DEPTH>(
+            &trusted_validator_hash_proof.proof,
+            &val_hash_path,
+            &validator_hash_leaf_hash,
+        );
+
+        // Confirm the validator hash proof matches the trusted header
+        for i in 0..HASH_SIZE_BITS {
+            self.connect(trusted_header.0[i].target, header_from_validator_root_proof.0[i].target);
+        }
+
+        let marshalled_trusted_validators: Vec<MarshalledValidatorTarget> = trusted_validator_hash_fields
+        .iter()
+        .map(|v| self.marshal_tendermint_validator(&v.pubkey.0, &v.voting_power))
+        .collect();
+
+        let trusted_validators_enabled: Vec<BoolTarget> = trusted_validator_hash_fields.iter().map(|v| v.enabled).collect();
+
+        let trusted_byte_lengths: Vec<Target> =
+            trusted_validator_hash_fields.iter().map(|v| v.validator_byte_length).collect();
+
+        // Compute the validators hash from the validators
+        let validators_hash_target =
+            self.hash_validator_set::<VALIDATOR_SET_SIZE_MAX>(&marshalled_trusted_validators, &trusted_byte_lengths, &trusted_validators_enabled);
+        
+        const HASH_START_BYTE: usize = 2;
+        // Assert the computed validator hash matches the expected validator hash
+        let extracted_hash = self.extract_hash_from_protobuf::<HASH_START_BYTE, PROTOBUF_HASH_SIZE_BITS>(&trusted_validator_hash_proof.enc_leaf.0);
+        for i in 0..HASH_SIZE_BITS {
+            self.connect(
+                validators_hash_target.0[i].target,
+                extracted_hash.0[i].target,
+            );
+        }
+
+        // If a validator is present_on_trusted_header, then they should have signed.
+        // Not all validators that have signed need to be present on the trusted header.
+        // TODO: We should probably assert every validator that is enabled has signed.
+        for i in 0..VALIDATOR_SET_SIZE_MAX {
+            let present_and_signed = self.and(
+                validators[i].present_on_trusted_header,
+                validators[i].signed,
+            );
+
+            // If you are present, then you should have signed
+            self.connect(validators[i].present_on_trusted_header.target, present_and_signed.target);
+        }
+
+        // If a validator is present, then its pubkey should be present in the trusted validators
+        for i in 0..VALIDATOR_SET_SIZE_MAX {
+            let mut pubkey_match = self._false();
+            for j in 0..VALIDATOR_SET_SIZE_MAX {
+                let pubkey_match_idx = self.is_equal_affine_point(
+                    &validators[i].pubkey.0,
+                    &trusted_validator_hash_fields[j].pubkey.0,
+                );
+                pubkey_match = self.or(pubkey_match, pubkey_match_idx);
+            }
+            // It is possible for a validator to be present on the trusted header, but not have signed this header.
+            let match_and_present = self.and(pubkey_match, validators[i].present_on_trusted_header);
+
+            // If you are present, then you should have a matching pubkey
+            self.connect(validators[i].present_on_trusted_header.target, match_and_present.target);
+        }
+
+        let validator_voting_power: Vec<I64Target> =
+            validators.iter().map(|v| v.voting_power).collect();
+        let present_on_trusted_header: Vec<BoolTarget> = validators.iter().map(|v| v.present_on_trusted_header).collect();
+        let present_on_trusted_header_u32: Vec<U32Target> = present_on_trusted_header
+            .iter()
+            .map(|v| {
+                let zero = self.zero_u32();
+                let one = self.one_u32();
+                U32Target(self.select(*v, one.0, zero.0))
+            })
+            .collect();
+
+        // The trusted validators must comprise at least 1/3 of the total voting power
+        let total_voting_power = self.get_total_voting_power::<VALIDATOR_SET_SIZE_MAX>(&validator_voting_power);
+        let threshold_numerator = self.constant_u32(1);
+        let threshold_denominator = self.constant_u32(3);
+
+        // Assert the voting power from the trusted validators is greater than the threshold
+        let check_voting_power_bool = self.check_voting_power::<VALIDATOR_SET_SIZE_MAX>(
+            &validator_voting_power,
+            // Check if the trusted validators are greater than the threshold
+            &present_on_trusted_header_u32,
+            &total_voting_power,
+            &threshold_numerator,
+            &threshold_denominator,
+        );
+        self.connect(check_voting_power_bool.target, one);   
+    }
 }
 
 fn create_virtual_bool_target_array<F: RichField + Extendable<D>, const D: usize>(
@@ -419,6 +592,7 @@ where
         let validator_byte_length = builder.add_virtual_target();
         let enabled = builder.add_virtual_bool_target_safe();
         let signed = builder.add_virtual_bool_target_safe();
+        let present_on_trusted_header = builder.add_virtual_bool_target_safe();
 
         validators.push(ValidatorTarget::<Curve> {
             pubkey,
@@ -429,6 +603,7 @@ where
             validator_byte_length,
             enabled,
             signed,
+            present_on_trusted_header
         })
     }
 
@@ -745,6 +920,16 @@ pub(crate) mod tests {
                 );
                 println!("validator {} signed: {}", i, validator.signed);
                 pw.set_bool_target(celestia_sequential_proof_target.base.validators[i].signed, validator.signed);
+
+                let present_on_trusted_header = validator.present_on_trusted_header;
+                let present_on_trusted_header_bool = if present_on_trusted_header.is_some() {
+                    present_on_trusted_header.is_some()
+                } else {
+                    false
+                };
+
+                // Only used for skip circuit
+                pw.set_bool_target(celestia_sequential_proof_target.base.validators[i].present_on_trusted_header, present_on_trusted_header_bool);
             }
         });
         let inner_data = builder.build::<C>();
