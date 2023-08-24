@@ -94,13 +94,6 @@ pub struct I64Target(pub [U32Target; 2]);
 #[derive(Debug, Clone, Copy)]
 pub struct ValidatorMessageTarget(pub [BoolTarget; VALIDATOR_MESSAGE_BYTES_LENGTH_MAX * 8]);
 
-/// The bytes, public key, and voting power targets inside of a Tendermint validator.
-#[derive(Debug, Clone)]
-pub struct TendermintValidator<C: Curve> {
-    pub pubkey: EDDSAPublicKeyTarget<C>,
-    pub voting_power: I64Target,
-}
-
 pub fn bits_to_bytes(bits: &[bool]) -> Vec<u8> {
     let mut bytes = Vec::new();
     let nb_bytes = if bits.len() % 8 == 0 {

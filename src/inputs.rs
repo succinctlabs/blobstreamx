@@ -24,6 +24,15 @@ pub struct Validator {
     pub validator_byte_length: usize,
     pub enabled: bool,
     pub signed: bool,
+    pub present_on_trusted_header: Option<bool>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ValidatorHashField {
+    pub pubkey: VerificationKey,
+    pub voting_power: u64,
+    pub validator_byte_length: usize,
+    pub enabled: bool
 }
 
 /// The protobuf-encoded leaf (a hash), and it's corresponding proof and path indices against the header.
@@ -36,7 +45,7 @@ pub struct InclusionProof {
 }
 
 #[derive(Debug, Clone)]
-pub struct CelestiaBlockProof {
+pub struct CelestiaStepBlockProof {
     pub validators: Vec<Validator>,
     pub header: Vec<u8>,
     pub prev_header: Vec<u8>,
@@ -45,6 +54,14 @@ pub struct CelestiaBlockProof {
     pub next_validators_hash_proof: InclusionProof,
     pub last_block_id_proof: InclusionProof,
     pub round_present: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct CelestiaSkipBlockProof {
+    pub trusted_header: Vec<u8>,
+    pub trusted_validator_hash_proof: InclusionProof,
+    pub trusted_validator_fields: Vec<ValidatorHashField>,
+    pub step: CelestiaStepBlockProof,
 }
 
 // If hash_so_far is on the left, False, else True
@@ -87,7 +104,7 @@ fn get_signed_block(block: usize) -> Box<SignedBlock> {
     block
 }
 
-pub fn generate_step_inputs(block: usize) -> CelestiaBlockProof {
+pub fn generate_step_inputs(block: usize) -> CelestiaStepBlockProof {
     // Generate test cases from Celestia block:
     let block = get_signed_block(block);
 
@@ -131,6 +148,7 @@ pub fn generate_step_inputs(block: usize) -> CelestiaBlockProof {
                 validator_byte_length: val_bytes.len(),
                 enabled: true,
                 signed: true,
+                present_on_trusted_header: None
             });
         } else {
             // These are dummy signatures (included in val hash, did not vote)
@@ -144,6 +162,7 @@ pub fn generate_step_inputs(block: usize) -> CelestiaBlockProof {
                 validator_byte_length: val_bytes.len(),
                 enabled: true,
                 signed: false,
+                present_on_trusted_header: None
             });
         }
     }
@@ -169,6 +188,7 @@ pub fn generate_step_inputs(block: usize) -> CelestiaBlockProof {
             validator_byte_length: 38,
             enabled: false,
             signed: false,
+            present_on_trusted_header: None
         });
     }
 
@@ -229,7 +249,7 @@ pub fn generate_step_inputs(block: usize) -> CelestiaBlockProof {
 
     println!("num validators: {}", validators.len());
 
-    let celestia_block_proof = CelestiaBlockProof {
+    let celestia_block_proof = CelestiaStepBlockProof {
         validators,
         header: header_hash.as_bytes().to_vec(),
         prev_header: prev_header_hash.as_bytes().to_vec(),
@@ -241,6 +261,79 @@ pub fn generate_step_inputs(block: usize) -> CelestiaBlockProof {
     };
 
     celestia_block_proof
+}
+
+pub fn generate_skip_inputs(block: usize, trusted_block: usize) -> CelestiaSkipBlockProof {
+    let step_inputs = generate_step_inputs(block);
+
+    // Generate test cases from Celestia block:
+    let trusted_block = get_signed_block(trusted_block);
+
+    let mut validators = Vec::new();
+
+    // Signatures or dummy
+    // Need signature to output either verify or no verify (then we can assert that it matches or doesn't match)
+    let block_validators = trusted_block.validator_set.validators();
+
+    // Find closest power of 2 greater than or equal to the number of validators
+    let mut total = 1;
+    while total < block_validators.len() {
+        total *= 2;
+    }
+
+    for i in 0..trusted_block.commit.signatures.len() {
+        let val_idx = ValidatorIndex::try_from(i).unwrap();
+        let validator = Box::new(
+            match trusted_block.validator_set.validator(block_validators[i].address) {
+                Some(validator) => validator,
+                None => continue, // Cannot find matching validator, so we skip the vote
+            },
+        );
+        let val_bytes = validator.hash_bytes();
+        validators.push(ValidatorHashField {
+            pubkey: validator.pub_key.ed25519().unwrap(),
+            voting_power: validator.power(),
+            validator_byte_length: val_bytes.len(),
+            enabled: true
+        });
+    }
+
+    // These are empty signatures (not included in val hash)
+    for i in trusted_block.commit.signatures.len()..total {
+        let priv_key_bytes = vec![0u8; 32];
+        let signing_key =
+            private_key::Ed25519::try_from(&priv_key_bytes[..]).expect("failed to create key");
+        let signing_key = SigningKey::try_from(signing_key).unwrap();
+        let signing_key = ed25519_consensus::SigningKey::try_from(signing_key).unwrap();
+        let verification_key = signing_key.verification_key();
+        // TODO: Fix empty signatures
+        validators.push(ValidatorHashField { 
+            pubkey: VerificationKey::try_from(verification_key.as_bytes().as_ref())
+                .expect("failed to create verification key"),
+            voting_power: 0,
+            validator_byte_length: 38,
+            enabled: false,
+        });
+    }
+
+    let (_root, proofs) = generate_proofs_from_header(&trusted_block.header);
+    let total = proofs[0].total;
+
+    let enc_validators_hash_leaf = trusted_block.header.validators_hash.encode_vec();
+    let enc_validators_hash_proof = proofs[7].clone();
+    let enc_validators_hash_proof_indices = get_path_indices(7, total);
+    let validators_hash_proof = InclusionProof {
+        enc_leaf: enc_validators_hash_leaf,
+        path: enc_validators_hash_proof_indices,
+        proof: enc_validators_hash_proof.aunts,
+    };
+
+    CelestiaSkipBlockProof { 
+        trusted_header: trusted_block.header.hash().into(), 
+        trusted_validator_hash_proof: validators_hash_proof, 
+        trusted_validator_fields: validators, 
+        step: step_inputs 
+    }
 }
 
 #[cfg(test)]
@@ -269,6 +362,46 @@ pub(crate) mod tests {
         let prev_header_hash_proof = proofs[0].clone();
         let prev_header_hash_proof_indices = get_path_indices(0, total);
         println!("prev_header_hash_proof: {:?}", prev_header_hash_proof.aunts);
+    }
+
+    #[test]
+    fn get_shared_voting_power() {
+        let block_1 = get_signed_block(60000);
+        let block_2 = get_signed_block(75000);
+
+        // Parse each block to compute the validators that are the same from block_1 to block_2, and the cumulative voting power of the shared validators
+        let mut shared_voting_power = 0;
+        let mut shared_validators = Vec::new();
+
+        let threshold = 0.33;
+        let block_2_total_voting_power = block_2.validator_set.total_voting_power().value();
+
+        let block_1_validators = block_1.validator_set.validators();
+        let block_2_validators = block_2.validator_set.validators();
+
+        let idx = 0;
+        while block_2_total_voting_power as f64 * threshold > shared_voting_power as f64 {
+            if let Some(block_2_validator) = block_2.validator_set.validator(block_1_validators[idx].address) {
+                shared_voting_power += block_2_validator.power();
+                shared_validators.push(block_2_validator);
+            }
+        }
+
+        // // Add the validators from block_2_validators that have a matching pubkey with a validator in block_1_validators
+        // block_1_validators.iter().for_each(|validator| {
+        //     if let Some(block_2_validator) = block_2.validator_set.validator(validator.address) {
+        //         shared_voting_power += block_2_validator.power();
+        //         shared_validators.push(block_2_validator);
+        //     }
+        // });
+
+        println!("shared voting power: {}", shared_voting_power);
+
+        // Calculate shared voting power as a percentage of total voting power of block_2
+        let shared_voting_power_percentage = shared_voting_power as f64 / block_2_total_voting_power as f64;
+        println!("shared voting power percentage: {}", shared_voting_power_percentage);
+
+        println!("shared validators (len): {:?}", shared_validators.len());
     }
 
 
