@@ -151,7 +151,10 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintSignature<F, D>
         }
     }
 
-    fn extract_hash_from_protobuf<const START_BYTE: usize, const PROTOBUF_MSG_LENGTH_BITS: usize>(
+    fn extract_hash_from_protobuf<
+        const START_BYTE: usize,
+        const PROTOBUF_MSG_LENGTH_BITS: usize,
+    >(
         &mut self,
         hash: &[BoolTarget; PROTOBUF_MSG_LENGTH_BITS],
     ) -> TendermintHashTarget {
