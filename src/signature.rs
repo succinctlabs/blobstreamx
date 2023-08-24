@@ -6,7 +6,7 @@
 //! The `pubkey` is encoded as the raw list of bytes used in the public key. The `varint` is
 //! encoded using protobuf's default integer encoding, which consist of 7 bit payloads. You can
 //! read more about them here: https://protobuf.dev/programming-guides/encoding/#varints.
-use curta::plonky2::field::CubicParameters;
+use curta::math::prelude::CubicParameters;
 use plonky2::field::extension::Extendable;
 use plonky2::iop::target::BoolTarget;
 use plonky2::plonk::config::AlgebraicHasher;
@@ -14,7 +14,9 @@ use plonky2::plonk::config::GenericConfig;
 use plonky2::{hash::hash_types::RichField, plonk::circuit_builder::CircuitBuilder};
 use plonky2x::ecc::ed25519::curve::curve_types::Curve;
 use plonky2x::ecc::ed25519::curve::ed25519::Ed25519;
+use plonky2::iop::target::Target;
 use plonky2x::ecc::ed25519::gadgets::curve::CircuitBuilderCurve;
+use plonky2x::ecc::ed25519::gadgets::eddsa::verify_variable_signatures_circuit;
 use plonky2x::ecc::ed25519::gadgets::eddsa::{
     verify_signatures_circuit, EDDSAPublicKeyTarget, EDDSASignatureTarget,
 };
@@ -51,6 +53,7 @@ pub trait TendermintSignature<F: RichField + Extendable<D>, const D: usize> {
         &mut self,
         // This message should be range-checked before being passed in.
         messages: Vec<Vec<BoolTarget>>,
+        message_bit_lengths: Vec<Target>,
         eddsa_sig_targets: Vec<&EDDSASignatureTarget<Self::Curve>>,
         eddsa_pubkey_targets: Vec<&EDDSAPublicKeyTarget<Self::Curve>>,
     ) where
@@ -137,7 +140,9 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintSignature<F, D>
     >(
         &mut self,
         // This message should be range-checked before being passed in.
+        // Note: These are all VALIDATOR_MESSAGE_BYTES_LENGTH_MAX*8 long
         messages: Vec<Vec<BoolTarget>>,
+        message_bit_lengths: Vec<Target>,
         eddsa_sig_targets: Vec<&EDDSASignatureTarget<Self::Curve>>,
         eddsa_pubkey_targets: Vec<&EDDSAPublicKeyTarget<Self::Curve>>,
     ) where
@@ -149,19 +154,21 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintSignature<F, D>
                 && messages.len() == eddsa_pubkey_targets.len(),
         );
 
-        // Already in bits
-        let byte_len = (messages[0].len() / 8) as u128;
+        const VALIDATOR_MESSAGE_BITS_LENGTH_MAX: usize =
+            VALIDATOR_MESSAGE_BYTES_LENGTH_MAX * 8;
 
         let eddsa_target =
-            verify_signatures_circuit::<F, Self::Curve, E, C, D>(self, messages.len(), byte_len);
+            verify_variable_signatures_circuit::<F, Self::Curve, E, C, D, VALIDATOR_MESSAGE_BITS_LENGTH_MAX>(self, messages.len());
 
         for i in 0..messages.len() {
             let message = &messages[i];
             let eddsa_sig_target = eddsa_sig_targets[i];
             let eddsa_pubkey_target = eddsa_pubkey_targets[i];
-            for j in 0..8 * VALIDATOR_MESSAGE_BYTES_LENGTH_MAX {
+            for j in 0..VALIDATOR_MESSAGE_BYTES_LENGTH_MAX * 8 {
                 self.connect(eddsa_target.msgs[i][j].target, message[j].target);
             }
+
+            self.connect(eddsa_target.msgs_lengths[i], message_bit_lengths[i]);
 
             self.connect_nonnative(&eddsa_target.sigs[i].s, &eddsa_sig_target.s);
             self.connect_nonnative(&eddsa_target.sigs[i].r.x, &eddsa_sig_target.r.x);

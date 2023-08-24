@@ -6,13 +6,14 @@ use tendermint::crypto::ed25519::VerificationKey;
 use tendermint::Signature;
 use tendermint::{validator::Set as ValidatorSet, vote::SignedVote, vote::ValidatorIndex};
 use tendermint_proto::Protobuf;
+use subtle_encoding::hex;
 
 #[derive(Debug, Clone)]
 pub struct Validator {
     pub pubkey: VerificationKey,
     pub signature: Signature,
     pub message: Vec<u8>,
-    pub message_byte_length: u32,
+    pub message_bit_length: usize,
     pub voting_power: u64,
     pub validator_byte_length: usize,
     pub enabled: bool,
@@ -104,19 +105,20 @@ pub fn generate_step_inputs(block: usize) -> CelestiaBlockProof {
                 pubkey: validator.pub_key.ed25519().unwrap(),
                 signature: sig.clone(),
                 message: signed_vote.sign_bytes(),
-                message_byte_length: signed_vote.sign_bytes().len() as u32,
+                message_bit_length: signed_vote.sign_bytes().len() * 8,
                 voting_power: validator.power(),
                 validator_byte_length: val_bytes.len(),
                 enabled: true,
                 signed: true,
             });
         } else {
+            // TODO: Fix dummy signatures!
             validators.push(Validator {
                 pubkey: validator.pub_key.ed25519().unwrap(),
                 signature: Signature::try_from(vec![0u8; 32]).expect("missing signature"),
                 // TODO: Replace these with correct outputs
                 message: vec![0u8; 120],
-                message_byte_length: 120,
+                message_bit_length: 120,
                 voting_power: validator.power(),
                 validator_byte_length: 38,
                 enabled: true,

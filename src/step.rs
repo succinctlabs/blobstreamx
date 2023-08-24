@@ -6,7 +6,7 @@
 //! The `pubkey` is encoded as the raw list of bytes used in the public key. The `varint` is
 //! encoded using protobuf's default integer encoding, which consist of 7 bit payloads. You can
 //! read more about them here: https://protobuf.dev/programming-guides/encoding/#varints.
-use curta::plonky2::field::CubicParameters;
+use curta::math::prelude::CubicParameters;
 use plonky2::field::extension::Extendable;
 use plonky2::iop::target::BoolTarget;
 use plonky2::plonk::config::AlgebraicHasher;
@@ -34,7 +34,7 @@ pub struct ValidatorTarget<C: Curve> {
     pubkey: EDDSAPublicKeyTarget<C>,
     signature: EDDSASignatureTarget<C>,
     message: ValidatorMessageTarget,
-    message_byte_length: U32Target,
+    message_bit_length: Target,
     voting_power: I64Target,
     validator_byte_length: Target,
     enabled: BoolTarget,
@@ -114,6 +114,9 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintStep<F, D> for Circ
 
         let messages: Vec<Vec<BoolTarget>> =
             validators.iter().map(|v| v.message.0.to_vec()).collect();
+        let message_bit_lengths: Vec<Target> =
+            validators.iter().map(|v| v.message_bit_length).collect();
+
         let signatures: Vec<&EDDSASignatureTarget<Ed25519>> =
             validators.iter().map(|v| &v.signature).collect();
         let pubkeys: Vec<&EDDSAPublicKeyTarget<Ed25519>> =
@@ -146,8 +149,8 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintStep<F, D> for Circ
         );
         self.connect(check_voting_power_bool.target, one);
 
-        // // TODO: Handle dummies
-        self.verify_signatures::<E, C>(messages, signatures, pubkeys);
+        // TODO: Handle dummies
+        self.verify_signatures::<E, C>(messages, message_bit_lengths, signatures, pubkeys);
 
         // TODO: Verify that this will work with dummy signatures
         for i in 0..VALIDATOR_SET_SIZE_MAX {
@@ -243,7 +246,7 @@ where
             create_virtual_bool_target_array(builder, VALIDATOR_MESSAGE_BYTES_LENGTH_MAX * 8);
         let message = ValidatorMessageTarget(message.try_into().unwrap());
 
-        let message_byte_length = builder.add_virtual_u32_target();
+        let message_bit_length = builder.add_virtual_target();
 
         let voting_power = I64Target([
             builder.add_virtual_u32_target(),
@@ -257,7 +260,7 @@ where
             pubkey,
             signature,
             message,
-            message_byte_length,
+            message_bit_length,
             voting_power,
             validator_byte_length,
             enabled,
@@ -308,6 +311,7 @@ pub(crate) mod tests {
         },
     };
     use plonky2x::ecc::ed25519::gadgets::curve::WitnessAffinePoint;
+    use plonky2x::hash::sha::sha512::calculate_num_chunks;
     use plonky2x::num::biguint::WitnessBigUint;
     use plonky2x::num::u32::witness::WitnessU32;
 
@@ -531,11 +535,13 @@ pub(crate) mod tests {
                 // Set length targets
                 pw.set_target(
                     celestia_proof_target.validators[i].validator_byte_length,
-                    F::from_canonical_usize(validator.validator_byte_length as usize),
+                    F::from_canonical_usize(validator.validator_byte_length),
                 );
-                pw.set_u32_target(
-                    celestia_proof_target.validators[i].message_byte_length,
-                    validator.message_byte_length as u32,
+                let message_bit_length = validator.message_bit_length;
+
+                pw.set_target(
+                    celestia_proof_target.validators[i].message_bit_length,
+                    F::from_canonical_usize(message_bit_length),
                 );
 
                 // Set enabled and signed
