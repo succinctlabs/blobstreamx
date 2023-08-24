@@ -45,15 +45,20 @@ pub struct InclusionProof {
 }
 
 #[derive(Debug, Clone)]
-pub struct CelestiaStepBlockProof {
+pub struct CelestiaBaseBlockProof {
     pub validators: Vec<Validator>,
     pub header: Vec<u8>,
-    pub prev_header: Vec<u8>,
     pub data_hash_proof: InclusionProof,
     pub validator_hash_proof: InclusionProof,
     pub next_validators_hash_proof: InclusionProof,
-    pub last_block_id_proof: InclusionProof,
     pub round_present: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct CelestiaSequentialBlockProof {
+    pub prev_header: Vec<u8>,
+    pub last_block_id_proof: InclusionProof,
+    pub base: CelestiaBaseBlockProof,
 }
 
 #[derive(Debug, Clone)]
@@ -61,7 +66,7 @@ pub struct CelestiaSkipBlockProof {
     pub trusted_header: Vec<u8>,
     pub trusted_validator_hash_proof: InclusionProof,
     pub trusted_validator_fields: Vec<ValidatorHashField>,
-    pub step: CelestiaStepBlockProof,
+    pub base: CelestiaBaseBlockProof,
 }
 
 // If hash_so_far is on the left, False, else True
@@ -104,10 +109,7 @@ fn get_signed_block(block: usize) -> Box<SignedBlock> {
     block
 }
 
-pub fn generate_step_inputs(block: usize) -> CelestiaStepBlockProof {
-    // Generate test cases from Celestia block:
-    let block = get_signed_block(block);
-
+fn generate_base_inputs(block: Box<SignedBlock>) -> CelestiaBaseBlockProof {
     let mut validators = Vec::new();
 
     // Signatures or dummy
@@ -227,6 +229,29 @@ pub fn generate_step_inputs(block: usize) -> CelestiaStepBlockProof {
         proof: enc_next_validators_hash_proof.aunts,
     };
 
+
+    println!("num validators: {}", validators.len());
+
+    let celestia_block_proof = CelestiaBaseBlockProof {
+        validators,
+        header: header_hash.as_bytes().to_vec(),
+        data_hash_proof,
+        validator_hash_proof: validators_hash_proof,
+        next_validators_hash_proof,
+        round_present: block.commit.round.value() > 0,
+    };
+
+    celestia_block_proof
+
+}
+
+pub fn generate_step_inputs(block: usize) -> CelestiaSequentialBlockProof {
+    // Generate test cases from Celestia block:
+    let block = get_signed_block(block);
+
+    let (_root, proofs) = generate_proofs_from_header(&block.header);
+    let total = proofs[0].total;
+
     let enc_last_block_id_proof = proofs[4].clone();
     let enc_last_block_id_proof_indices = get_path_indices(4, total);
     println!("last block proof indices: {:?}", enc_last_block_id_proof_indices);
@@ -246,27 +271,23 @@ pub fn generate_step_inputs(block: usize) -> CelestiaStepBlockProof {
     println!("last block id (len): {}", last_block_id.len());
     assert_eq!(prev_header_hash.as_bytes(), &last_block_id[2..34], "computed hash does not match");
 
-
-    println!("num validators: {}", validators.len());
-
-    let celestia_block_proof = CelestiaStepBlockProof {
-        validators,
-        header: header_hash.as_bytes().to_vec(),
+    let base = generate_base_inputs(block);
+    
+    CelestiaSequentialBlockProof {
         prev_header: prev_header_hash.as_bytes().to_vec(),
-        data_hash_proof,
-        validator_hash_proof: validators_hash_proof,
-        next_validators_hash_proof,
         last_block_id_proof,
-        round_present: block.commit.round.value() > 0,
-    };
-
-    celestia_block_proof
+        base
+    }
 }
 
-pub fn generate_skip_inputs(block: usize, trusted_block: usize) -> CelestiaSkipBlockProof {
-    let step_inputs = generate_step_inputs(block);
-
+// Where block is the block we want to generate inputs for, and trusted_block is the block we're skipping from
+pub fn generate_skip_inputs(trusted_block: usize, block: usize) -> CelestiaSkipBlockProof {
     // Generate test cases from Celestia block:
+    let block = get_signed_block(block);
+
+    let base = generate_base_inputs(block);
+
+    // Get the trusted_block
     let trusted_block = get_signed_block(trusted_block);
 
     let mut validators = Vec::new();
@@ -332,7 +353,7 @@ pub fn generate_skip_inputs(block: usize, trusted_block: usize) -> CelestiaSkipB
         trusted_header: trusted_block.header.hash().into(), 
         trusted_validator_hash_proof: validators_hash_proof, 
         trusted_validator_fields: validators, 
-        step: step_inputs 
+        base 
     }
 }
 

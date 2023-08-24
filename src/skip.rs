@@ -31,18 +31,6 @@ use crate::utils::{
 use crate::validator::TendermintMarshaller;
 use crate::voting::TendermintVoting;
 
-#[derive(Debug, Clone)]
-pub struct ValidatorTarget<C: Curve> {
-    pubkey: EDDSAPublicKeyTarget<C>,
-    signature: EDDSASignatureTarget<C>,
-    message: ValidatorMessageTarget,
-    message_bit_length: Target,
-    voting_power: I64Target,
-    validator_byte_length: Target,
-    enabled: BoolTarget,
-    signed: BoolTarget,
-}
-
 /// The protobuf-encoded leaf (a hash), and it's corresponding proof and path indices against the header.
 #[derive(Debug, Clone)]
 pub struct HashInclusionProofTarget {
