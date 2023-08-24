@@ -761,9 +761,9 @@ pub(crate) mod tests {
         // Testing block 60000
         // 60 validators, 4 disabled (valhash)
 
-        let block = 15000;
+        let block = 60000;
 
-        const VALIDATOR_SET_SIZE_MAX: usize = 16;
+        const VALIDATOR_SET_SIZE_MAX: usize = 64;
 
         test_step_template::<VALIDATOR_SET_SIZE_MAX>(block);
     }
