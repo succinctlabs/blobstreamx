@@ -51,7 +51,10 @@ pub trait TendermintMarshaller<F: RichField + Extendable<D>, const D: usize> {
     ) -> TendermintHashTarget;
 
     /// Hashes leaf bytes to get the leaf hash according to the Tendermint spec. (0x00 || leafBytes)
-    fn leaf_hash<const LEAF_SIZE_BITS: usize>(&mut self, leaf: &[BoolTarget; LEAF_SIZE_BITS]) -> TendermintHashTarget;
+    fn leaf_hash<const LEAF_SIZE_BITS: usize>(
+        &mut self,
+        leaf: &[BoolTarget; LEAF_SIZE_BITS],
+    ) -> TendermintHashTarget;
 
     /// Hashes validator bytes to get the leaf according to the Tendermint spec. (0x00 || validatorBytes)
     /// Note: This function differs from leaf_hash because the validator bytes length is variable.
@@ -128,7 +131,10 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D>
         hash_so_far
     }
 
-    fn leaf_hash<const LEAF_SIZE_BITS: usize>(&mut self, leaf: &[BoolTarget; LEAF_SIZE_BITS]) -> TendermintHashTarget {
+    fn leaf_hash<const LEAF_SIZE_BITS: usize>(
+        &mut self,
+        leaf: &[BoolTarget; LEAF_SIZE_BITS],
+    ) -> TendermintHashTarget {
         // Calculate the length of the message for the leaf hash.
         // 0x00 || leafBytes
         let bits_length = 8 + (LEAF_SIZE_BITS);
@@ -452,8 +458,8 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D>
         self.connect(num_validator_enabled, validator_set_size_max);
 
         // Hash each of the validators to get their corresponding leaf hash.
-        let mut current_validator_hashes =
-            self.hash_validator_leaves::<VALIDATOR_SET_SIZE_MAX>(validators, validator_byte_lengths);
+        let mut current_validator_hashes = self
+            .hash_validator_leaves::<VALIDATOR_SET_SIZE_MAX>(validators, validator_byte_lengths);
 
         // Whether to treat the validator as empty.
         let mut current_validator_enabled = validator_enabled.clone();
@@ -492,13 +498,11 @@ pub(crate) mod tests {
 
     use plonky2x::ecc::ed25519::curve::curve_types::AffinePoint;
     use sha2::Sha256;
+    use tendermint_proto::types::BlockId as RawBlockId;
     use tendermint_proto::Protobuf;
-    use tendermint_proto::{
-        types::BlockId as RawBlockId
-    };
 
     use crate::inputs::get_path_indices;
-    use crate::utils::{VALIDATOR_BIT_LENGTH_MAX, HEADER_PROOF_DEPTH};
+    use crate::utils::{HEADER_PROOF_DEPTH, VALIDATOR_BIT_LENGTH_MAX};
 
     use crate::utils::{generate_proofs_from_header, hash_all_leaves, leaf_hash};
 
@@ -574,8 +578,7 @@ pub(crate) mod tests {
             }
         }
 
-        let result =
-            builder.leaf_hash::<PROTOBUF_HASH_SIZE_BITS>(&validators_hash_bits_target);
+        let result = builder.leaf_hash::<PROTOBUF_HASH_SIZE_BITS>(&validators_hash_bits_target);
 
         for i in 0..HASH_SIZE_BITS {
             if validators_hash_bits[i] {
@@ -621,7 +624,8 @@ pub(crate) mod tests {
         // let leaf = block.header.data_hash.expect("data hash present").encode_vec();
         // let leaf = block.header.validators_hash.encode_vec();
         // let leaf = block.header.next_validators_hash.encode_vec();
-        let leaf = Protobuf::<RawBlockId>::encode_vec(block.header.last_block_id.unwrap_or_default());
+        let leaf =
+            Protobuf::<RawBlockId>::encode_vec(block.header.last_block_id.unwrap_or_default());
 
         let leaf_bits = to_be_bits(leaf);
 
@@ -641,10 +645,8 @@ pub(crate) mod tests {
             };
         }
 
-        let mut aunts_target = vec![
-            TendermintHashTarget([builder._false(); HASH_SIZE_BITS]);
-            HEADER_PROOF_DEPTH
-        ];
+        let mut aunts_target =
+            vec![TendermintHashTarget([builder._false(); HASH_SIZE_BITS]); HEADER_PROOF_DEPTH];
         for i in 0..HEADER_PROOF_DEPTH {
             let bool_vector = to_be_bits(proofs[leaf_index].aunts[i].to_vec());
 
@@ -762,7 +764,10 @@ pub(crate) mod tests {
         let (validators_target, validator_byte_length, _) =
             generate_inputs::<VALIDATOR_SET_SIZE_MAX>(&mut builder, &validators);
 
-        let result = builder.hash_validator_leaves::<VALIDATOR_SET_SIZE_MAX>(&validators_target, &validator_byte_length);
+        let result = builder.hash_validator_leaves::<VALIDATOR_SET_SIZE_MAX>(
+            &validators_target,
+            &validator_byte_length,
+        );
         println!("Got all leaf hashes: {}", result.len());
         for i in 0..validators.len() {
             for j in 0..HASH_SIZE_BITS {

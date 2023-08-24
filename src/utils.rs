@@ -525,11 +525,10 @@ pub fn generate_proofs_from_header(h: &Header) -> (Hash, Vec<Proof>) {
     proofs_from_byte_slices(fields_bytes)
 }
 
-pub fn generate_proofs_from_block_id(id: &tendermint::block::Id) -> (tendermint::merkle::Hash, Vec<crate::utils::Proof>) {
-    let fields_bytes = vec![
-        id.hash.encode_vec(),
-        id.part_set_header.hash.encode_vec(),
-    ];
+pub fn generate_proofs_from_block_id(
+    id: &tendermint::block::Id,
+) -> (tendermint::merkle::Hash, Vec<crate::utils::Proof>) {
+    let fields_bytes = vec![id.hash.encode_vec(), id.part_set_header.hash.encode_vec()];
 
     proofs_from_byte_slices(fields_bytes)
 }

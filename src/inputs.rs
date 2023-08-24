@@ -2,17 +2,16 @@ use std::fs;
 
 /// Source (tendermint-rs): https://github.com/informalsystems/tendermint-rs/blob/e930691a5639ef805c399743ac0ddbba0e9f53da/tendermint/src/merkle.rs#L32
 use crate::utils::{
-    generate_proofs_from_header, non_absent_vote, SignedBlock, TempSignedBlock, generate_proofs_from_block_id, compute_hash_from_aunts, compute_hash_from_proof, leaf_hash,
+    compute_hash_from_aunts, compute_hash_from_proof, generate_proofs_from_block_id,
+    generate_proofs_from_header, leaf_hash, non_absent_vote, SignedBlock, TempSignedBlock,
 };
 use ed25519_consensus::SigningKey;
 use sha2::Sha256;
 use tendermint::crypto::ed25519::VerificationKey;
 use tendermint::{private_key, Signature};
 use tendermint::{validator::Set as ValidatorSet, vote::SignedVote, vote::ValidatorIndex};
+use tendermint_proto::types::BlockId as RawBlockId;
 use tendermint_proto::Protobuf;
-use tendermint_proto::{
-    types::BlockId as RawBlockId
-};
 
 #[derive(Debug, Clone)]
 pub struct Validator {
@@ -32,7 +31,7 @@ pub struct ValidatorHashField {
     pub pubkey: VerificationKey,
     pub voting_power: u64,
     pub validator_byte_length: usize,
-    pub enabled: bool
+    pub enabled: bool,
 }
 
 /// The protobuf-encoded leaf (a hash), and it's corresponding proof and path indices against the header.
@@ -150,7 +149,7 @@ fn generate_base_inputs(block: Box<SignedBlock>) -> CelestiaBaseBlockProof {
                 validator_byte_length: val_bytes.len(),
                 enabled: true,
                 signed: true,
-                present_on_trusted_header: None
+                present_on_trusted_header: None,
             });
         } else {
             // These are dummy signatures (included in val hash, did not vote)
@@ -164,7 +163,7 @@ fn generate_base_inputs(block: Box<SignedBlock>) -> CelestiaBaseBlockProof {
                 validator_byte_length: val_bytes.len(),
                 enabled: true,
                 signed: false,
-                present_on_trusted_header: None
+                present_on_trusted_header: None,
             });
         }
     }
@@ -190,7 +189,7 @@ fn generate_base_inputs(block: Box<SignedBlock>) -> CelestiaBaseBlockProof {
             validator_byte_length: 38,
             enabled: false,
             signed: false,
-            present_on_trusted_header: None
+            present_on_trusted_header: None,
         });
     }
 
@@ -229,7 +228,6 @@ fn generate_base_inputs(block: Box<SignedBlock>) -> CelestiaBaseBlockProof {
         proof: enc_next_validators_hash_proof.aunts,
     };
 
-
     println!("num validators: {}", validators.len());
 
     let celestia_block_proof = CelestiaBaseBlockProof {
@@ -242,7 +240,6 @@ fn generate_base_inputs(block: Box<SignedBlock>) -> CelestiaBaseBlockProof {
     };
 
     celestia_block_proof
-
 }
 
 pub fn generate_step_inputs(block: usize) -> CelestiaSequentialBlockProof {
@@ -254,29 +251,46 @@ pub fn generate_step_inputs(block: usize) -> CelestiaSequentialBlockProof {
 
     let enc_last_block_id_proof = proofs[4].clone();
     let enc_last_block_id_proof_indices = get_path_indices(4, total);
-    println!("last block proof indices: {:?}", enc_last_block_id_proof_indices);
-    let enc_leaf = Protobuf::<RawBlockId>::encode_vec(block.header.last_block_id.unwrap_or_default());
+    println!(
+        "last block proof indices: {:?}",
+        enc_last_block_id_proof_indices
+    );
+    let enc_leaf =
+        Protobuf::<RawBlockId>::encode_vec(block.header.last_block_id.unwrap_or_default());
     let last_block_id_proof = InclusionProof {
         enc_leaf: enc_leaf.clone(),
         path: enc_last_block_id_proof_indices,
         proof: enc_last_block_id_proof.clone().aunts,
     };
-    assert_eq!(leaf_hash::<Sha256>(&enc_leaf), enc_last_block_id_proof.leaf_hash);
+    assert_eq!(
+        leaf_hash::<Sha256>(&enc_leaf),
+        enc_last_block_id_proof.leaf_hash
+    );
 
-    let computed_root = compute_hash_from_aunts(4, 14, leaf_hash::<Sha256>(&enc_leaf), enc_last_block_id_proof.clone().aunts);
+    let computed_root = compute_hash_from_aunts(
+        4,
+        14,
+        leaf_hash::<Sha256>(&enc_leaf),
+        enc_last_block_id_proof.clone().aunts,
+    );
     assert_eq!(computed_root.unwrap(), block.header.hash().as_bytes());
 
     let prev_header_hash = block.header.last_block_id.unwrap().hash;
-    let last_block_id = Protobuf::<RawBlockId>::encode_vec(block.header.last_block_id.unwrap_or_default());
+    let last_block_id =
+        Protobuf::<RawBlockId>::encode_vec(block.header.last_block_id.unwrap_or_default());
     println!("last block id (len): {}", last_block_id.len());
-    assert_eq!(prev_header_hash.as_bytes(), &last_block_id[2..34], "computed hash does not match");
+    assert_eq!(
+        prev_header_hash.as_bytes(),
+        &last_block_id[2..34],
+        "computed hash does not match"
+    );
 
     let base = generate_base_inputs(block);
-    
+
     CelestiaSequentialBlockProof {
         prev_header: prev_header_hash.as_bytes().to_vec(),
         last_block_id_proof,
-        base
+        base,
     }
 }
 
@@ -305,7 +319,10 @@ pub fn generate_skip_inputs(trusted_block: usize, block: usize) -> CelestiaSkipB
     for i in 0..trusted_block.commit.signatures.len() {
         let val_idx = ValidatorIndex::try_from(i).unwrap();
         let validator = Box::new(
-            match trusted_block.validator_set.validator(block_validators[i].address) {
+            match trusted_block
+                .validator_set
+                .validator(block_validators[i].address)
+            {
                 Some(validator) => validator,
                 None => continue, // Cannot find matching validator, so we skip the vote
             },
@@ -315,7 +332,7 @@ pub fn generate_skip_inputs(trusted_block: usize, block: usize) -> CelestiaSkipB
             pubkey: validator.pub_key.ed25519().unwrap(),
             voting_power: validator.power(),
             validator_byte_length: val_bytes.len(),
-            enabled: true
+            enabled: true,
         });
     }
 
@@ -328,7 +345,7 @@ pub fn generate_skip_inputs(trusted_block: usize, block: usize) -> CelestiaSkipB
         let signing_key = ed25519_consensus::SigningKey::try_from(signing_key).unwrap();
         let verification_key = signing_key.verification_key();
         // TODO: Fix empty signatures
-        validators.push(ValidatorHashField { 
+        validators.push(ValidatorHashField {
             pubkey: VerificationKey::try_from(verification_key.as_bytes().as_ref())
                 .expect("failed to create verification key"),
             voting_power: 0,
@@ -349,11 +366,11 @@ pub fn generate_skip_inputs(trusted_block: usize, block: usize) -> CelestiaSkipB
         proof: enc_validators_hash_proof.aunts,
     };
 
-    CelestiaSkipBlockProof { 
-        trusted_header: trusted_block.header.hash().into(), 
-        trusted_validator_hash_proof: validators_hash_proof, 
-        trusted_validator_fields: validators, 
-        base 
+    CelestiaSkipBlockProof {
+        trusted_header: trusted_block.header.hash().into(),
+        trusted_validator_hash_proof: validators_hash_proof,
+        trusted_validator_fields: validators,
+        base,
     }
 }
 
@@ -368,7 +385,10 @@ pub(crate) mod tests {
         let block_1 = get_signed_block(11000);
         let block_2 = get_signed_block(11001);
 
-        assert_eq!(block_1.header.hash(), block_2.header.last_block_id.unwrap().hash);
+        assert_eq!(
+            block_1.header.hash(),
+            block_2.header.last_block_id.unwrap().hash
+        );
 
         let (_root, proofs) = generate_proofs_from_header(&block_2.header);
         let total = proofs[0].total;
@@ -402,7 +422,10 @@ pub(crate) mod tests {
 
         let idx = 0;
         while block_2_total_voting_power as f64 * threshold > shared_voting_power as f64 {
-            if let Some(block_2_validator) = block_2.validator_set.validator(block_1_validators[idx].address) {
+            if let Some(block_2_validator) = block_2
+                .validator_set
+                .validator(block_1_validators[idx].address)
+            {
                 shared_voting_power += block_2_validator.power();
                 shared_validators.push(block_2_validator);
             }
@@ -419,11 +442,13 @@ pub(crate) mod tests {
         println!("shared voting power: {}", shared_voting_power);
 
         // Calculate shared voting power as a percentage of total voting power of block_2
-        let shared_voting_power_percentage = shared_voting_power as f64 / block_2_total_voting_power as f64;
-        println!("shared voting power percentage: {}", shared_voting_power_percentage);
+        let shared_voting_power_percentage =
+            shared_voting_power as f64 / block_2_total_voting_power as f64;
+        println!(
+            "shared voting power percentage: {}",
+            shared_voting_power_percentage
+        );
 
         println!("shared validators (len): {:?}", shared_validators.len());
     }
-
-
 }

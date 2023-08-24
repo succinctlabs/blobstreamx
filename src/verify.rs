@@ -92,7 +92,10 @@ pub trait TendermintStep<F: RichField + Extendable<D>, const D: usize> {
     type Curve: Curve;
 
     /// Verifies that the previous header hash in the block matches the previous header hash in the last block ID.
-    fn verify_prev_header<E: CubicParameters<F>, C: GenericConfig<D, F = F, FE = F::Extension> + 'static>(
+    fn verify_prev_header<
+        E: CubicParameters<F>,
+        C: GenericConfig<D, F = F, FE = F::Extension> + 'static,
+    >(
         &mut self,
         header: &TendermintHashTarget,
         prev_header: &TendermintHashTarget,
@@ -101,7 +104,11 @@ pub trait TendermintStep<F: RichField + Extendable<D>, const D: usize> {
         <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>;
 
     /// Verifies a Tendermint consensus block.
-    fn verify_header<E: CubicParameters<F>, C: GenericConfig<D, F = F, FE = F::Extension> + 'static, const VALIDATOR_SET_SIZE_MAX: usize>(
+    fn verify_header<
+        E: CubicParameters<F>,
+        C: GenericConfig<D, F = F, FE = F::Extension> + 'static,
+        const VALIDATOR_SET_SIZE_MAX: usize,
+    >(
         &mut self,
         validators: &Vec<ValidatorTarget<Self::Curve>>,
         header: &TendermintHashTarget,
@@ -113,7 +120,11 @@ pub trait TendermintStep<F: RichField + Extendable<D>, const D: usize> {
         <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>;
 
     /// Sequentially verifies a Tendermint consensus block.
-    fn step<E: CubicParameters<F>, C: GenericConfig<D, F = F, FE = F::Extension> + 'static, const VALIDATOR_SET_SIZE_MAX: usize>(
+    fn step<
+        E: CubicParameters<F>,
+        C: GenericConfig<D, F = F, FE = F::Extension> + 'static,
+        const VALIDATOR_SET_SIZE_MAX: usize,
+    >(
         &mut self,
         validators: &Vec<ValidatorTarget<Self::Curve>>,
         header: &TendermintHashTarget,
@@ -125,19 +136,27 @@ pub trait TendermintStep<F: RichField + Extendable<D>, const D: usize> {
         round_present: &BoolTarget,
     ) where
         <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>;
-    
+
     /// Verifies that the trusted validators have signed the current header.
-    fn verify_trusted_validators<E: CubicParameters<F>, C: GenericConfig<D, F = F, FE = F::Extension> + 'static, const VALIDATOR_SET_SIZE_MAX: usize>(
+    fn verify_trusted_validators<
+        E: CubicParameters<F>,
+        C: GenericConfig<D, F = F, FE = F::Extension> + 'static,
+        const VALIDATOR_SET_SIZE_MAX: usize,
+    >(
         &mut self,
         validators: &Vec<ValidatorTarget<Self::Curve>>,
         trusted_header: &TendermintHashTarget,
         trusted_validator_hash_proof: &HashInclusionProofTarget,
-        trusted_validator_hash_fields: &Vec<ValidatorHashFieldTarget<Self::Curve>>
+        trusted_validator_hash_fields: &Vec<ValidatorHashFieldTarget<Self::Curve>>,
     ) where
         <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>;
-    
+
     /// Verifies a Tendermint block that is non-sequential with the trusted block.
-    fn skip<E: CubicParameters<F>, C: GenericConfig<D, F = F, FE = F::Extension> + 'static, const VALIDATOR_SET_SIZE_MAX: usize>(
+    fn skip<
+        E: CubicParameters<F>,
+        C: GenericConfig<D, F = F, FE = F::Extension> + 'static,
+        const VALIDATOR_SET_SIZE_MAX: usize,
+    >(
         &mut self,
         validators: &Vec<ValidatorTarget<Self::Curve>>,
         header: &TendermintHashTarget,
@@ -147,7 +166,7 @@ pub trait TendermintStep<F: RichField + Extendable<D>, const D: usize> {
         round_present: &BoolTarget,
         trusted_header: &TendermintHashTarget,
         trusted_validator_hash_proof: &HashInclusionProofTarget,
-        trusted_validator_hash_fields: &Vec<ValidatorHashFieldTarget<Self::Curve>>
+        trusted_validator_hash_fields: &Vec<ValidatorHashFieldTarget<Self::Curve>>,
     ) where
         <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>;
 }
@@ -155,7 +174,11 @@ pub trait TendermintStep<F: RichField + Extendable<D>, const D: usize> {
 impl<F: RichField + Extendable<D>, const D: usize> TendermintStep<F, D> for CircuitBuilder<F, D> {
     type Curve = Ed25519;
 
-    fn step<E: CubicParameters<F>, C: GenericConfig<D, F = F, FE = F::Extension> + 'static, const VALIDATOR_SET_SIZE_MAX: usize>(
+    fn step<
+        E: CubicParameters<F>,
+        C: GenericConfig<D, F = F, FE = F::Extension> + 'static,
+        const VALIDATOR_SET_SIZE_MAX: usize,
+    >(
         &mut self,
         validators: &Vec<ValidatorTarget<Self::Curve>>,
         header: &TendermintHashTarget,
@@ -182,7 +205,11 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintStep<F, D> for Circ
         self.verify_prev_header::<E, C>(header, prev_header, last_block_id_proof);
     }
 
-    fn verify_header<E: CubicParameters<F>, C: GenericConfig<D, F = F, FE = F::Extension> + 'static, const VALIDATOR_SET_SIZE_MAX: usize>(
+    fn verify_header<
+        E: CubicParameters<F>,
+        C: GenericConfig<D, F = F, FE = F::Extension> + 'static,
+        const VALIDATOR_SET_SIZE_MAX: usize,
+    >(
         &mut self,
         validators: &Vec<ValidatorTarget<Self::Curve>>,
         header: &TendermintHashTarget,
@@ -191,7 +218,8 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintStep<F, D> for Circ
         next_validators_hash_proof: &HashInclusionProofTarget,
         round_present: &BoolTarget,
     ) where
-        <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F> {
+        <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>,
+    {
         let one = self.one();
         let false_t = self._false();
         let true_t = self._true();
@@ -238,13 +266,19 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintStep<F, D> for Circ
             validators.iter().map(|v| &v.pubkey).collect();
 
         // Compute the validators hash
-        let validators_hash_target =
-            self.hash_validator_set::<VALIDATOR_SET_SIZE_MAX>(&marshalled_validators, &byte_lengths, &validators_enabled);
+        let validators_hash_target = self.hash_validator_set::<VALIDATOR_SET_SIZE_MAX>(
+            &marshalled_validators,
+            &byte_lengths,
+            &validators_enabled,
+        );
 
         /// Start of the hash in protobuf encoded validator hash & last block id
         const HASH_START_BYTE: usize = 2;
         // Assert that computed validator hash matches expected validator hash
-        let extracted_hash = self.extract_hash_from_protobuf::<HASH_START_BYTE, PROTOBUF_HASH_SIZE_BITS>(&validator_hash_proof.enc_leaf.0);
+        let extracted_hash = self
+            .extract_hash_from_protobuf::<HASH_START_BYTE, PROTOBUF_HASH_SIZE_BITS>(
+                &validator_hash_proof.enc_leaf.0,
+            );
         for i in 0..HASH_SIZE_BITS {
             self.connect(
                 validators_hash_target.0[i].target,
@@ -252,7 +286,8 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintStep<F, D> for Circ
             );
         }
 
-        let total_voting_power = self.get_total_voting_power::<VALIDATOR_SET_SIZE_MAX>(&validator_voting_power);
+        let total_voting_power =
+            self.get_total_voting_power::<VALIDATOR_SET_SIZE_MAX>(&validator_voting_power);
         let threshold_numerator = self.constant_u32(2);
         let threshold_denominator = self.constant_u32(3);
 
@@ -291,26 +326,31 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintStep<F, D> for Circ
         let val_hash_path = vec![true_t, true_t, true_t, false_t];
         let next_val_hash_path = vec![false_t, false_t, false_t, true_t];
 
-        let data_hash_leaf_hash = self.leaf_hash::<PROTOBUF_HASH_SIZE_BITS>(&data_hash_proof.enc_leaf.0);
+        let data_hash_leaf_hash =
+            self.leaf_hash::<PROTOBUF_HASH_SIZE_BITS>(&data_hash_proof.enc_leaf.0);
         let header_from_data_root_proof = self.get_root_from_merkle_proof::<HEADER_PROOF_DEPTH>(
             &data_hash_proof.proof,
             &data_hash_path,
             &data_hash_leaf_hash,
         );
 
-        let validator_hash_leaf_hash = self.leaf_hash::<PROTOBUF_HASH_SIZE_BITS>(&validator_hash_proof.enc_leaf.0);
-        let header_from_validator_root_proof = self.get_root_from_merkle_proof::<HEADER_PROOF_DEPTH>(
-            &validator_hash_proof.proof,
-            &val_hash_path,
-            &validator_hash_leaf_hash,
-        );
+        let validator_hash_leaf_hash =
+            self.leaf_hash::<PROTOBUF_HASH_SIZE_BITS>(&validator_hash_proof.enc_leaf.0);
+        let header_from_validator_root_proof = self
+            .get_root_from_merkle_proof::<HEADER_PROOF_DEPTH>(
+                &validator_hash_proof.proof,
+                &val_hash_path,
+                &validator_hash_leaf_hash,
+            );
 
-        let next_validators_hash_leaf_hash = self.leaf_hash::<PROTOBUF_HASH_SIZE_BITS>(&next_validators_hash_proof.enc_leaf.0);
-        let header_from_next_validators_root_proof = self.get_root_from_merkle_proof::<HEADER_PROOF_DEPTH>(
-            &next_validators_hash_proof.proof,
-            &next_val_hash_path,
-            &next_validators_hash_leaf_hash,
-        );
+        let next_validators_hash_leaf_hash =
+            self.leaf_hash::<PROTOBUF_HASH_SIZE_BITS>(&next_validators_hash_proof.enc_leaf.0);
+        let header_from_next_validators_root_proof = self
+            .get_root_from_merkle_proof::<HEADER_PROOF_DEPTH>(
+                &next_validators_hash_proof.proof,
+                &next_val_hash_path,
+                &next_validators_hash_leaf_hash,
+            );
 
         // Confirm that the header from the proof of {validator_hash, next_validators_hash, data_hash, last_block_id} all match the header
         for i in 0..HASH_SIZE_BITS {
@@ -326,38 +366,47 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintStep<F, D> for Circ
         }
     }
 
-    fn verify_prev_header<E: CubicParameters<F>, C: GenericConfig<D, F = F, FE = F::Extension> + 'static>(
+    fn verify_prev_header<
+        E: CubicParameters<F>,
+        C: GenericConfig<D, F = F, FE = F::Extension> + 'static,
+    >(
         &mut self,
         header: &TendermintHashTarget,
         prev_header: &TendermintHashTarget,
         last_block_id_proof: &BlockIDInclusionProofTarget,
     ) where
-        <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F> {
-            let false_t = self._false();
-            let true_t = self._true();
+        <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>,
+    {
+        let false_t = self._false();
+        let true_t = self._true();
 
-            /// Start of the hash in protobuf encoded validator hash & last block id
-            const HASH_START_BYTE: usize = 2;
+        /// Start of the hash in protobuf encoded validator hash & last block id
+        const HASH_START_BYTE: usize = 2;
 
-            let last_block_id_path = vec![false_t, false_t, true_t, false_t];
+        let last_block_id_path = vec![false_t, false_t, true_t, false_t];
 
-            let last_block_id_leaf_hash = self.leaf_hash::<PROTOBUF_BLOCK_ID_SIZE_BITS>(&last_block_id_proof.enc_leaf.0);
-            let header_from_last_block_id_proof = self.get_root_from_merkle_proof::<HEADER_PROOF_DEPTH>(
+        let last_block_id_leaf_hash =
+            self.leaf_hash::<PROTOBUF_BLOCK_ID_SIZE_BITS>(&last_block_id_proof.enc_leaf.0);
+        let header_from_last_block_id_proof = self
+            .get_root_from_merkle_proof::<HEADER_PROOF_DEPTH>(
                 &last_block_id_proof.proof,
                 &last_block_id_path,
                 &last_block_id_leaf_hash,
             );
-    
-            // Confirm that the header from the proof of {validator_hash, next_validators_hash, data_hash, last_block_id} all match the header
-            for i in 0..HASH_SIZE_BITS {
-                self.connect(
-                    header.0[i].target,
-                    header_from_last_block_id_proof.0[i].target,
-                );
-            }
+
+        // Confirm that the header from the proof of {validator_hash, next_validators_hash, data_hash, last_block_id} all match the header
+        for i in 0..HASH_SIZE_BITS {
+            self.connect(
+                header.0[i].target,
+                header_from_last_block_id_proof.0[i].target,
+            );
+        }
 
         // Extract prev header hash from the encoded leaf (starts at second byte)
-        let extracted_prev_header_hash = self.extract_hash_from_protobuf::<HASH_START_BYTE, PROTOBUF_BLOCK_ID_SIZE_BITS>(&last_block_id_proof.enc_leaf.0);
+        let extracted_prev_header_hash = self
+            .extract_hash_from_protobuf::<HASH_START_BYTE, PROTOBUF_BLOCK_ID_SIZE_BITS>(
+                &last_block_id_proof.enc_leaf.0,
+            );
         for i in 0..HASH_SIZE_BITS {
             self.connect(
                 prev_header.0[i].target,
@@ -366,7 +415,11 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintStep<F, D> for Circ
         }
     }
 
-    fn skip<E: CubicParameters<F>, C: GenericConfig<D, F = F, FE = F::Extension> + 'static, const VALIDATOR_SET_SIZE_MAX: usize>(
+    fn skip<
+        E: CubicParameters<F>,
+        C: GenericConfig<D, F = F, FE = F::Extension> + 'static,
+        const VALIDATOR_SET_SIZE_MAX: usize,
+    >(
         &mut self,
         validators: &Vec<ValidatorTarget<Self::Curve>>,
         header: &TendermintHashTarget,
@@ -376,10 +429,16 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintStep<F, D> for Circ
         round_present: &BoolTarget,
         trusted_header: &TendermintHashTarget,
         trusted_validator_hash_proof: &HashInclusionProofTarget,
-        trusted_validator_hash_fields: &Vec<ValidatorHashFieldTarget<Self::Curve>>
+        trusted_validator_hash_fields: &Vec<ValidatorHashFieldTarget<Self::Curve>>,
     ) where
-        <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F> {
-        self.verify_trusted_validators::<E, C, VALIDATOR_SET_SIZE_MAX>(validators, trusted_header, trusted_validator_hash_proof, trusted_validator_hash_fields);
+        <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>,
+    {
+        self.verify_trusted_validators::<E, C, VALIDATOR_SET_SIZE_MAX>(
+            validators,
+            trusted_header,
+            trusted_validator_hash_proof,
+            trusted_validator_hash_fields,
+        );
 
         self.verify_header::<E, C, VALIDATOR_SET_SIZE_MAX>(
             validators,
@@ -391,15 +450,19 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintStep<F, D> for Circ
         );
     }
 
-    fn verify_trusted_validators<E: CubicParameters<F>, C: GenericConfig<D, F = F, FE = F::Extension, > + 'static, const VALIDATOR_SET_SIZE_MAX: usize>(
+    fn verify_trusted_validators<
+        E: CubicParameters<F>,
+        C: GenericConfig<D, F = F, FE = F::Extension> + 'static,
+        const VALIDATOR_SET_SIZE_MAX: usize,
+    >(
         &mut self,
         validators: &Vec<ValidatorTarget<Self::Curve>>,
         trusted_header: &TendermintHashTarget,
         trusted_validator_hash_proof: &HashInclusionProofTarget,
-        trusted_validator_hash_fields: &Vec<ValidatorHashFieldTarget<Self::Curve>>
+        trusted_validator_hash_fields: &Vec<ValidatorHashFieldTarget<Self::Curve>>,
     ) where
-        <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F> {
-
+        <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>,
+    {
         // Note: A trusted validator is one who is present on the trusted header
         let false_t = self._false();
         let true_t = self._true();
@@ -407,35 +470,52 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintStep<F, D> for Circ
 
         // Get the header from the validator hash merkle proof
         let val_hash_path = vec![true_t, true_t, true_t, false_t];
-        let validator_hash_leaf_hash = self.leaf_hash::<PROTOBUF_HASH_SIZE_BITS>(&trusted_validator_hash_proof.enc_leaf.0);
-        let header_from_validator_root_proof = self.get_root_from_merkle_proof::<HEADER_PROOF_DEPTH>(
-            &trusted_validator_hash_proof.proof,
-            &val_hash_path,
-            &validator_hash_leaf_hash,
-        );
+        let validator_hash_leaf_hash =
+            self.leaf_hash::<PROTOBUF_HASH_SIZE_BITS>(&trusted_validator_hash_proof.enc_leaf.0);
+        let header_from_validator_root_proof = self
+            .get_root_from_merkle_proof::<HEADER_PROOF_DEPTH>(
+                &trusted_validator_hash_proof.proof,
+                &val_hash_path,
+                &validator_hash_leaf_hash,
+            );
 
         // Confirm the validator hash proof matches the trusted header
         for i in 0..HASH_SIZE_BITS {
-            self.connect(trusted_header.0[i].target, header_from_validator_root_proof.0[i].target);
+            self.connect(
+                trusted_header.0[i].target,
+                header_from_validator_root_proof.0[i].target,
+            );
         }
 
-        let marshalled_trusted_validators: Vec<MarshalledValidatorTarget> = trusted_validator_hash_fields
-        .iter()
-        .map(|v| self.marshal_tendermint_validator(&v.pubkey.0, &v.voting_power))
-        .collect();
+        let marshalled_trusted_validators: Vec<MarshalledValidatorTarget> =
+            trusted_validator_hash_fields
+                .iter()
+                .map(|v| self.marshal_tendermint_validator(&v.pubkey.0, &v.voting_power))
+                .collect();
 
-        let trusted_validators_enabled: Vec<BoolTarget> = trusted_validator_hash_fields.iter().map(|v| v.enabled).collect();
+        let trusted_validators_enabled: Vec<BoolTarget> = trusted_validator_hash_fields
+            .iter()
+            .map(|v| v.enabled)
+            .collect();
 
-        let trusted_byte_lengths: Vec<Target> =
-            trusted_validator_hash_fields.iter().map(|v| v.validator_byte_length).collect();
+        let trusted_byte_lengths: Vec<Target> = trusted_validator_hash_fields
+            .iter()
+            .map(|v| v.validator_byte_length)
+            .collect();
 
         // Compute the validators hash from the validators
-        let validators_hash_target =
-            self.hash_validator_set::<VALIDATOR_SET_SIZE_MAX>(&marshalled_trusted_validators, &trusted_byte_lengths, &trusted_validators_enabled);
-        
+        let validators_hash_target = self.hash_validator_set::<VALIDATOR_SET_SIZE_MAX>(
+            &marshalled_trusted_validators,
+            &trusted_byte_lengths,
+            &trusted_validators_enabled,
+        );
+
         const HASH_START_BYTE: usize = 2;
         // Assert the computed validator hash matches the expected validator hash
-        let extracted_hash = self.extract_hash_from_protobuf::<HASH_START_BYTE, PROTOBUF_HASH_SIZE_BITS>(&trusted_validator_hash_proof.enc_leaf.0);
+        let extracted_hash = self
+            .extract_hash_from_protobuf::<HASH_START_BYTE, PROTOBUF_HASH_SIZE_BITS>(
+                &trusted_validator_hash_proof.enc_leaf.0,
+            );
         for i in 0..HASH_SIZE_BITS {
             self.connect(
                 validators_hash_target.0[i].target,
@@ -453,7 +533,10 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintStep<F, D> for Circ
             );
 
             // If you are present, then you should have signed
-            self.connect(validators[i].present_on_trusted_header.target, present_and_signed.target);
+            self.connect(
+                validators[i].present_on_trusted_header.target,
+                present_and_signed.target,
+            );
         }
 
         // If a validator is present, then its pubkey should be present in the trusted validators
@@ -470,12 +553,18 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintStep<F, D> for Circ
             let match_and_present = self.and(pubkey_match, validators[i].present_on_trusted_header);
 
             // If you are present, then you should have a matching pubkey
-            self.connect(validators[i].present_on_trusted_header.target, match_and_present.target);
+            self.connect(
+                validators[i].present_on_trusted_header.target,
+                match_and_present.target,
+            );
         }
 
         let validator_voting_power: Vec<I64Target> =
             validators.iter().map(|v| v.voting_power).collect();
-        let present_on_trusted_header: Vec<BoolTarget> = validators.iter().map(|v| v.present_on_trusted_header).collect();
+        let present_on_trusted_header: Vec<BoolTarget> = validators
+            .iter()
+            .map(|v| v.present_on_trusted_header)
+            .collect();
         let present_on_trusted_header_u32: Vec<U32Target> = present_on_trusted_header
             .iter()
             .map(|v| {
@@ -486,7 +575,8 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintStep<F, D> for Circ
             .collect();
 
         // The trusted validators must comprise at least 1/3 of the total voting power
-        let total_voting_power = self.get_total_voting_power::<VALIDATOR_SET_SIZE_MAX>(&validator_voting_power);
+        let total_voting_power =
+            self.get_total_voting_power::<VALIDATOR_SET_SIZE_MAX>(&validator_voting_power);
         let threshold_numerator = self.constant_u32(1);
         let threshold_denominator = self.constant_u32(3);
 
@@ -499,7 +589,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintStep<F, D> for Circ
             &threshold_numerator,
             &threshold_denominator,
         );
-        self.connect(check_voting_power_bool.target, one);   
+        self.connect(check_voting_power_bool.target, one);
     }
 }
 
@@ -514,7 +604,11 @@ fn create_virtual_bool_target_array<F: RichField + Extendable<D>, const D: usize
     result
 }
 
-fn create_virtual_hash_inclusion_proof_target<F: RichField + Extendable<D>, const D: usize, const PROOF_DEPTH: usize>(
+fn create_virtual_hash_inclusion_proof_target<
+    F: RichField + Extendable<D>,
+    const D: usize,
+    const PROOF_DEPTH: usize,
+>(
     builder: &mut CircuitBuilder<F, D>,
 ) -> HashInclusionProofTarget {
     let mut proof = Vec::new();
@@ -536,7 +630,11 @@ fn create_virtual_hash_inclusion_proof_target<F: RichField + Extendable<D>, cons
     }
 }
 
-fn create_virtual_block_id_inclusion_proof_target<F: RichField + Extendable<D>, const D: usize, const PROOF_DEPTH: usize>(
+fn create_virtual_block_id_inclusion_proof_target<
+    F: RichField + Extendable<D>,
+    const D: usize,
+    const PROOF_DEPTH: usize,
+>(
     builder: &mut CircuitBuilder<F, D>,
 ) -> BlockIDInclusionProofTarget {
     let mut proof = Vec::new();
@@ -564,7 +662,7 @@ pub fn make_step_circuit<
     C: Curve,
     Config: GenericConfig<D, F = F, FE = F::Extension> + 'static,
     E: CubicParameters<F>,
-    const VALIDATOR_SET_SIZE_MAX: usize
+    const VALIDATOR_SET_SIZE_MAX: usize,
 >(
     builder: &mut CircuitBuilder<F, D>,
 ) -> SequentialProofTarget<Ed25519>
@@ -603,7 +701,7 @@ where
             validator_byte_length,
             enabled,
             signed,
-            present_on_trusted_header
+            present_on_trusted_header,
         })
     }
 
@@ -613,10 +711,14 @@ where
     let prev_header = create_virtual_bool_target_array(builder, HASH_SIZE_BITS);
     let prev_header = TendermintHashTarget(prev_header.try_into().unwrap());
 
-    let data_hash_proof = create_virtual_hash_inclusion_proof_target::<F, D, HEADER_PROOF_DEPTH>(builder);
-    let validator_hash_proof = create_virtual_hash_inclusion_proof_target::<F, D, HEADER_PROOF_DEPTH>(builder);
-    let next_validators_hash_proof = create_virtual_hash_inclusion_proof_target::<F, D, HEADER_PROOF_DEPTH>(builder);
-    let last_block_id_proof = create_virtual_block_id_inclusion_proof_target::<F, D, HEADER_PROOF_DEPTH>(builder);
+    let data_hash_proof =
+        create_virtual_hash_inclusion_proof_target::<F, D, HEADER_PROOF_DEPTH>(builder);
+    let validator_hash_proof =
+        create_virtual_hash_inclusion_proof_target::<F, D, HEADER_PROOF_DEPTH>(builder);
+    let next_validators_hash_proof =
+        create_virtual_hash_inclusion_proof_target::<F, D, HEADER_PROOF_DEPTH>(builder);
+    let last_block_id_proof =
+        create_virtual_block_id_inclusion_proof_target::<F, D, HEADER_PROOF_DEPTH>(builder);
 
     let round_present = builder.add_virtual_bool_target_safe();
 
@@ -631,12 +733,19 @@ where
         &round_present,
     );
 
-    let base: BaseBlockProofTarget::<Curve> = BaseBlockProofTarget { validators, header, data_hash_proof, validator_hash_proof, next_validators_hash_proof, round_present };
+    let base: BaseBlockProofTarget<Curve> = BaseBlockProofTarget {
+        validators,
+        header,
+        data_hash_proof,
+        validator_hash_proof,
+        next_validators_hash_proof,
+        round_present,
+    };
 
     SequentialProofTarget::<Curve> {
         prev_header,
         last_block_id_proof,
-        base
+        base,
     }
 }
 
@@ -662,7 +771,7 @@ pub(crate) mod tests {
     use plonky2x::ecc::ed25519::field::ed25519_scalar::Ed25519Scalar;
 
     use crate::inputs::{generate_step_inputs, CelestiaSequentialBlockProof};
-    use crate::utils::{to_be_bits};
+    use crate::utils::to_be_bits;
 
     use log;
     use plonky2::timed;
@@ -737,23 +846,34 @@ pub(crate) mod tests {
         println!("Making step circuit");
 
         let celestia_sequential_proof_target =
-            make_step_circuit::<GoldilocksField, D, Curve, C, E, VALIDATOR_SET_SIZE_MAX>(&mut builder);
+            make_step_circuit::<GoldilocksField, D, Curve, C, E, VALIDATOR_SET_SIZE_MAX>(
+                &mut builder,
+            );
 
         // Note: Length of output is the closest power of 2 gte the number of validators for this block.
         let celestia_block_proof: CelestiaSequentialBlockProof = generate_step_inputs(block);
         println!("Generated inputs");
-        println!("Number of validators: {}", celestia_block_proof.base.validators.len());
+        println!(
+            "Number of validators: {}",
+            celestia_block_proof.base.validators.len()
+        );
         timed!(timing, "assigning inputs", {
             // Set target for header
             let header_bits = to_be_bits(celestia_block_proof.base.header);
             for i in 0..HASH_SIZE_BITS {
-                pw.set_bool_target(celestia_sequential_proof_target.base.header.0[i], header_bits[i]);
+                pw.set_bool_target(
+                    celestia_sequential_proof_target.base.header.0[i],
+                    header_bits[i],
+                );
             }
 
             // Set target for prev header
             let prev_header_bits = to_be_bits(celestia_block_proof.prev_header);
             for i in 0..HASH_SIZE_BITS {
-                pw.set_bool_target(celestia_sequential_proof_target.prev_header.0[i], prev_header_bits[i]);
+                pw.set_bool_target(
+                    celestia_sequential_proof_target.prev_header.0[i],
+                    prev_header_bits[i],
+                );
             }
 
             // Set target for round present
@@ -764,23 +884,40 @@ pub(crate) mod tests {
 
             // Set the encoded leaf for each of the proofs
             let data_hash_enc_leaf = to_be_bits(celestia_block_proof.base.data_hash_proof.enc_leaf);
-            let val_hash_enc_leaf = to_be_bits(celestia_block_proof.base.validator_hash_proof.enc_leaf);
-            let next_val_hash_enc_leaf =
-                to_be_bits(celestia_block_proof.base.next_validators_hash_proof.enc_leaf);
+            let val_hash_enc_leaf =
+                to_be_bits(celestia_block_proof.base.validator_hash_proof.enc_leaf);
+            let next_val_hash_enc_leaf = to_be_bits(
+                celestia_block_proof
+                    .base
+                    .next_validators_hash_proof
+                    .enc_leaf,
+            );
             let last_block_id_enc_leaf =
                 to_be_bits(celestia_block_proof.last_block_id_proof.enc_leaf);
 
             for i in 0..PROTOBUF_HASH_SIZE_BITS {
                 pw.set_bool_target(
-                    celestia_sequential_proof_target.base.data_hash_proof.enc_leaf.0[i],
+                    celestia_sequential_proof_target
+                        .base
+                        .data_hash_proof
+                        .enc_leaf
+                        .0[i],
                     data_hash_enc_leaf[i],
                 );
                 pw.set_bool_target(
-                    celestia_sequential_proof_target.base.validator_hash_proof.enc_leaf.0[i],
+                    celestia_sequential_proof_target
+                        .base
+                        .validator_hash_proof
+                        .enc_leaf
+                        .0[i],
                     val_hash_enc_leaf[i],
                 );
                 pw.set_bool_target(
-                    celestia_sequential_proof_target.base.next_validators_hash_proof.enc_leaf.0[i],
+                    celestia_sequential_proof_target
+                        .base
+                        .next_validators_hash_proof
+                        .enc_leaf
+                        .0[i],
                     next_val_hash_enc_leaf[i],
                 );
             }
@@ -788,7 +925,10 @@ pub(crate) mod tests {
             // Set targets for last block id leaf
             for i in 0..PROTOBUF_BLOCK_ID_SIZE_BITS {
                 pw.set_bool_target(
-                    celestia_sequential_proof_target.last_block_id_proof.enc_leaf.0[i],
+                    celestia_sequential_proof_target
+                        .last_block_id_proof
+                        .enc_leaf
+                        .0[i],
                     last_block_id_enc_leaf[i],
                 );
             }
@@ -800,11 +940,17 @@ pub(crate) mod tests {
                     celestia_block_proof.base.data_hash_proof.path[i],
                 );
                 pw.set_bool_target(
-                    celestia_sequential_proof_target.base.validator_hash_proof.path[i],
+                    celestia_sequential_proof_target
+                        .base
+                        .validator_hash_proof
+                        .path[i],
                     celestia_block_proof.base.validator_hash_proof.path[i],
                 );
                 pw.set_bool_target(
-                    celestia_sequential_proof_target.base.next_validators_hash_proof.path[i],
+                    celestia_sequential_proof_target
+                        .base
+                        .next_validators_hash_proof
+                        .path[i],
                     celestia_block_proof.base.next_validators_hash_proof.path[i],
                 );
                 pw.set_bool_target(
@@ -818,9 +964,10 @@ pub(crate) mod tests {
                 let val_hash_aunt =
                     to_be_bits(celestia_block_proof.base.validator_hash_proof.proof[i].to_vec());
 
-                let next_val_aunt =
-                    to_be_bits(celestia_block_proof.base.next_validators_hash_proof.proof[i].to_vec());
-                    
+                let next_val_aunt = to_be_bits(
+                    celestia_block_proof.base.next_validators_hash_proof.proof[i].to_vec(),
+                );
+
                 let last_block_id_aunt =
                     to_be_bits(celestia_block_proof.last_block_id_proof.proof[i].to_vec());
 
@@ -831,11 +978,19 @@ pub(crate) mod tests {
                         data_hash_aunt[j],
                     );
                     pw.set_bool_target(
-                        celestia_sequential_proof_target.base.validator_hash_proof.proof[i].0[j],
+                        celestia_sequential_proof_target
+                            .base
+                            .validator_hash_proof
+                            .proof[i]
+                            .0[j],
                         val_hash_aunt[j],
                     );
                     pw.set_bool_target(
-                        celestia_sequential_proof_target.base.next_validators_hash_proof.proof[i].0[j],
+                        celestia_sequential_proof_target
+                            .base
+                            .next_validators_hash_proof
+                            .proof[i]
+                            .0[j],
                         next_val_aunt[j],
                     );
                     pw.set_bool_target(
@@ -871,11 +1026,16 @@ pub(crate) mod tests {
 
                 // Set signature targets
                 pw.set_affine_point_target(
-                    &celestia_sequential_proof_target.base.validators[i].signature.r,
+                    &celestia_sequential_proof_target.base.validators[i]
+                        .signature
+                        .r,
                     &sig_r,
                 );
                 pw.set_biguint_target(
-                    &celestia_sequential_proof_target.base.validators[i].signature.s.value,
+                    &celestia_sequential_proof_target.base.validators[i]
+                        .signature
+                        .s
+                        .value,
                     &sig_s_biguint,
                 );
 
@@ -883,21 +1043,32 @@ pub(crate) mod tests {
                 // Set messages for each of the proofs
                 for j in 0..message_bits.len() {
                     pw.set_bool_target(
-                        celestia_sequential_proof_target.base.validators[i].message.0[j],
+                        celestia_sequential_proof_target.base.validators[i]
+                            .message
+                            .0[j],
                         message_bits[j],
                     );
                 }
                 for j in message_bits.len()..VALIDATOR_MESSAGE_BYTES_LENGTH_MAX * 8 {
-                    pw.set_bool_target(celestia_sequential_proof_target.base.validators[i].message.0[j], false);
+                    pw.set_bool_target(
+                        celestia_sequential_proof_target.base.validators[i]
+                            .message
+                            .0[j],
+                        false,
+                    );
                 }
 
                 // Set voting power targets
                 pw.set_u32_target(
-                    celestia_sequential_proof_target.base.validators[i].voting_power.0[0],
+                    celestia_sequential_proof_target.base.validators[i]
+                        .voting_power
+                        .0[0],
                     voting_power_lower,
                 );
                 pw.set_u32_target(
-                    celestia_sequential_proof_target.base.validators[i].voting_power.0[1],
+                    celestia_sequential_proof_target.base.validators[i]
+                        .voting_power
+                        .0[1],
                     voting_power_upper,
                 );
 
@@ -919,7 +1090,10 @@ pub(crate) mod tests {
                     validator.enabled,
                 );
                 println!("validator {} signed: {}", i, validator.signed);
-                pw.set_bool_target(celestia_sequential_proof_target.base.validators[i].signed, validator.signed);
+                pw.set_bool_target(
+                    celestia_sequential_proof_target.base.validators[i].signed,
+                    validator.signed,
+                );
 
                 let present_on_trusted_header = validator.present_on_trusted_header;
                 let present_on_trusted_header_bool = if present_on_trusted_header.is_some() {
@@ -929,7 +1103,10 @@ pub(crate) mod tests {
                 };
 
                 // Only used for skip circuit
-                pw.set_bool_target(celestia_sequential_proof_target.base.validators[i].present_on_trusted_header, present_on_trusted_header_bool);
+                pw.set_bool_target(
+                    celestia_sequential_proof_target.base.validators[i].present_on_trusted_header,
+                    present_on_trusted_header_bool,
+                );
             }
         });
         let inner_data = builder.build::<C>();
