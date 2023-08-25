@@ -54,7 +54,7 @@ pub struct CelestiaBaseBlockProof {
 }
 
 #[derive(Debug, Clone)]
-pub struct CelestiaSequentialBlockProof {
+pub struct CelestiaStepBlockProof {
     pub prev_header: Vec<u8>,
     pub last_block_id_proof: InclusionProof,
     pub base: CelestiaBaseBlockProof,
@@ -108,7 +108,7 @@ fn get_signed_block(block: usize) -> Box<SignedBlock> {
     block
 }
 
-fn generate_base_inputs(block: Box<SignedBlock>) -> CelestiaBaseBlockProof {
+fn generate_base_inputs(block: &Box<SignedBlock>) -> CelestiaBaseBlockProof {
     let mut validators = Vec::new();
 
     // Signatures or dummy
@@ -242,7 +242,7 @@ fn generate_base_inputs(block: Box<SignedBlock>) -> CelestiaBaseBlockProof {
     celestia_block_proof
 }
 
-pub fn generate_step_inputs(block: usize) -> CelestiaSequentialBlockProof {
+pub fn generate_step_inputs(block: usize) -> CelestiaStepBlockProof {
     // Generate test cases from Celestia block:
     let block = get_signed_block(block);
 
@@ -285,9 +285,9 @@ pub fn generate_step_inputs(block: usize) -> CelestiaSequentialBlockProof {
         "computed hash does not match"
     );
 
-    let base = generate_base_inputs(block);
+    let base = generate_base_inputs(&block);
 
-    CelestiaSequentialBlockProof {
+    CelestiaStepBlockProof {
         prev_header: prev_header_hash.as_bytes().to_vec(),
         last_block_id_proof,
         base,
@@ -299,12 +299,12 @@ pub fn generate_skip_inputs(trusted_block: usize, block: usize) -> CelestiaSkipB
     // Generate test cases from Celestia block:
     let block = get_signed_block(block);
 
-    let base = generate_base_inputs(block);
+    let mut base = generate_base_inputs(&block);
 
     // Get the trusted_block
     let trusted_block = get_signed_block(trusted_block);
 
-    let mut validators = Vec::new();
+    let mut trusted_validator_fields = Vec::new();
 
     // Signatures or dummy
     // Need signature to output either verify or no verify (then we can assert that it matches or doesn't match)
@@ -328,7 +328,7 @@ pub fn generate_skip_inputs(trusted_block: usize, block: usize) -> CelestiaSkipB
             },
         );
         let val_bytes = validator.hash_bytes();
-        validators.push(ValidatorHashField {
+        trusted_validator_fields.push(ValidatorHashField {
             pubkey: validator.pub_key.ed25519().unwrap(),
             voting_power: validator.power(),
             validator_byte_length: val_bytes.len(),
@@ -345,7 +345,7 @@ pub fn generate_skip_inputs(trusted_block: usize, block: usize) -> CelestiaSkipB
         let signing_key = ed25519_consensus::SigningKey::try_from(signing_key).unwrap();
         let verification_key = signing_key.verification_key();
         // TODO: Fix empty signatures
-        validators.push(ValidatorHashField {
+        trusted_validator_fields.push(ValidatorHashField {
             pubkey: VerificationKey::try_from(verification_key.as_bytes().as_ref())
                 .expect("failed to create verification key"),
             voting_power: 0,
@@ -366,10 +366,35 @@ pub fn generate_skip_inputs(trusted_block: usize, block: usize) -> CelestiaSkipB
         proof: enc_validators_hash_proof.aunts,
     };
 
+    // Set the present_on_trusted_header field for each validator that is needed to reach the 1/3 threshold
+    // Parse each block to compute the validators that are the same from block_1 to block_2, and the cumulative voting power of the shared validators
+    let mut shared_voting_power = 0;
+
+    let threshold = 1 as f64 / 3 as f64;
+    let block_2_total_voting_power = block.validator_set.total_voting_power().value();
+
+    let block_1_validators = trusted_block.validator_set.validators();
+
+    let mut idx = 0;
+    let num_validators = block_1_validators.len();
+
+    // Exit if we have already reached the threshold
+    while block_2_total_voting_power as f64 * threshold > shared_voting_power as f64 && idx < num_validators {
+        if let Some(block_2_validator) = block
+            .validator_set
+            .validator(block_1_validators[idx].address)
+        {
+            shared_voting_power += block_2_validator.power();
+            // Set the present_on_trusted_header field to true
+            base.validators[idx].present_on_trusted_header = Some(true);
+        }
+        idx += 1;
+    }
+
     CelestiaSkipBlockProof {
         trusted_header: trusted_block.header.hash().into(),
         trusted_validator_hash_proof: validators_hash_proof,
-        trusted_validator_fields: validators,
+        trusted_validator_fields,
         base,
     }
 }
@@ -407,21 +432,24 @@ pub(crate) mod tests {
 
     #[test]
     fn get_shared_voting_power() {
-        let block_1 = get_signed_block(60000);
-        let block_2 = get_signed_block(75000);
+        let block_1 = get_signed_block(11000);
+        let block_2 = get_signed_block(11105);
 
         // Parse each block to compute the validators that are the same from block_1 to block_2, and the cumulative voting power of the shared validators
         let mut shared_voting_power = 0;
         let mut shared_validators = Vec::new();
 
-        let threshold = 0.33;
+        let threshold = 1 as f64 / 3 as f64;
         let block_2_total_voting_power = block_2.validator_set.total_voting_power().value();
 
         let block_1_validators = block_1.validator_set.validators();
-        let block_2_validators = block_2.validator_set.validators();
 
-        let idx = 0;
-        while block_2_total_voting_power as f64 * threshold > shared_voting_power as f64 {
+        let num_validators = block_1_validators.len();
+
+        println!("num validators: {}", num_validators);
+
+        let mut idx = 0;
+        while block_2_total_voting_power as f64 * threshold > shared_voting_power as f64 && idx < num_validators {
             if let Some(block_2_validator) = block_2
                 .validator_set
                 .validator(block_1_validators[idx].address)
@@ -429,6 +457,7 @@ pub(crate) mod tests {
                 shared_voting_power += block_2_validator.power();
                 shared_validators.push(block_2_validator);
             }
+            idx += 1
         }
 
         // // Add the validators from block_2_validators that have a matching pubkey with a validator in block_1_validators
