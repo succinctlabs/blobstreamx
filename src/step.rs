@@ -421,7 +421,7 @@ pub(crate) mod tests {
     use plonky2x::ecc::ed25519::field::ed25519_scalar::Ed25519Scalar;
 
     use crate::inputs::{generate_step_inputs, CelestiaBlockProof};
-    use crate::utils::{to_be_bits};
+    use crate::utils::to_be_bits;
 
     use log;
     use plonky2::timed;
