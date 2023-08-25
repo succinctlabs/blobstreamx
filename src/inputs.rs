@@ -309,6 +309,7 @@ fn update_present_on_trusted_header(
     let num_validators = block_1_validators.len();
 
     // Exit if we have already reached the threshold
+    // TODO: We might need to add checks to make this more resilient
     while block_2_total_voting_power as f64 * threshold > shared_voting_power as f64
         && idx < num_validators
     {
@@ -316,12 +317,27 @@ fn update_present_on_trusted_header(
             .validator_set
             .validator(block_1_validators[idx].address)
         {
-            shared_voting_power += block_2_validator.power();
-            // Set the present_on_trusted_header field to true
-            base.validators[idx].present_on_trusted_header = Some(true);
+            // Confirm that the validator has signed on block_2
+            for sig in block.commit.signatures.iter() {
+                if sig.validator_address().is_some() {
+                    if sig.validator_address().unwrap() == block_2_validator.address {
+                        // Add the shared voting power to the validator
+                        shared_voting_power += block_2_validator.power();
+                        // Set the present_on_trusted_header field to true
+                        base.validators[idx].present_on_trusted_header = Some(true);
+                        println!("added validator: {}", idx);
+                    }
+                }
+            }
         }
+        println!("idx: {}", idx);
         idx += 1;
     }
+
+    assert!(
+        block_2_total_voting_power as f64 * threshold <= shared_voting_power as f64,
+        "shared voting power is less than threshold"
+    );
 }
 
 // Where block is the block we want to generate inputs for, and trusted_block is the block we're skipping from
@@ -410,8 +426,8 @@ pub(crate) mod tests {
 
     #[test]
     fn get_shared_voting_power() {
-        let block_1 = get_signed_block(11000);
-        let block_2 = get_signed_block(11105);
+        let block_1 = get_signed_block(50000);
+        let block_2 = get_signed_block(100000);
 
         // Parse each block to compute the validators that are the same from block_1 to block_2, and the cumulative voting power of the shared validators
         let mut shared_voting_power = 0;
@@ -425,8 +441,12 @@ pub(crate) mod tests {
         let num_validators = block_1_validators.len();
 
         println!("num validators: {}", num_validators);
-
+    
         let mut idx = 0;
+        let num_validators = block_1_validators.len();
+    
+        // Exit if we have already reached the threshold
+        // TODO: We might need to add checks to make this more resilient
         while block_2_total_voting_power as f64 * threshold > shared_voting_power as f64
             && idx < num_validators
         {
@@ -434,12 +454,22 @@ pub(crate) mod tests {
                 .validator_set
                 .validator(block_1_validators[idx].address)
             {
-                shared_voting_power += block_2_validator.power();
-                shared_validators.push(block_2_validator);
+                // Confirm that the validator has signed on block_2
+                for sig in block_2.commit.signatures.iter() {
+                    if sig.validator_address().is_some() {
+                        if sig.validator_address().unwrap() == block_2_validator.address {
+                            // Add the shared voting power to the validator
+                            shared_voting_power += block_2_validator.power();
+                            // Set the present_on_trusted_header field to true
+                            shared_validators.push(block_2_validator.clone());
+                            println!("added validator: {}", idx);
+                        }
+                    }
+                }
             }
-            idx += 1
+            println!("idx: {}", idx);
+            idx += 1;
         }
-
         println!("shared voting power: {}", shared_voting_power);
 
         // Calculate shared voting power as a percentage of total voting power of block_2
