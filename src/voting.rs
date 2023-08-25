@@ -13,7 +13,7 @@ use plonky2x::ecc::ed25519::curve::curve_types::Curve;
 use plonky2x::ecc::ed25519::curve::ed25519::Ed25519;
 use plonky2x::num::u32::gadgets::arithmetic_u32::{CircuitBuilderU32, U32Target};
 
-use crate::utils::{I64Target, VALIDATOR_SET_SIZE_MAX};
+use crate::utils::{I64Target};
 
 pub trait TendermintVoting<F: RichField + Extendable<D>, const D: usize> {
     type Curve: Curve;
@@ -24,7 +24,7 @@ pub trait TendermintVoting<F: RichField + Extendable<D>, const D: usize> {
     fn is_i64_gte(&mut self, a: &I64Target, b: &I64Target) -> BoolTarget;
 
     // Gets the total voting power by summing the voting power of all validators.
-    fn get_total_voting_power(&mut self, validator_voting_power: &Vec<I64Target>) -> I64Target;
+    fn get_total_voting_power<const VALIDATOR_SET_SIZE_MAX: usize>(&mut self, validator_voting_power: &Vec<I64Target>) -> I64Target;
 
     // Checks if accumulated voting power * m > total voting power * n (threshold is n/m)
     fn voting_power_greater_than_threshold(
@@ -36,7 +36,7 @@ pub trait TendermintVoting<F: RichField + Extendable<D>, const D: usize> {
     ) -> BoolTarget;
 
     /// Accumulate voting power from the enabled validators & check that the voting power is greater than 2/3 of the total voting power.
-    fn check_voting_power(
+    fn check_voting_power<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
         validator_voting_power: &Vec<I64Target>,
         validator_enabled: &Vec<U32Target>,
@@ -105,7 +105,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVoting<F, D> for Ci
         self.or(upper_pass, lower_pass)
     }
 
-    fn get_total_voting_power(&mut self, validator_voting_power: &Vec<I64Target>) -> I64Target {
+    fn get_total_voting_power<const VALIDATOR_SET_SIZE_MAX: usize>(&mut self, validator_voting_power: &Vec<I64Target>) -> I64Target {
         // Sum up the voting power of all the validators
 
         // Get a vector of the first element of each validator's voting power using a map and collect
@@ -149,7 +149,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVoting<F, D> for Ci
         self.is_i64_gte(&scaled_accumulated_vp, &scaled_total_vp)
     }
 
-    fn check_voting_power(
+    fn check_voting_power<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
         validator_voting_power: &Vec<I64Target>,
         validator_enabled: &Vec<U32Target>,
@@ -214,6 +214,7 @@ pub(crate) mod tests {
     type C = PoseidonGoldilocksConfig;
     type F = <C as GenericConfig<D>>::F;
     const D: usize = 2;
+    const VALIDATOR_SET_SIZE_MAX: usize = 4;
 
     #[test]
     fn test_accumulate_voting_power() {
@@ -276,7 +277,7 @@ pub(crate) mod tests {
             let two_u32 = builder.constant_u32(2);
             let three_u32 = builder.constant_u32(3);
 
-            let result = builder.check_voting_power(
+            let result = builder.check_voting_power::<VALIDATOR_SET_SIZE_MAX>(
                 &all_validators,
                 &validators_enabled,
                 &total_vp_target,

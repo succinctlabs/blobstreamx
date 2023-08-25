@@ -8,19 +8,20 @@
 //! read more about them here: https://protobuf.dev/programming-guides/encoding/#varints.
 use plonky2::field::extension::Extendable;
 use plonky2::iop::target::BoolTarget;
+use plonky2::iop::target::Target;
 use plonky2::{hash::hash_types::RichField, plonk::circuit_builder::CircuitBuilder};
 use plonky2x::ecc::ed25519::curve::curve_types::Curve;
 use plonky2x::ecc::ed25519::curve::ed25519::Ed25519;
 use plonky2x::ecc::ed25519::gadgets::curve::{AffinePointTarget, CircuitBuilderCurve};
 use plonky2x::hash::sha::sha256::{sha256, sha256_variable_length_single_chunk};
 use plonky2x::num::u32::gadgets::arithmetic_u32::CircuitBuilderU32;
-use plonky2::iop::target::Target;
 
+use crate::utils::EncBlockIDTarget;
+use crate::utils::PROTOBUF_BLOCK_ID_SIZE_BITS;
 use crate::utils::{
     EncTendermintHashTarget, I64Target, MarshalledValidatorTarget, TendermintHashTarget,
-    HASH_SIZE_BITS, PROTOBUF_HASH_SIZE_BITS,
-    VALIDATOR_BYTE_LENGTH_MAX, VALIDATOR_SET_SIZE_MAX,
-    VOTING_POWER_BITS_LENGTH_MAX, VOTING_POWER_BYTES_LENGTH_MAX, VALIDATOR_BIT_LENGTH_MAX,
+    HASH_SIZE_BITS, PROTOBUF_HASH_SIZE_BITS, VALIDATOR_BIT_LENGTH_MAX, VALIDATOR_BYTE_LENGTH_MAX,
+    VOTING_POWER_BITS_LENGTH_MAX, VOTING_POWER_BYTES_LENGTH_MAX,
 };
 
 pub trait TendermintMarshaller<F: RichField + Extendable<D>, const D: usize> {
@@ -46,14 +47,14 @@ pub trait TendermintMarshaller<F: RichField + Extendable<D>, const D: usize> {
         &mut self,
         aunts: &Vec<TendermintHashTarget>,
         merkle_proof_enabled: &Vec<BoolTarget>,
-        leaf: &EncTendermintHashTarget,
+        leaf_hash: &TendermintHashTarget,
     ) -> TendermintHashTarget;
 
     /// Hashes leaf bytes to get the leaf hash according to the Tendermint spec. (0x00 || leafBytes)
-    /// Note: This function will only work for leaves with a length of 34 bytes (protobuf-encoded SHA256 hash)
-    fn hash_header_leaf(&mut self, leaf: &EncTendermintHashTarget) -> TendermintHashTarget;
+    fn leaf_hash<const LEAF_SIZE_BITS: usize>(&mut self, leaf: &[BoolTarget; LEAF_SIZE_BITS]) -> TendermintHashTarget;
 
     /// Hashes validator bytes to get the leaf according to the Tendermint spec. (0x00 || validatorBytes)
+    /// Note: This function differs from leaf_hash because the validator bytes length is variable.
     fn hash_validator_leaf(
         &mut self,
         validator: &MarshalledValidatorTarget,
@@ -61,7 +62,7 @@ pub trait TendermintMarshaller<F: RichField + Extendable<D>, const D: usize> {
     ) -> TendermintHashTarget;
 
     /// Hashes multiple validators to get their leaves according to the Tendermint spec using hash_validator_leaf.
-    fn hash_validator_leaves(
+    fn hash_validator_leaves<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
         validators: &Vec<MarshalledValidatorTarget>,
         validator_byte_lengths: &Vec<Target>,
@@ -85,7 +86,7 @@ pub trait TendermintMarshaller<F: RichField + Extendable<D>, const D: usize> {
     ) -> (Vec<TendermintHashTarget>, Vec<BoolTarget>);
 
     /// Compute the expected validator hash from the validator set.
-    fn hash_validator_set(
+    fn hash_validator_set<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
         validators: &Vec<MarshalledValidatorTarget>,
         validator_byte_lengths: &Vec<Target>,
@@ -103,11 +104,10 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D>
         aunts: &Vec<TendermintHashTarget>,
         // TODO: Should we hard-code path_indices to correspond to dataHash, validatorsHash and nextValidatorsHash?
         path_indices: &Vec<BoolTarget>,
-        leaf: &EncTendermintHashTarget,
+        // This leaf should already be hashed. (0x00 || leafBytes)
+        leaf_hash: &TendermintHashTarget,
     ) -> TendermintHashTarget {
-        let hash_leaf = self.hash_header_leaf(&leaf);
-
-        let mut hash_so_far = hash_leaf;
+        let mut hash_so_far = *leaf_hash;
         for i in 0..aunts.len() {
             let aunt = aunts[i];
             let path_index = path_indices[i];
@@ -128,10 +128,10 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D>
         hash_so_far
     }
 
-    fn hash_header_leaf(&mut self, leaf: &EncTendermintHashTarget) -> TendermintHashTarget {
+    fn leaf_hash<const LEAF_SIZE_BITS: usize>(&mut self, leaf: &[BoolTarget; LEAF_SIZE_BITS]) -> TendermintHashTarget {
         // Calculate the length of the message for the leaf hash.
         // 0x00 || leafBytes
-        let bits_length = 8 + (PROTOBUF_HASH_SIZE_BITS);
+        let bits_length = 8 + (LEAF_SIZE_BITS);
 
         // Calculate the message for the leaf hash.
         let mut leaf_msg_bits = vec![self._false(); bits_length];
@@ -143,7 +143,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D>
 
         // validatorBytes
         for k in 8..bits_length {
-            leaf_msg_bits[k] = leaf.0[k - 8];
+            leaf_msg_bits[k] = leaf[k - 8];
         }
 
         // Load the output of the hash.
@@ -311,12 +311,16 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D>
         for i in 0..VALIDATOR_BIT_LENGTH_MAX {
             enc_validator_bits[i + 8] = validator.0[i];
         }
-        let hash = sha256_variable_length_single_chunk(self, &enc_validator_bits, enc_validator_bit_length);
+        let hash = sha256_variable_length_single_chunk(
+            self,
+            &enc_validator_bits,
+            enc_validator_bit_length,
+        );
 
         TendermintHashTarget(hash.try_into().unwrap())
     }
 
-    fn hash_validator_leaves(
+    fn hash_validator_leaves<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
         validators: &Vec<MarshalledValidatorTarget>,
         validator_byte_lengths: &Vec<Target>,
@@ -426,7 +430,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D>
         (merkle_hashes.to_vec(), merkle_hash_enabled.to_vec())
     }
 
-    fn hash_validator_set(
+    fn hash_validator_set<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
         validators: &Vec<MarshalledValidatorTarget>,
         validator_byte_lengths: &Vec<Target>,
@@ -449,7 +453,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D>
 
         // Hash each of the validators to get their corresponding leaf hash.
         let mut current_validator_hashes =
-            self.hash_validator_leaves(validators, validator_byte_lengths);
+            self.hash_validator_leaves::<VALIDATOR_SET_SIZE_MAX>(validators, validator_byte_lengths);
 
         // Whether to treat the validator as empty.
         let mut current_validator_enabled = validator_enabled.clone();
@@ -489,8 +493,12 @@ pub(crate) mod tests {
     use plonky2x::ecc::ed25519::curve::curve_types::AffinePoint;
     use sha2::Sha256;
     use tendermint_proto::Protobuf;
+    use tendermint_proto::{
+        types::BlockId as RawBlockId
+    };
 
-    use crate::utils::{VALIDATOR_BIT_LENGTH_MAX, VALIDATOR_SET_SIZE_MAX};
+    use crate::inputs::get_path_indices;
+    use crate::utils::{VALIDATOR_BIT_LENGTH_MAX};
 
     use crate::utils::{generate_proofs_from_header, hash_all_leaves, leaf_hash};
 
@@ -505,16 +513,13 @@ pub(crate) mod tests {
     type F = <C as GenericConfig<D>>::F;
     type Curve = Ed25519;
     const D: usize = 2;
+    const VALIDATOR_SET_SIZE_MAX: usize = 4;
 
     // Generate the inputs from the validator byte arrays.
-    fn generate_inputs(
+    fn generate_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
         builder: &mut CircuitBuilder<F, D>,
         validators: &Vec<String>,
-    ) -> (
-        Vec<MarshalledValidatorTarget>,
-        Vec<Target>,
-        Vec<BoolTarget>,
-    ) {
+    ) -> (Vec<MarshalledValidatorTarget>, Vec<Target>, Vec<BoolTarget>) {
         let mut validator_byte_length: Vec<Target> = Vec::new();
 
         let mut validator_enabled: Vec<BoolTarget> = vec![builder._false(); VALIDATOR_SET_SIZE_MAX];
@@ -570,7 +575,7 @@ pub(crate) mod tests {
         }
 
         let result =
-            builder.hash_header_leaf(&EncTendermintHashTarget(validators_hash_bits_target));
+            builder.leaf_hash::<PROTOBUF_HASH_SIZE_BITS>(&validators_hash_bits_target);
 
         for i in 0..HASH_SIZE_BITS {
             if validators_hash_bits[i] {
@@ -610,27 +615,25 @@ pub(crate) mod tests {
         let (_, proofs) = generate_proofs_from_header(&block.header);
 
         // Can test with leaf_index 6, 7 or 8 (data_hash, validators_hash, next_validators_hash)
-        let leaf_index = 8;
+        let leaf_index = 4;
 
         // Note: Make sure to encode_vec()
         // let leaf = block.header.data_hash.expect("data hash present").encode_vec();
         // let leaf = block.header.validators_hash.encode_vec();
-        let leaf = block.header.next_validators_hash.encode_vec();
+        // let leaf = block.header.next_validators_hash.encode_vec();
+        let leaf = Protobuf::<RawBlockId>::encode_vec(block.header.last_block_id.unwrap_or_default());
 
         let leaf_bits = to_be_bits(leaf);
 
-        let mut path_indices = vec![];
+        let path_indices = get_path_indices(leaf_index as u64, proofs[0].total);
 
-        let mut current_total = proofs[leaf_index].total as usize;
-        let mut current_index = leaf_index as usize;
-        while current_total >= 1 {
-            path_indices.push(builder.constant_bool(current_index % 2 == 1));
-            current_total = current_total / 2;
-            current_index = current_index / 2;
-        }
+        let path_indices = path_indices
+            .iter()
+            .map(|x| builder.constant_bool(*x))
+            .collect::<Vec<_>>();
 
-        let mut leaf_target = [builder._false(); PROTOBUF_HASH_SIZE_BITS];
-        for i in 0..PROTOBUF_HASH_SIZE_BITS {
+        let mut leaf_target = [builder._false(); PROTOBUF_BLOCK_ID_SIZE_BITS];
+        for i in 0..PROTOBUF_BLOCK_ID_SIZE_BITS {
             leaf_target[i] = if leaf_bits[i] {
                 builder._true()
             } else {
@@ -654,10 +657,12 @@ pub(crate) mod tests {
             }
         }
 
+        let leaf_hash = builder.leaf_hash::<PROTOBUF_BLOCK_ID_SIZE_BITS>(&leaf_target);
+
         let result = builder.get_root_from_merkle_proof(
             &aunts_target,
             &path_indices,
-            &EncTendermintHashTarget(leaf_target),
+            &leaf_hash,
         );
 
         for i in 0..HASH_SIZE_BITS {
@@ -689,13 +694,19 @@ pub(crate) mod tests {
         let digest_bits = to_be_bits(hex::decode(expected_digest).unwrap());
 
         let validators: Vec<String> = vec![
-            String::from("de6ad0941095ada2a7996e6a888581928203b8b69e07ee254d289f5b9c9caea193c2ab01902d"),
-            String::from("92fbe0c52937d80c5ea643c7832620b84bfdf154ec7129b8b471a63a763f2fe955af1ac65fd3"),
-            String::from("e902f88b2371ff6243bf4b0ebe8f46205e00749dd4dad07b2ea34350a1f9ceedb7620ab913c2"),
+            String::from(
+                "de6ad0941095ada2a7996e6a888581928203b8b69e07ee254d289f5b9c9caea193c2ab01902d",
+            ),
+            String::from(
+                "92fbe0c52937d80c5ea643c7832620b84bfdf154ec7129b8b471a63a763f2fe955af1ac65fd3",
+            ),
+            String::from(
+                "e902f88b2371ff6243bf4b0ebe8f46205e00749dd4dad07b2ea34350a1f9ceedb7620ab913c2",
+            ),
         ];
 
         let (validators_target, validator_byte_length, _) =
-            generate_inputs(&mut builder, &validators);
+            generate_inputs::<VALIDATOR_SET_SIZE_MAX>(&mut builder, &validators);
 
         let result = builder.hash_validator_leaf(&validators_target[0], validator_byte_length[0]);
 
@@ -749,9 +760,9 @@ pub(crate) mod tests {
             .collect();
 
         let (validators_target, validator_byte_length, _) =
-            generate_inputs(&mut builder, &validators);
+            generate_inputs::<VALIDATOR_SET_SIZE_MAX>(&mut builder, &validators);
 
-        let result = builder.hash_validator_leaves(&validators_target, &validator_byte_length);
+        let result = builder.hash_validator_leaves::<VALIDATOR_SET_SIZE_MAX>(&validators_target, &validator_byte_length);
         println!("Got all leaf hashes: {}", result.len());
         for i in 0..validators.len() {
             for j in 0..HASH_SIZE_BITS {
@@ -773,12 +784,11 @@ pub(crate) mod tests {
 
     #[test]
     fn test_generate_val_hash() {
-
         struct TestCase {
             validators: Vec<String>,
             expected_digest: String,
         }
-        
+
         // Validators from block 11000 on Celestia mocha-3 testnet encoded as bytes.
         let validators_arr: Vec<Vec<&str>> = vec![vec![
             "0a220a20de25aec935b10f657b43fa97e5a8d4e523bdb0f9972605f0b064eff7b17048ba10aa8d06",
@@ -787,13 +797,19 @@ pub(crate) mod tests {
             "0a220a20bd60452e7f056b22248105e7fd298961371da0d9332ef65fa81691bf51b2e5051001",
         ], vec!["364db94241a02b701d0dc85ac016fab2366fba326178e6f11d8294931969072b7441fd6b0ff5129d6867", "6fa0cef8f328eb8e2aef2084599662b1ee0595d842058966166029e96bd263e5367185f19af67b099645ec08aa"]];
 
-        let digest_arr: Vec<&str> = vec!["BB5B8B1239565451DCD5AB52B47C26032016CDF1EF2D2115FF104DC9DDE3988C", "be110ff9abb6bdeaebf48ac8e179a76fda1f6eaef0150ca6159587f489722204"];
+        let digest_arr: Vec<&str> = vec![
+            "BB5B8B1239565451DCD5AB52B47C26032016CDF1EF2D2115FF104DC9DDE3988C",
+            "be110ff9abb6bdeaebf48ac8e179a76fda1f6eaef0150ca6159587f489722204",
+        ];
 
         let test_cases: Vec<TestCase> = validators_arr
             .iter()
             .zip(digest_arr.iter())
             .map(|(validators, expected_digest)| TestCase {
-                validators: validators.iter().map(|x| String::from(*x).to_lowercase()).collect(),
+                validators: validators
+                    .iter()
+                    .map(|x| String::from(*x).to_lowercase())
+                    .collect(),
                 expected_digest: String::from(*expected_digest).to_lowercase(),
             })
             .collect();
@@ -804,9 +820,10 @@ pub(crate) mod tests {
             let mut builder = CircuitBuilder::<F, D>::new(config);
 
             let (validators_target, validator_byte_length, validator_enabled) =
-                generate_inputs(&mut builder, &test_case.validators);
+                generate_inputs::<VALIDATOR_SET_SIZE_MAX>(&mut builder, &test_case.validators);
 
-            let digest_bits = to_be_bits(hex::decode(test_case.expected_digest.as_bytes()).unwrap());
+            let digest_bits =
+                to_be_bits(hex::decode(test_case.expected_digest.as_bytes()).unwrap());
 
             println!(
                 "Expected Val Hash: {:?}",
@@ -815,7 +832,7 @@ pub(crate) mod tests {
                 ))
             );
 
-            let result = builder.hash_validator_set(
+            let result = builder.hash_validator_set::<VALIDATOR_SET_SIZE_MAX>(
                 &validators_target,
                 &validator_byte_length,
                 &validator_enabled,

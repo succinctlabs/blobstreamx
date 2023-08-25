@@ -6,9 +6,10 @@
 //! The `pubkey` is encoded as the raw list of bytes used in the public key. The `varint` is
 //! encoded using protobuf's default integer encoding, which consist of 7 bit payloads. You can
 //! read more about them here: https://protobuf.dev/programming-guides/encoding/#varints.
-use curta::math::prelude::CubicParameters;
+use curta::math::extension::CubicParameters;
 use plonky2::field::extension::Extendable;
 use plonky2::iop::target::BoolTarget;
+use plonky2::iop::target::Target;
 use plonky2::plonk::config::AlgebraicHasher;
 use plonky2::plonk::config::GenericConfig;
 use plonky2::{hash::hash_types::RichField, plonk::circuit_builder::CircuitBuilder};
@@ -18,13 +19,14 @@ use plonky2x::ecc::ed25519::gadgets::curve::CircuitBuilderCurve;
 use plonky2x::ecc::ed25519::gadgets::eddsa::{EDDSAPublicKeyTarget, EDDSASignatureTarget};
 use plonky2x::num::nonnative::nonnative::CircuitBuilderNonNative;
 use plonky2x::num::u32::gadgets::arithmetic_u32::{CircuitBuilderU32, U32Target};
-use plonky2::iop::target::Target;
 
 use crate::signature::TendermintSignature;
+use crate::utils::EncBlockIDTarget;
+use crate::utils::PROTOBUF_BLOCK_ID_SIZE_BITS;
 use crate::utils::{
     EncTendermintHashTarget, I64Target, MarshalledValidatorTarget, TendermintHashTarget,
     ValidatorMessageTarget, HASH_SIZE_BITS, HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BITS,
-    VALIDATOR_MESSAGE_BYTES_LENGTH_MAX, VALIDATOR_SET_SIZE_MAX,
+    VALIDATOR_MESSAGE_BYTES_LENGTH_MAX,
 };
 use crate::validator::TendermintMarshaller;
 use crate::voting::TendermintVoting;
@@ -43,8 +45,17 @@ pub struct ValidatorTarget<C: Curve> {
 
 /// The protobuf-encoded leaf (a hash), and it's corresponding proof and path indices against the header.
 #[derive(Debug, Clone)]
-pub struct InclusionProofTarget {
+pub struct HashInclusionProofTarget {
     enc_leaf: EncTendermintHashTarget,
+    // Path and proof should have a fixed length of HEADER_PROOF_DEPTH.
+    path: Vec<BoolTarget>,
+    proof: Vec<TendermintHashTarget>,
+}
+
+/// The protobuf-encoded leaf (a tendermint block ID), and it's corresponding proof and path indices against the header.
+#[derive(Debug, Clone)]
+pub struct BlockIDInclusionProofTarget {
+    enc_leaf: EncBlockIDTarget,
     // Path and proof should have a fixed length of HEADER_PROOF_DEPTH.
     path: Vec<BoolTarget>,
     proof: Vec<TendermintHashTarget>,
@@ -54,9 +65,11 @@ pub struct InclusionProofTarget {
 pub struct CelestiaBlockProofTarget<C: Curve> {
     validators: Vec<ValidatorTarget<C>>,
     header: TendermintHashTarget,
-    data_hash_proof: InclusionProofTarget,
-    validator_hash_proof: InclusionProofTarget,
-    next_validators_hash_proof: InclusionProofTarget,
+    prev_header: TendermintHashTarget,
+    data_hash_proof: HashInclusionProofTarget,
+    validator_hash_proof: HashInclusionProofTarget,
+    next_validators_hash_proof: HashInclusionProofTarget,
+    last_block_id_proof: BlockIDInclusionProofTarget,
     round_present: BoolTarget,
 }
 
@@ -64,13 +77,15 @@ pub trait TendermintStep<F: RichField + Extendable<D>, const D: usize> {
     type Curve: Curve;
 
     /// Verifies a Tendermint consensus block.
-    fn step<E: CubicParameters<F>, C: GenericConfig<D, F = F, FE = F::Extension> + 'static>(
+    fn step<E: CubicParameters<F>, C: GenericConfig<D, F = F, FE = F::Extension> + 'static, const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
         validators: &Vec<ValidatorTarget<Self::Curve>>,
         header: &TendermintHashTarget,
-        data_hash_proof: &InclusionProofTarget,
-        validator_hash_proof: &InclusionProofTarget,
-        next_validators_hash_proof: &InclusionProofTarget,
+        prev_header: &TendermintHashTarget,
+        data_hash_proof: &HashInclusionProofTarget,
+        validator_hash_proof: &HashInclusionProofTarget,
+        next_validators_hash_proof: &HashInclusionProofTarget,
+        last_block_id_proof: &BlockIDInclusionProofTarget,
         round_present: &BoolTarget,
     ) where
         <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>;
@@ -79,18 +94,22 @@ pub trait TendermintStep<F: RichField + Extendable<D>, const D: usize> {
 impl<F: RichField + Extendable<D>, const D: usize> TendermintStep<F, D> for CircuitBuilder<F, D> {
     type Curve = Ed25519;
 
-    fn step<E: CubicParameters<F>, C: GenericConfig<D, F = F, FE = F::Extension> + 'static>(
+    fn step<E: CubicParameters<F>, C: GenericConfig<D, F = F, FE = F::Extension> + 'static, const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
         validators: &Vec<ValidatorTarget<Self::Curve>>,
         header: &TendermintHashTarget,
-        data_hash_proof: &InclusionProofTarget,
-        validator_hash_proof: &InclusionProofTarget,
-        next_validators_hash_proof: &InclusionProofTarget,
+        prev_header: &TendermintHashTarget,
+        data_hash_proof: &HashInclusionProofTarget,
+        validator_hash_proof: &HashInclusionProofTarget,
+        next_validators_hash_proof: &HashInclusionProofTarget,
+        last_block_id_proof: &BlockIDInclusionProofTarget,
         round_present: &BoolTarget,
     ) where
         <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>,
     {
         let one = self.one();
+        let false_t = self._false();
+        let true_t = self._true();
         // Verify each of the validators marshal correctly
         // Assumes the validators are sorted in the correct order
         let byte_lengths: Vec<Target> =
@@ -99,6 +118,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintStep<F, D> for Circ
             .iter()
             .map(|v| self.marshal_tendermint_validator(&v.pubkey.0, &v.voting_power))
             .collect();
+        let validators_signed: Vec<BoolTarget> = validators.iter().map(|v| v.signed).collect();
         let validators_enabled: Vec<BoolTarget> = validators.iter().map(|v| v.enabled).collect();
         let validators_enabled_u32: Vec<U32Target> = validators_enabled
             .iter()
@@ -112,8 +132,17 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintStep<F, D> for Circ
         let validator_voting_power: Vec<I64Target> =
             validators.iter().map(|v| v.voting_power).collect();
 
-        let messages: Vec<Vec<BoolTarget>> =
+        let mut messages: Vec<Vec<BoolTarget>> =
             validators.iter().map(|v| v.message.0.to_vec()).collect();
+        for i in 0..messages.len() {
+            messages[i].resize(VALIDATOR_MESSAGE_BYTES_LENGTH_MAX * 8, self._false());
+        }
+
+        let messages: Vec<ValidatorMessageTarget> = messages
+            .iter()
+            .map(|v| ValidatorMessageTarget(v.clone().try_into().unwrap()))
+            .collect();
+
         let message_bit_lengths: Vec<Target> =
             validators.iter().map(|v| v.message_bit_length).collect();
 
@@ -122,12 +151,14 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintStep<F, D> for Circ
         let pubkeys: Vec<&EDDSAPublicKeyTarget<Ed25519>> =
             validators.iter().map(|v| &v.pubkey).collect();
 
-        // // Compute the validators hash
+        // Compute the validators hash
         let validators_hash_target =
-            self.hash_validator_set(&marshalled_validators, &byte_lengths, &validators_enabled);
+            self.hash_validator_set::<VALIDATOR_SET_SIZE_MAX>(&marshalled_validators, &byte_lengths, &validators_enabled);
 
-        // // Assert that computed validator hash matches expected validator hash
-        let extracted_hash = self.extract_hash_from_protobuf(&validator_hash_proof.enc_leaf);
+        /// Start of the hash in protobuf encoded validator hash & last block id
+        const HASH_START_BYTE: usize = 2;
+        // Assert that computed validator hash matches expected validator hash
+        let extracted_hash = self.extract_hash_from_protobuf::<HASH_START_BYTE, PROTOBUF_HASH_SIZE_BITS>(&validator_hash_proof.enc_leaf.0);
         for i in 0..HASH_SIZE_BITS {
             self.connect(
                 validators_hash_target.0[i].target,
@@ -135,12 +166,12 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintStep<F, D> for Circ
             );
         }
 
-        let total_voting_power = self.get_total_voting_power(&validator_voting_power);
+        let total_voting_power = self.get_total_voting_power::<VALIDATOR_SET_SIZE_MAX>(&validator_voting_power);
         let threshold_numerator = self.constant_u32(2);
         let threshold_denominator = self.constant_u32(3);
 
         // Assert the accumulated voting power is greater than the threshold
-        let check_voting_power_bool = self.check_voting_power(
+        let check_voting_power_bool = self.check_voting_power::<VALIDATOR_SET_SIZE_MAX>(
             &validator_voting_power,
             &validators_enabled_u32,
             &total_voting_power,
@@ -149,32 +180,60 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintStep<F, D> for Circ
         );
         self.connect(check_voting_power_bool.target, one);
 
-        // TODO: Handle dummies
-        self.verify_signatures::<E, C>(messages, message_bit_lengths, signatures, pubkeys);
+        // // TODO: Handle dummies
+        self.verify_signatures::<E, C>(
+            &validators_signed,
+            messages,
+            message_bit_lengths,
+            signatures,
+            pubkeys,
+        );
 
         // TODO: Verify that this will work with dummy signatures
         for i in 0..VALIDATOR_SET_SIZE_MAX {
             // Verify that the header is in the message in the correct location
-            self.verify_hash_in_message(&validators[i].message, header, round_present);
+            let hash_in_message =
+                self.verify_hash_in_message(&validators[i].message, header, round_present);
+
+            // If the validator is enabled, then the hash should be in the message
+            self.connect(hash_in_message.target, validators_signed[i].target);
         }
 
+        // Note: Hardcode the path for each of the leaf proofs (otherwise you can prove arbitrary data in the header)
+        let data_hash_path = vec![false_t, true_t, true_t, false_t];
+        let val_hash_path = vec![true_t, true_t, true_t, false_t];
+        let next_val_hash_path = vec![false_t, false_t, false_t, true_t];
+        let last_block_id_path = vec![false_t, false_t, true_t, false_t];
+
+        let data_hash_leaf_hash = self.leaf_hash::<PROTOBUF_HASH_SIZE_BITS>(&data_hash_proof.enc_leaf.0);
         let header_from_data_root_proof = self.get_root_from_merkle_proof(
             &data_hash_proof.proof,
-            &data_hash_proof.path,
-            &data_hash_proof.enc_leaf,
-        );
-        let header_from_validator_root_proof = self.get_root_from_merkle_proof(
-            &validator_hash_proof.proof,
-            &validator_hash_proof.path,
-            &validator_hash_proof.enc_leaf,
-        );
-        let header_from_next_validators_root_proof = self.get_root_from_merkle_proof(
-            &next_validators_hash_proof.proof,
-            &next_validators_hash_proof.path,
-            &next_validators_hash_proof.enc_leaf,
+            &data_hash_path,
+            &data_hash_leaf_hash,
         );
 
-        // Confirm that the header from the proof of {validator_hash, next_validators_hash, data_hash} all match the header
+        let validator_hash_leaf_hash = self.leaf_hash::<PROTOBUF_HASH_SIZE_BITS>(&validator_hash_proof.enc_leaf.0);
+        let header_from_validator_root_proof = self.get_root_from_merkle_proof(
+            &validator_hash_proof.proof,
+            &val_hash_path,
+            &validator_hash_leaf_hash,
+        );
+
+        let next_validators_hash_leaf_hash = self.leaf_hash::<PROTOBUF_HASH_SIZE_BITS>(&next_validators_hash_proof.enc_leaf.0);
+        let header_from_next_validators_root_proof = self.get_root_from_merkle_proof(
+            &next_validators_hash_proof.proof,
+            &next_val_hash_path,
+            &next_validators_hash_leaf_hash,
+        );
+
+        let last_block_id_leaf_hash = self.leaf_hash::<PROTOBUF_BLOCK_ID_SIZE_BITS>(&last_block_id_proof.enc_leaf.0);
+        let header_from_last_block_id_proof = self.get_root_from_merkle_proof(
+            &last_block_id_proof.proof,
+            &last_block_id_path,
+            &last_block_id_leaf_hash,
+        );
+
+        // Confirm that the header from the proof of {validator_hash, next_validators_hash, data_hash, last_block_id} all match the header
         for i in 0..HASH_SIZE_BITS {
             self.connect(header.0[i].target, header_from_data_root_proof.0[i].target);
             self.connect(
@@ -184,6 +243,19 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintStep<F, D> for Circ
             self.connect(
                 header.0[i].target,
                 header_from_next_validators_root_proof.0[i].target,
+            );
+            self.connect(
+                header.0[i].target,
+                header_from_last_block_id_proof.0[i].target,
+            );
+        }
+
+        // Extract prev header hash from the encoded leaf (starts at second byte)
+        let extracted_prev_header_hash = self.extract_hash_from_protobuf::<HASH_START_BYTE, PROTOBUF_BLOCK_ID_SIZE_BITS>(&last_block_id_proof.enc_leaf.0);
+        for i in 0..HASH_SIZE_BITS {
+            self.connect(
+                prev_header.0[i].target,
+                extracted_prev_header_hash.0[i].target,
             );
         }
     }
@@ -200,24 +272,46 @@ fn create_virtual_bool_target_array<F: RichField + Extendable<D>, const D: usize
     result
 }
 
-fn create_virtual_inclusion_proof_target<F: RichField + Extendable<D>, const D: usize>(
+fn create_virtual_hash_inclusion_proof_target<F: RichField + Extendable<D>, const D: usize, const PROOF_DEPTH: usize>(
     builder: &mut CircuitBuilder<F, D>,
-) -> InclusionProofTarget {
+) -> HashInclusionProofTarget {
     let mut proof = Vec::new();
-    for _i in 0..HEADER_PROOF_DEPTH {
+    for _i in 0..PROOF_DEPTH {
         proof.push(TendermintHashTarget(
             create_virtual_bool_target_array(builder, HASH_SIZE_BITS)
                 .try_into()
                 .unwrap(),
         ));
     }
-    InclusionProofTarget {
+    HashInclusionProofTarget {
         enc_leaf: EncTendermintHashTarget(
             create_virtual_bool_target_array(builder, PROTOBUF_HASH_SIZE_BITS)
                 .try_into()
                 .unwrap(),
         ),
-        path: create_virtual_bool_target_array(builder, HEADER_PROOF_DEPTH),
+        path: create_virtual_bool_target_array(builder, PROOF_DEPTH),
+        proof,
+    }
+}
+
+fn create_virtual_block_id_inclusion_proof_target<F: RichField + Extendable<D>, const D: usize, const PROOF_DEPTH: usize>(
+    builder: &mut CircuitBuilder<F, D>,
+) -> BlockIDInclusionProofTarget {
+    let mut proof = Vec::new();
+    for _i in 0..PROOF_DEPTH {
+        proof.push(TendermintHashTarget(
+            create_virtual_bool_target_array(builder, HASH_SIZE_BITS)
+                .try_into()
+                .unwrap(),
+        ));
+    }
+    BlockIDInclusionProofTarget {
+        enc_leaf: EncBlockIDTarget(
+            create_virtual_bool_target_array(builder, PROTOBUF_BLOCK_ID_SIZE_BITS)
+                .try_into()
+                .unwrap(),
+        ),
+        path: create_virtual_bool_target_array(builder, PROOF_DEPTH),
         proof,
     }
 }
@@ -228,6 +322,7 @@ pub fn make_step_circuit<
     C: Curve,
     Config: GenericConfig<D, F = F, FE = F::Extension> + 'static,
     E: CubicParameters<F>,
+    const VALIDATOR_SET_SIZE_MAX: usize
 >(
     builder: &mut CircuitBuilder<F, D>,
 ) -> CelestiaBlockProofTarget<Ed25519>
@@ -271,27 +366,35 @@ where
     let header = create_virtual_bool_target_array(builder, HASH_SIZE_BITS);
     let header = TendermintHashTarget(header.try_into().unwrap());
 
-    let data_hash_proof = create_virtual_inclusion_proof_target(builder);
-    let validator_hash_proof = create_virtual_inclusion_proof_target(builder);
-    let next_validators_hash_proof = create_virtual_inclusion_proof_target(builder);
+    let prev_header = create_virtual_bool_target_array(builder, HASH_SIZE_BITS);
+    let prev_header = TendermintHashTarget(prev_header.try_into().unwrap());
+
+    let data_hash_proof = create_virtual_hash_inclusion_proof_target::<F, D, HEADER_PROOF_DEPTH>(builder);
+    let validator_hash_proof = create_virtual_hash_inclusion_proof_target::<F, D, HEADER_PROOF_DEPTH>(builder);
+    let next_validators_hash_proof = create_virtual_hash_inclusion_proof_target::<F, D, HEADER_PROOF_DEPTH>(builder);
+    let last_block_id_proof = create_virtual_block_id_inclusion_proof_target::<F, D, HEADER_PROOF_DEPTH>(builder);
 
     let round_present = builder.add_virtual_bool_target_safe();
 
-    builder.step::<E, Config>(
+    builder.step::<E, Config, VALIDATOR_SET_SIZE_MAX>(
         &validators,
         &header,
+        &prev_header,
         &data_hash_proof,
         &validator_hash_proof,
         &next_validators_hash_proof,
+        &last_block_id_proof,
         &round_present,
     );
 
     CelestiaBlockProofTarget::<Curve> {
         validators,
         header,
+        prev_header,
         data_hash_proof,
         validator_hash_proof,
         next_validators_hash_proof,
+        last_block_id_proof,
         round_present,
     }
 }
@@ -311,7 +414,6 @@ pub(crate) mod tests {
         },
     };
     use plonky2x::ecc::ed25519::gadgets::curve::WitnessAffinePoint;
-    use plonky2x::hash::sha::sha512::calculate_num_chunks;
     use plonky2x::num::biguint::WitnessBigUint;
     use plonky2x::num::u32::witness::WitnessU32;
 
@@ -319,7 +421,7 @@ pub(crate) mod tests {
     use plonky2x::ecc::ed25519::field::ed25519_scalar::Ed25519Scalar;
 
     use crate::inputs::{generate_step_inputs, CelestiaBlockProof};
-    use crate::utils::{to_be_bits, VALIDATOR_SET_SIZE_MAX};
+    use crate::utils::to_be_bits;
 
     use log;
     use plonky2::timed;
@@ -365,13 +467,7 @@ pub(crate) mod tests {
             &zero,
         );
 
-        for i in 0..HASH_SIZE_BITS {
-            if header_bits[i] {
-                pw.set_target(result.0[i].target, F::ONE);
-            } else {
-                pw.set_target(result.0[i].target, F::ZERO);
-            }
-        }
+        pw.set_target(result.target, F::ONE);
 
         let data = builder.build::<C>();
         let proof = data.prove(pw).unwrap();
@@ -383,8 +479,7 @@ pub(crate) mod tests {
         println!("Verified proof");
     }
 
-    #[test]
-    fn test_step() {
+    fn test_step_template<const VALIDATOR_SET_SIZE_MAX: usize>(block: usize) {
         let _ = env_logger::builder().is_test(true).try_init();
         let mut timing = TimingTree::new("Celestia Header Verify", log::Level::Debug);
 
@@ -398,12 +493,15 @@ pub(crate) mod tests {
         type C = PoseidonGoldilocksConfig;
         const D: usize = 2;
 
-        let celestia_proof_target =
-            make_step_circuit::<GoldilocksField, D, Curve, C, E>(&mut builder);
+        println!("Making step circuit");
 
-        // Testing block 11000
-        let block = 11000;
+        let celestia_proof_target =
+            make_step_circuit::<GoldilocksField, D, Curve, C, E, VALIDATOR_SET_SIZE_MAX>(&mut builder);
+
+        // Note: Length of output is the closest power of 2 gte the number of validators for this block.
         let celestia_block_proof: CelestiaBlockProof = generate_step_inputs(block);
+        println!("Generated inputs");
+        println!("Number of validators: {}", celestia_block_proof.validators.len());
         timed!(timing, "assigning inputs", {
             // Set target for header
             let header_bits = to_be_bits(celestia_block_proof.header);
@@ -422,6 +520,8 @@ pub(crate) mod tests {
             let val_hash_enc_leaf = to_be_bits(celestia_block_proof.validator_hash_proof.enc_leaf);
             let next_val_hash_enc_leaf =
                 to_be_bits(celestia_block_proof.next_validators_hash_proof.enc_leaf);
+            let last_block_id_enc_leaf =
+                to_be_bits(celestia_block_proof.last_block_id_proof.enc_leaf);
 
             for i in 0..PROTOBUF_HASH_SIZE_BITS {
                 pw.set_bool_target(
@@ -435,6 +535,13 @@ pub(crate) mod tests {
                 pw.set_bool_target(
                     celestia_proof_target.next_validators_hash_proof.enc_leaf.0[i],
                     next_val_hash_enc_leaf[i],
+                );
+            }
+
+            for i in 0..PROTOBUF_BLOCK_ID_SIZE_BITS {
+                pw.set_bool_target(
+                    celestia_proof_target.last_block_id_proof.enc_leaf.0[i],
+                    last_block_id_enc_leaf[i],
                 );
             }
 
@@ -452,6 +559,10 @@ pub(crate) mod tests {
                     celestia_proof_target.next_validators_hash_proof.path[i],
                     celestia_block_proof.next_validators_hash_proof.path[i],
                 );
+                pw.set_bool_target(
+                    celestia_proof_target.last_block_id_proof.path[i],
+                    celestia_block_proof.last_block_id_proof.path[i],
+                );
 
                 let data_hash_aunt =
                     to_be_bits(celestia_block_proof.data_hash_proof.proof[i].to_vec());
@@ -461,6 +572,8 @@ pub(crate) mod tests {
 
                 let next_val_aunt =
                     to_be_bits(celestia_block_proof.next_validators_hash_proof.proof[i].to_vec());
+                let last_block_id_aunt =
+                    to_be_bits(celestia_block_proof.last_block_id_proof.proof[i].to_vec());
 
                 // Set aunts for each of the proofs
                 for j in 0..HASH_SIZE_BITS {
@@ -475,6 +588,10 @@ pub(crate) mod tests {
                     pw.set_bool_target(
                         celestia_proof_target.next_validators_hash_proof.proof[i].0[j],
                         next_val_aunt[j],
+                    );
+                    pw.set_bool_target(
+                        celestia_proof_target.last_block_id_proof.proof[i].0[j],
+                        last_block_id_aunt[j],
                     );
                 }
             }
@@ -515,11 +632,14 @@ pub(crate) mod tests {
 
                 let message_bits = to_be_bits(validator.message.clone());
                 // Set messages for each of the proofs
-                for j in 0..VALIDATOR_MESSAGE_BYTES_LENGTH_MAX * 8 {
+                for j in 0..message_bits.len() {
                     pw.set_bool_target(
                         celestia_proof_target.validators[i].message.0[j],
                         message_bits[j],
                     );
+                }
+                for j in message_bits.len()..VALIDATOR_MESSAGE_BYTES_LENGTH_MAX * 8 {
+                    pw.set_bool_target(celestia_proof_target.validators[i].message.0[j], false);
                 }
 
                 // Set voting power targets
@@ -549,6 +669,7 @@ pub(crate) mod tests {
                     celestia_proof_target.validators[i].enabled,
                     validator.enabled,
                 );
+                println!("validator {} signed: {}", i, validator.signed);
                 pw.set_bool_target(celestia_proof_target.validators[i].signed, validator.signed);
             }
         });
@@ -566,6 +687,7 @@ pub(crate) mod tests {
                 .unwrap()
             );
             inner_data.verify(inner_proof.clone()).unwrap();
+            println!("num gates: {:?}", inner_data.common.gates.len());
 
             // let mut outer_builder = CircuitBuilder::<F, D>::new(CircuitConfig::standard_ecc_config());
             // let inner_proof_target = outer_builder.add_virtual_proof_with_pis(&inner_data.common);
@@ -594,5 +716,55 @@ pub(crate) mod tests {
         });
 
         timing.print();
+    }
+
+    #[test]
+    fn test_step_with_dummy_sigs() {
+        // Testing block 11105 (4 validators, 2 signed)
+        // Need to handle empty validators as well
+        // Should set some dummy values
+        let block = 11105;
+
+        const VALIDATOR_SET_SIZE_MAX: usize = 4;
+
+        test_step_template::<VALIDATOR_SET_SIZE_MAX>(block);
+    }
+
+    #[test]
+    fn test_step() {
+        // Testing block 11000
+        let block = 11000;
+
+        const VALIDATOR_SET_SIZE_MAX: usize = 4;
+
+        test_step_template::<VALIDATOR_SET_SIZE_MAX>(block);
+    }
+
+    #[test]
+    fn test_step_with_empty() {
+        // Testing block 10000
+        let block = 10000;
+
+        const VALIDATOR_SET_SIZE_MAX: usize = 4;
+
+        test_step_template::<VALIDATOR_SET_SIZE_MAX>(block);
+    }
+
+    #[test]
+    fn test_step_large() {
+        // Testing block 75000
+        // 77 validators (128)
+        // Block 50000
+        // 32 validators
+        // Block 15000
+        // 16 validators
+        // Testing block 60000
+        // 60 validators, 4 disabled (valhash)
+
+        let block = 60000;
+
+        const VALIDATOR_SET_SIZE_MAX: usize = 64;
+
+        test_step_template::<VALIDATOR_SET_SIZE_MAX>(block);
     }
 }
