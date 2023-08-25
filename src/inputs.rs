@@ -440,14 +440,6 @@ pub(crate) mod tests {
             idx += 1
         }
 
-        // // Add the validators from block_2_validators that have a matching pubkey with a validator in block_1_validators
-        // block_1_validators.iter().for_each(|validator| {
-        //     if let Some(block_2_validator) = block_2.validator_set.validator(validator.address) {
-        //         shared_voting_power += block_2_validator.power();
-        //         shared_validators.push(block_2_validator);
-        //     }
-        // });
-
         println!("shared voting power: {}", shared_voting_power);
 
         // Calculate shared voting power as a percentage of total voting power of block_2
