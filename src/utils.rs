@@ -1,8 +1,6 @@
 use plonky2::hash::hash_types::RichField;
 
 use plonky2::iop::target::BoolTarget;
-use plonky2x::ecc::ed25519::curve::curve_types::Curve;
-use plonky2x::ecc::ed25519::gadgets::eddsa::EDDSAPublicKeyTarget;
 use plonky2x::num::u32::gadgets::arithmetic_u32::U32Target;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};

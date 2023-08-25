@@ -2,7 +2,7 @@ use std::fs;
 
 /// Source (tendermint-rs): https://github.com/informalsystems/tendermint-rs/blob/e930691a5639ef805c399743ac0ddbba0e9f53da/tendermint/src/merkle.rs#L32
 use crate::utils::{
-    compute_hash_from_aunts, compute_hash_from_proof, generate_proofs_from_block_id,
+    compute_hash_from_aunts, 
     generate_proofs_from_header, leaf_hash, non_absent_vote, SignedBlock, TempSignedBlock,
 };
 use ed25519_consensus::SigningKey;
@@ -165,7 +165,7 @@ fn generate_base_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
     }
 
     // These are empty signatures (not included in val hash)
-    for i in block.commit.signatures.len()..VALIDATOR_SET_SIZE_MAX {
+    for _ in block.commit.signatures.len()..VALIDATOR_SET_SIZE_MAX {
         let priv_key_bytes = vec![0u8; 32];
         let signing_key =
             private_key::Ed25519::try_from(&priv_key_bytes[..]).expect("failed to create key");
@@ -344,7 +344,6 @@ pub fn generate_skip_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
     let block_validators = trusted_block.validator_set.validators();
 
     for i in 0..trusted_block.commit.signatures.len() {
-        let val_idx = ValidatorIndex::try_from(i).unwrap();
         let validator = Box::new(
             match trusted_block
                 .validator_set
@@ -364,7 +363,7 @@ pub fn generate_skip_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
     }
 
     // These are empty signatures (not included in val hash)
-    for i in trusted_block.commit.signatures.len()..VALIDATOR_SET_SIZE_MAX {
+    for _ in trusted_block.commit.signatures.len()..VALIDATOR_SET_SIZE_MAX {
         let priv_key_bytes = vec![0u8; 32];
         let signing_key =
             private_key::Ed25519::try_from(&priv_key_bytes[..]).expect("failed to create key");
@@ -407,34 +406,7 @@ pub fn generate_skip_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use crate::utils::generate_proofs_from_block_id;
-
     use super::*;
-
-    #[test]
-    fn test_prev_header_check() {
-        let block_1 = get_signed_block(11000);
-        let block_2 = get_signed_block(11001);
-
-        assert_eq!(
-            block_1.header.hash(),
-            block_2.header.last_block_id.unwrap().hash
-        );
-
-        let (_root, proofs) = generate_proofs_from_header(&block_2.header);
-        let total = proofs[0].total;
-        let last_block_id_proof = proofs[4].clone();
-        let last_block_id_proof_indices = get_path_indices(4, total);
-        println!("last_block_id_proof: {:?}", last_block_id_proof.aunts);
-
-        let (_root, proofs) = generate_proofs_from_block_id(&block_2.header.last_block_id.unwrap());
-        let last_block_id = block_2.header.last_block_id.unwrap();
-
-        let total = proofs[0].total;
-        let prev_header_hash_proof = proofs[0].clone();
-        let prev_header_hash_proof_indices = get_path_indices(0, total);
-        println!("prev_header_hash_proof: {:?}", prev_header_hash_proof.aunts);
-    }
 
     #[test]
     fn get_shared_voting_power() {

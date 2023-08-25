@@ -8,48 +8,50 @@
 //! read more about them here: https://protobuf.dev/programming-guides/encoding/#varints.
 
 use curta::math::extension::CubicParameters;
-use plonky2::field::extension::Extendable;
-use plonky2::iop::target::BoolTarget;
-use plonky2::iop::target::Target;
-use plonky2::iop::witness::WitnessWrite;
-use plonky2::plonk::config::AlgebraicHasher;
-use plonky2::plonk::config::GenericConfig;
-use plonky2::{hash::hash_types::RichField, plonk::circuit_builder::CircuitBuilder};
-use plonky2x::ecc::ed25519::curve::curve_types::Curve;
-use plonky2x::ecc::ed25519::curve::ed25519::Ed25519;
-use plonky2x::ecc::ed25519::gadgets::curve::CircuitBuilderCurve;
-use plonky2x::ecc::ed25519::gadgets::eddsa::{EDDSAPublicKeyTarget, EDDSASignatureTarget};
-use plonky2x::num::nonnative::nonnative::CircuitBuilderNonNative;
-use plonky2x::num::u32::gadgets::arithmetic_u32::{CircuitBuilderU32, U32Target};
-use plonky2x::prelude::PartialWitness;
-
-use curta::math::goldilocks::cubic::GoldilocksCubicParameters;
-use num::BigUint;
-use plonky2::field::goldilocks_field::GoldilocksField;
-use plonky2::field::types::Field;
-use plonky2::plonk::{circuit_data::CircuitConfig, config::PoseidonGoldilocksConfig};
-use plonky2x::ecc::ed25519::gadgets::curve::WitnessAffinePoint;
-use plonky2x::num::biguint::WitnessBigUint;
-use plonky2x::num::u32::witness::WitnessU32;
-
-use plonky2x::ecc::ed25519::curve::curve_types::AffinePoint;
-use plonky2x::ecc::ed25519::field::ed25519_scalar::Ed25519Scalar;
-
-use crate::inputs::CelestiaBaseBlockProof;
-use crate::inputs::CelestiaSkipBlockProof;
-use crate::inputs::{generate_step_inputs, CelestiaStepBlockProof};
-
-use crate::signature::TendermintSignature;
-use crate::utils::to_be_bits;
-use crate::utils::EncBlockIDTarget;
-use crate::utils::PROTOBUF_BLOCK_ID_SIZE_BITS;
-use crate::utils::{
-    EncTendermintHashTarget, I64Target, MarshalledValidatorTarget, TendermintHashTarget,
-    ValidatorMessageTarget, HASH_SIZE_BITS, HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BITS,
-    VALIDATOR_MESSAGE_BYTES_LENGTH_MAX,
+use plonky2::{
+    field::{extension::Extendable, types::Field},
+    iop::{
+        target::{Target, BoolTarget},
+        witness::WitnessWrite,
+    },
+    plonk::{
+        config::{AlgebraicHasher, GenericConfig},
+        circuit_builder::CircuitBuilder,
+    },
+    hash::hash_types::RichField,
 };
-use crate::validator::TendermintMarshaller;
-use crate::voting::TendermintVoting;
+
+use plonky2x::{
+    ecc::ed25519::{
+        curve::{curve_types::{AffinePoint, Curve}, ed25519::Ed25519},
+        gadgets::{
+            curve::{CircuitBuilderCurve, WitnessAffinePoint},
+            eddsa::{EDDSAPublicKeyTarget, EDDSASignatureTarget},
+        },
+        field::ed25519_scalar::Ed25519Scalar,
+    },
+    num::{
+        nonnative::nonnative::CircuitBuilderNonNative,
+        u32::{gadgets::arithmetic_u32::{CircuitBuilderU32, U32Target}, witness::WitnessU32},
+        biguint::WitnessBigUint,
+    },
+    prelude::PartialWitness,
+};
+
+use num::BigUint;
+
+use crate::{
+    inputs::{CelestiaBaseBlockProof, CelestiaSkipBlockProof, CelestiaStepBlockProof},
+    signature::TendermintSignature,
+    utils::{
+        EncTendermintHashTarget, I64Target, MarshalledValidatorTarget, TendermintHashTarget,
+        ValidatorMessageTarget, HASH_SIZE_BITS, HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BITS,
+        VALIDATOR_MESSAGE_BYTES_LENGTH_MAX, PROTOBUF_BLOCK_ID_SIZE_BITS, EncBlockIDTarget, to_be_bits
+    },
+    validator::TendermintMarshaller,
+    voting::TendermintVoting,
+};
+
 
 #[derive(Debug, Clone)]
 pub struct ValidatorTarget<C: Curve> {
@@ -1204,7 +1206,7 @@ pub(crate) mod tests {
 
     fn test_step_template<const VALIDATOR_SET_SIZE_MAX: usize>(block: usize) {
         let _ = env_logger::builder().is_test(true).try_init();
-        let mut timing = TimingTree::new("Celestia Header Verify", log::Level::Debug);
+        let mut timing = TimingTree::new("Verify Celestia Step", log::Level::Debug);
 
         let mut pw = PartialWitness::new();
         let config = CircuitConfig::standard_ecc_config();
@@ -1260,7 +1262,7 @@ pub(crate) mod tests {
 
     fn test_skip_template<const VALIDATOR_SET_SIZE_MAX: usize>(trusted_block: usize, block: usize) {
         let _ = env_logger::builder().is_test(true).try_init();
-        let mut timing = TimingTree::new("Celestia Header Verify", log::Level::Debug);
+        let mut timing = TimingTree::new("Verify Celestia Skip", log::Level::Debug);
 
         let mut pw = PartialWitness::new();
         let config = CircuitConfig::standard_ecc_config();
@@ -1272,7 +1274,7 @@ pub(crate) mod tests {
         type C = PoseidonGoldilocksConfig;
         const D: usize = 2;
 
-        println!("Making step circuit");
+        println!("Making skip circuit");
 
         let celestia_skip_proof_target =
             make_skip_circuit::<GoldilocksField, D, Curve, C, E, VALIDATOR_SET_SIZE_MAX>(

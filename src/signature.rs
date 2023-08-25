@@ -24,12 +24,11 @@ use plonky2x::ecc::ed25519::gadgets::eddsa::verify_variable_signatures_circuit;
 use plonky2x::ecc::ed25519::gadgets::eddsa::{
     verify_signatures_circuit, EDDSAPublicKeyTarget, EDDSASignatureTarget,
 };
-use plonky2x::hash::sha::sha512::calculate_num_chunks;
 use plonky2x::num::nonnative::nonnative::CircuitBuilderNonNative;
 
 use crate::utils::to_be_bits;
 use crate::utils::{
-    EncTendermintHashTarget, TendermintHashTarget, ValidatorMessageTarget, HASH_SIZE_BITS,
+    TendermintHashTarget, ValidatorMessageTarget, HASH_SIZE_BITS,
     VALIDATOR_MESSAGE_BYTES_LENGTH_MAX,
 };
 
@@ -135,9 +134,8 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintSignature<F, D>
         for i in 0..DUMMY_MSG_LENGTH_BITS {
             message.push(self.constant_bool(dummy_msg_bits[i]));
         }
-        for i in DUMMY_MSG_LENGTH_BITS..VALIDATOR_MESSAGE_BYTES_LENGTH_MAX * 8 {
-            message.push(self._false());
-        }
+        // Fill out the rest of the message with zeros
+        message.resize(VALIDATOR_MESSAGE_BYTES_LENGTH_MAX * 8, self._false());
 
         let dummy_msg_length = self.constant(F::from_canonical_usize(DUMMY_MSG_LENGTH_BITS));
 
@@ -393,7 +391,7 @@ pub(crate) mod tests {
         type C = PoseidonGoldilocksConfig;
         const D: usize = 2;
 
-        let mut pw = PartialWitness::new();
+        let pw = PartialWitness::new();
         let mut builder = CircuitBuilder::<F, D>::new(CircuitConfig::standard_ecc_config());
 
         let msg_bits = to_be_bits(msg_bytes.to_vec());
@@ -403,9 +401,7 @@ pub(crate) mod tests {
         for i in 0..msg_bits.len() {
             msg_bits_target.push(builder.constant_bool(msg_bits[i]));
         }
-        for i in msg_bits.len()..VALIDATOR_MESSAGE_BYTES_LENGTH_MAX * 8 {
-            msg_bits_target.push(builder._false());
-        }
+        msg_bits_target.resize(VALIDATOR_MESSAGE_BYTES_LENGTH_MAX * 8, builder._false());
 
         let msg_bits_target = ValidatorMessageTarget(msg_bits_target.try_into().unwrap());
 
