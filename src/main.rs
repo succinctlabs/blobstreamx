@@ -1,9 +1,9 @@
-pub mod generate_tests;
+pub mod fixture;
 pub mod inputs;
 pub mod signature;
-pub mod step;
 pub mod utils;
 pub mod validator;
+pub mod verify;
 pub mod voting;
 
 use clap::Parser;
@@ -45,15 +45,16 @@ async fn main() {
     match args.function {
         Function::GenerateValArray { validators } => {
             println!("Number of validators: {}", validators);
-            generate_tests::generate_val_array(validators);
+            fixture::generate_val_array(validators);
         }
         Function::CreateNewFixture { block } => {
-            generate_tests::create_new_fixture(block)
+            fixture::create_new_fixture(block)
                 .await
                 .expect("Failed to create new fixture");
         }
         Function::GenerateStepInputs { block } => {
-            let _ = inputs::generate_step_inputs(block);
+            const VALIDATOR_SET_SIZE_MAX: usize = 128;
+            let _ = inputs::generate_step_inputs::<VALIDATOR_SET_SIZE_MAX>(block);
         }
     }
 }

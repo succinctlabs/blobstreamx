@@ -16,11 +16,9 @@ use plonky2x::ecc::ed25519::gadgets::curve::{AffinePointTarget, CircuitBuilderCu
 use plonky2x::hash::sha::sha256::{sha256, sha256_variable_length_single_chunk};
 use plonky2x::num::u32::gadgets::arithmetic_u32::CircuitBuilderU32;
 
-use crate::utils::EncBlockIDTarget;
-use crate::utils::PROTOBUF_BLOCK_ID_SIZE_BITS;
 use crate::utils::{
-    EncTendermintHashTarget, I64Target, MarshalledValidatorTarget, TendermintHashTarget,
-    HASH_SIZE_BITS, PROTOBUF_HASH_SIZE_BITS, VALIDATOR_BIT_LENGTH_MAX, VALIDATOR_BYTE_LENGTH_MAX,
+    I64Target, MarshalledValidatorTarget, TendermintHashTarget,
+    HASH_SIZE_BITS, VALIDATOR_BIT_LENGTH_MAX, VALIDATOR_BYTE_LENGTH_MAX,
     VOTING_POWER_BITS_LENGTH_MAX, VOTING_POWER_BYTES_LENGTH_MAX,
 };
 
@@ -43,15 +41,18 @@ pub trait TendermintMarshaller<F: RichField + Extendable<D>, const D: usize> {
     /// Verify a merkle proof against the specified root hash.
     /// Note: This function will only work for leaves with a length of 34 bytes (protobuf-encoded SHA256 hash)
     /// Output is the merkle root
-    fn get_root_from_merkle_proof(
+    fn get_root_from_merkle_proof<const PROOF_DEPTH: usize>(
         &mut self,
         aunts: &Vec<TendermintHashTarget>,
-        merkle_proof_enabled: &Vec<BoolTarget>,
+        path_indices: &Vec<BoolTarget>,
         leaf_hash: &TendermintHashTarget,
     ) -> TendermintHashTarget;
 
     /// Hashes leaf bytes to get the leaf hash according to the Tendermint spec. (0x00 || leafBytes)
-    fn leaf_hash<const LEAF_SIZE_BITS: usize>(&mut self, leaf: &[BoolTarget; LEAF_SIZE_BITS]) -> TendermintHashTarget;
+    fn leaf_hash<const LEAF_SIZE_BITS: usize>(
+        &mut self,
+        leaf: &[BoolTarget; LEAF_SIZE_BITS],
+    ) -> TendermintHashTarget;
 
     /// Hashes validator bytes to get the leaf according to the Tendermint spec. (0x00 || validatorBytes)
     /// Note: This function differs from leaf_hash because the validator bytes length is variable.
@@ -99,7 +100,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D>
 {
     type Curve = Ed25519;
 
-    fn get_root_from_merkle_proof(
+    fn get_root_from_merkle_proof<const PROOF_DEPTH: usize>(
         &mut self,
         aunts: &Vec<TendermintHashTarget>,
         // TODO: Should we hard-code path_indices to correspond to dataHash, validatorsHash and nextValidatorsHash?
@@ -108,7 +109,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D>
         leaf_hash: &TendermintHashTarget,
     ) -> TendermintHashTarget {
         let mut hash_so_far = *leaf_hash;
-        for i in 0..aunts.len() {
+        for i in 0..PROOF_DEPTH {
             let aunt = aunts[i];
             let path_index = path_indices[i];
             let left_hash_pair = self.inner_hash(&hash_so_far, &aunt);
@@ -128,7 +129,10 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D>
         hash_so_far
     }
 
-    fn leaf_hash<const LEAF_SIZE_BITS: usize>(&mut self, leaf: &[BoolTarget; LEAF_SIZE_BITS]) -> TendermintHashTarget {
+    fn leaf_hash<const LEAF_SIZE_BITS: usize>(
+        &mut self,
+        leaf: &[BoolTarget; LEAF_SIZE_BITS],
+    ) -> TendermintHashTarget {
         // Calculate the length of the message for the leaf hash.
         // 0x00 || leafBytes
         let bits_length = 8 + (LEAF_SIZE_BITS);
@@ -452,8 +456,8 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D>
         self.connect(num_validator_enabled, validator_set_size_max);
 
         // Hash each of the validators to get their corresponding leaf hash.
-        let mut current_validator_hashes =
-            self.hash_validator_leaves::<VALIDATOR_SET_SIZE_MAX>(validators, validator_byte_lengths);
+        let mut current_validator_hashes = self
+            .hash_validator_leaves::<VALIDATOR_SET_SIZE_MAX>(validators, validator_byte_lengths);
 
         // Whether to treat the validator as empty.
         let mut current_validator_enabled = validator_enabled.clone();
@@ -492,21 +496,18 @@ pub(crate) mod tests {
 
     use plonky2x::ecc::ed25519::curve::curve_types::AffinePoint;
     use sha2::Sha256;
+    use tendermint_proto::types::BlockId as RawBlockId;
     use tendermint_proto::Protobuf;
-    use tendermint_proto::{
-        types::BlockId as RawBlockId
-    };
-
-    use crate::inputs::get_path_indices;
-    use crate::utils::{VALIDATOR_BIT_LENGTH_MAX};
-
-    use crate::utils::{generate_proofs_from_header, hash_all_leaves, leaf_hash};
 
     use plonky2x::num::u32::gadgets::arithmetic_u32::U32Target;
 
     use crate::{
-        utils::{f_bits_to_bytes, to_be_bits},
-        validator::{I64Target, TendermintMarshaller},
+        utils::{f_bits_to_bytes, to_be_bits, generate_proofs_from_header, hash_all_leaves, leaf_hash,
+            I64Target, MarshalledValidatorTarget, TendermintHashTarget,
+            HASH_SIZE_BITS, PROTOBUF_HASH_SIZE_BITS, PROTOBUF_BLOCK_ID_SIZE_BITS, VALIDATOR_BIT_LENGTH_MAX, HEADER_PROOF_DEPTH
+        },
+        validator::TendermintMarshaller,
+        inputs::get_path_indices
     };
 
     type C = PoseidonGoldilocksConfig;
@@ -574,8 +575,7 @@ pub(crate) mod tests {
             }
         }
 
-        let result =
-            builder.leaf_hash::<PROTOBUF_HASH_SIZE_BITS>(&validators_hash_bits_target);
+        let result = builder.leaf_hash::<PROTOBUF_HASH_SIZE_BITS>(&validators_hash_bits_target);
 
         for i in 0..HASH_SIZE_BITS {
             if validators_hash_bits[i] {
@@ -621,7 +621,8 @@ pub(crate) mod tests {
         // let leaf = block.header.data_hash.expect("data hash present").encode_vec();
         // let leaf = block.header.validators_hash.encode_vec();
         // let leaf = block.header.next_validators_hash.encode_vec();
-        let leaf = Protobuf::<RawBlockId>::encode_vec(block.header.last_block_id.unwrap_or_default());
+        let leaf =
+            Protobuf::<RawBlockId>::encode_vec(block.header.last_block_id.unwrap_or_default());
 
         let leaf_bits = to_be_bits(leaf);
 
@@ -641,11 +642,9 @@ pub(crate) mod tests {
             };
         }
 
-        let mut aunts_target = vec![
-            TendermintHashTarget([builder._false(); HASH_SIZE_BITS]);
-            proofs[leaf_index].aunts.len()
-        ];
-        for i in 0..proofs[leaf_index].aunts.len() {
+        let mut aunts_target =
+            vec![TendermintHashTarget([builder._false(); HASH_SIZE_BITS]); HEADER_PROOF_DEPTH];
+        for i in 0..HEADER_PROOF_DEPTH {
             let bool_vector = to_be_bits(proofs[leaf_index].aunts[i].to_vec());
 
             for j in 0..HASH_SIZE_BITS {
@@ -659,9 +658,9 @@ pub(crate) mod tests {
 
         let leaf_hash = builder.leaf_hash::<PROTOBUF_BLOCK_ID_SIZE_BITS>(&leaf_target);
 
-        let result = builder.get_root_from_merkle_proof(
-            &aunts_target,
-            &path_indices,
+        let result = builder.get_root_from_merkle_proof::<HEADER_PROOF_DEPTH>(
+            &aunts_target.try_into().unwrap(),
+            &path_indices.try_into().unwrap(),
             &leaf_hash,
         );
 
@@ -762,7 +761,10 @@ pub(crate) mod tests {
         let (validators_target, validator_byte_length, _) =
             generate_inputs::<VALIDATOR_SET_SIZE_MAX>(&mut builder, &validators);
 
-        let result = builder.hash_validator_leaves::<VALIDATOR_SET_SIZE_MAX>(&validators_target, &validator_byte_length);
+        let result = builder.hash_validator_leaves::<VALIDATOR_SET_SIZE_MAX>(
+            &validators_target,
+            &validator_byte_length,
+        );
         println!("Got all leaf hashes: {}", result.len());
         for i in 0..validators.len() {
             for j in 0..HASH_SIZE_BITS {
