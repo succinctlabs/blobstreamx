@@ -1,4 +1,4 @@
-pub mod generate_tests;
+pub mod fixture;
 pub mod inputs;
 pub mod signature;
 pub mod utils;
@@ -45,10 +45,10 @@ async fn main() {
     match args.function {
         Function::GenerateValArray { validators } => {
             println!("Number of validators: {}", validators);
-            generate_tests::generate_val_array(validators);
+            fixture::generate_val_array(validators);
         }
         Function::CreateNewFixture { block } => {
-            generate_tests::create_new_fixture(block)
+            fixture::create_new_fixture(block)
                 .await
                 .expect("Failed to create new fixture");
         }
