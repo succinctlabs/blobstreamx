@@ -108,7 +108,9 @@ fn get_signed_block(block: usize) -> Box<SignedBlock> {
     block
 }
 
-fn generate_base_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(block: &Box<SignedBlock>) -> CelestiaBaseBlockProof {
+fn generate_base_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
+    block: &Box<SignedBlock>,
+) -> CelestiaBaseBlockProof {
     let mut validators = Vec::new();
 
     // Signatures or dummy
@@ -236,7 +238,9 @@ fn generate_base_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(block: &Box<SignedB
     celestia_block_proof
 }
 
-pub fn generate_step_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(block: usize) -> CelestiaStepBlockProof {
+pub fn generate_step_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
+    block: usize,
+) -> CelestiaStepBlockProof {
     // Generate test cases from Celestia block:
     let block = get_signed_block(block);
 
@@ -288,7 +292,11 @@ pub fn generate_step_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(block: usize) -
     }
 }
 
-fn update_present_on_trusted_header(base: &mut CelestiaBaseBlockProof, block: &Box<SignedBlock>, trusted_block: &Box<SignedBlock>) {
+fn update_present_on_trusted_header(
+    base: &mut CelestiaBaseBlockProof,
+    block: &Box<SignedBlock>,
+    trusted_block: &Box<SignedBlock>,
+) {
     // Parse each block to compute the validators that are the same from block_1 to block_2, and the cumulative voting power of the shared validators
     let mut shared_voting_power = 0;
 
@@ -301,7 +309,9 @@ fn update_present_on_trusted_header(base: &mut CelestiaBaseBlockProof, block: &B
     let num_validators = block_1_validators.len();
 
     // Exit if we have already reached the threshold
-    while block_2_total_voting_power as f64 * threshold > shared_voting_power as f64 && idx < num_validators {
+    while block_2_total_voting_power as f64 * threshold > shared_voting_power as f64
+        && idx < num_validators
+    {
         if let Some(block_2_validator) = block
             .validator_set
             .validator(block_1_validators[idx].address)
@@ -312,11 +322,13 @@ fn update_present_on_trusted_header(base: &mut CelestiaBaseBlockProof, block: &B
         }
         idx += 1;
     }
-
 }
 
 // Where block is the block we want to generate inputs for, and trusted_block is the block we're skipping from
-pub fn generate_skip_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(trusted_block: usize, block: usize) -> CelestiaSkipBlockProof {
+pub fn generate_skip_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
+    trusted_block: usize,
+    block: usize,
+) -> CelestiaSkipBlockProof {
     // Generate test cases from Celestia block:
     let block = get_signed_block(block);
 
@@ -443,7 +455,9 @@ pub(crate) mod tests {
         println!("num validators: {}", num_validators);
 
         let mut idx = 0;
-        while block_2_total_voting_power as f64 * threshold > shared_voting_power as f64 && idx < num_validators {
+        while block_2_total_voting_power as f64 * threshold > shared_voting_power as f64
+            && idx < num_validators
+        {
             if let Some(block_2_validator) = block_2
                 .validator_set
                 .validator(block_1_validators[idx].address)
