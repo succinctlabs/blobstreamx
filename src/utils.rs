@@ -1,8 +1,6 @@
 use plonky2::hash::hash_types::RichField;
 
 use plonky2::iop::target::BoolTarget;
-use plonky2x::ecc::ed25519::curve::curve_types::Curve;
-use plonky2x::ecc::ed25519::gadgets::eddsa::EDDSAPublicKeyTarget;
 use plonky2x::num::u32::gadgets::arithmetic_u32::U32Target;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -93,13 +91,6 @@ pub struct I64Target(pub [U32Target; 2]);
 /// The message signed by the validator as a target.
 #[derive(Debug, Clone, Copy)]
 pub struct ValidatorMessageTarget(pub [BoolTarget; VALIDATOR_MESSAGE_BYTES_LENGTH_MAX * 8]);
-
-/// The bytes, public key, and voting power targets inside of a Tendermint validator.
-#[derive(Debug, Clone)]
-pub struct TendermintValidator<C: Curve> {
-    pub pubkey: EDDSAPublicKeyTarget<C>,
-    pub voting_power: I64Target,
-}
 
 pub fn bits_to_bytes(bits: &[bool]) -> Vec<u8> {
     let mut bytes = Vec::new();
@@ -532,11 +523,10 @@ pub fn generate_proofs_from_header(h: &Header) -> (Hash, Vec<Proof>) {
     proofs_from_byte_slices(fields_bytes)
 }
 
-pub fn generate_proofs_from_block_id(id: &tendermint::block::Id) -> (tendermint::merkle::Hash, Vec<crate::utils::Proof>) {
-    let fields_bytes = vec![
-        id.hash.encode_vec(),
-        id.part_set_header.hash.encode_vec(),
-    ];
+pub fn generate_proofs_from_block_id(
+    id: &tendermint::block::Id,
+) -> (tendermint::merkle::Hash, Vec<crate::utils::Proof>) {
+    let fields_bytes = vec![id.hash.encode_vec(), id.part_set_header.hash.encode_vec()];
 
     proofs_from_byte_slices(fields_bytes)
 }

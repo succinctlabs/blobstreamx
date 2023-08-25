@@ -13,7 +13,7 @@ use plonky2x::ecc::ed25519::curve::curve_types::Curve;
 use plonky2x::ecc::ed25519::curve::ed25519::Ed25519;
 use plonky2x::num::u32::gadgets::arithmetic_u32::{CircuitBuilderU32, U32Target};
 
-use crate::utils::{I64Target};
+use crate::utils::I64Target;
 
 pub trait TendermintVoting<F: RichField + Extendable<D>, const D: usize> {
     type Curve: Curve;
@@ -24,7 +24,10 @@ pub trait TendermintVoting<F: RichField + Extendable<D>, const D: usize> {
     fn is_i64_gte(&mut self, a: &I64Target, b: &I64Target) -> BoolTarget;
 
     // Gets the total voting power by summing the voting power of all validators.
-    fn get_total_voting_power<const VALIDATOR_SET_SIZE_MAX: usize>(&mut self, validator_voting_power: &Vec<I64Target>) -> I64Target;
+    fn get_total_voting_power<const VALIDATOR_SET_SIZE_MAX: usize>(
+        &mut self,
+        validator_voting_power: &Vec<I64Target>,
+    ) -> I64Target;
 
     // Checks if accumulated voting power * m > total voting power * n (threshold is n/m)
     fn voting_power_greater_than_threshold(
@@ -105,7 +108,10 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVoting<F, D> for Ci
         self.or(upper_pass, lower_pass)
     }
 
-    fn get_total_voting_power<const VALIDATOR_SET_SIZE_MAX: usize>(&mut self, validator_voting_power: &Vec<I64Target>) -> I64Target {
+    fn get_total_voting_power<const VALIDATOR_SET_SIZE_MAX: usize>(
+        &mut self,
+        validator_voting_power: &Vec<I64Target>,
+    ) -> I64Target {
         // Sum up the voting power of all the validators
 
         // Get a vector of the first element of each validator's voting power using a map and collect
