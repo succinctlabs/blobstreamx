@@ -2697,7 +2697,7 @@ checksum = "5696e2e2a6bb5c48a6e33fb0dd4d20d0a9472784b709964f337f224e99bd6d06"
 [[package]]
 name = "plonky2x"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/sdk.git#16cad187742600a7074d2bbdac4b77f1373fe66f"
+source = "git+ssh://git@github.com/succinctlabs/succinctx.git?rev=378cba9#378cba97827b85aebd9f6cb7a791f0d51a238380"
 dependencies = [
  "anyhow",
  "array-macro",
