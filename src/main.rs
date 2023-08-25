@@ -53,7 +53,8 @@ async fn main() {
                 .expect("Failed to create new fixture");
         }
         Function::GenerateStepInputs { block } => {
-            let _ = inputs::generate_step_inputs(block);
+            const VALIDATOR_SET_SIZE_MAX: usize = 128;
+            let _ = inputs::generate_step_inputs::<VALIDATOR_SET_SIZE_MAX>(block);
         }
     }
 }
