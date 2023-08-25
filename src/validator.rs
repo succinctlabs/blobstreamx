@@ -16,11 +16,9 @@ use plonky2x::ecc::ed25519::gadgets::curve::{AffinePointTarget, CircuitBuilderCu
 use plonky2x::hash::sha::sha256::{sha256, sha256_variable_length_single_chunk};
 use plonky2x::num::u32::gadgets::arithmetic_u32::CircuitBuilderU32;
 
-use crate::utils::EncBlockIDTarget;
-use crate::utils::PROTOBUF_BLOCK_ID_SIZE_BITS;
 use crate::utils::{
-    EncTendermintHashTarget, I64Target, MarshalledValidatorTarget, TendermintHashTarget,
-    HASH_SIZE_BITS, PROTOBUF_HASH_SIZE_BITS, VALIDATOR_BIT_LENGTH_MAX, VALIDATOR_BYTE_LENGTH_MAX,
+    I64Target, MarshalledValidatorTarget, TendermintHashTarget,
+    HASH_SIZE_BITS, VALIDATOR_BIT_LENGTH_MAX, VALIDATOR_BYTE_LENGTH_MAX,
     VOTING_POWER_BITS_LENGTH_MAX, VOTING_POWER_BYTES_LENGTH_MAX,
 };
 
@@ -501,16 +499,15 @@ pub(crate) mod tests {
     use tendermint_proto::types::BlockId as RawBlockId;
     use tendermint_proto::Protobuf;
 
-    use crate::inputs::get_path_indices;
-    use crate::utils::{HEADER_PROOF_DEPTH, VALIDATOR_BIT_LENGTH_MAX};
-
-    use crate::utils::{generate_proofs_from_header, hash_all_leaves, leaf_hash};
-
     use plonky2x::num::u32::gadgets::arithmetic_u32::U32Target;
 
     use crate::{
-        utils::{f_bits_to_bytes, to_be_bits},
-        validator::{I64Target, TendermintMarshaller},
+        utils::{f_bits_to_bytes, to_be_bits, generate_proofs_from_header, hash_all_leaves, leaf_hash,
+            I64Target, MarshalledValidatorTarget, TendermintHashTarget,
+            HASH_SIZE_BITS, PROTOBUF_HASH_SIZE_BITS, PROTOBUF_BLOCK_ID_SIZE_BITS, VALIDATOR_BIT_LENGTH_MAX, HEADER_PROOF_DEPTH
+        },
+        validator::TendermintMarshaller,
+        inputs::get_path_indices
     };
 
     type C = PoseidonGoldilocksConfig;
