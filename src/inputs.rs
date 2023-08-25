@@ -108,18 +108,12 @@ fn get_signed_block(block: usize) -> Box<SignedBlock> {
     block
 }
 
-fn generate_base_inputs(block: &Box<SignedBlock>) -> CelestiaBaseBlockProof {
+fn generate_base_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(block: &Box<SignedBlock>) -> CelestiaBaseBlockProof {
     let mut validators = Vec::new();
 
     // Signatures or dummy
     // Need signature to output either verify or no verify (then we can assert that it matches or doesn't match)
     let block_validators = block.validator_set.validators();
-
-    // Find closest power of 2 greater than or equal to the number of validators
-    let mut total = 1;
-    while total < block_validators.len() {
-        total *= 2;
-    }
 
     for i in 0..block.commit.signatures.len() {
         let val_idx = ValidatorIndex::try_from(i).unwrap();
@@ -169,7 +163,7 @@ fn generate_base_inputs(block: &Box<SignedBlock>) -> CelestiaBaseBlockProof {
     }
 
     // These are empty signatures (not included in val hash)
-    for i in block.commit.signatures.len()..total {
+    for i in block.commit.signatures.len()..VALIDATOR_SET_SIZE_MAX {
         let priv_key_bytes = vec![0u8; 32];
         let signing_key =
             private_key::Ed25519::try_from(&priv_key_bytes[..]).expect("failed to create key");
@@ -242,7 +236,7 @@ fn generate_base_inputs(block: &Box<SignedBlock>) -> CelestiaBaseBlockProof {
     celestia_block_proof
 }
 
-pub fn generate_step_inputs(block: usize) -> CelestiaStepBlockProof {
+pub fn generate_step_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(block: usize) -> CelestiaStepBlockProof {
     // Generate test cases from Celestia block:
     let block = get_signed_block(block);
 
@@ -285,7 +279,7 @@ pub fn generate_step_inputs(block: usize) -> CelestiaStepBlockProof {
         "computed hash does not match"
     );
 
-    let base = generate_base_inputs(&block);
+    let base = generate_base_inputs::<VALIDATOR_SET_SIZE_MAX>(&block);
 
     CelestiaStepBlockProof {
         prev_header: prev_header_hash.as_bytes().to_vec(),
@@ -322,11 +316,11 @@ fn update_present_on_trusted_header(base: &mut CelestiaBaseBlockProof, block: &B
 }
 
 // Where block is the block we want to generate inputs for, and trusted_block is the block we're skipping from
-pub fn generate_skip_inputs(trusted_block: usize, block: usize) -> CelestiaSkipBlockProof {
+pub fn generate_skip_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(trusted_block: usize, block: usize) -> CelestiaSkipBlockProof {
     // Generate test cases from Celestia block:
     let block = get_signed_block(block);
 
-    let mut base = generate_base_inputs(&block);
+    let mut base = generate_base_inputs::<VALIDATOR_SET_SIZE_MAX>(&block);
 
     // Get the trusted_block
     let trusted_block = get_signed_block(trusted_block);

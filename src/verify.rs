@@ -1321,7 +1321,7 @@ pub(crate) mod tests {
             );
 
         // Note: Length of output is the closest power of 2 gte the number of validators for this block.
-        let celestia_block_proof: CelestiaStepBlockProof = generate_step_inputs(block);
+        let celestia_block_proof: CelestiaStepBlockProof = generate_step_inputs::<VALIDATOR_SET_SIZE_MAX>(block);
         println!("Generated inputs");
         println!(
             "Number of validators: {}",
@@ -1372,7 +1372,7 @@ pub(crate) mod tests {
             );
 
         // Note: Length of output is the closest power of 2 gte the number of validators for this block.
-        let celestia_block_proof: CelestiaSkipBlockProof = generate_skip_inputs(trusted_block, block);
+        let celestia_block_proof: CelestiaSkipBlockProof = generate_skip_inputs::<VALIDATOR_SET_SIZE_MAX>(trusted_block, block);
         println!("Generated inputs");
         println!(
             "Number of validators: {}",
@@ -1408,7 +1408,7 @@ pub(crate) mod tests {
         // Should set some dummy values
         let block = 11105;
 
-        const VALIDATOR_SET_SIZE_MAX: usize = 4;
+        const VALIDATOR_SET_SIZE_MAX: usize = 8;
 
         test_step_template::<VALIDATOR_SET_SIZE_MAX>(block);
     }
