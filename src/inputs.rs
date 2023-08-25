@@ -331,12 +331,6 @@ pub fn generate_skip_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(trusted_block: 
     // Need signature to output either verify or no verify (then we can assert that it matches or doesn't match)
     let block_validators = trusted_block.validator_set.validators();
 
-    // Find closest power of 2 greater than or equal to the number of validators
-    let mut total = 1;
-    while total < block_validators.len() {
-        total *= 2;
-    }
-
     for i in 0..trusted_block.commit.signatures.len() {
         let val_idx = ValidatorIndex::try_from(i).unwrap();
         let validator = Box::new(
@@ -358,7 +352,7 @@ pub fn generate_skip_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(trusted_block: 
     }
 
     // These are empty signatures (not included in val hash)
-    for i in trusted_block.commit.signatures.len()..total {
+    for i in trusted_block.commit.signatures.len()..VALIDATOR_SET_SIZE_MAX {
         let priv_key_bytes = vec![0u8; 32];
         let signing_key =
             private_key::Ed25519::try_from(&priv_key_bytes[..]).expect("failed to create key");

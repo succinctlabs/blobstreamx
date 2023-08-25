@@ -1465,4 +1465,20 @@ pub(crate) mod tests {
 
         test_skip_template::<VALIDATOR_SET_SIZE_MAX>(trusted_block, block);
     }
+
+    #[test]
+    fn test_skip_large() {
+        // Testing skip from 11000 to 15000
+
+        // 15000 has 16 validator max
+
+        // For now, only test with validator_set_size_max of the same size, confirm that we can set validator_et-isze_max to an arbitrary amount and the circuit should work for all sizes below that
+        let trusted_block = 11000;
+
+        let block = 12000;
+
+        const VALIDATOR_SET_SIZE_MAX: usize = 8;
+
+        test_skip_template::<VALIDATOR_SET_SIZE_MAX>(trusted_block, block);
+    }
 }
