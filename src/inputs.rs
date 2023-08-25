@@ -2,8 +2,8 @@ use std::fs;
 
 /// Source (tendermint-rs): https://github.com/informalsystems/tendermint-rs/blob/e930691a5639ef805c399743ac0ddbba0e9f53da/tendermint/src/merkle.rs#L32
 use crate::utils::{
-    compute_hash_from_aunts, 
-    generate_proofs_from_header, leaf_hash, non_absent_vote, SignedBlock, TempSignedBlock,
+    compute_hash_from_aunts, generate_proofs_from_header, leaf_hash, non_absent_vote, SignedBlock,
+    TempSignedBlock,
 };
 use ed25519_consensus::SigningKey;
 use sha2::Sha256;
@@ -441,10 +441,10 @@ pub(crate) mod tests {
         let num_validators = block_1_validators.len();
 
         println!("num validators: {}", num_validators);
-    
+
         let mut idx = 0;
         let num_validators = block_1_validators.len();
-    
+
         // Exit if we have already reached the threshold
         // TODO: We might need to add checks to make this more resilient
         while block_2_total_voting_power as f64 * threshold > shared_voting_power as f64

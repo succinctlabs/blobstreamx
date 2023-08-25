@@ -17,9 +17,9 @@ use plonky2x::hash::sha::sha256::{sha256, sha256_variable_length_single_chunk};
 use plonky2x::num::u32::gadgets::arithmetic_u32::CircuitBuilderU32;
 
 use crate::utils::{
-    I64Target, MarshalledValidatorTarget, TendermintHashTarget,
-    HASH_SIZE_BITS, VALIDATOR_BIT_LENGTH_MAX, VALIDATOR_BYTE_LENGTH_MAX,
-    VOTING_POWER_BITS_LENGTH_MAX, VOTING_POWER_BYTES_LENGTH_MAX,
+    I64Target, MarshalledValidatorTarget, TendermintHashTarget, HASH_SIZE_BITS,
+    VALIDATOR_BIT_LENGTH_MAX, VALIDATOR_BYTE_LENGTH_MAX, VOTING_POWER_BITS_LENGTH_MAX,
+    VOTING_POWER_BYTES_LENGTH_MAX,
 };
 
 pub trait TendermintMarshaller<F: RichField + Extendable<D>, const D: usize> {
@@ -502,12 +502,14 @@ pub(crate) mod tests {
     use plonky2x::num::u32::gadgets::arithmetic_u32::U32Target;
 
     use crate::{
-        utils::{f_bits_to_bytes, to_be_bits, generate_proofs_from_header, hash_all_leaves, leaf_hash,
-            I64Target, MarshalledValidatorTarget, TendermintHashTarget,
-            HASH_SIZE_BITS, PROTOBUF_HASH_SIZE_BITS, PROTOBUF_BLOCK_ID_SIZE_BITS, VALIDATOR_BIT_LENGTH_MAX, HEADER_PROOF_DEPTH
+        inputs::get_path_indices,
+        utils::{
+            f_bits_to_bytes, generate_proofs_from_header, hash_all_leaves, leaf_hash, to_be_bits,
+            I64Target, MarshalledValidatorTarget, TendermintHashTarget, HASH_SIZE_BITS,
+            HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BITS, PROTOBUF_HASH_SIZE_BITS,
+            VALIDATOR_BIT_LENGTH_MAX,
         },
         validator::TendermintMarshaller,
-        inputs::get_path_indices
     };
 
     type C = PoseidonGoldilocksConfig;

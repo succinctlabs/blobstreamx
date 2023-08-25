@@ -10,30 +10,36 @@
 use curta::math::extension::CubicParameters;
 use plonky2::{
     field::{extension::Extendable, types::Field},
+    hash::hash_types::RichField,
     iop::{
-        target::{Target, BoolTarget},
+        target::{BoolTarget, Target},
         witness::WitnessWrite,
     },
     plonk::{
-        config::{AlgebraicHasher, GenericConfig},
         circuit_builder::CircuitBuilder,
+        config::{AlgebraicHasher, GenericConfig},
     },
-    hash::hash_types::RichField,
 };
 
 use plonky2x::{
     ecc::ed25519::{
-        curve::{curve_types::{AffinePoint, Curve}, ed25519::Ed25519},
+        curve::{
+            curve_types::{AffinePoint, Curve},
+            ed25519::Ed25519,
+        },
+        field::ed25519_scalar::Ed25519Scalar,
         gadgets::{
             curve::{CircuitBuilderCurve, WitnessAffinePoint},
             eddsa::{EDDSAPublicKeyTarget, EDDSASignatureTarget},
         },
-        field::ed25519_scalar::Ed25519Scalar,
     },
     num::{
-        nonnative::nonnative::CircuitBuilderNonNative,
-        u32::{gadgets::arithmetic_u32::{CircuitBuilderU32, U32Target}, witness::WitnessU32},
         biguint::WitnessBigUint,
+        nonnative::nonnative::CircuitBuilderNonNative,
+        u32::{
+            gadgets::arithmetic_u32::{CircuitBuilderU32, U32Target},
+            witness::WitnessU32,
+        },
     },
     prelude::PartialWitness,
 };
@@ -44,14 +50,14 @@ use crate::{
     inputs::{CelestiaBaseBlockProof, CelestiaSkipBlockProof, CelestiaStepBlockProof},
     signature::TendermintSignature,
     utils::{
-        EncTendermintHashTarget, I64Target, MarshalledValidatorTarget, TendermintHashTarget,
-        ValidatorMessageTarget, HASH_SIZE_BITS, HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BITS,
-        VALIDATOR_MESSAGE_BYTES_LENGTH_MAX, PROTOBUF_BLOCK_ID_SIZE_BITS, EncBlockIDTarget, to_be_bits
+        to_be_bits, EncBlockIDTarget, EncTendermintHashTarget, I64Target,
+        MarshalledValidatorTarget, TendermintHashTarget, ValidatorMessageTarget, HASH_SIZE_BITS,
+        HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BITS, PROTOBUF_HASH_SIZE_BITS,
+        VALIDATOR_MESSAGE_BYTES_LENGTH_MAX,
     },
     validator::TendermintMarshaller,
     voting::TendermintVoting,
 };
-
 
 #[derive(Debug, Clone)]
 pub struct ValidatorTarget<C: Curve> {
