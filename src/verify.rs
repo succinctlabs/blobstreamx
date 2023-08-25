@@ -126,7 +126,7 @@ pub trait TendermintVerify<F: RichField + Extendable<D>, const D: usize> {
     type Curve: Curve;
 
     /// Verifies that the previous header hash in the block matches the previous header hash in the last block ID.
-    fn verify_prev_header<
+    fn verify_prev_header_in_header<
         E: CubicParameters<F>,
         C: GenericConfig<D, F = F, FE = F::Extension> + 'static,
     >(
@@ -236,7 +236,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
         );
 
         // Verifies that the previous header hash in the block matches the previous header hash in the last block ID.
-        self.verify_prev_header::<E, C>(header, prev_header, last_block_id_proof);
+        self.verify_prev_header_in_header::<E, C>(header, prev_header, last_block_id_proof);
     }
 
     fn verify_header<
@@ -400,7 +400,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
         }
     }
 
-    fn verify_prev_header<
+    fn verify_prev_header_in_header<
         E: CubicParameters<F>,
         C: GenericConfig<D, F = F, FE = F::Extension> + 'static,
     >(

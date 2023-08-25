@@ -294,6 +294,33 @@ pub fn generate_step_inputs(block: usize) -> CelestiaStepBlockProof {
     }
 }
 
+fn update_present_on_trusted_header(base: &mut CelestiaBaseBlockProof, block: &Box<SignedBlock>, trusted_block: &Box<SignedBlock>) {
+    // Parse each block to compute the validators that are the same from block_1 to block_2, and the cumulative voting power of the shared validators
+    let mut shared_voting_power = 0;
+
+    let threshold = 1 as f64 / 3 as f64;
+    let block_2_total_voting_power = block.validator_set.total_voting_power().value();
+
+    let block_1_validators = trusted_block.validator_set.validators();
+
+    let mut idx = 0;
+    let num_validators = block_1_validators.len();
+
+    // Exit if we have already reached the threshold
+    while block_2_total_voting_power as f64 * threshold > shared_voting_power as f64 && idx < num_validators {
+        if let Some(block_2_validator) = block
+            .validator_set
+            .validator(block_1_validators[idx].address)
+        {
+            shared_voting_power += block_2_validator.power();
+            // Set the present_on_trusted_header field to true
+            base.validators[idx].present_on_trusted_header = Some(true);
+        }
+        idx += 1;
+    }
+
+}
+
 // Where block is the block we want to generate inputs for, and trusted_block is the block we're skipping from
 pub fn generate_skip_inputs(trusted_block: usize, block: usize) -> CelestiaSkipBlockProof {
     // Generate test cases from Celestia block:
@@ -367,29 +394,8 @@ pub fn generate_skip_inputs(trusted_block: usize, block: usize) -> CelestiaSkipB
     };
 
     // Set the present_on_trusted_header field for each validator that is needed to reach the 1/3 threshold
-    // Parse each block to compute the validators that are the same from block_1 to block_2, and the cumulative voting power of the shared validators
-    let mut shared_voting_power = 0;
-
-    let threshold = 1 as f64 / 3 as f64;
-    let block_2_total_voting_power = block.validator_set.total_voting_power().value();
-
-    let block_1_validators = trusted_block.validator_set.validators();
-
-    let mut idx = 0;
-    let num_validators = block_1_validators.len();
-
-    // Exit if we have already reached the threshold
-    while block_2_total_voting_power as f64 * threshold > shared_voting_power as f64 && idx < num_validators {
-        if let Some(block_2_validator) = block
-            .validator_set
-            .validator(block_1_validators[idx].address)
-        {
-            shared_voting_power += block_2_validator.power();
-            // Set the present_on_trusted_header field to true
-            base.validators[idx].present_on_trusted_header = Some(true);
-        }
-        idx += 1;
-    }
+    // Mutates the base object (which has present_on_trusted_header default set to none)
+    update_present_on_trusted_header(&mut base, &block, &trusted_block);
 
     CelestiaSkipBlockProof {
         trusted_header: trusted_block.header.hash().into(),
