@@ -41,7 +41,8 @@ use plonky2x::ecc::ed25519::curve::curve_types::AffinePoint;
 use plonky2x::ecc::ed25519::field::ed25519_scalar::Ed25519Scalar;
 
 use crate::inputs::CelestiaBaseBlockProof;
-use crate::inputs::{generate_step_inputs, CelestiaSequentialBlockProof};
+use crate::inputs::CelestiaSkipBlockProof;
+use crate::inputs::{generate_step_inputs, CelestiaStepBlockProof};
 
 use crate::signature::TendermintSignature;
 use crate::utils::EncBlockIDTarget;
@@ -121,7 +122,7 @@ pub struct BaseBlockProofTarget<C: Curve> {
     round_present: BoolTarget,
 }
 
-pub trait TendermintStep<F: RichField + Extendable<D>, const D: usize> {
+pub trait TendermintVerify<F: RichField + Extendable<D>, const D: usize> {
     type Curve: Curve;
 
     /// Verifies that the previous header hash in the block matches the previous header hash in the last block ID.
@@ -204,7 +205,7 @@ pub trait TendermintStep<F: RichField + Extendable<D>, const D: usize> {
         <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>;
 }
 
-impl<F: RichField + Extendable<D>, const D: usize> TendermintStep<F, D> for CircuitBuilder<F, D> {
+impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for CircuitBuilder<F, D> {
     type Curve = Ed25519;
 
     fn step<
@@ -626,6 +627,8 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintStep<F, D> for Circ
     }
 }
 
+// TODO: Can move make circuit and set PW to another file
+
 fn create_virtual_bool_target_array<F: RichField + Extendable<D>, const D: usize>(
     builder: &mut CircuitBuilder<F, D>,
     size: usize,
@@ -863,21 +866,21 @@ where
 
 pub fn set_base_pw<F: RichField + Extendable<D>, const D: usize, C: Curve, const VALIDATOR_SET_SIZE_MAX: usize>(
     pw: &mut PartialWitness<F>,
-    base: BaseBlockProofTarget<C>,
+    target: BaseBlockProofTarget<C>,
     inputs: CelestiaBaseBlockProof,
 ) {
     // Set target for header
     let header_bits = to_be_bits(inputs.header);
     for i in 0..HASH_SIZE_BITS {
         pw.set_bool_target(
-            base.header.0[i],
+            target.header.0[i],
             header_bits[i],
         );
     }
 
     // Set target for round present
     pw.set_bool_target(
-        base.round_present,
+        target.round_present,
         inputs.round_present,
     );
 
@@ -893,21 +896,21 @@ pub fn set_base_pw<F: RichField + Extendable<D>, const D: usize, C: Curve, const
 
     for i in 0..PROTOBUF_HASH_SIZE_BITS {
         pw.set_bool_target(
-            base
+            target
                 .data_hash_proof
                 .enc_leaf
                 .0[i],
             data_hash_enc_leaf[i],
         );
         pw.set_bool_target(
-            base
+            target
                 .validator_hash_proof
                 .enc_leaf
                 .0[i],
             val_hash_enc_leaf[i],
         );
         pw.set_bool_target(
-            base
+            target
                 .next_validators_hash_proof
                 .enc_leaf
                 .0[i],
@@ -918,17 +921,17 @@ pub fn set_base_pw<F: RichField + Extendable<D>, const D: usize, C: Curve, const
     for i in 0..HEADER_PROOF_DEPTH {
         // Set path indices for each of the proof indices
         pw.set_bool_target(
-            base.data_hash_proof.path[i],
+            target.data_hash_proof.path[i],
             inputs.data_hash_proof.path[i],
         );
         pw.set_bool_target(
-            base
+            target
                 .validator_hash_proof
                 .path[i],
                 inputs.validator_hash_proof.path[i],
         );
         pw.set_bool_target(
-            base
+            target
                 .next_validators_hash_proof
                 .path[i],
                 inputs.next_validators_hash_proof.path[i],
@@ -947,18 +950,18 @@ pub fn set_base_pw<F: RichField + Extendable<D>, const D: usize, C: Curve, const
         // Set aunts for each of the proofs
         for j in 0..HASH_SIZE_BITS {
             pw.set_bool_target(
-                base.data_hash_proof.proof[i].0[j],
+                target.data_hash_proof.proof[i].0[j],
                 data_hash_aunt[j],
             );
             pw.set_bool_target(
-                base
+                target
                     .validator_hash_proof
                     .proof[i]
                     .0[j],
                 val_hash_aunt[j],
             );
             pw.set_bool_target(
-                base
+                target
                     .next_validators_hash_proof
                     .proof[i]
                     .0[j],
@@ -987,19 +990,19 @@ pub fn set_base_pw<F: RichField + Extendable<D>, const D: usize, C: Curve, const
 
         // Set the targets for the public key
         pw.set_affine_point_target(
-            &base.validators[i].pubkey.0,
+            &target.validators[i].pubkey.0,
             &pub_key_uncompressed,
         );
 
         // Set signature targets
         pw.set_affine_point_target(
-            &base.validators[i]
+            &target.validators[i]
                 .signature
                 .r,
             &sig_r,
         );
         pw.set_biguint_target(
-            &base.validators[i]
+            &target.validators[i]
                 .signature
                 .s
                 .value,
@@ -1010,7 +1013,7 @@ pub fn set_base_pw<F: RichField + Extendable<D>, const D: usize, C: Curve, const
         // Set messages for each of the proofs
         for j in 0..message_bits.len() {
             pw.set_bool_target(
-                base.validators[i]
+                target.validators[i]
                     .message
                     .0[j],
                 message_bits[j],
@@ -1018,7 +1021,7 @@ pub fn set_base_pw<F: RichField + Extendable<D>, const D: usize, C: Curve, const
         }
         for j in message_bits.len()..VALIDATOR_MESSAGE_BYTES_LENGTH_MAX * 8 {
             pw.set_bool_target(
-                base.validators[i]
+                target.validators[i]
                     .message
                     .0[j],
                 false,
@@ -1027,13 +1030,13 @@ pub fn set_base_pw<F: RichField + Extendable<D>, const D: usize, C: Curve, const
 
         // Set voting power targets
         pw.set_u32_target(
-            base.validators[i]
+            target.validators[i]
                 .voting_power
                 .0[0],
             voting_power_lower,
         );
         pw.set_u32_target(
-            base.validators[i]
+            target.validators[i]
                 .voting_power
                 .0[1],
             voting_power_upper,
@@ -1041,24 +1044,24 @@ pub fn set_base_pw<F: RichField + Extendable<D>, const D: usize, C: Curve, const
 
         // Set length targets
         pw.set_target(
-            base.validators[i].validator_byte_length,
+            target.validators[i].validator_byte_length,
             F::from_canonical_usize(validator.validator_byte_length),
         );
         let message_bit_length = validator.message_bit_length;
 
         pw.set_target(
-            base.validators[i].message_bit_length,
+            target.validators[i].message_bit_length,
             F::from_canonical_usize(message_bit_length),
         );
 
         // Set enabled and signed
         pw.set_bool_target(
-            base.validators[i].enabled,
+            target.validators[i].enabled,
             validator.enabled,
         );
 
         pw.set_bool_target(
-            base.validators[i].signed,
+            target.validators[i].signed,
             validator.signed,
         );
 
@@ -1071,18 +1074,162 @@ pub fn set_base_pw<F: RichField + Extendable<D>, const D: usize, C: Curve, const
 
         // Only used for skip circuit
         pw.set_bool_target(
-            base.validators[i].present_on_trusted_header,
+            target.validators[i].present_on_trusted_header,
             present_on_trusted_header_bool,
         );
     }
 
 }
 
+pub fn set_step_pw<F: RichField + Extendable<D>, const D: usize, C: Curve, const VALIDATOR_SET_SIZE_MAX: usize>(
+    pw: &mut PartialWitness<F>,
+    target: StepProofTarget<C>,
+    inputs: CelestiaStepBlockProof,
+) {
+    set_base_pw::<F, D, C, VALIDATOR_SET_SIZE_MAX>(pw, target.base, inputs.base);
+
+    // Set target for prev header
+    let prev_header_bits = to_be_bits(inputs.prev_header);
+    for i in 0..HASH_SIZE_BITS {
+        pw.set_bool_target(
+            target.prev_header.0[i],
+            prev_header_bits[i],
+        );
+    }
+
+    let last_block_id_enc_leaf =
+        to_be_bits(inputs.last_block_id_proof.enc_leaf);
+
+    // Set targets for last block id leaf
+    for i in 0..PROTOBUF_BLOCK_ID_SIZE_BITS {
+        pw.set_bool_target(
+            target
+                .last_block_id_proof
+                .enc_leaf
+                .0[i],
+            last_block_id_enc_leaf[i],
+        );
+    }
+
+    for i in 0..HEADER_PROOF_DEPTH {
+        // Set path indices for each of the proof indices
+        pw.set_bool_target(
+            target.last_block_id_proof.path[i],
+            inputs.last_block_id_proof.path[i],
+        );
+
+        let last_block_id_aunt =
+            to_be_bits(inputs.last_block_id_proof.proof[i].to_vec());
+
+        // Set aunts for each of the proofs
+        for j in 0..HASH_SIZE_BITS {
+            pw.set_bool_target(
+                target.last_block_id_proof.proof[i].0[j],
+                last_block_id_aunt[j],
+            );
+        }
+    }
+
+}
+
+pub fn set_skip_pw<F: RichField + Extendable<D>, const D: usize, C: Curve, const VALIDATOR_SET_SIZE_MAX: usize>(
+    pw: &mut PartialWitness<F>,
+    target: SkipProofTarget<C>,
+    inputs: CelestiaSkipBlockProof,
+) {
+    set_base_pw::<F, D, C, VALIDATOR_SET_SIZE_MAX>(pw, target.base, inputs.base);
+
+    // Set target for prev header
+    let trusted_header_bits = to_be_bits(inputs.trusted_header);
+    for i in 0..HASH_SIZE_BITS {
+        pw.set_bool_target(
+            target.trusted_header.0[i],
+            trusted_header_bits[i],
+        );
+    }
+
+    let trusted_validator_hash_enc_leaf =
+        to_be_bits(inputs.trusted_validator_hash_proof.enc_leaf);
+
+    // Set targets for trusted validator hash leaf
+    for i in 0..PROTOBUF_HASH_SIZE_BITS {
+        pw.set_bool_target(
+            target
+                .trusted_validator_hash_proof
+                .enc_leaf
+                .0[i],
+                trusted_validator_hash_enc_leaf[i],
+        );
+    }
+
+    for i in 0..HEADER_PROOF_DEPTH {
+        // Set path indices for each of the proof indices
+        pw.set_bool_target(
+            target.trusted_validator_hash_proof.path[i],
+            inputs.trusted_validator_hash_proof.path[i],
+        );
+
+        let trusted_validator_hash_aunt =
+            to_be_bits(inputs.trusted_validator_hash_proof.proof[i].to_vec());
+
+        // Set aunts for the proof
+        for j in 0..HASH_SIZE_BITS {
+            pw.set_bool_target(
+                target.trusted_validator_hash_proof.proof[i].0[j],
+                trusted_validator_hash_aunt[j],
+            );
+        }
+    }
+
+    // Set the targets for each of the validator hash fields
+    for i in 0..VALIDATOR_SET_SIZE_MAX {
+        let validator = &inputs.trusted_validator_fields[i];
+
+        let voting_power_lower = (validator.voting_power & ((1 << 32) - 1)) as u32;
+        let voting_power_upper = (validator.voting_power >> 32) as u32;
+
+        let pub_key_uncompressed: AffinePoint<C> =
+            AffinePoint::new_from_compressed_point(validator.pubkey.as_bytes());
+
+        // Set the targets for the public key
+        pw.set_affine_point_target(
+            &target.trusted_validator_hash_fields[i].pubkey.0,
+            &pub_key_uncompressed,
+        );
+
+        // Set voting power targets
+        pw.set_u32_target(
+            target.trusted_validator_hash_fields[i]
+                .voting_power
+                .0[0],
+            voting_power_lower,
+        );
+        pw.set_u32_target(
+            target.trusted_validator_hash_fields[i]
+                .voting_power
+                .0[1],
+            voting_power_upper,
+        );
+
+        // Set length targets
+        pw.set_target(
+            target.trusted_validator_hash_fields[i].validator_byte_length,
+            F::from_canonical_usize(validator.validator_byte_length),
+        );
+
+        // Set enabled
+        pw.set_bool_target(
+            target.trusted_validator_hash_fields[i].enabled,
+            validator.enabled,
+        );
+
+    }
+}
+
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
     use curta::math::goldilocks::cubic::GoldilocksCubicParameters;
-    use num::BigUint;
     use plonky2::field::goldilocks_field::GoldilocksField;
     use plonky2::field::types::Field;
     use plonky2::{
@@ -1092,14 +1239,8 @@ pub(crate) mod tests {
             config::PoseidonGoldilocksConfig,
         },
     };
-    use plonky2x::ecc::ed25519::gadgets::curve::WitnessAffinePoint;
-    use plonky2x::num::biguint::WitnessBigUint;
-    use plonky2x::num::u32::witness::WitnessU32;
 
-    use plonky2x::ecc::ed25519::curve::curve_types::AffinePoint;
-    use plonky2x::ecc::ed25519::field::ed25519_scalar::Ed25519Scalar;
-
-    use crate::inputs::{generate_step_inputs, CelestiaSequentialBlockProof};
+    use crate::inputs::{generate_step_inputs, CelestiaStepBlockProof, generate_skip_inputs};
     use crate::utils::to_be_bits;
 
     use log;
@@ -1180,56 +1321,14 @@ pub(crate) mod tests {
             );
 
         // Note: Length of output is the closest power of 2 gte the number of validators for this block.
-        let celestia_block_proof: CelestiaSequentialBlockProof = generate_step_inputs(block);
+        let celestia_block_proof: CelestiaStepBlockProof = generate_step_inputs(block);
         println!("Generated inputs");
         println!(
             "Number of validators: {}",
             celestia_block_proof.base.validators.len()
         );
         timed!(timing, "assigning inputs", {
-            set_base_pw::<F, D, Curve, VALIDATOR_SET_SIZE_MAX>(&mut pw, celestia_sequential_proof_target.base, celestia_block_proof.base);
-
-            // Set target for prev header
-            let prev_header_bits = to_be_bits(celestia_block_proof.prev_header);
-            for i in 0..HASH_SIZE_BITS {
-                pw.set_bool_target(
-                    celestia_sequential_proof_target.prev_header.0[i],
-                    prev_header_bits[i],
-                );
-            }
-
-            let last_block_id_enc_leaf =
-                to_be_bits(celestia_block_proof.last_block_id_proof.enc_leaf);
-
-            // Set targets for last block id leaf
-            for i in 0..PROTOBUF_BLOCK_ID_SIZE_BITS {
-                pw.set_bool_target(
-                    celestia_sequential_proof_target
-                        .last_block_id_proof
-                        .enc_leaf
-                        .0[i],
-                    last_block_id_enc_leaf[i],
-                );
-            }
-
-            for i in 0..HEADER_PROOF_DEPTH {
-                // Set path indices for each of the proof indices
-                pw.set_bool_target(
-                    celestia_sequential_proof_target.last_block_id_proof.path[i],
-                    celestia_block_proof.last_block_id_proof.path[i],
-                );
-
-                let last_block_id_aunt =
-                    to_be_bits(celestia_block_proof.last_block_id_proof.proof[i].to_vec());
-
-                // Set aunts for each of the proofs
-                for j in 0..HASH_SIZE_BITS {
-                    pw.set_bool_target(
-                        celestia_sequential_proof_target.last_block_id_proof.proof[i].0[j],
-                        last_block_id_aunt[j],
-                    );
-                }
-            }
+            set_step_pw::<F, D, Curve, VALIDATOR_SET_SIZE_MAX>(&mut pw, celestia_sequential_proof_target, celestia_block_proof);
         });
         let inner_data = builder.build::<C>();
         timed!(timing, "Generate proof", {
@@ -1246,31 +1345,57 @@ pub(crate) mod tests {
             );
             inner_data.verify(inner_proof.clone()).unwrap();
             println!("num gates: {:?}", inner_data.common.gates.len());
+        });
 
-            // let mut outer_builder = CircuitBuilder::<F, D>::new(CircuitConfig::standard_ecc_config());
-            // let inner_proof_target = outer_builder.add_virtual_proof_with_pis(&inner_data.common);
-            // let inner_verifier_data =
-            //     outer_builder.add_virtual_verifier_data(inner_data.common.config.fri_config.cap_height);
-            // outer_builder.verify_proof::<C>(
-            //     &inner_proof_target,
-            //     &inner_verifier_data,
-            //     &inner_data.common,
-            // );
+        timing.print();
+    }
 
-            // let outer_data = outer_builder.build::<C>();
-            // for gate in outer_data.common.gates.iter() {
-            //     println!("ecddsa verify recursive gate: {:?}", gate);
-            // }
+    fn test_skip_template<const VALIDATOR_SET_SIZE_MAX: usize>(trusted_block: usize, block: usize) {
+        let _ = env_logger::builder().is_test(true).try_init();
+        let mut timing = TimingTree::new("Celestia Header Verify", log::Level::Debug);
 
-            // let mut outer_pw = PartialWitness::new();
-            // outer_pw.set_proof_with_pis_target(&inner_proof_target, &inner_proof);
-            // outer_pw.set_verifier_data_target(&inner_verifier_data, &inner_data.verifier_only);
+        let mut pw = PartialWitness::new();
+        let config = CircuitConfig::standard_ecc_config();
+        let mut builder = CircuitBuilder::<F, D>::new(config);
 
-            // let outer_proof = outer_data.prove(outer_pw).unwrap();
+        type F = GoldilocksField;
+        type Curve = Ed25519;
+        type E = GoldilocksCubicParameters;
+        type C = PoseidonGoldilocksConfig;
+        const D: usize = 2;
 
-            // outer_data
-            //     .verify(outer_proof)
-            //     .expect("failed to verify proof");
+        println!("Making step circuit");
+
+        let celestia_skip_proof_target =
+            make_skip_circuit::<GoldilocksField, D, Curve, C, E, VALIDATOR_SET_SIZE_MAX>(
+                &mut builder,
+            );
+
+        // Note: Length of output is the closest power of 2 gte the number of validators for this block.
+        let celestia_block_proof: CelestiaSkipBlockProof = generate_skip_inputs(trusted_block, block);
+        println!("Generated inputs");
+        println!(
+            "Number of validators: {}",
+            celestia_block_proof.base.validators.len()
+        );
+        timed!(timing, "assigning inputs", {
+            set_skip_pw::<F, D, Curve, VALIDATOR_SET_SIZE_MAX>(&mut pw, celestia_skip_proof_target, celestia_block_proof);
+        });
+        let inner_data = builder.build::<C>();
+        timed!(timing, "Generate proof", {
+            let inner_proof = timed!(
+                timing,
+                "Total proof with a recursive envelope",
+                plonky2::plonk::prover::prove(
+                    &inner_data.prover_only,
+                    &inner_data.common,
+                    pw,
+                    &mut timing
+                )
+                .unwrap()
+            );
+            inner_data.verify(inner_proof.clone()).unwrap();
+            println!("num gates: {:?}", inner_data.common.gates.len());
         });
 
         timing.print();
@@ -1324,5 +1449,20 @@ pub(crate) mod tests {
         const VALIDATOR_SET_SIZE_MAX: usize = 64;
 
         test_step_template::<VALIDATOR_SET_SIZE_MAX>(block);
+    }
+
+    #[test]
+    fn test_skip() {
+        // Testing skip from 11000 to 11105
+
+        // For now, only test with validator_set_size_max of the same size, confirm that we can set validator_et-isze_max to an arbitrary amount and the circuit should work for all sizes below that
+        let trusted_block = 11000;
+
+        let block = 11105;
+
+
+        const VALIDATOR_SET_SIZE_MAX: usize = 4;
+
+        test_skip_template::<VALIDATOR_SET_SIZE_MAX>(trusted_block, block);
     }
 }
