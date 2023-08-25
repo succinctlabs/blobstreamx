@@ -1220,7 +1220,7 @@ pub(crate) mod tests {
 
         println!("Making step circuit");
 
-        let celestia_sequential_proof_target =
+        let celestia_step_proof_target =
             make_step_circuit::<GoldilocksField, D, Curve, C, E, VALIDATOR_SET_SIZE_MAX>(
                 &mut builder,
             );
@@ -1236,7 +1236,7 @@ pub(crate) mod tests {
         timed!(timing, "assigning inputs", {
             set_step_pw::<F, D, Curve, VALIDATOR_SET_SIZE_MAX>(
                 &mut pw,
-                celestia_sequential_proof_target,
+                celestia_step_proof_target,
                 celestia_block_proof,
             );
         });
