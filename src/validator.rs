@@ -15,14 +15,14 @@ use plonky2::{hash::hash_types::RichField, plonk::circuit_builder::CircuitBuilde
 use plonky2x::ecc::ed25519::curve::curve_types::Curve;
 use plonky2x::ecc::ed25519::curve::ed25519::Ed25519;
 use plonky2x::ecc::ed25519::gadgets::curve::{AffinePointTarget, CircuitBuilderCurve};
-use plonky2x::hash::sha::sha256::{sha256, sha256_variable_length_single_chunk};
+use plonky2x::hash::sha::sha256::sha256_variable_length_single_chunk;
 use plonky2x::num::u32::gadgets::arithmetic_u32::CircuitBuilderU32;
 use tendermint::merkle::HASH_SIZE;
 
 use crate::utils::{
     I64Target, MarshalledValidatorTarget, TendermintHashTarget, HASH_SIZE_BITS,
     VALIDATOR_BIT_LENGTH_MAX, VALIDATOR_BYTE_LENGTH_MAX, VOTING_POWER_BITS_LENGTH_MAX,
-    VOTING_POWER_BYTES_LENGTH_MAX, f_bits_to_bytes,
+    VOTING_POWER_BYTES_LENGTH_MAX
 };
 
 pub trait TendermintValidator<F: RichField + Extendable<D>, const D: usize> {
