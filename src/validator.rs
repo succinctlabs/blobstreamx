@@ -6,6 +6,8 @@
 //! The `pubkey` is encoded as the raw list of bytes used in the public key. The `varint` is
 //! encoded using protobuf's default integer encoding, which consist of 7 bit payloads. You can
 //! read more about them here: https://protobuf.dev/programming-guides/encoding/#varints.
+use curta::chip::hash::sha::sha256::builder_gadget::{SHA256Builder, SHA256BuilderGadget};
+use curta::math::prelude::CubicParameters;
 use plonky2::field::extension::Extendable;
 use plonky2::iop::target::BoolTarget;
 use plonky2::iop::target::Target;
@@ -22,7 +24,7 @@ use crate::utils::{
     VOTING_POWER_BYTES_LENGTH_MAX,
 };
 
-pub trait TendermintMarshaller<F: RichField + Extendable<D>, const D: usize> {
+pub trait TendermintValidator<F: RichField + Extendable<D>, const D: usize> {
     type Curve: Curve;
 
     /// Serializes an int64 as a protobuf varint.
@@ -41,16 +43,18 @@ pub trait TendermintMarshaller<F: RichField + Extendable<D>, const D: usize> {
     /// Verify a merkle proof against the specified root hash.
     /// Note: This function will only work for leaves with a length of 34 bytes (protobuf-encoded SHA256 hash)
     /// Output is the merkle root
-    fn get_root_from_merkle_proof<const PROOF_DEPTH: usize>(
+    fn get_root_from_merkle_proof<E: CubicParameters<F>, const PROOF_DEPTH: usize>(
         &mut self,
+        gadget: &mut SHA256BuilderGadget<F, E, D>,
         aunts: &Vec<TendermintHashTarget>,
         path_indices: &Vec<BoolTarget>,
         leaf_hash: &TendermintHashTarget,
     ) -> TendermintHashTarget;
 
     /// Hashes leaf bytes to get the leaf hash according to the Tendermint spec. (0x00 || leafBytes)
-    fn leaf_hash<const LEAF_SIZE_BITS: usize>(
+    fn leaf_hash<E: CubicParameters<F>, const LEAF_SIZE_BITS: usize>(
         &mut self,
+        gadget: &mut SHA256BuilderGadget<F, E, D>,
         leaf: &[BoolTarget; LEAF_SIZE_BITS],
     ) -> TendermintHashTarget;
 
@@ -70,8 +74,9 @@ pub trait TendermintMarshaller<F: RichField + Extendable<D>, const D: usize> {
     ) -> Vec<TendermintHashTarget>;
 
     /// Hashes two nodes to get the inner node according to the Tendermint spec. (0x01 || left || right)
-    fn inner_hash(
+    fn inner_hash<E: CubicParameters<F>>(
         &mut self,
+        gadget: &mut SHA256BuilderGadget<F, E, D>,
         left: &TendermintHashTarget,
         right: &TendermintHashTarget,
     ) -> TendermintHashTarget;
@@ -79,29 +84,32 @@ pub trait TendermintMarshaller<F: RichField + Extendable<D>, const D: usize> {
     /// Hashes a layer of the Merkle tree according to the Tendermint spec. (0x01 || left || right)
     /// If in a pair the right node is not enabled (empty), then the left node is passed up to the next layer.
     /// If neither the left nor right node in a pair is enabled (empty), then the parent node is set to not enabled (empty).
-    fn hash_merkle_layer(
+    fn hash_merkle_layer<E: CubicParameters<F>>(
         &mut self,
+        gadget: &mut SHA256BuilderGadget<F, E, D>,
         merkle_hashes: &mut Vec<TendermintHashTarget>,
         merkle_hash_enabled: &mut Vec<BoolTarget>,
         num_hashes: usize,
     ) -> (Vec<TendermintHashTarget>, Vec<BoolTarget>);
 
     /// Compute the expected validator hash from the validator set.
-    fn hash_validator_set<const VALIDATOR_SET_SIZE_MAX: usize>(
+    fn hash_validator_set<E: CubicParameters<F>, const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
+        gadget: &mut SHA256BuilderGadget<F, E, D>,
         validators: &Vec<MarshalledValidatorTarget>,
         validator_byte_lengths: &Vec<Target>,
         validator_enabled: &Vec<BoolTarget>,
     ) -> TendermintHashTarget;
 }
 
-impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D>
+impl<F: RichField + Extendable<D>, const D: usize> TendermintValidator<F, D>
     for CircuitBuilder<F, D>
 {
     type Curve = Ed25519;
 
-    fn get_root_from_merkle_proof<const PROOF_DEPTH: usize>(
+    fn get_root_from_merkle_proof<E: CubicParameters<F>, const PROOF_DEPTH: usize>(
         &mut self,
+        gadget: &mut SHA256BuilderGadget<F, E, D>,
         aunts: &Vec<TendermintHashTarget>,
         // TODO: Should we hard-code path_indices to correspond to dataHash, validatorsHash and nextValidatorsHash?
         path_indices: &Vec<BoolTarget>,
@@ -112,8 +120,8 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D>
         for i in 0..PROOF_DEPTH {
             let aunt = aunts[i];
             let path_index = path_indices[i];
-            let left_hash_pair = self.inner_hash(&hash_so_far, &aunt);
-            let right_hash_pair = self.inner_hash(&aunt, &hash_so_far);
+            let left_hash_pair = self.inner_hash::<E>(gadget, &hash_so_far, &aunt);
+            let right_hash_pair = self.inner_hash::<E>(gadget, &aunt, &hash_so_far);
 
             let mut hash_pair = [self._false(); HASH_SIZE_BITS];
             for j in 0..HASH_SIZE_BITS {
@@ -129,8 +137,9 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D>
         hash_so_far
     }
 
-    fn leaf_hash<const LEAF_SIZE_BITS: usize>(
+    fn leaf_hash<E: CubicParameters<F>, const LEAF_SIZE_BITS: usize>(
         &mut self,
+        gadget: &mut SHA256BuilderGadget<F, E, D>,
         leaf: &[BoolTarget; LEAF_SIZE_BITS],
     ) -> TendermintHashTarget {
         // Calculate the length of the message for the leaf hash.
@@ -151,7 +160,8 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D>
         }
 
         // Load the output of the hash.
-        let hash = sha256(self, &leaf_msg_bits);
+        let hash = self.sha256(&leaf_msg_bits, gadget);
+
         let mut return_hash = [self._false(); HASH_SIZE_BITS];
         for k in 0..HASH_SIZE_BITS {
             return_hash[k] = hash[k];
@@ -356,8 +366,9 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D>
         validators_leaf_hashes.to_vec()
     }
 
-    fn inner_hash(
+    fn inner_hash<E: CubicParameters<F>>(
         &mut self,
+        gadget: &mut SHA256BuilderGadget<F, E, D>,
         left: &TendermintHashTarget,
         right: &TendermintHashTarget,
     ) -> TendermintHashTarget {
@@ -386,7 +397,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D>
 
         // Load the output of the hash.
         // Note: Calculate the inner hash as if both validators are enabled.
-        let inner_hash = sha256(self, &message_bits);
+        let inner_hash = self.sha256(&message_bits, gadget);
         let mut ret_inner_hash = [self._false(); HASH_SIZE_BITS];
         for k in 0..HASH_SIZE_BITS {
             ret_inner_hash[k] = inner_hash[k];
@@ -394,8 +405,9 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D>
         TendermintHashTarget(ret_inner_hash)
     }
 
-    fn hash_merkle_layer(
+    fn hash_merkle_layer<E: CubicParameters<F>>(
         &mut self,
+        gadget: &mut SHA256BuilderGadget<F, E, D>,
         merkle_hashes: &mut Vec<TendermintHashTarget>,
         merkle_hash_enabled: &mut Vec<BoolTarget>,
         num_hashes: usize,
@@ -411,7 +423,8 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D>
             let both_nodes_disabled = self.and(first_node_disabled, second_node_disabled);
 
             // Calculuate the inner hash.
-            let inner_hash = self.inner_hash(
+            let inner_hash = self.inner_hash::<E>(
+                gadget,
                 &TendermintHashTarget(merkle_hashes[i].0),
                 &TendermintHashTarget(merkle_hashes[i + 1].0),
             );
@@ -434,8 +447,9 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D>
         (merkle_hashes.to_vec(), merkle_hash_enabled.to_vec())
     }
 
-    fn hash_validator_set<const VALIDATOR_SET_SIZE_MAX: usize>(
+    fn hash_validator_set<E: CubicParameters<F>, const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
+        gadget: &mut SHA256BuilderGadget<F, E, D>,
         validators: &Vec<MarshalledValidatorTarget>,
         validator_byte_lengths: &Vec<Target>,
         validator_enabled: &Vec<BoolTarget>,
@@ -466,7 +480,8 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D>
 
         // Hash each layer of nodes to get the root according to the Tendermint spec, starting from the leaves.
         while merkle_layer_size > 1 {
-            (current_validator_hashes, current_validator_enabled) = self.hash_merkle_layer(
+            (current_validator_hashes, current_validator_enabled) = self.hash_merkle_layer::<E>(
+                gadget,
                 &mut current_validator_hashes,
                 &mut current_validator_enabled,
                 merkle_layer_size,
@@ -482,6 +497,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintMarshaller<F, D>
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
+    use curta::math::goldilocks::cubic::GoldilocksCubicParameters;
     use plonky2::field::types::Field;
     use plonky2::iop::target::BoolTarget;
     use plonky2::{
@@ -509,10 +525,11 @@ pub(crate) mod tests {
             HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BITS, PROTOBUF_HASH_SIZE_BITS,
             VALIDATOR_BIT_LENGTH_MAX,
         },
-        validator::TendermintMarshaller,
+        validator::TendermintValidator,
     };
 
     type C = PoseidonGoldilocksConfig;
+    type E = GoldilocksCubicParameters;
     type F = <C as GenericConfig<D>>::F;
     type Curve = Ed25519;
     const D: usize = 2;
@@ -577,7 +594,7 @@ pub(crate) mod tests {
             }
         }
 
-        let result = builder.leaf_hash::<PROTOBUF_HASH_SIZE_BITS>(&validators_hash_bits_target);
+        let result = builder.leaf_hash::<E, PROTOBUF_HASH_SIZE_BITS>(&validators_hash_bits_target);
 
         for i in 0..HASH_SIZE_BITS {
             if validators_hash_bits[i] {
@@ -658,9 +675,9 @@ pub(crate) mod tests {
             }
         }
 
-        let leaf_hash = builder.leaf_hash::<PROTOBUF_BLOCK_ID_SIZE_BITS>(&leaf_target);
+        let leaf_hash = builder.leaf_hash::<E, PROTOBUF_BLOCK_ID_SIZE_BITS>(&leaf_target);
 
-        let result = builder.get_root_from_merkle_proof::<HEADER_PROOF_DEPTH>(
+        let result = builder.get_root_from_merkle_proof::<E, HEADER_PROOF_DEPTH>(
             &aunts_target.try_into().unwrap(),
             &path_indices.try_into().unwrap(),
             &leaf_hash,
@@ -836,7 +853,7 @@ pub(crate) mod tests {
                 ))
             );
 
-            let result = builder.hash_validator_set::<VALIDATOR_SET_SIZE_MAX>(
+            let result = builder.hash_validator_set::<E, VALIDATOR_SET_SIZE_MAX>(
                 &validators_target,
                 &validator_byte_length,
                 &validator_enabled,

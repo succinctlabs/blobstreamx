@@ -7,7 +7,7 @@
 //! encoded using protobuf's default integer encoding, which consist of 7 bit payloads. You can
 //! read more about them here: https://protobuf.dev/programming-guides/encoding/#varints.
 
-use curta::math::extension::CubicParameters;
+use curta::{math::extension::CubicParameters, chip::hash::sha::sha256::builder_gadget::{SHA256BuilderGadget, SHA256Builder}};
 use plonky2::{
     field::{extension::Extendable, types::Field},
     hash::hash_types::RichField,
@@ -55,7 +55,7 @@ use crate::{
         HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BITS, PROTOBUF_HASH_SIZE_BITS,
         VALIDATOR_MESSAGE_BYTES_LENGTH_MAX,
     },
-    validator::TendermintMarshaller,
+    validator::TendermintValidator,
     voting::TendermintVoting,
 };
 
@@ -133,6 +133,7 @@ pub trait TendermintVerify<F: RichField + Extendable<D>, const D: usize> {
         C: GenericConfig<D, F = F, FE = F::Extension> + 'static,
     >(
         &mut self,
+        gadget: &mut SHA256BuilderGadget<F, E, D>,
         header: &TendermintHashTarget,
         prev_header: &TendermintHashTarget,
         last_block_id_proof: &BlockIDInclusionProofTarget,
@@ -146,6 +147,7 @@ pub trait TendermintVerify<F: RichField + Extendable<D>, const D: usize> {
         const VALIDATOR_SET_SIZE_MAX: usize,
     >(
         &mut self,
+        gadget: &mut SHA256BuilderGadget<F, E, D>,
         validators: &Vec<ValidatorTarget<Self::Curve>>,
         header: &TendermintHashTarget,
         data_hash_proof: &HashInclusionProofTarget,
@@ -180,6 +182,7 @@ pub trait TendermintVerify<F: RichField + Extendable<D>, const D: usize> {
         const VALIDATOR_SET_SIZE_MAX: usize,
     >(
         &mut self,
+        gadget: &mut SHA256BuilderGadget<F, E, D>,
         validators: &Vec<ValidatorTarget<Self::Curve>>,
         trusted_header: &TendermintHashTarget,
         trusted_validator_hash_proof: &HashInclusionProofTarget,
@@ -227,8 +230,12 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
     ) where
         <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>,
     {
+
+        let mut gadget: SHA256BuilderGadget<F, E, D> = self.init_sha256();
+
         // Verifies that 2/3 of the validators signed the headers
         self.verify_header::<E, C, VALIDATOR_SET_SIZE_MAX>(
+            &mut gadget,
             validators,
             header,
             data_hash_proof,
@@ -238,7 +245,9 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
         );
 
         // Verifies that the previous header hash in the block matches the previous header hash in the last block ID.
-        self.verify_prev_header_in_header::<E, C>(header, prev_header, last_block_id_proof);
+        self.verify_prev_header_in_header::<E, C>(&mut gadget, header, prev_header, last_block_id_proof);
+
+        self.constrain_sha256_gadget::<C>(gadget);
     }
 
     fn verify_header<
@@ -247,6 +256,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
         const VALIDATOR_SET_SIZE_MAX: usize,
     >(
         &mut self,
+        gadget: &mut SHA256BuilderGadget<F, E, D>,
         validators: &Vec<ValidatorTarget<Self::Curve>>,
         header: &TendermintHashTarget,
         data_hash_proof: &HashInclusionProofTarget,
@@ -302,7 +312,8 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
             validators.iter().map(|v| &v.pubkey).collect();
 
         // Compute the validators hash
-        let validators_hash_target = self.hash_validator_set::<VALIDATOR_SET_SIZE_MAX>(
+        let validators_hash_target = self.hash_validator_set::<E, VALIDATOR_SET_SIZE_MAX>(
+            gadget,
             &marshalled_validators,
             &byte_lengths,
             &validators_enabled,
@@ -363,26 +374,29 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
         let next_val_hash_path = vec![false_t, false_t, false_t, true_t];
 
         let data_hash_leaf_hash =
-            self.leaf_hash::<PROTOBUF_HASH_SIZE_BITS>(&data_hash_proof.enc_leaf.0);
-        let header_from_data_root_proof = self.get_root_from_merkle_proof::<HEADER_PROOF_DEPTH>(
+            self.leaf_hash::<E, PROTOBUF_HASH_SIZE_BITS>(gadget, &data_hash_proof.enc_leaf.0);
+        let header_from_data_root_proof = self.get_root_from_merkle_proof::<E, HEADER_PROOF_DEPTH>(
+            gadget,
             &data_hash_proof.proof,
             &data_hash_path,
             &data_hash_leaf_hash,
         );
 
         let validator_hash_leaf_hash =
-            self.leaf_hash::<PROTOBUF_HASH_SIZE_BITS>(&validator_hash_proof.enc_leaf.0);
+            self.leaf_hash::<E, PROTOBUF_HASH_SIZE_BITS>(gadget, &validator_hash_proof.enc_leaf.0);
         let header_from_validator_root_proof = self
-            .get_root_from_merkle_proof::<HEADER_PROOF_DEPTH>(
+            .get_root_from_merkle_proof::<E, HEADER_PROOF_DEPTH>(
+                gadget,
                 &validator_hash_proof.proof,
                 &val_hash_path,
                 &validator_hash_leaf_hash,
             );
 
         let next_validators_hash_leaf_hash =
-            self.leaf_hash::<PROTOBUF_HASH_SIZE_BITS>(&next_validators_hash_proof.enc_leaf.0);
+            self.leaf_hash::<E, PROTOBUF_HASH_SIZE_BITS>(gadget, &next_validators_hash_proof.enc_leaf.0);
         let header_from_next_validators_root_proof = self
-            .get_root_from_merkle_proof::<HEADER_PROOF_DEPTH>(
+            .get_root_from_merkle_proof::<E, HEADER_PROOF_DEPTH>(
+                gadget,
                 &next_validators_hash_proof.proof,
                 &next_val_hash_path,
                 &next_validators_hash_leaf_hash,
@@ -407,6 +421,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
         C: GenericConfig<D, F = F, FE = F::Extension> + 'static,
     >(
         &mut self,
+        gadget: &mut SHA256BuilderGadget<F, E, D>,
         header: &TendermintHashTarget,
         prev_header: &TendermintHashTarget,
         last_block_id_proof: &BlockIDInclusionProofTarget,
@@ -422,9 +437,10 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
         let last_block_id_path = vec![false_t, false_t, true_t, false_t];
 
         let last_block_id_leaf_hash =
-            self.leaf_hash::<PROTOBUF_BLOCK_ID_SIZE_BITS>(&last_block_id_proof.enc_leaf.0);
+            self.leaf_hash::<E, PROTOBUF_BLOCK_ID_SIZE_BITS>(gadget, &last_block_id_proof.enc_leaf.0);
         let header_from_last_block_id_proof = self
-            .get_root_from_merkle_proof::<HEADER_PROOF_DEPTH>(
+            .get_root_from_merkle_proof::<E, HEADER_PROOF_DEPTH>(
+                gadget,
                 &last_block_id_proof.proof,
                 &last_block_id_path,
                 &last_block_id_leaf_hash,
@@ -469,7 +485,10 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
     ) where
         <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>,
     {
+        let mut gadget: SHA256BuilderGadget<F, E, D> = self.init_sha256();
+
         self.verify_trusted_validators::<E, C, VALIDATOR_SET_SIZE_MAX>(
+            &mut gadget,
             validators,
             trusted_header,
             trusted_validator_hash_proof,
@@ -477,6 +496,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
         );
 
         self.verify_header::<E, C, VALIDATOR_SET_SIZE_MAX>(
+            &mut gadget,
             validators,
             header,
             data_hash_proof,
@@ -484,6 +504,8 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
             next_validators_hash_proof,
             round_present,
         );
+
+        self.constrain_sha256_gadget::<C>(gadget);
     }
 
     fn verify_trusted_validators<
@@ -492,6 +514,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
         const VALIDATOR_SET_SIZE_MAX: usize,
     >(
         &mut self,
+        gadget: &mut SHA256BuilderGadget<F, E, D>,
         validators: &Vec<ValidatorTarget<Self::Curve>>,
         trusted_header: &TendermintHashTarget,
         trusted_validator_hash_proof: &HashInclusionProofTarget,
@@ -507,9 +530,10 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
         // Get the header from the validator hash merkle proof
         let val_hash_path = vec![true_t, true_t, true_t, false_t];
         let validator_hash_leaf_hash =
-            self.leaf_hash::<PROTOBUF_HASH_SIZE_BITS>(&trusted_validator_hash_proof.enc_leaf.0);
+            self.leaf_hash::<E, PROTOBUF_HASH_SIZE_BITS>(gadget, &trusted_validator_hash_proof.enc_leaf.0);
         let header_from_validator_root_proof = self
-            .get_root_from_merkle_proof::<HEADER_PROOF_DEPTH>(
+            .get_root_from_merkle_proof::<E, HEADER_PROOF_DEPTH>(
+                gadget,
                 &trusted_validator_hash_proof.proof,
                 &val_hash_path,
                 &validator_hash_leaf_hash,
@@ -540,7 +564,8 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
             .collect();
 
         // Compute the validators hash from the validators
-        let validators_hash_target = self.hash_validator_set::<VALIDATOR_SET_SIZE_MAX>(
+        let validators_hash_target = self.hash_validator_set::<E, VALIDATOR_SET_SIZE_MAX>(
+            gadget,
             &marshalled_trusted_validators,
             &trusted_byte_lengths,
             &trusted_validators_enabled,
