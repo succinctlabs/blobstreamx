@@ -52,7 +52,7 @@ use crate::{
     utils::{
         to_be_bits, EncBlockIDTarget, EncTendermintHashTarget, I64Target,
         MarshalledValidatorTarget, TendermintHashTarget, ValidatorMessageTarget, HASH_SIZE_BITS,
-        HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BITS, PROTOBUF_HASH_SIZE_BITS,
+        HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BITS, PROTOBUF_HASH_SIZE_BITS, PROTOBUF_BLOCK_ID_SHA256_NUM_BYTES, PROTOBUF_HASH_SHA256_NUM_BYTES,
         VALIDATOR_MESSAGE_BYTES_LENGTH_MAX,
     },
     validator::TendermintValidator,
@@ -373,8 +373,11 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
         let val_hash_path = vec![true_t, true_t, true_t, false_t];
         let next_val_hash_path = vec![false_t, false_t, false_t, true_t];
 
+        // Add 8 to PROTOBUF_HASH_SIZE_BITS to account for prepending the 0x00 byte
+        const PROTOBUF_HASH_SIZE_BITS_PLUS_8: usize = PROTOBUF_HASH_SIZE_BITS + 8;
+
         let data_hash_leaf_hash =
-            self.leaf_hash::<E, PROTOBUF_HASH_SIZE_BITS>(gadget, &data_hash_proof.enc_leaf.0);
+            self.leaf_hash_stark::<E, PROTOBUF_HASH_SIZE_BITS, PROTOBUF_HASH_SIZE_BITS_PLUS_8, PROTOBUF_HASH_SHA256_NUM_BYTES>(gadget, &data_hash_proof.enc_leaf.0);
         let header_from_data_root_proof = self.get_root_from_merkle_proof::<E, HEADER_PROOF_DEPTH>(
             gadget,
             &data_hash_proof.proof,
@@ -383,7 +386,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
         );
 
         let validator_hash_leaf_hash =
-            self.leaf_hash::<E, PROTOBUF_HASH_SIZE_BITS>(gadget, &validator_hash_proof.enc_leaf.0);
+            self.leaf_hash_stark::<E, PROTOBUF_HASH_SIZE_BITS, PROTOBUF_HASH_SIZE_BITS_PLUS_8, PROTOBUF_HASH_SHA256_NUM_BYTES>(gadget, &validator_hash_proof.enc_leaf.0);
         let header_from_validator_root_proof = self
             .get_root_from_merkle_proof::<E, HEADER_PROOF_DEPTH>(
                 gadget,
@@ -393,7 +396,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
             );
 
         let next_validators_hash_leaf_hash =
-            self.leaf_hash::<E, PROTOBUF_HASH_SIZE_BITS>(gadget, &next_validators_hash_proof.enc_leaf.0);
+            self.leaf_hash_stark::<E, PROTOBUF_HASH_SIZE_BITS, PROTOBUF_HASH_SIZE_BITS_PLUS_8, PROTOBUF_HASH_SHA256_NUM_BYTES>(gadget, &next_validators_hash_proof.enc_leaf.0);
         let header_from_next_validators_root_proof = self
             .get_root_from_merkle_proof::<E, HEADER_PROOF_DEPTH>(
                 gadget,
@@ -436,8 +439,11 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
 
         let last_block_id_path = vec![false_t, false_t, true_t, false_t];
 
+        // Add 8 to PROTOBUF_HASH_SIZE_BITS to account for prepending the 0x00 byte
+        const PROTOBUF_HASH_SIZE_BITS_PLUS_8: usize = PROTOBUF_HASH_SIZE_BITS + 8;
+
         let last_block_id_leaf_hash =
-            self.leaf_hash::<E, PROTOBUF_BLOCK_ID_SIZE_BITS>(gadget, &last_block_id_proof.enc_leaf.0);
+            self.leaf_hash_stark::<E, PROTOBUF_BLOCK_ID_SIZE_BITS, PROTOBUF_HASH_SIZE_BITS_PLUS_8, PROTOBUF_BLOCK_ID_SHA256_NUM_BYTES>(gadget, &last_block_id_proof.enc_leaf.0);
         let header_from_last_block_id_proof = self
             .get_root_from_merkle_proof::<E, HEADER_PROOF_DEPTH>(
                 gadget,
@@ -529,8 +535,12 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
 
         // Get the header from the validator hash merkle proof
         let val_hash_path = vec![true_t, true_t, true_t, false_t];
+
+        // Add 8 to PROTOBUF_HASH_SIZE_BITS to account for prepending the 0x00 byte
+        const PROTOBUF_HASH_SIZE_BITS_PLUS_8: usize = PROTOBUF_HASH_SIZE_BITS + 8;
+
         let validator_hash_leaf_hash =
-            self.leaf_hash::<E, PROTOBUF_HASH_SIZE_BITS>(gadget, &trusted_validator_hash_proof.enc_leaf.0);
+            self.leaf_hash_stark::<E, PROTOBUF_HASH_SIZE_BITS, PROTOBUF_HASH_SIZE_BITS_PLUS_8, PROTOBUF_HASH_SHA256_NUM_BYTES>(gadget, &trusted_validator_hash_proof.enc_leaf.0);
         let header_from_validator_root_proof = self
             .get_root_from_merkle_proof::<E, HEADER_PROOF_DEPTH>(
                 gadget,
