@@ -348,7 +348,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintValidator<F, D>
         let padded_msg = pad_single_sha256_chunk(self, &enc_validator_bits, enc_validator_bit_length);
 
         // Convert the [BoolTarget; N] into Curta bytes
-        let mut bytes = CurtaBytes(self.add_virtual_target_arr::<64>());
+        let bytes = CurtaBytes(self.add_virtual_target_arr::<64>());
         const SHA256_SINGLE_CHUNK_BITS_SIZE: usize = 512;
 
         for i in (0..SHA256_SINGLE_CHUNK_BITS_SIZE).step_by(8) {
@@ -358,7 +358,8 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintValidator<F, D>
                 // MSB first
                 byte = self.mul_const_add(F::TWO.exp_power_of_2(7 - j), bit.target, byte);
             }
-            bytes.0[i / 8] = byte;
+            self.connect(byte, bytes.0[i / 8]);
+            // bytes.0[i / 8] = byte;
         }
 
         let hash = self.sha256(&bytes, gadget);
@@ -532,8 +533,9 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintValidator<F, D>
         &mut self,
         bits: &[BoolTarget; MSG_SIZE_BITS],
     ) -> CurtaBytes<NUM_BYTES> {
+        let zero = self.zero();
 
-        let mut bytes = CurtaBytes(self.add_virtual_target_arr::<NUM_BYTES>());
+        let bytes = CurtaBytes(self.add_virtual_target_arr::<NUM_BYTES>());
         for i in (0..MSG_SIZE_BITS).step_by(8) {
             let mut byte = self.zero();
             for j in 0..8 {
@@ -541,23 +543,25 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintValidator<F, D>
                 // MSB first
                 byte = self.mul_const_add(F::TWO.exp_power_of_2(7 - j), bit.target, byte);
             }
-            bytes.0[i / 8] = byte;
+            self.connect(byte, bytes.0[i / 8]);
+            // bytes.0[i / 8] = byte;
         }
 
         // Push padding byte (0x80)
-        bytes.0[MSG_SIZE_BITS / 8] = self.constant(F::from_canonical_u64(0x80));
+        let padding_byte = self.constant(F::from_canonical_u64(0x80));
+        self.connect(padding_byte, bytes.0[MSG_SIZE_BITS / 8]);
 
         // Reserve 8 bytes for the length of the message.
         for i in ((MSG_SIZE_BITS + 8) / 8)..NUM_BYTES - 8 {
             // Fill the rest of the bits with zero's
-            bytes.0[i] = self.zero();
+            self.connect(zero, bytes.0[i]);
         }
 
         // Set the length bits to the length of the message.
         let len = ((MSG_SIZE_BITS) as u64).to_be_bytes();
         for i in 0..8 {
-            bytes.0[NUM_BYTES - 8 + i] =
-                self.constant(F::from_canonical_u8(len[i]));
+            let bit = self.constant(F::from_canonical_u8(len[i]));
+            self.connect(bit, bytes.0[NUM_BYTES - 8 + i]);
         }
         bytes
     }

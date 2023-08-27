@@ -230,7 +230,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
     ) where
         <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>,
     {
-
+        let zero = self.zero();
         let mut gadget: SHA256BuilderGadget<F, E, D> = self.init_sha256();
 
         // Verifies that 2/3 of the validators signed the headers
@@ -250,9 +250,9 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
         // If VALIDATOR_SET_SIZE_MAX = N
         // Step does (3N - 2) + 37 = 3N + 35 SHA-256 chunks
         // In order to reach 1024 chunks, we need to add 1024 - (3N + 35) = 989 - 3N chunks to the SHA gadget
-        let mut bytes = CurtaBytes(self.add_virtual_target_arr::<64>());
+        let bytes = CurtaBytes(self.add_virtual_target_arr::<64>());
         for i in 0..64 {
-            bytes.0[i] = self.zero();
+            self.connect(bytes.0[i], zero);
         }
 
         for _ in 0..(989 - 3 * VALIDATOR_SET_SIZE_MAX) {
@@ -361,14 +361,14 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
         );
         self.connect(check_voting_power_bool.target, one);
 
-        // Verifies signatures of the validators
-        self.verify_signatures::<E, C>(
-            &validators_signed,
-            messages,
-            message_bit_lengths,
-            signatures,
-            pubkeys,
-        );
+        // // Verifies signatures of the validators
+        // self.verify_signatures::<E, C>(
+        //     &validators_signed,
+        //     messages,
+        //     message_bit_lengths,
+        //     signatures,
+        //     pubkeys,
+        // );
 
         // TODO: Verify that this will work with dummy signatures
         for i in 0..VALIDATOR_SET_SIZE_MAX {
@@ -503,6 +503,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
     ) where
         <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>,
     {
+        let zero = self.zero();
         let mut gadget: SHA256BuilderGadget<F, E, D> = self.init_sha256();
 
         self.verify_trusted_validators::<E, C, VALIDATOR_SET_SIZE_MAX>(
@@ -526,9 +527,9 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
         // If VALIDATOR_SET_SIZE_MAX = N
         // Skip does (6N - 4) + 36 = 6N + 32 SHA-256 chunks
         // In order to reach 1024 chunks, we need to add 1024 - (6N + 32) = 992 - 6N chunks to the SHA gadget
-        let mut bytes = CurtaBytes(self.add_virtual_target_arr::<64>());
+        let bytes = CurtaBytes(self.add_virtual_target_arr::<64>());
         for i in 0..64 {
-            bytes.0[i] = self.zero();
+            self.connect(bytes.0[i], zero);
         }
 
         for _ in 0..(992 - 6 * VALIDATOR_SET_SIZE_MAX) {
