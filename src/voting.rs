@@ -9,9 +9,9 @@
 use plonky2::field::extension::Extendable;
 use plonky2::iop::target::BoolTarget;
 use plonky2::{hash::hash_types::RichField, plonk::circuit_builder::CircuitBuilder};
-use plonky2x::ecc::ed25519::curve::curve_types::Curve;
-use plonky2x::ecc::ed25519::curve::ed25519::Ed25519;
-use plonky2x::num::u32::gadgets::arithmetic_u32::{CircuitBuilderU32, U32Target};
+use plonky2x::frontend::ecc::ed25519::curve::curve_types::Curve;
+use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
+use plonky2x::frontend::num::u32::gadgets::arithmetic_u32::{CircuitBuilderU32, U32Target};
 
 use crate::utils::I64Target;
 
@@ -213,7 +213,7 @@ pub(crate) mod tests {
         },
     };
 
-    use plonky2x::num::u32::gadgets::arithmetic_u32::U32Target;
+    use plonky2x::frontend::num::u32::gadgets::arithmetic_u32::U32Target;
 
     use crate::utils::I64Target;
 

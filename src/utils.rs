@@ -1,7 +1,7 @@
 use plonky2::hash::hash_types::RichField;
 
 use plonky2::iop::target::BoolTarget;
-use plonky2x::num::u32::gadgets::arithmetic_u32::U32Target;
+use plonky2x::frontend::num::u32::gadgets::arithmetic_u32::U32Target;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::cell::RefCell;

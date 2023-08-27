@@ -15,16 +15,16 @@ use plonky2::iop::target::Target;
 use plonky2::plonk::config::AlgebraicHasher;
 use plonky2::plonk::config::GenericConfig;
 use plonky2::{hash::hash_types::RichField, plonk::circuit_builder::CircuitBuilder};
-use plonky2x::ecc::ed25519::curve::curve_types::AffinePoint;
-use plonky2x::ecc::ed25519::curve::curve_types::Curve;
-use plonky2x::ecc::ed25519::curve::ed25519::Ed25519;
-use plonky2x::ecc::ed25519::field::ed25519_scalar::Ed25519Scalar;
-use plonky2x::ecc::ed25519::gadgets::curve::CircuitBuilderCurve;
-use plonky2x::ecc::ed25519::gadgets::eddsa::verify_variable_signatures_circuit;
-use plonky2x::ecc::ed25519::gadgets::eddsa::{
+use plonky2x::frontend::ecc::ed25519::curve::curve_types::AffinePoint;
+use plonky2x::frontend::ecc::ed25519::curve::curve_types::Curve;
+use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
+use plonky2x::frontend::ecc::ed25519::field::ed25519_scalar::Ed25519Scalar;
+use plonky2x::frontend::ecc::ed25519::gadgets::curve::CircuitBuilderCurve;
+use plonky2x::frontend::ecc::ed25519::gadgets::eddsa::verify_variable_signatures_circuit;
+use plonky2x::frontend::ecc::ed25519::gadgets::eddsa::{
     verify_signatures_circuit, EDDSAPublicKeyTarget, EDDSASignatureTarget,
 };
-use plonky2x::num::nonnative::nonnative::CircuitBuilderNonNative;
+use plonky2x::frontend::num::nonnative::nonnative::CircuitBuilderNonNative;
 
 use crate::utils::to_be_bits;
 use crate::utils::{
@@ -351,13 +351,13 @@ pub(crate) mod tests {
             config::PoseidonGoldilocksConfig,
         },
     };
-    use plonky2x::ecc::ed25519::curve::eddsa::{verify_message, EDDSAPublicKey, EDDSASignature};
+    use plonky2x::frontend::ecc::ed25519::curve::eddsa::{verify_message, EDDSAPublicKey, EDDSASignature};
     use subtle_encoding::hex;
 
-    use plonky2x::num::biguint::CircuitBuilderBiguint;
+    use plonky2x::frontend::num::biguint::CircuitBuilderBiguint;
 
-    use plonky2x::ecc::ed25519::curve::curve_types::AffinePoint;
-    use plonky2x::ecc::ed25519::field::ed25519_scalar::Ed25519Scalar;
+    use plonky2x::frontend::ecc::ed25519::curve::curve_types::AffinePoint;
+    use plonky2x::frontend::ecc::ed25519::field::ed25519_scalar::Ed25519Scalar;
     use tendermint::crypto::ed25519::SigningKey;
     use tendermint::private_key;
 
