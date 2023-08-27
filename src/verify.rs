@@ -7,7 +7,7 @@
 //! encoded using protobuf's default integer encoding, which consist of 7 bit payloads. You can
 //! read more about them here: https://protobuf.dev/programming-guides/encoding/#varints.
 
-use curta::{math::extension::CubicParameters, chip::hash::sha::sha256::builder_gadget::{SHA256BuilderGadget, SHA256Builder}};
+use curta::{math::extension::CubicParameters, chip::hash::sha::sha256::builder_gadget::{SHA256BuilderGadget, SHA256Builder, CurtaBytes}};
 use plonky2::{
     field::{extension::Extendable, types::Field},
     hash::hash_types::RichField,
@@ -22,7 +22,7 @@ use plonky2::{
 };
 
 use plonky2x::{
-    ecc::ed25519::{
+    frontend::ecc::ed25519::{
         curve::{
             curve_types::{AffinePoint, Curve},
             ed25519::Ed25519,
@@ -33,7 +33,7 @@ use plonky2x::{
             eddsa::{EDDSAPublicKeyTarget, EDDSASignatureTarget},
         },
     },
-    num::{
+    frontend::num::{
         biguint::WitnessBigUint,
         nonnative::nonnative::CircuitBuilderNonNative,
         u32::{
@@ -246,6 +246,18 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
 
         // Verifies that the previous header hash in the block matches the previous header hash in the last block ID.
         self.verify_prev_header_in_header::<E, C>(&mut gadget, header, prev_header, last_block_id_proof);
+
+        // If VALIDATOR_SET_SIZE_MAX = N
+        // Step does (3N - 2) + 37 = 3N + 35 SHA-256 chunks
+        // In order to reach 1024 chunks, we need to add 1024 - (3N + 35) = 989 - 3N chunks to the SHA gadget
+        let mut bytes = CurtaBytes(self.add_virtual_target_arr::<64>());
+        for i in 0..64 {
+            bytes.0[i] = self.zero();
+        }
+
+        for _ in 0..(989 - 3 * VALIDATOR_SET_SIZE_MAX) {
+            self.sha256(&bytes, &mut gadget);
+        }
 
         self.constrain_sha256_gadget::<C>(gadget);
     }
@@ -511,6 +523,19 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
             round_present,
         );
 
+        // If VALIDATOR_SET_SIZE_MAX = N
+        // Skip does (6N - 4) + 36 = 6N + 32 SHA-256 chunks
+        // In order to reach 1024 chunks, we need to add 1024 - (6N + 32) = 992 - 6N chunks to the SHA gadget
+        let mut bytes = CurtaBytes(self.add_virtual_target_arr::<64>());
+        for i in 0..64 {
+            bytes.0[i] = self.zero();
+        }
+
+        for _ in 0..(992 - 6 * VALIDATOR_SET_SIZE_MAX) {
+            self.sha256(&bytes, &mut gadget);
+        }
+
+        // Constrain SHA256 gadget
         self.constrain_sha256_gadget::<C>(gadget);
     }
 
