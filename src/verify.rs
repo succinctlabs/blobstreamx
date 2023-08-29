@@ -248,14 +248,14 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
         self.verify_prev_header_in_header::<E, C>(&mut gadget, header, prev_header, last_block_id_proof);
 
         // If VALIDATOR_SET_SIZE_MAX = N
-        // Step does (3N - 2) + 37 = 3N + 35 SHA-256 chunks
-        // In order to reach 1024 chunks, we need to add 1024 - (3N + 35) = 989 - 3N chunks to the SHA gadget
+        // Step does (3N - 2) + 69 = 3N + 67 SHA-256 chunks
+        // In order to reach 1024 chunks, we need to add 1024 - (3N + 67) = 957 - 3N chunks to the SHA gadget
         let bytes = CurtaBytes(self.add_virtual_target_arr::<64>());
         for i in 0..64 {
             self.connect(bytes.0[i], zero);
         }
 
-        for _ in 0..(989 - 3 * VALIDATOR_SET_SIZE_MAX) {
+        for _ in 0..(957 - 3 * VALIDATOR_SET_SIZE_MAX) {
             self.sha256(&bytes, &mut gadget);
         }
 
@@ -525,8 +525,8 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
         );
 
         // If VALIDATOR_SET_SIZE_MAX = N
-        // Skip does (6N - 4) + 36 = 6N + 32 SHA-256 chunks
-        // In order to reach 1024 chunks, we need to add 1024 - (6N + 32) = 992 - 6N chunks to the SHA gadget
+        // Skip does (6N - 4) + 68 = 6N + 64 SHA-256 chunks
+        // In order to reach 1024 chunks, we need to add 1024 - (6N + 64) = 960 - 6N chunks to the SHA gadget
 
 
         for _ in 0..(960 - 6 * VALIDATOR_SET_SIZE_MAX) {
