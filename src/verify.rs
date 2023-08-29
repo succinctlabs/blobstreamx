@@ -361,14 +361,14 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
         );
         self.connect(check_voting_power_bool.target, one);
 
-        // // Verifies signatures of the validators
-        // self.verify_signatures::<E, C>(
-        //     &validators_signed,
-        //     messages,
-        //     message_bit_lengths,
-        //     signatures,
-        //     pubkeys,
-        // );
+        // Verifies signatures of the validators
+        self.verify_signatures::<E, C>(
+            &validators_signed,
+            messages,
+            message_bit_lengths,
+            signatures,
+            pubkeys,
+        );
 
         // TODO: Verify that this will work with dummy signatures
         for i in 0..VALIDATOR_SET_SIZE_MAX {
@@ -1398,7 +1398,7 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn test_step() {
+    fn test_step_small() {
         // Testing block 11000
         let block = 11000;
 
