@@ -451,11 +451,11 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
 
         let last_block_id_path = vec![false_t, false_t, true_t, false_t];
 
-        // Add 8 to PROTOBUF_HASH_SIZE_BITS to account for prepending the 0x00 byte
-        const PROTOBUF_HASH_SIZE_BITS_PLUS_8: usize = PROTOBUF_HASH_SIZE_BITS + 8;
+        // Add 8 to PROTOBUF_BLOCK_ID_SIZE_BITS to account for prepending the 0x00 byte
+        const PROTOBUF_BLOCK_ID_SIZE_BITS_PLUS_8: usize = PROTOBUF_BLOCK_ID_SIZE_BITS + 8;
 
         let last_block_id_leaf_hash =
-            self.leaf_hash_stark::<E, PROTOBUF_BLOCK_ID_SIZE_BITS, PROTOBUF_HASH_SIZE_BITS_PLUS_8, PROTOBUF_BLOCK_ID_SHA256_NUM_BYTES>(gadget, &last_block_id_proof.enc_leaf.0);
+            self.leaf_hash_stark::<E, PROTOBUF_BLOCK_ID_SIZE_BITS, PROTOBUF_BLOCK_ID_SIZE_BITS_PLUS_8, PROTOBUF_BLOCK_ID_SHA256_NUM_BYTES>(gadget, &last_block_id_proof.enc_leaf.0);
         let header_from_last_block_id_proof = self
             .get_root_from_merkle_proof::<E, HEADER_PROOF_DEPTH>(
                 gadget,
