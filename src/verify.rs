@@ -7,7 +7,7 @@
 //! encoded using protobuf's default integer encoding, which consist of 7 bit payloads. You can
 //! read more about them here: https://protobuf.dev/programming-guides/encoding/#varints.
 
-use curta::{math::extension::CubicParameters, chip::hash::sha::sha256::builder_gadget::{SHA256BuilderGadget, SHA256Builder, CurtaBytes}};
+use curta::{math::extension::cubic::parameters::CubicParameters, chip::hash::sha::sha256::builder_gadget::{SHA256BuilderGadget, SHA256Builder, CurtaBytes}};
 use plonky2::{
     field::{extension::Extendable, types::Field},
     hash::hash_types::RichField,
@@ -527,12 +527,14 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
         // If VALIDATOR_SET_SIZE_MAX = N
         // Skip does (6N - 4) + 36 = 6N + 32 SHA-256 chunks
         // In order to reach 1024 chunks, we need to add 1024 - (6N + 32) = 992 - 6N chunks to the SHA gadget
-        let bytes = CurtaBytes(self.add_virtual_target_arr::<64>());
-        for i in 0..64 {
-            self.connect(bytes.0[i], zero);
-        }
 
-        for _ in 0..(992 - 6 * VALIDATOR_SET_SIZE_MAX) {
+
+        for _ in 0..(960 - 6 * VALIDATOR_SET_SIZE_MAX) {
+            let bytes = CurtaBytes(self.add_virtual_target_arr::<64>());
+            for i in 0..64 {
+                self.connect(bytes.0[i], zero);
+            }
+
             self.sha256(&bytes, &mut gadget);
         }
 

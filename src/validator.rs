@@ -7,7 +7,7 @@
 //! encoded using protobuf's default integer encoding, which consist of 7 bit payloads. You can
 //! read more about them here: https://protobuf.dev/programming-guides/encoding/#varints.
 use curta::chip::hash::sha::sha256::builder_gadget::{SHA256Builder, SHA256BuilderGadget, CurtaBytes};
-use curta::math::prelude::CubicParameters;
+use curta::math::extension::cubic::parameters::CubicParameters;
 use plonky2::field::extension::Extendable;
 use plonky2::iop::target::BoolTarget;
 use plonky2::iop::target::Target;
@@ -356,7 +356,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintValidator<F, D>
             for j in 0..8 {
                 let bit = padded_msg[i + j];
                 // MSB first
-                byte = self.mul_const_add(F::TWO.exp_power_of_2(7 - j), bit.target, byte);
+                byte = self.mul_const_add(F::from_canonical_u8(1 << (7 - j)), bit.target, byte);
             }
             self.connect(byte, bytes.0[i / 8]);
             // bytes.0[i / 8] = byte;
@@ -541,7 +541,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintValidator<F, D>
             for j in 0..8 {
                 let bit = bits[i + j];
                 // MSB first
-                byte = self.mul_const_add(F::TWO.exp_power_of_2(7 - j), bit.target, byte);
+                byte = self.mul_const_add(F::from_canonical_u8(1 << (7 - j)), bit.target, byte);
             }
             self.connect(byte, bytes.0[i / 8]);
             // bytes.0[i / 8] = byte;
@@ -591,9 +591,13 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintValidator<F, D>
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
+    use curta::chip::hash::sha::sha256::SHA256Gadget;
     use curta::math::goldilocks::cubic::GoldilocksCubicParameters;
     use plonky2::field::types::Field;
     use plonky2::iop::target::BoolTarget;
+    use plonky2::plonk::prover::prove;
+    use plonky2::timed;
+    use plonky2::util::timing::TimingTree;
     use plonky2::{
         iop::witness::{PartialWitness, WitnessWrite},
         plonk::{
@@ -839,62 +843,186 @@ pub(crate) mod tests {
     //     println!("Verified proof");
     // }
 
+    #[test]
+    fn test_starky_sha_gadget() {
+        env_logger::init();
+
+
+        let mut timing = TimingTree::new("Sha256 Plonky2 gadget", log::Level::Debug);
+
+            // Create a new plonky2 circuit
+        let config = CircuitConfig::standard_recursion_config();
+        let mut builder = CircuitBuilder::<F, D>::new(config);
+
+        // Initialize the SHA gadget
+        let mut gadget: SHA256BuilderGadget<F, E, D> = builder.init_sha256();
+
+        // We will hash 256 messages of padded length 128 bytes.
+
+        // Initialize targets
+        let long_padded_msg_targets = (0..512)
+            .map(|_| CurtaBytes(builder.add_virtual_target_arr::<128>()))
+            .collect::<Vec<_>>();
+
+        let mut digest_targets = Vec::new();
+        let mut expected_digests = Vec::new();
+
+        for long_padded_msg in long_padded_msg_targets.iter() {
+            // Get the hash of the padded message
+            let digest = builder.sha256(long_padded_msg, &mut gadget);
+            digest_targets.push(digest);
+            let expected_digest = CurtaBytes(builder.add_virtual_target_arr::<32>());
+            expected_digests.push(expected_digest);
+        }
+
+        // Connect the expected and output digests
+        for (digest, expected) in digest_targets.iter().zip(expected_digests.iter()) {
+            for (d, e) in digest.0.iter().zip(expected.0.iter()) {
+                builder.connect(*d, *e);
+            }
+        }
+
+        // Register the SHA constraints in the builder
+        builder.constrain_sha256_gadget::<C>(gadget);
+
+        // Build the circuit
+        let data = builder.build::<C>();
+
+        // Assign input values and make the proof
+        let mut pw = PartialWitness::new();
+
+        // We will use two types of a short message and one long message
+
+        let long_msg = hex::decode("243f6a8885a308d313198a2e03707344a4093822299f31d0082efa98ec4e6c89452821e638d01377be5466cf34e90c6cc0ac29b7c97c50dd3f84d5b5b5470917").unwrap();
+        let expected_digest_long = "aca16131a2e4c4c49e656d35aac1f0e689b3151bb108fa6cf5bcc3ac08a09bf9";
+
+        let long_messages = (0..512).map(|_| long_msg.clone()).collect::<Vec<_>>();
+
+        // Pad the long messages
+        let padded_long_messages = long_messages
+            .iter()
+            .map(|m| {
+                SHA256Gadget::pad(m)
+                    .into_iter()
+                    .map(F::from_canonical_u8)
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+
+        // Get the expected digest values
+        let expected_digests_long_message = (0..512)
+            .map(|_| expected_digest_long)
+            .map(|digest| {
+                hex::decode(digest)
+                    .unwrap()
+                    .into_iter()
+                    .map(F::from_canonical_u8)
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+
+        let mut expected_digests_values = expected_digests_long_message;
+
+        // Assign the inputs
+        for (msg_target, long_msg) in long_padded_msg_targets
+            .iter()
+            .zip(padded_long_messages.iter())
+        {
+            pw.set_target_arr(&msg_target.0, long_msg);
+        }
+
+        for (digest, value) in expected_digests.iter().zip(expected_digests_values.iter()) {
+            pw.set_target_arr(&digest.0, value);
+        }
+
+        // Generate the proof
+        let proof = timed!(
+            timing,
+            "Generate proof",
+            prove(&data.prover_only, &data.common, pw, &mut timing)
+        )
+        .unwrap();
+        timing.print();
+
+        // Verify the proof
+        data.verify(proof).unwrap();
+    }
+
     // #[test]
     // fn test_hash_validator_leaves() {
     //     let mut pw = PartialWitness::new();
     //     let config = CircuitConfig::standard_recursion_config();
     //     let mut builder = CircuitBuilder::<F, D>::new(config);
 
+    //     let mut gadget: SHA256BuilderGadget<F, E, D> = builder.init_sha256();
+
     //     let validators: Vec<&str> = vec!["6694200ba0e084f7184255abedc39af04463a4ff11e0e0c1326b1b82ea1de50c6b35cf6efa8f7ed3", "739d312e54353379a852b43de497ca4ec52bb49f59b7294a4d6cf19dd648e16cb530b7a7a1e35875d4ab4d90", "4277f2f871f3e041bcd4643c0cf18e5a931c2bfe121ce8983329a289a2b0d2161745a2ddf99bade9a1"];
 
-    //     let validators = validators
-    //         .iter()
-    //         .map(|x| String::from(*x))
-    //         .collect::<Vec<_>>();
+    //     // Convert validators[0] to CurtaBytes.
 
-    //     let validators_bytes: Vec<Vec<u8>> = validators
-    //         .iter()
-    //         .map(|x| hex::decode(x).unwrap())
-    //         .collect::<Vec<_>>();
 
-    //     let expected_digests_bytes = hash_all_leaves::<Sha256>(&validators_bytes);
+    //     // let validators = validators
+    //     //     .iter()
+    //     //     .map(|x| String::from(*x))
+    //     //     .collect::<Vec<_>>();
 
-    //     // Convert the expected hashes to hex strings.
-    //     let expected_digests: Vec<String> = expected_digests_bytes
-    //         .iter()
-    //         .map(|x| String::from_utf8(hex::encode(x)).expect("Invalid UTF-8"))
-    //         .collect::<Vec<_>>();
+    //     // let validators_bytes: Vec<Vec<u8>> = validators
+    //     //     .iter()
+    //     //     .map(|x| hex::decode(x).unwrap())
+    //     //     .collect::<Vec<_>>();
 
-    //     // Convert the expected hashes bytes to bits.
-    //     let digests_bits: Vec<Vec<bool>> = expected_digests
-    //         .iter()
-    //         .map(|x| to_be_bits(hex::decode(x).unwrap()))
-    //         .collect();
+    //     // let expected_digests_bytes = hash_all_leaves::<Sha256>(&validators_bytes);
 
-    //     let (validators_target, validator_byte_length, _) =
-    //         generate_inputs::<VALIDATOR_SET_SIZE_MAX>(&mut builder, &validators);
+    //     // // Convert the expected hashes to hex strings.
+    //     // let expected_digests: Vec<String> = expected_digests_bytes
+    //     //     .iter()
+    //     //     .map(|x| String::from_utf8(hex::encode(x)).expect("Invalid UTF-8"))
+    //     //     .collect::<Vec<_>>();
 
-    //     let result = builder.hash_validator_leaves::<VALIDATOR_SET_SIZE_MAX>(
-    //         &validators_target,
-    //         &validator_byte_length,
-    //     );
-    //     println!("Got all leaf hashes: {}", result.len());
-    //     for i in 0..validators.len() {
-    //         for j in 0..HASH_SIZE_BITS {
-    //             if digests_bits[i][j] {
-    //                 pw.set_target(result[i].0[j].target, F::ONE);
-    //             } else {
-    //                 pw.set_target(result[i].0[j].target, F::ZERO);
-    //             }
-    //         }
-    //     }
+    //     // // Convert the expected hashes bytes to bits.
+    //     // let digests_bits: Vec<Vec<bool>> = expected_digests
+    //     //     .iter()
+    //     //     .map(|x| to_be_bits(hex::decode(x).unwrap()))
+    //     //     .collect();
 
-    //     let data = builder.build::<C>();
-    //     let proof = data.prove(pw).unwrap();
+    //     // let (validators_target, validator_byte_length, _) =
+    //     //     generate_inputs::<VALIDATOR_SET_SIZE_MAX>(&mut builder, &validators);
 
-    //     data.verify(proof).unwrap();
+    //     // let mut gadget: SHA256BuilderGadget<F, E, D> = builder.init_sha256();
 
-    //     println!("Verified proof");
+    //     // let result = builder.hash_validator_leaves::<E, VALIDATOR_SET_SIZE_MAX>(
+    //     //     &mut gadget,
+    //     //     &validators_target,
+    //     //     &validator_byte_length,
+    //     // );
+
+    //     // let zero = builder.zero();
+    //     // for _ in 0..(1024 - VALIDATOR_SET_SIZE_MAX) {
+    //     //     let bytes = CurtaBytes(builder.add_virtual_target_arr::<64>());
+    //     //     for i in 0..64 {
+    //     //         builder.connect(bytes.0[i], zero);
+    //     //     }
+
+    //     //     builder.sha256(&bytes, &mut gadget);
+    //     // }
+
+    //     // println!("Got all leaf hashes: {}", result.len());
+    //     // for i in 0..validators.len() {
+    //     //     for j in 0..HASH_SIZE_BITS {
+    //     //         if digests_bits[i][j] {
+    //     //             pw.set_target(result[i].0[j].target, F::ONE);
+    //     //         } else {
+    //     //             pw.set_target(result[i].0[j].target, F::ZERO);
+    //     //         }
+    //     //     }
+    //     // }
+
+    //     // let data = builder.build::<C>();
+    //     // let proof = data.prove(pw).unwrap();
+
+    //     // data.verify(proof).unwrap();
+
+    //     // println!("Verified proof");
     // }
 
     // #[test]
