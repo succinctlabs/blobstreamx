@@ -1,5 +1,6 @@
 use std::fs;
 
+use crate::fixture::create_new_fixture;
 /// Source (tendermint-rs): https://github.com/informalsystems/tendermint-rs/blob/e930691a5639ef805c399743ac0ddbba0e9f53da/tendermint/src/merkle.rs#L32
 use crate::utils::{
     compute_hash_from_aunts, generate_proofs_from_header, leaf_hash, non_absent_vote, SignedBlock,
@@ -55,6 +56,7 @@ pub struct CelestiaBaseBlockProof {
 
 #[derive(Debug, Clone)]
 pub struct CelestiaStepBlockProof {
+    pub prev_header_next_validators_hash_proof: InclusionProof,
     pub prev_header: Vec<u8>,
     pub last_block_id_proof: InclusionProof,
     pub base: CelestiaBaseBlockProof,
@@ -88,10 +90,10 @@ fn get_signed_block(block: usize) -> Box<SignedBlock> {
     file.push_str(&block.to_string());
     file.push_str("/signed_block.json");
 
-    let file_content = fs::read_to_string(file.as_str()).expect("error reading file");
+    let file_content = fs::read_to_string(file.as_str());
 
     let temp_block = Box::new(TempSignedBlock::from(
-        serde_json::from_str::<TempSignedBlock>(&file_content).expect("failed to parse json"),
+        serde_json::from_str::<TempSignedBlock>(&file_content.unwrap()).expect("failed to parse json"),
     ));
 
     // Cast to SignedBlock
@@ -239,10 +241,11 @@ fn generate_base_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
 }
 
 pub fn generate_step_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
-    block: usize,
+    block_number: usize,
 ) -> CelestiaStepBlockProof {
     // Generate test cases from Celestia block:
-    let block = get_signed_block(block);
+    let prev_block = get_signed_block(block_number-1);
+    let block = get_signed_block(block_number);
 
     let (_root, proofs) = generate_proofs_from_header(&block.header);
     let total = proofs[0].total;
@@ -283,9 +286,20 @@ pub fn generate_step_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
         "computed hash does not match"
     );
 
+    // Proof of the prev_header_next_validators_hash
+    let enc_prev_header_next_validators_hash_leaf = prev_block.header.next_validators_hash.encode_vec();
+    let enc_prev_header_next_validators_hash_proof = proofs[8].clone();
+    let enc_prev_header_next_validators_hash_proof_indices = get_path_indices(8, total);
+    let prev_header_next_validators_hash_proof = InclusionProof {
+        enc_leaf: enc_prev_header_next_validators_hash_leaf,
+        path: enc_prev_header_next_validators_hash_proof_indices,
+        proof: enc_prev_header_next_validators_hash_proof.aunts,
+    };
+
     let base = generate_base_inputs::<VALIDATOR_SET_SIZE_MAX>(&block);
 
     CelestiaStepBlockProof {
+        prev_header_next_validators_hash_proof,
         prev_header: prev_header_hash.as_bytes().to_vec(),
         last_block_id_proof,
         base,
