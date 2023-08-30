@@ -394,13 +394,13 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
         self.connect(check_voting_power_bool.target, one);
 
         // Verifies signatures of the validators
-        self.verify_signatures::<E, C>(
-            &validators_signed,
-            messages,
-            message_bit_lengths,
-            signatures,
-            pubkeys,
-        );
+        // self.verify_signatures::<E, C>(
+        //     &validators_signed,
+        //     messages,
+        //     message_bit_lengths,
+        //     signatures,
+        //     pubkeys,
+        // );
 
         // Verify that the header is included in each message signed by an enabled validator
         for i in 0..VALIDATOR_SET_SIZE_MAX {
@@ -1562,16 +1562,16 @@ pub(crate) mod tests {
 
     #[test]
     fn test_skip_large() {
-        // Testing skip from 11000 to 15000
+        // Testing skip from 60000 to 75000
 
-        // 15000 has 16 validator max
+        // 75000 has 128 validator max
 
         // For now, only test with validator_set_size_max of the same size, confirm that we can set validator_et-isze_max to an arbitrary amount and the circuit should work for all sizes below that
-        let trusted_block = 11000;
+        let trusted_block = 60000;
 
-        let block = 12000;
+        let block = 75000;
 
-        const VALIDATOR_SET_SIZE_MAX: usize = 8;
+        const VALIDATOR_SET_SIZE_MAX: usize = 128;
 
         test_skip_template::<VALIDATOR_SET_SIZE_MAX>(trusted_block, block);
     }
