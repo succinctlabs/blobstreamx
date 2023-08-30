@@ -72,8 +72,8 @@
                     "type": "tendermint/PubKeyEd25519",
                     "value": "3iWuyTWxD2V7Q/qX5ajU5SO9sPmXJgXwsGTv97FwSLo="
                 },
-                "voting_power": "100010",
-                "proposer_priority": "0"
+                "power": "100010",
+                "name": null
             },
             {
                 "address": "D436BB0B9DD430C2AE98E7D3CA651402DFD645D8",
@@ -81,8 +81,8 @@
                     "type": "tendermint/PubKeyEd25519",
                     "value": "jeatGlaaIj57sNreGUq7lIciEhDh+oFUv2VKEP5hWKY="
                 },
-                "voting_power": "100010",
-                "proposer_priority": "0"
+                "power": "100010",
+                "name": null
             },
             {
                 "address": "762CBA617226A799D898F134DD12661C7F1129EB",
@@ -90,8 +90,8 @@
                     "type": "tendermint/PubKeyEd25519",
                     "value": "6bdjjKHELaN9colwYy/ad+xh3MUgOVq106ZFucK46LE="
                 },
-                "voting_power": "10",
-                "proposer_priority": "0"
+                "power": "10",
+                "name": null
             },
             {
                 "address": "DB792648B6EC5AA758F1C7D041E6CA4FBA1DE45A",
@@ -99,8 +99,8 @@
                     "type": "tendermint/PubKeyEd25519",
                     "value": "vWBFLn8FayIkgQXn/SmJYTcdoNkzLvZfqBaRv1Gy5QU="
                 },
-                "voting_power": "1",
-                "proposer_priority": "0"
+                "power": "1",
+                "name": null
             }
         ],
         "proposer": {
@@ -109,8 +109,8 @@
                 "type": "tendermint/PubKeyEd25519",
                 "value": "3iWuyTWxD2V7Q/qX5ajU5SO9sPmXJgXwsGTv97FwSLo="
             },
-            "voting_power": "100010",
-            "proposer_priority": "0"
+            "power": "100010",
+            "name": null
         },
         "total_voting_power": "200031"
     }

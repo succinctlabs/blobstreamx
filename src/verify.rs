@@ -101,6 +101,7 @@ pub struct BlockIDInclusionProofTarget {
 
 #[derive(Debug, Clone)]
 pub struct StepProofTarget<C: Curve> {
+    prev_header_next_validators_hash_proof: HashInclusionProofTarget,
     prev_header: TendermintHashTarget,
     last_block_id_proof: BlockIDInclusionProofTarget,
     base: BaseBlockProofTarget<C>,
@@ -140,6 +141,19 @@ pub trait TendermintVerify<F: RichField + Extendable<D>, const D: usize> {
     ) where
         <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>;
 
+    /// Verifies that the previous header hash in the block matches the previous header hash in the last block ID.
+    fn verify_prev_header_next_validators_hash<
+        E: CubicParameters<F>,
+        C: GenericConfig<D, F = F, FE = F::Extension> + 'static,
+    >(
+        &mut self,
+        gadget: &mut SHA256BuilderGadget<F, E, D>,
+        validators_hash: &TendermintHashTarget,
+        prev_header: &TendermintHashTarget,
+        prev_header_next_validators_hash_proof: &HashInclusionProofTarget,
+    ) where
+        <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>;
+
     /// Verifies a Tendermint consensus block.
     fn verify_header<
         E: CubicParameters<F>,
@@ -170,6 +184,7 @@ pub trait TendermintVerify<F: RichField + Extendable<D>, const D: usize> {
         data_hash_proof: &HashInclusionProofTarget,
         validator_hash_proof: &HashInclusionProofTarget,
         next_validators_hash_proof: &HashInclusionProofTarget,
+        prev_header_next_validators_hash_proof: &HashInclusionProofTarget,
         last_block_id_proof: &BlockIDInclusionProofTarget,
         round_present: &BoolTarget,
     ) where
@@ -225,6 +240,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
         data_hash_proof: &HashInclusionProofTarget,
         validator_hash_proof: &HashInclusionProofTarget,
         next_validators_hash_proof: &HashInclusionProofTarget,
+        prev_header_next_validators_hash_proof: &HashInclusionProofTarget,
         last_block_id_proof: &BlockIDInclusionProofTarget,
         round_present: &BoolTarget,
     ) where
@@ -247,6 +263,21 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
         // Verifies that the previous header hash in the block matches the previous header hash in the last block ID.
         self.verify_prev_header_in_header::<E, C>(&mut gadget, header, prev_header, last_block_id_proof);
 
+        // Extract the validators hash from the validator hash proof
+        const HASH_START_BYTE: usize = 2;
+        let validators_hash = self
+            .extract_hash_from_protobuf::<HASH_START_BYTE, PROTOBUF_HASH_SIZE_BITS>(
+                &validator_hash_proof.enc_leaf.0,
+            );
+
+        // Verifies that the next validators hash in the previous block matches the current validators hash
+        self.verify_prev_header_next_validators_hash::<E, C>(
+            &mut gadget,
+            &validators_hash,
+            prev_header,
+            prev_header_next_validators_hash_proof,
+        );
+
         // If VALIDATOR_SET_SIZE_MAX = N
         // Step does (3N - 2) + 69 = 3N + 67 SHA-256 chunks
         // In order to reach 1024 chunks, we need to add 1024 - (3N + 67) = 957 - 3N chunks to the SHA gadget
@@ -260,6 +291,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
         }
 
         self.constrain_sha256_gadget::<C>(gadget);
+
     }
 
     fn verify_header<
@@ -446,7 +478,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
         let false_t = self._false();
         let true_t = self._true();
 
-        /// Start of the hash in protobuf encoded validator hash & last block id
+        /// Start of the hash in protobuf in last block id
         const HASH_START_BYTE: usize = 2;
 
         let last_block_id_path = vec![false_t, false_t, true_t, false_t];
@@ -464,7 +496,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
                 &last_block_id_leaf_hash,
             );
 
-        // Confirm that the header from the proof of {validator_hash, next_validators_hash, data_hash, last_block_id} all match the header
+        // Confirm that the header from the proof of {last_block_id} all match the header
         for i in 0..HASH_SIZE_BITS {
             self.connect(
                 header.0[i].target,
@@ -481,6 +513,60 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
             self.connect(
                 prev_header.0[i].target,
                 extracted_prev_header_hash.0[i].target,
+            );
+        }
+    }
+
+    fn verify_prev_header_next_validators_hash<
+        E: CubicParameters<F>,
+        C: GenericConfig<D, F = F, FE = F::Extension> + 'static,
+    >(
+        &mut self,
+        gadget: &mut SHA256BuilderGadget<F, E, D>,
+        validators_hash: &TendermintHashTarget,
+        prev_header: &TendermintHashTarget,
+        prev_header_next_validators_hash_proof: &HashInclusionProofTarget,
+    ) where
+        <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>,
+    {
+        let false_t = self._false();
+        let true_t = self._true();
+        let next_val_hash_path = vec![false_t, false_t, false_t, true_t];
+        const PROTOBUF_HASH_SIZE_BITS_PLUS_8: usize = PROTOBUF_HASH_SIZE_BITS + 8;
+        let next_validators_hash_leaf_hash = self.leaf_hash_stark::<E, PROTOBUF_HASH_SIZE_BITS, PROTOBUF_HASH_SIZE_BITS_PLUS_8, PROTOBUF_HASH_SHA256_NUM_BYTES>(
+            gadget,
+            &prev_header_next_validators_hash_proof.enc_leaf.0,
+        );
+        let header_from_next_validators_root_proof = self
+            .get_root_from_merkle_proof::<E, HEADER_PROOF_DEPTH>(
+                gadget,
+                &prev_header_next_validators_hash_proof.proof,
+                &next_val_hash_path,
+                &next_validators_hash_leaf_hash,
+            );
+
+        // Confirm that the prev_header computed from the proof of {next_validators_hash} matches the prev_header
+        for i in 0..HASH_SIZE_BITS {
+            self.connect(
+                prev_header.0[i].target,
+                header_from_next_validators_root_proof.0[i].target,
+            );
+        }
+
+        /// Start of the hash in protobuf in next_validators_hash
+        const HASH_START_BYTE: usize = 2;
+
+        // Extract prev header hash from the encoded leaf (starts at second byte)
+        let extracted_next_validators_hash = self
+            .extract_hash_from_protobuf::<HASH_START_BYTE, PROTOBUF_HASH_SIZE_BITS>(
+                &prev_header_next_validators_hash_proof.enc_leaf.0,
+            );
+
+        // Confirm that the current validatorsHash matches the nextValidatorsHash of the prev_header
+        for i in 0..HASH_SIZE_BITS {
+            self.connect(
+                validators_hash.0[i].target,
+                extracted_next_validators_hash.0[i].target,
             );
         }
     }
@@ -847,6 +933,9 @@ where
     let prev_header = create_virtual_bool_target_array(builder, HASH_SIZE_BITS);
     let prev_header = TendermintHashTarget(prev_header.try_into().unwrap());
 
+    let prev_header_next_validators_hash_proof =
+        create_virtual_hash_inclusion_proof_target::<F, D, HEADER_PROOF_DEPTH>(builder);
+
     let last_block_id_proof =
         create_virtual_block_id_inclusion_proof_target::<F, D, HEADER_PROOF_DEPTH>(builder);
 
@@ -857,11 +946,13 @@ where
         &base.data_hash_proof,
         &base.validator_hash_proof,
         &base.next_validators_hash_proof,
+        &prev_header_next_validators_hash_proof,
         &last_block_id_proof,
         &base.round_present,
     );
 
     StepProofTarget::<Curve> {
+        prev_header_next_validators_hash_proof,
         prev_header,
         last_block_id_proof,
         base,
@@ -1085,6 +1176,8 @@ pub fn set_step_pw<
     }
 
     let last_block_id_enc_leaf = to_be_bits(inputs.last_block_id_proof.enc_leaf);
+    let prev_header_next_validators_hash_enc_leaf =
+        to_be_bits(inputs.prev_header_next_validators_hash_proof.enc_leaf);
 
     // Set targets for last block id leaf
     for i in 0..PROTOBUF_BLOCK_ID_SIZE_BITS {
@@ -1094,20 +1187,38 @@ pub fn set_step_pw<
         );
     }
 
+    // Set targets for prev header next validators hash proof leaf
+    for i in 0..PROTOBUF_HASH_SIZE_BITS {
+        pw.set_bool_target(
+            target.prev_header_next_validators_hash_proof.enc_leaf.0[i],
+            prev_header_next_validators_hash_enc_leaf[i],
+        );
+    }
+
     for i in 0..HEADER_PROOF_DEPTH {
         // Set path indices for each of the proof indices
         pw.set_bool_target(
             target.last_block_id_proof.path[i],
             inputs.last_block_id_proof.path[i],
         );
+        pw.set_bool_target(
+            target.prev_header_next_validators_hash_proof.path[i],
+            inputs.prev_header_next_validators_hash_proof.path[i],
+        );
 
         let last_block_id_aunt = to_be_bits(inputs.last_block_id_proof.proof[i].to_vec());
+        let prev_header_next_validators_hash_aunt =
+            to_be_bits(inputs.prev_header_next_validators_hash_proof.proof[i].to_vec());
 
         // Set aunts for each of the proofs
         for j in 0..HASH_SIZE_BITS {
             pw.set_bool_target(
                 target.last_block_id_proof.proof[i].0[j],
                 last_block_id_aunt[j],
+            );
+            pw.set_bool_target(
+                target.prev_header_next_validators_hash_proof.proof[i].0[j],
+                prev_header_next_validators_hash_aunt[j],
             );
         }
     }
