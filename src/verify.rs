@@ -370,7 +370,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
             pubkeys,
         );
 
-        // TODO: Verify that this will work with dummy signatures
+        // Verify that the header is included in each message signed by an enabled validator
         for i in 0..VALIDATOR_SET_SIZE_MAX {
             // Verify that the header is in the message in the correct location
             let hash_in_message =
@@ -1278,7 +1278,7 @@ pub(crate) mod tests {
         let mut timing = TimingTree::new("Verify Celestia Step", log::Level::Debug);
 
         let mut pw = PartialWitness::new();
-        let config = CircuitConfig::standard_ecc_config();
+        let config = CircuitConfig::wide_ecc_config();
         let mut builder = CircuitBuilder::<F, D>::new(config);
 
         type F = GoldilocksField;
@@ -1334,7 +1334,7 @@ pub(crate) mod tests {
         let mut timing = TimingTree::new("Verify Celestia Skip", log::Level::Debug);
 
         let mut pw = PartialWitness::new();
-        let config = CircuitConfig::standard_ecc_config();
+        let config = CircuitConfig::wide_ecc_config();
         let mut builder = CircuitBuilder::<F, D>::new(config);
 
         type F = GoldilocksField;
@@ -1428,9 +1428,9 @@ pub(crate) mod tests {
         // Testing block 60000
         // 60 validators, 4 disabled (valhash)
 
-        let block = 60000;
+        let block = 75000;
 
-        const VALIDATOR_SET_SIZE_MAX: usize = 64;
+        const VALIDATOR_SET_SIZE_MAX: usize = 128;
 
         test_step_template::<VALIDATOR_SET_SIZE_MAX>(block);
     }
