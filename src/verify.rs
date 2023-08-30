@@ -139,7 +139,7 @@ pub trait TendermintVerify<F: RichField + Extendable<D>, const D: usize> {
         last_block_id_proof: &BlockIDInclusionProofTarget,
     ) where
         <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>;
-    
+
     /// Verifies that the previous header hash in the block matches the previous header hash in the last block ID.
     fn verify_prev_header_next_validators_hash<
         E: CubicParameters<F>,
@@ -257,12 +257,17 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
 
         // Extract the validators hash from the validator hash proof
         const HASH_START_BYTE: usize = 2;
-        let validators_hash = self.extract_hash_from_protobuf::<HASH_START_BYTE, PROTOBUF_HASH_SIZE_BITS>(
-            &validator_hash_proof.enc_leaf.0,
-        );
+        let validators_hash = self
+            .extract_hash_from_protobuf::<HASH_START_BYTE, PROTOBUF_HASH_SIZE_BITS>(
+                &validator_hash_proof.enc_leaf.0,
+            );
 
         // Verifies that the next validators hash in the previous block matches the current validators hash
-        self.verify_prev_header_next_validators_hash::<E, C>(&validators_hash, prev_header, prev_header_next_validators_hash_proof);
+        self.verify_prev_header_next_validators_hash::<E, C>(
+            &validators_hash,
+            prev_header,
+            prev_header_next_validators_hash_proof,
+        );
     }
 
     fn verify_header<
@@ -476,50 +481,52 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
     }
 
     fn verify_prev_header_next_validators_hash<
-            E: CubicParameters<F>,
-            C: GenericConfig<D, F = F, FE = F::Extension> + 'static,
-        >(
-            &mut self,
-            validators_hash: &TendermintHashTarget,
-            prev_header: &TendermintHashTarget,
-            prev_header_next_validators_hash_proof: &HashInclusionProofTarget,
-        ) where
-            <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F> {
-                let false_t = self._false();
-                let true_t = self._true();
-                let next_val_hash_path = vec![false_t, false_t, false_t, true_t];
-                let next_validators_hash_leaf_hash =
-                    self.leaf_hash::<PROTOBUF_HASH_SIZE_BITS>(&prev_header_next_validators_hash_proof.enc_leaf.0);
-                let header_from_next_validators_root_proof = self
-                    .get_root_from_merkle_proof::<HEADER_PROOF_DEPTH>(
-                        &prev_header_next_validators_hash_proof.proof,
-                        &next_val_hash_path,
-                        &next_validators_hash_leaf_hash,
-                    );
-                // Confirm that the prev_header computed from the proof of {next_validators_hash} matches the prev_header
-                for i in 0..HASH_SIZE_BITS {
-                    self.connect(
-                        prev_header.0[i].target,
-                        header_from_next_validators_root_proof.0[i].target,
-                    );
-                }
+        E: CubicParameters<F>,
+        C: GenericConfig<D, F = F, FE = F::Extension> + 'static,
+    >(
+        &mut self,
+        validators_hash: &TendermintHashTarget,
+        prev_header: &TendermintHashTarget,
+        prev_header_next_validators_hash_proof: &HashInclusionProofTarget,
+    ) where
+        <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>,
+    {
+        let false_t = self._false();
+        let true_t = self._true();
+        let next_val_hash_path = vec![false_t, false_t, false_t, true_t];
+        let next_validators_hash_leaf_hash = self.leaf_hash::<PROTOBUF_HASH_SIZE_BITS>(
+            &prev_header_next_validators_hash_proof.enc_leaf.0,
+        );
+        let header_from_next_validators_root_proof = self
+            .get_root_from_merkle_proof::<HEADER_PROOF_DEPTH>(
+                &prev_header_next_validators_hash_proof.proof,
+                &next_val_hash_path,
+                &next_validators_hash_leaf_hash,
+            );
+        // Confirm that the prev_header computed from the proof of {next_validators_hash} matches the prev_header
+        for i in 0..HASH_SIZE_BITS {
+            self.connect(
+                prev_header.0[i].target,
+                header_from_next_validators_root_proof.0[i].target,
+            );
+        }
 
-                /// Start of the hash in protobuf in next_validators_hash
-                const HASH_START_BYTE: usize = 2;
+        /// Start of the hash in protobuf in next_validators_hash
+        const HASH_START_BYTE: usize = 2;
 
-                // Extract prev header hash from the encoded leaf (starts at second byte)
-                let extracted_next_validators_hash = self
-                    .extract_hash_from_protobuf::<HASH_START_BYTE, PROTOBUF_HASH_SIZE_BITS>(
-                        &prev_header_next_validators_hash_proof.enc_leaf.0,
-                    );
+        // Extract prev header hash from the encoded leaf (starts at second byte)
+        let extracted_next_validators_hash = self
+            .extract_hash_from_protobuf::<HASH_START_BYTE, PROTOBUF_HASH_SIZE_BITS>(
+                &prev_header_next_validators_hash_proof.enc_leaf.0,
+            );
 
-                // Confirm that the current validatorsHash matches the nextValidatorsHash of the prev_header
-                for i in 0..HASH_SIZE_BITS {
-                    self.connect(
-                        validators_hash.0[i].target,
-                        extracted_next_validators_hash.0[i].target,
-                    );
-                }
+        // Confirm that the current validatorsHash matches the nextValidatorsHash of the prev_header
+        for i in 0..HASH_SIZE_BITS {
+            self.connect(
+                validators_hash.0[i].target,
+                extracted_next_validators_hash.0[i].target,
+            );
+        }
     }
 
     fn skip<
@@ -1098,7 +1105,8 @@ pub fn set_step_pw<
     }
 
     let last_block_id_enc_leaf = to_be_bits(inputs.last_block_id_proof.enc_leaf);
-    let prev_header_next_validators_hash_enc_leaf = to_be_bits(inputs.prev_header_next_validators_hash_proof.enc_leaf);
+    let prev_header_next_validators_hash_enc_leaf =
+        to_be_bits(inputs.prev_header_next_validators_hash_proof.enc_leaf);
 
     // Set targets for last block id leaf
     for i in 0..PROTOBUF_BLOCK_ID_SIZE_BITS {
@@ -1128,7 +1136,8 @@ pub fn set_step_pw<
         );
 
         let last_block_id_aunt = to_be_bits(inputs.last_block_id_proof.proof[i].to_vec());
-        let prev_header_next_validators_hash_aunt = to_be_bits(inputs.prev_header_next_validators_hash_proof.proof[i].to_vec());
+        let prev_header_next_validators_hash_aunt =
+            to_be_bits(inputs.prev_header_next_validators_hash_proof.proof[i].to_vec());
 
         // Set aunts for each of the proofs
         for j in 0..HASH_SIZE_BITS {

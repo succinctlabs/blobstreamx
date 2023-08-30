@@ -93,7 +93,8 @@ fn get_signed_block(block: usize) -> Box<SignedBlock> {
     let file_content = fs::read_to_string(file.as_str());
 
     let temp_block = Box::new(TempSignedBlock::from(
-        serde_json::from_str::<TempSignedBlock>(&file_content.unwrap()).expect("failed to parse json"),
+        serde_json::from_str::<TempSignedBlock>(&file_content.unwrap())
+            .expect("failed to parse json"),
     ));
 
     // Cast to SignedBlock
@@ -244,7 +245,7 @@ pub fn generate_step_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
     block_number: usize,
 ) -> CelestiaStepBlockProof {
     // Generate test cases from Celestia block:
-    let prev_block = get_signed_block(block_number-1);
+    let prev_block = get_signed_block(block_number - 1);
     let block = get_signed_block(block_number);
 
     let (_root, proofs) = generate_proofs_from_header(&block.header);
@@ -291,7 +292,8 @@ pub fn generate_step_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
     let prev_block_total = prev_block_proofs[0].total;
 
     // Proof of the prev_header_next_validators_hash
-    let enc_prev_header_next_validators_hash_leaf = prev_block.header.next_validators_hash.encode_vec();
+    let enc_prev_header_next_validators_hash_leaf =
+        prev_block.header.next_validators_hash.encode_vec();
     let enc_prev_header_next_validators_hash_proof = prev_block_proofs[8].clone();
     let enc_prev_header_next_validators_hash_proof_indices = get_path_indices(8, prev_block_total);
     let prev_header_next_validators_hash_proof = InclusionProof {
