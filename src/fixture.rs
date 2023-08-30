@@ -58,6 +58,16 @@ pub fn generate_val_array(num_validators: usize) {
 }
 
 pub async fn create_new_fixture(block_number: usize) -> Result<(), Error> {
+    write_block_fixture(block_number)
+        .await
+        .expect("Failed to write block fixture");
+    write_block_fixture(block_number - 1)
+        .await
+        .expect("Failed to write previous block fixture");
+    Ok(())
+}
+
+async fn write_block_fixture(block_number: usize) -> Result<(), Error> {
     // Serves latest block
     let mut url =
         "http://rpc.testnet.celestia.citizencosmos.space/signed_block?height=".to_string();
