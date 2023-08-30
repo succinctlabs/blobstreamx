@@ -286,7 +286,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
             self.connect(bytes.0[i], zero);
         }
 
-        for _ in 0..(957 - 3 * VALIDATOR_SET_SIZE_MAX) {
+        for _ in 0..(940 - 3 * VALIDATOR_SET_SIZE_MAX) {
             self.sha256(&bytes, &mut gadget);
         }
 
