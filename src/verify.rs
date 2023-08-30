@@ -101,6 +101,7 @@ pub struct BlockIDInclusionProofTarget {
 
 #[derive(Debug, Clone)]
 pub struct StepProofTarget<C: Curve> {
+    prev_header_next_validators_hash_proof: HashInclusionProofTarget,
     prev_header: TendermintHashTarget,
     last_block_id_proof: BlockIDInclusionProofTarget,
     base: BaseBlockProofTarget<C>,
@@ -180,6 +181,7 @@ pub trait TendermintVerify<F: RichField + Extendable<D>, const D: usize> {
         data_hash_proof: &HashInclusionProofTarget,
         validator_hash_proof: &HashInclusionProofTarget,
         next_validators_hash_proof: &HashInclusionProofTarget,
+        prev_header_next_validators_hash_proof: &HashInclusionProofTarget,
         last_block_id_proof: &BlockIDInclusionProofTarget,
         round_present: &BoolTarget,
     ) where
@@ -234,6 +236,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
         data_hash_proof: &HashInclusionProofTarget,
         validator_hash_proof: &HashInclusionProofTarget,
         next_validators_hash_proof: &HashInclusionProofTarget,
+        prev_header_next_validators_hash_proof: &HashInclusionProofTarget,
         last_block_id_proof: &BlockIDInclusionProofTarget,
         round_present: &BoolTarget,
     ) where
@@ -259,7 +262,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
         );
 
         // Verifies that the next validators hash in the previous block matches the current validators hash
-        self.verify_prev_header_next_validators_hash::<E, C>(&validators_hash, prev_header, next_validators_hash_proof);
+        self.verify_prev_header_next_validators_hash::<E, C>(&validators_hash, prev_header, prev_header_next_validators_hash_proof);
     }
 
     fn verify_header<
@@ -852,6 +855,9 @@ where
     let prev_header = create_virtual_bool_target_array(builder, HASH_SIZE_BITS);
     let prev_header = TendermintHashTarget(prev_header.try_into().unwrap());
 
+    let prev_header_next_validators_hash_proof =
+        create_virtual_hash_inclusion_proof_target::<F, D, HEADER_PROOF_DEPTH>(builder);
+
     let last_block_id_proof =
         create_virtual_block_id_inclusion_proof_target::<F, D, HEADER_PROOF_DEPTH>(builder);
 
@@ -862,11 +868,13 @@ where
         &base.data_hash_proof,
         &base.validator_hash_proof,
         &base.next_validators_hash_proof,
+        &prev_header_next_validators_hash_proof,
         &last_block_id_proof,
         &base.round_present,
     );
 
     StepProofTarget::<Curve> {
+        prev_header_next_validators_hash_proof,
         prev_header,
         last_block_id_proof,
         base,
@@ -1090,6 +1098,7 @@ pub fn set_step_pw<
     }
 
     let last_block_id_enc_leaf = to_be_bits(inputs.last_block_id_proof.enc_leaf);
+    let prev_header_next_validators_hash_enc_leaf = to_be_bits(inputs.prev_header_next_validators_hash_proof.enc_leaf);
 
     // Set targets for last block id leaf
     for i in 0..PROTOBUF_BLOCK_ID_SIZE_BITS {
@@ -1099,20 +1108,37 @@ pub fn set_step_pw<
         );
     }
 
+    // Set targets for prev header next validators hash proof leaf
+    for i in 0..PROTOBUF_HASH_SIZE_BITS {
+        pw.set_bool_target(
+            target.prev_header_next_validators_hash_proof.enc_leaf.0[i],
+            prev_header_next_validators_hash_enc_leaf[i],
+        );
+    }
+
     for i in 0..HEADER_PROOF_DEPTH {
         // Set path indices for each of the proof indices
         pw.set_bool_target(
             target.last_block_id_proof.path[i],
             inputs.last_block_id_proof.path[i],
         );
+        pw.set_bool_target(
+            target.prev_header_next_validators_hash_proof.path[i],
+            inputs.prev_header_next_validators_hash_proof.path[i],
+        );
 
         let last_block_id_aunt = to_be_bits(inputs.last_block_id_proof.proof[i].to_vec());
+        let prev_header_next_validators_hash_aunt = to_be_bits(inputs.prev_header_next_validators_hash_proof.proof[i].to_vec());
 
         // Set aunts for each of the proofs
         for j in 0..HASH_SIZE_BITS {
             pw.set_bool_target(
                 target.last_block_id_proof.proof[i].0[j],
                 last_block_id_aunt[j],
+            );
+            pw.set_bool_target(
+                target.prev_header_next_validators_hash_proof.proof[i].0[j],
+                prev_header_next_validators_hash_aunt[j],
             );
         }
     }
@@ -1403,7 +1429,7 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn test_step() {
+    fn test_step_small() {
         // Testing block 11000
         let block = 11000;
 
