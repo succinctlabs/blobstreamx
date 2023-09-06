@@ -10,6 +10,7 @@ curta = { git = "https://github.com/succinctlabs/curta.git" }
 digest = "0.10.7"
 ed25519-consensus = "2.1.0"
 env_logger = "0.10.0"
+ethers = "2.0.9"
 log = "0.4.19"
 num = "0.4.1"
 plonky2 = { git = "https://github.com/mir-protocol/plonky2.git" }

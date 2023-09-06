@@ -1,4 +1,5 @@
 use crate::utils::{SignedBlock, TempSignedBlock};
+use ethers::abi::AbiEncode;
 use rand::Rng;
 use reqwest::Error;
 use serde::{Deserialize, Serialize};
@@ -25,20 +26,21 @@ struct VerifySignatureData {
     message: String,
 }
 
-pub fn encode_block_height(block_height: usize) -> String {}
+pub fn encode_block_height(block_height: u64) -> Vec<u8> {
+    block_height.encode()
+}
 
 pub async fn generate_data_commitment(start_block: usize, end_block: usize) {
     // Get the dataHash of the block range (startBlock, endBlock)
     let url = "http://rpc.testnet.celestia.citizencosmos.space/signed_block?height=".to_string();
-
-    let mut data_hashes = Vec::new();
-    let mut block_heights = Vec::new();
 
     let mut encoded_leaves = Vec::new();
 
     for i in start_block..end_block {
         let mut url = url.clone();
         url.push_str(i.to_string().as_str());
+
+        println!("Fetching block {}", i);
         let res = reqwest::get(url).await.unwrap().text().await.unwrap();
         let v: Response = serde_json::from_str(&res).expect("Failed to parse JSON");
         let temp_block = v.result;
@@ -52,9 +54,23 @@ pub async fn generate_data_commitment(start_block: usize, end_block: usize) {
             ),
         };
         let data_hash = block.header.data_hash;
-        data_hashes.push(data_hash);
-        block_heights.push(i);
+
+        // concat the block height and the data hash
+        let mut encoded_leaf = encode_block_height(i as u64);
+        println!("Encoded block height: {:?}", encoded_leaf);
+
+        encoded_leaf.extend_from_slice(&data_hash.unwrap().as_bytes());
+
+        encoded_leaves.push(encoded_leaf);
     }
+
+    let root_hash = simple_hash_from_byte_vectors::<Sha256>(&encoded_leaves);
+
+    // Print the root hash
+    println!(
+        "Root Hash: {:?}",
+        String::from_utf8(hex::encode(root_hash)).expect("Found invalid UTF-8")
+    );
 }
 
 pub fn generate_val_array(num_validators: usize) {
@@ -141,4 +157,15 @@ async fn write_block_fixture(block_number: usize) -> Result<(), Error> {
     file.write_all(json.as_bytes()).unwrap();
 
     Ok(())
+}
+
+#[cfg(test)]
+pub(crate) mod tests {
+    use super::*;
+    use tokio::runtime::Runtime;
+
+    #[tokio::test]
+    async fn test_data_commitment() {
+        generate_data_commitment(10000, 10401).await
+    }
 }

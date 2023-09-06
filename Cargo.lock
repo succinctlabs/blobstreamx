@@ -412,6 +412,7 @@ dependencies = [
  "digest 0.10.7",
  "ed25519-consensus",
  "env_logger",
+ "ethers",
  "log",
  "num",
  "plonky2",
