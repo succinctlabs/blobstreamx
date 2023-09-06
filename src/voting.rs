@@ -9,9 +9,9 @@
 use plonky2::field::extension::Extendable;
 use plonky2::iop::target::BoolTarget;
 use plonky2::{hash::hash_types::RichField, plonk::circuit_builder::CircuitBuilder};
-use plonky2x::ecc::ed25519::curve::curve_types::Curve;
-use plonky2x::ecc::ed25519::curve::ed25519::Ed25519;
-use plonky2x::num::u32::gadgets::arithmetic_u32::{CircuitBuilderU32, U32Target};
+use plonky2x::frontend::ecc::ed25519::curve::curve_types::Curve;
+use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
+use plonky2x::frontend::num::u32::gadgets::arithmetic_u32::{CircuitBuilderU32, U32Target};
 
 use crate::utils::I64Target;
 
@@ -114,27 +114,49 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVoting<F, D> for Ci
     ) -> I64Target {
         // Sum up the voting power of all the validators
 
-        // Get a vector of the first element of each validator's voting power using a map and collect
-        let mut validator_voting_power_first = Vec::new();
-        for i in 0..VALIDATOR_SET_SIZE_MAX {
-            validator_voting_power_first.push(validator_voting_power[i].0[0]);
+        let mut voting_power_low = U32Target(self.zero());
+        let mut voting_power_high = U32Target(self.zero());
+
+        // Note: We can only put a max of 80 targets into add_many_u32 (max num_routed_wires), which is why we need to split the sum into 2 chunks.
+        for i in 0..2 {
+            let mut validator_voting_power_first = Vec::new();
+            for j in (VALIDATOR_SET_SIZE_MAX / 2) * i..(VALIDATOR_SET_SIZE_MAX / 2) * (i + 1) {
+                validator_voting_power_first.push(validator_voting_power[j].0[0]);
+            }
+
+            let (sum_lower_low, sum_lower_high) =
+                self.add_many_u32(&mut validator_voting_power_first);
+
+            let mut validator_voting_power_second = Vec::new();
+            for j in (VALIDATOR_SET_SIZE_MAX / 2) * i..(VALIDATOR_SET_SIZE_MAX / 2) * (i + 1) {
+                validator_voting_power_second.push(validator_voting_power[j].0[1]);
+            }
+            let (sum_upper_low, sum_upper_high) =
+                self.add_many_u32(&mut validator_voting_power_second);
+
+            self.assert_zero_u32(sum_upper_high);
+
+            let (carry_sum_low, carry_sum_high) = self.add_u32(sum_lower_high, sum_upper_low);
+
+            self.assert_zero_u32(carry_sum_high);
+
+            // Sum the voting power of the second chunk of validators and add it to the first.
+
+            let (sum_lower_low, sum_lower_high) = self.add_u32(sum_lower_low, voting_power_low);
+
+            let (sum_upper_low, sum_upper_high) = self.add_u32(carry_sum_low, voting_power_high);
+
+            self.assert_zero_u32(sum_upper_high);
+
+            let (carry_sum_low, carry_sum_high) = self.add_u32(sum_lower_high, sum_upper_low);
+
+            self.assert_zero_u32(carry_sum_high);
+
+            voting_power_low = sum_lower_low;
+            voting_power_high = carry_sum_low;
         }
 
-        let (sum_lower_low, sum_lower_high) = self.add_many_u32(&mut validator_voting_power_first);
-
-        let mut validator_voting_power_second = Vec::new();
-        for i in 0..VALIDATOR_SET_SIZE_MAX {
-            validator_voting_power_second.push(validator_voting_power[i].0[1]);
-        }
-        let (sum_upper_low, sum_upper_high) = self.add_many_u32(&mut validator_voting_power_second);
-
-        self.assert_zero_u32(sum_upper_high);
-
-        let (carry_sum_low, carry_sum_high) = self.add_u32(sum_lower_high, sum_upper_low);
-
-        self.assert_zero_u32(carry_sum_high);
-
-        I64Target([sum_lower_low, carry_sum_low])
+        I64Target([voting_power_low, voting_power_high])
     }
 
     fn voting_power_greater_than_threshold(
@@ -213,7 +235,7 @@ pub(crate) mod tests {
         },
     };
 
-    use plonky2x::num::u32::gadgets::arithmetic_u32::U32Target;
+    use plonky2x::frontend::num::u32::gadgets::arithmetic_u32::U32Target;
 
     use crate::utils::I64Target;
 

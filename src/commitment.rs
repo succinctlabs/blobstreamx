@@ -6,16 +6,20 @@
 //! The `pubkey` is encoded as the raw list of bytes used in the public key. The `varint` is
 //! encoded using protobuf's default integer encoding, which consist of 7 bit payloads. You can
 //! read more about them here: https://protobuf.dev/programming-guides/encoding/#varints.
+use curta::chip::hash::sha::sha256::builder_gadget::{
+    CurtaBytes, SHA256Builder, SHA256BuilderGadget,
+};
+use curta::math::extension::cubic::parameters::CubicParameters;
 use plonky2::field::extension::Extendable;
 use plonky2::iop::target::BoolTarget;
 use plonky2::iop::target::Target;
 use plonky2::{hash::hash_types::RichField, plonk::circuit_builder::CircuitBuilder};
-use plonky2x::ecc::ed25519::curve::curve_types::Curve;
-use plonky2x::ecc::ed25519::curve::ed25519::Ed25519;
-use plonky2x::ecc::ed25519::gadgets::curve::{AffinePointTarget, CircuitBuilderCurve};
-use plonky2x::hash::sha::sha256::{sha256, sha256_variable_length_single_chunk};
-use plonky2x::num::u32::gadgets::arithmetic_u32::CircuitBuilderU32;
-use plonky2x::num::u32::gadgets::arithmetic_u32::U32Target;
+use plonky2x::frontend::ecc::ed25519::curve::curve_types::Curve;
+use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
+use plonky2x::frontend::ecc::ed25519::gadgets::curve::{AffinePointTarget, CircuitBuilderCurve};
+use plonky2x::frontend::hash::sha::sha256::pad_single_sha256_chunk;
+use plonky2x::frontend::num::u32::gadgets::arithmetic_u32::{CircuitBuilderU32, U32Target};
+use tendermint::merkle::HASH_SIZE;
 
 use crate::utils::{
     I64Target, MarshalledValidatorTarget, TendermintHashTarget, HASH_SIZE_BITS,
@@ -36,22 +40,32 @@ pub trait CelestiaCommitment<F: RichField + Extendable<D>, const D: usize> {
     /// Verify a merkle proof against the specified root hash.
     /// Note: This function will only work for leaves with a length of 34 bytes (protobuf-encoded SHA256 hash)
     /// Output is the merkle root
-    fn get_root_from_merkle_proof<const PROOF_DEPTH: usize>(
+    fn get_root_from_merkle_proof<E: CubicParameters<F>, const PROOF_DEPTH: usize>(
         &mut self,
+        gadget: &mut SHA256BuilderGadget<F, E, D>,
         aunts: &Vec<TendermintHashTarget>,
         path_indices: &Vec<BoolTarget>,
         leaf_hash: &TendermintHashTarget,
     ) -> TendermintHashTarget;
 
     /// Hashes leaf bytes to get the leaf hash according to the Tendermint spec. (0x00 || leafBytes)
-    fn leaf_hash<const LEAF_SIZE_BITS: usize>(
+    /// Note: Uses STARK gadget to generate SHA's.
+    /// LEAF_SIZE_BITS_PLUS_8 is the number of bits in the protobuf-encoded leaf bytes.
+    fn leaf_hash_stark<
+        E: CubicParameters<F>,
+        const LEAF_SIZE_BITS: usize,
+        const LEAF_SIZE_BITS_PLUS_8: usize,
+        const NUM_BYTES: usize,
+    >(
         &mut self,
+        gadget: &mut SHA256BuilderGadget<F, E, D>,
         leaf: &[BoolTarget; LEAF_SIZE_BITS],
     ) -> TendermintHashTarget;
 
     /// Hashes two nodes to get the inner node according to the Tendermint spec. (0x01 || left || right)
-    fn inner_hash(
+    fn inner_hash_stark<E: CubicParameters<F>>(
         &mut self,
+        gadget: &mut SHA256BuilderGadget<F, E, D>,
         left: &TendermintHashTarget,
         right: &TendermintHashTarget,
     ) -> TendermintHashTarget;
@@ -59,15 +73,32 @@ pub trait CelestiaCommitment<F: RichField + Extendable<D>, const D: usize> {
     /// Hashes a layer of the Merkle tree according to the Tendermint spec. (0x01 || left || right)
     /// If in a pair the right node is not enabled (empty), then the left node is passed up to the next layer.
     /// If neither the left nor right node in a pair is enabled (empty), then the parent node is set to not enabled (empty).
-    fn hash_merkle_layer(
+    fn hash_merkle_layer<E: CubicParameters<F>>(
         &mut self,
+        gadget: &mut SHA256BuilderGadget<F, E, D>,
         merkle_hashes: &mut Vec<TendermintHashTarget>,
         merkle_hash_enabled: &mut Vec<BoolTarget>,
         num_hashes: usize,
     ) -> (Vec<TendermintHashTarget>, Vec<BoolTarget>);
 
+    // Convert from [BoolTarget; N * 8] to SHA-256 padded CurtaBytes<N>
+    fn convert_to_padded_curta_bytes<const NUM_BITS: usize, const NUM_BYTES: usize>(
+        &mut self,
+        bits: &[BoolTarget; NUM_BITS],
+    ) -> CurtaBytes<NUM_BYTES>;
+
+    // Convert from SHA-256 output hash CurtaBytes<HASH_SIZE> to [BoolTarget; HASH_SIZE_BITS]
+    fn convert_from_curta_bytes(
+        &mut self,
+        curta_bytes: &CurtaBytes<HASH_SIZE>,
+    ) -> TendermintHashTarget;
+
     /// Compute the data commitment from the data hashes and block heights. WINDOW_RANGE is the number of blocks in the data commitment. NUM_LEAVES is the number of leaves in the tree for the data commitment.
-    fn get_data_commitment<const WINDOW_RANGE: usize, const NUM_LEAVES: usize>(
+    fn get_data_commitment<
+        E: CubicParameters<F>,
+        const WINDOW_RANGE: usize,
+        const NUM_LEAVES: usize,
+    >(
         &mut self,
         data_hashes: &Vec<TendermintHashTarget>,
         block_heights: &Vec<U32Target>,
@@ -101,8 +132,9 @@ impl<F: RichField + Extendable<D>, const D: usize> CelestiaCommitment<F, D>
         data_root_tuple
     }
 
-    fn get_root_from_merkle_proof<const PROOF_DEPTH: usize>(
+    fn get_root_from_merkle_proof<E: CubicParameters<F>, const PROOF_DEPTH: usize>(
         &mut self,
+        gadget: &mut SHA256BuilderGadget<F, E, D>,
         aunts: &Vec<TendermintHashTarget>,
         // TODO: Should we hard-code path_indices to correspond to dataHash, validatorsHash and nextValidatorsHash?
         path_indices: &Vec<BoolTarget>,
@@ -113,8 +145,8 @@ impl<F: RichField + Extendable<D>, const D: usize> CelestiaCommitment<F, D>
         for i in 0..PROOF_DEPTH {
             let aunt = aunts[i];
             let path_index = path_indices[i];
-            let left_hash_pair = self.inner_hash(&hash_so_far, &aunt);
-            let right_hash_pair = self.inner_hash(&aunt, &hash_so_far);
+            let left_hash_pair = self.inner_hash_stark::<E>(gadget, &hash_so_far, &aunt);
+            let right_hash_pair = self.inner_hash_stark::<E>(gadget, &aunt, &hash_so_far);
 
             let mut hash_pair = [self._false(); HASH_SIZE_BITS];
             for j in 0..HASH_SIZE_BITS {
@@ -130,16 +162,21 @@ impl<F: RichField + Extendable<D>, const D: usize> CelestiaCommitment<F, D>
         hash_so_far
     }
 
-    fn leaf_hash<const LEAF_SIZE_BITS: usize>(
+    fn leaf_hash_stark<
+        E: CubicParameters<F>,
+        const LEAF_SIZE_BITS: usize,
+        const LEAF_SIZE_BITS_PLUS_8: usize,
+        const NUM_BYTES: usize,
+    >(
         &mut self,
+        gadget: &mut SHA256BuilderGadget<F, E, D>,
         leaf: &[BoolTarget; LEAF_SIZE_BITS],
     ) -> TendermintHashTarget {
-        // Calculate the length of the message for the leaf hash.
-        // 0x00 || leafBytes
-        let bits_length = 8 + (LEAF_SIZE_BITS);
+        // NUM_BYTES must be a multiple of 32
+        assert_eq!(NUM_BYTES % 32, 0);
 
         // Calculate the message for the leaf hash.
-        let mut leaf_msg_bits = vec![self._false(); bits_length];
+        let mut leaf_msg_bits = [self._false(); LEAF_SIZE_BITS_PLUS_8];
 
         // 0x00
         for k in 0..8 {
@@ -147,30 +184,32 @@ impl<F: RichField + Extendable<D>, const D: usize> CelestiaCommitment<F, D>
         }
 
         // validatorBytes
-        for k in 8..bits_length {
+        for k in 8..LEAF_SIZE_BITS_PLUS_8 {
             leaf_msg_bits[k] = leaf[k - 8];
         }
 
+        // Convert the [BoolTarget; N] into Curta bytes
+        let leaf_msg_bytes =
+            self.convert_to_padded_curta_bytes::<LEAF_SIZE_BITS_PLUS_8, NUM_BYTES>(&leaf_msg_bits);
+
         // Load the output of the hash.
-        let hash = sha256(self, &leaf_msg_bits);
-        let mut return_hash = [self._false(); HASH_SIZE_BITS];
-        for k in 0..HASH_SIZE_BITS {
-            return_hash[k] = hash[k];
-        }
-        TendermintHashTarget(return_hash)
+        let hash = self.sha256(&leaf_msg_bytes, gadget);
+
+        self.convert_from_curta_bytes(&hash)
     }
 
-    fn inner_hash(
+    fn inner_hash_stark<E: CubicParameters<F>>(
         &mut self,
+        gadget: &mut SHA256BuilderGadget<F, E, D>,
         left: &TendermintHashTarget,
         right: &TendermintHashTarget,
     ) -> TendermintHashTarget {
         // Calculate the length of the message for the inner hash.
         // 0x01 || left || right
-        let bits_length = 8 + (HASH_SIZE_BITS * 2);
+        const MSG_BITS_LENGTH: usize = 8 + (HASH_SIZE_BITS * 2);
 
         // Calculate the message for the inner hash.
-        let mut message_bits = vec![self._false(); bits_length];
+        let mut message_bits = [self._false(); MSG_BITS_LENGTH];
 
         // 0x01
         for k in 0..7 {
@@ -184,22 +223,27 @@ impl<F: RichField + Extendable<D>, const D: usize> CelestiaCommitment<F, D>
         }
 
         // right
-        for k in 8 + HASH_SIZE_BITS..bits_length {
+        for k in 8 + HASH_SIZE_BITS..MSG_BITS_LENGTH {
             message_bits[k] = right.0[k - (8 + HASH_SIZE_BITS)];
         }
 
+        const SHA256_PADDED_NUM_BYTES: usize = 128;
+        // Convert the [BoolTarget; N] into Curta bytes which requires a padded length of 128 bytes because the message is 65 bytes.
+        let leaf_msg_bytes = self
+            .convert_to_padded_curta_bytes::<MSG_BITS_LENGTH, SHA256_PADDED_NUM_BYTES>(
+                &message_bits,
+            );
+
         // Load the output of the hash.
         // Note: Calculate the inner hash as if both validators are enabled.
-        let inner_hash = sha256(self, &message_bits);
-        let mut ret_inner_hash = [self._false(); HASH_SIZE_BITS];
-        for k in 0..HASH_SIZE_BITS {
-            ret_inner_hash[k] = inner_hash[k];
-        }
-        TendermintHashTarget(ret_inner_hash)
+        let inner_hash = self.sha256(&leaf_msg_bytes, gadget);
+
+        self.convert_from_curta_bytes(&inner_hash)
     }
 
-    fn hash_merkle_layer(
+    fn hash_merkle_layer<E: CubicParameters<F>>(
         &mut self,
+        gadget: &mut SHA256BuilderGadget<F, E, D>,
         merkle_hashes: &mut Vec<TendermintHashTarget>,
         merkle_hash_enabled: &mut Vec<BoolTarget>,
         num_hashes: usize,
@@ -215,7 +259,8 @@ impl<F: RichField + Extendable<D>, const D: usize> CelestiaCommitment<F, D>
             let both_nodes_disabled = self.and(first_node_disabled, second_node_disabled);
 
             // Calculuate the inner hash.
-            let inner_hash = self.inner_hash(
+            let inner_hash = self.inner_hash_stark::<E>(
+                gadget,
                 &TendermintHashTarget(merkle_hashes[i].0),
                 &TendermintHashTarget(merkle_hashes[i + 1].0),
             );
@@ -238,17 +283,91 @@ impl<F: RichField + Extendable<D>, const D: usize> CelestiaCommitment<F, D>
         (merkle_hashes.to_vec(), merkle_hash_enabled.to_vec())
     }
 
-    fn get_data_commitment<const WINDOW_RANGE: usize, const NUM_LEAVES: usize>(
+    fn convert_to_padded_curta_bytes<const MSG_SIZE_BITS: usize, const NUM_BYTES: usize>(
+        &mut self,
+        bits: &[BoolTarget; MSG_SIZE_BITS],
+    ) -> CurtaBytes<NUM_BYTES> {
+        let zero = self.zero();
+
+        let bytes = CurtaBytes(self.add_virtual_target_arr::<NUM_BYTES>());
+        for i in (0..MSG_SIZE_BITS).step_by(8) {
+            let mut byte = self.zero();
+            for j in 0..8 {
+                let bit = bits[i + j];
+                // MSB first
+                byte = self.mul_const_add(F::from_canonical_u8(1 << (7 - j)), bit.target, byte);
+            }
+            self.connect(byte, bytes.0[i / 8]);
+            // bytes.0[i / 8] = byte;
+        }
+
+        // Push padding byte (0x80)
+        let padding_byte = self.constant(F::from_canonical_u64(0x80));
+        self.connect(padding_byte, bytes.0[MSG_SIZE_BITS / 8]);
+
+        // Reserve 8 bytes for the length of the message.
+        for i in ((MSG_SIZE_BITS + 8) / 8)..NUM_BYTES - 8 {
+            // Fill the rest of the bits with zero's
+            self.connect(zero, bytes.0[i]);
+        }
+
+        // Set the length bits to the length of the message.
+        let len = ((MSG_SIZE_BITS) as u64).to_be_bytes();
+        for i in 0..8 {
+            let bit = self.constant(F::from_canonical_u8(len[i]));
+            self.connect(bit, bytes.0[NUM_BYTES - 8 + i]);
+        }
+        bytes
+    }
+
+    fn convert_from_curta_bytes(
+        &mut self,
+        curta_bytes: &CurtaBytes<HASH_SIZE>,
+    ) -> TendermintHashTarget {
+        // Convert the Curta bytes into [BoolTarget; N]
+        let mut return_hash = [self._false(); HASH_SIZE_BITS];
+        for i in 0..HASH_SIZE {
+            // Decompose each byte into LE bits
+            let mut bits = self.split_le(curta_bytes.0[i], 8);
+
+            // Flip to BE bits
+            bits.reverse();
+
+            // Store in return hash
+            for j in 0..8 {
+                return_hash[i * 8 + j] = bits[j];
+            }
+        }
+        TendermintHashTarget(return_hash)
+    }
+
+    fn get_data_commitment<
+        E: CubicParameters<F>,
+        const WINDOW_RANGE: usize,
+        const NUM_LEAVES: usize,
+    >(
         &mut self,
         data_hashes: &Vec<TendermintHashTarget>,
         block_heights: &Vec<U32Target>,
     ) -> TendermintHashTarget {
+        let mut gadget: SHA256BuilderGadget<F, E, D> = self.init_sha256();
+
         let mut leaves = vec![TendermintHashTarget([self._false(); HASH_SIZE_BITS]); NUM_LEAVES];
         let mut leaf_enabled = vec![self._false(); NUM_LEAVES];
         for i in 0..WINDOW_RANGE {
             // Encode the data hash and height into a tuple.
             let data_root_tuple = self.encode_data_root_tuple(&data_hashes[i], &block_heights[i]);
-            let leaf_hash = self.leaf_hash(&data_root_tuple);
+
+            const DATA_TUPLE_ROOT_SIZE_BITS: usize = HASH_SIZE_BITS * 2;
+            const DATA_TUPLE_ROOT_SIZE_BITS_PLUS_8: usize = DATA_TUPLE_ROOT_SIZE_BITS + 8;
+
+            // Number of bytes in the padded message for SHA256.
+            const PADDED_SHA256_BYTES: usize = 128;
+            let leaf_hash = self
+                .leaf_hash_stark::<E, DATA_TUPLE_ROOT_SIZE_BITS, DATA_TUPLE_ROOT_SIZE_BITS_PLUS_8, PADDED_SHA256_BYTES>(
+                    &mut gadget,
+                    &data_root_tuple,
+                );
             leaves[i] = leaf_hash;
             leaf_enabled[i] = self._true();
         }
@@ -266,6 +385,7 @@ impl<F: RichField + Extendable<D>, const D: usize> CelestiaCommitment<F, D>
         // Hash each layer of nodes to get the root according to the Tendermint spec, starting from the leaves.
         while merkle_layer_size > 1 {
             (current_nodes, current_node_enabled) = self.hash_merkle_layer(
+                &mut gadget,
                 &mut current_nodes,
                 &mut current_node_enabled,
                 merkle_layer_size,
