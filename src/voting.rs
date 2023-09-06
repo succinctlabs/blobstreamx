@@ -117,9 +117,8 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVoting<F, D> for Ci
         let mut voting_power_low = U32Target(self.zero());
         let mut voting_power_high = U32Target(self.zero());
 
-        // Note: We can only put a max of 80 targets into add_many_u32 (max num_routed_wires), so we cap this at 128/2
+        // Note: We can only put a max of 80 targets into add_many_u32 (max num_routed_wires), which is why we need to split the sum into 2 chunks.
         for i in 0..2 {
-            // Get a vector of the first element of each validator's voting power using a map and collect
             let mut validator_voting_power_first = Vec::new();
             for j in (VALIDATOR_SET_SIZE_MAX / 2) * i..(VALIDATOR_SET_SIZE_MAX / 2) * (i + 1) {
                 validator_voting_power_first.push(validator_voting_power[j].0[0]);
@@ -141,12 +140,10 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVoting<F, D> for Ci
 
             self.assert_zero_u32(carry_sum_high);
 
-            // Add to the accumulated voting power!
+            // Sum the voting power of the second chunk of validators and add it to the first.
 
-            // Add the lower 32 bits to the accumulated voting power
             let (sum_lower_low, sum_lower_high) = self.add_u32(sum_lower_low, voting_power_low);
 
-            // Add upper 32 bits to accumulated voting power
             let (sum_upper_low, sum_upper_high) = self.add_u32(carry_sum_low, voting_power_high);
 
             self.assert_zero_u32(sum_upper_high);
