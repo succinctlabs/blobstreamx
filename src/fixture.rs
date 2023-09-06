@@ -11,13 +11,25 @@ use std::{
     path::Path,
 };
 use subtle_encoding::hex;
-use tendermint::{merkle::simple_hash_from_byte_vectors, validator::Set as ValidatorSet};
+use tendermint::{merkle::simple_hash_from_byte_vectors, validator::Set as ValidatorSet, Hash};
 
 #[derive(Debug, Deserialize)]
-struct Response {
+struct SignedBlockResponse {
     jsonrpc: String,
     id: i32,
     result: TempSignedBlock,
+}
+
+#[derive(Debug, Deserialize)]
+struct DataCommitmentResponse {
+    jsonrpc: String,
+    id: i32,
+    result: DataCommitment,
+}
+
+#[derive(Debug, Deserialize)]
+struct DataCommitment {
+    pub data_commitment: Hash,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -27,8 +39,35 @@ struct VerifySignatureData {
     message: String,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+struct DataCommitmentFixture {
+    start_block: u64,
+    end_block: u64,
+    data_hashes: Vec<Hash>,
+    data_commitment: Hash,
+}
+
 pub fn encode_block_height(block_height: u64) -> Vec<u8> {
     block_height.encode()
+}
+
+pub async fn get_data_commitment(start_block: usize, end_block: usize) -> Hash {
+    dotenv::dotenv().ok();
+
+    // Get the dataHash of the block range (startBlock, endBlock)
+    let mut url = env::var("RPC_MOCHA_4").expect("RPC_MOCHA_4 is not set in .env");
+
+    url.push_str("/data_commitment?start=");
+
+    url.push_str(start_block.to_string().as_str());
+
+    url.push_str("&end=");
+
+    url.push_str(end_block.to_string().as_str());
+
+    let res = reqwest::get(url).await.unwrap().text().await.unwrap();
+    let v: DataCommitmentResponse = serde_json::from_str(&res).expect("Failed to parse JSON");
+    v.result.data_commitment
 }
 
 pub async fn generate_data_commitment(start_block: usize, end_block: usize) {
@@ -47,7 +86,7 @@ pub async fn generate_data_commitment(start_block: usize, end_block: usize) {
 
         println!("Fetching block {}", i);
         let res = reqwest::get(url).await.unwrap().text().await.unwrap();
-        let v: Response = serde_json::from_str(&res).expect("Failed to parse JSON");
+        let v: SignedBlockResponse = serde_json::from_str(&res).expect("Failed to parse JSON");
         let temp_block = v.result;
         let block = SignedBlock {
             header: temp_block.header,
@@ -86,7 +125,77 @@ pub async fn generate_data_commitment(start_block: usize, end_block: usize) {
     );
 }
 
-pub async fn create_new_data_commitment_fixture(start_block: usize, end_block: usize) {}
+pub async fn create_data_commitment_fixture(
+    start_block: usize,
+    end_block: usize,
+) -> Result<(), Error> {
+    dotenv::dotenv().ok();
+
+    let mut fixture: DataCommitmentFixture = DataCommitmentFixture {
+        start_block: start_block as u64,
+        end_block: end_block as u64,
+        data_hashes: Vec::new(),
+        data_commitment: Hash::default(),
+    };
+
+    // Get the dataHash of the block range (startBlock, endBlock)
+    let mut url = env::var("RPC_MOCHA_4").expect("RPC_MOCHA_4 is not set in .env");
+
+    url.push_str("/signed_block?height=");
+
+    let mut encoded_leaves = Vec::new();
+
+    for i in start_block..end_block {
+        let mut url = url.clone();
+        url.push_str(i.to_string().as_str());
+
+        let res = reqwest::get(url).await.unwrap().text().await.unwrap();
+        let v: SignedBlockResponse = serde_json::from_str(&res).expect("Failed to parse JSON");
+        let temp_block = v.result;
+        let block = SignedBlock {
+            header: temp_block.header,
+            data: temp_block.data,
+            commit: temp_block.commit,
+            validator_set: ValidatorSet::new(
+                temp_block.validator_set.validators,
+                temp_block.validator_set.proposer,
+            ),
+        };
+        let data_hash = block.header.data_hash;
+
+        fixture.data_hashes.push(data_hash.unwrap());
+
+        // concat the block height and the data hash
+        let mut encoded_leaf = encode_block_height(i as u64);
+
+        encoded_leaf.extend(data_hash.unwrap().as_bytes().to_vec());
+
+        encoded_leaves.push(encoded_leaf);
+    }
+
+    let root_hash = simple_hash_from_byte_vectors::<Sha256>(&encoded_leaves);
+
+    fixture.data_commitment = Hash::Sha256(root_hash);
+
+    // Write to JSON file
+    let json = serde_json::to_string(&fixture).unwrap();
+
+    let mut path = "./src/fixtures/mocha-4/".to_string();
+    path.push_str(start_block.to_string().as_str());
+    path.push_str("-".to_string().as_str());
+    path.push_str(end_block.to_string().as_str());
+    path.push_str("/data_commitment.json");
+
+    // Ensure the directory exists
+    if let Some(parent) = Path::new(&path).parent() {
+        fs::create_dir_all(parent).unwrap();
+    }
+
+    let mut file = File::create(&path).unwrap();
+    file.write_all(json.as_bytes()).unwrap();
+
+    Ok(())
+}
 
 pub fn generate_val_array(num_validators: usize) {
     let mut rng = rand::thread_rng();
@@ -120,7 +229,7 @@ pub fn generate_val_array(num_validators: usize) {
     );
 }
 
-pub async fn create_new_fixture(block_number: usize) -> Result<(), Error> {
+pub async fn create_block_fixture(block_number: usize) -> Result<(), Error> {
     write_block_fixture(block_number)
         .await
         .expect("Failed to write block fixture");
@@ -144,7 +253,7 @@ async fn write_block_fixture(block_number: usize) -> Result<(), Error> {
     // Convert response to string
     let res = reqwest::get(url).await?.text().await?;
 
-    let v: Response = serde_json::from_str(&res).expect("Failed to parse JSON");
+    let v: SignedBlockResponse = serde_json::from_str(&res).expect("Failed to parse JSON");
 
     let temp_block = v.result;
 
@@ -162,7 +271,7 @@ async fn write_block_fixture(block_number: usize) -> Result<(), Error> {
     // Write to JSON file
     let json = serde_json::to_string(&block).unwrap();
 
-    let mut path = "./src/fixtures/".to_string();
+    let mut path = "./src/fixtures/mocha-3/".to_string();
     path.push_str(block_number.to_string().as_str());
     path.push_str("/signed_block.json");
 
@@ -182,8 +291,7 @@ pub(crate) mod tests {
     use crate::utils::leaf_hash;
 
     use super::*;
-    use sha2::{Digest, Sha256};
-    use tokio::runtime::Runtime;
+    use sha2::Sha256;
 
     #[tokio::test]
     async fn test_data_commitment() {

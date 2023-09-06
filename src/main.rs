@@ -17,10 +17,18 @@ enum Function {
         validators: usize,
     },
     /// Calls the get_celestia_consensus_signatures function
-    CreateNewFixture {
+    CreateBlockFixture {
         /// The block number to create a new fixture for
         #[clap(short, long)]
         block: usize,
+    },
+    /// Calls the get_celestia_consensus_signatures function
+    CreateDataCommitmentFixture {
+        /// The block number range to create a new fixture for
+        #[clap(short, long)]
+        start_block: usize,
+        #[clap(short, long)]
+        end_block: usize,
     },
     /// Generates step inputs
     GenerateStepInputs {
@@ -47,8 +55,16 @@ async fn main() {
             println!("Number of validators: {}", validators);
             fixture::generate_val_array(validators);
         }
-        Function::CreateNewFixture { block } => {
-            fixture::create_new_fixture(block)
+        Function::CreateBlockFixture { block } => {
+            fixture::create_block_fixture(block)
+                .await
+                .expect("Failed to create new fixture");
+        }
+        Function::CreateDataCommitmentFixture {
+            start_block,
+            end_block,
+        } => {
+            fixture::create_data_commitment_fixture(start_block, end_block)
                 .await
                 .expect("Failed to create new fixture");
         }
