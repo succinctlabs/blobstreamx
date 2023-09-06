@@ -1,7 +1,7 @@
 use plonky2::hash::hash_types::RichField;
 
 use plonky2::iop::target::BoolTarget;
-use plonky2x::num::u32::gadgets::arithmetic_u32::U32Target;
+use plonky2x::frontend::num::u32::gadgets::arithmetic_u32::U32Target;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::cell::RefCell;
@@ -30,6 +30,10 @@ pub const PROTOBUF_HASH_SIZE_BITS: usize = HASH_SIZE_BITS + 8 * 2;
 
 /// The number of bits in a protobuf-encoded tendermint block ID.
 pub const PROTOBUF_BLOCK_ID_SIZE_BITS: usize = 72 * 8;
+
+// Constants that represent the number of bytes necessary to pad the protobuf encoded data for SHA256
+pub const PROTOBUF_HASH_SHA256_NUM_BYTES: usize = 64;
+pub const PROTOBUF_BLOCK_ID_SHA256_NUM_BYTES: usize = 128;
 
 // Depth of the proofs against the header.
 pub const HEADER_PROOF_DEPTH: usize = 4;
@@ -92,6 +96,7 @@ pub struct I64Target(pub [U32Target; 2]);
 #[derive(Debug, Clone, Copy)]
 pub struct ValidatorMessageTarget(pub [BoolTarget; VALIDATOR_MESSAGE_BYTES_LENGTH_MAX * 8]);
 
+// Convert from [BoolTarget; HASH_SIZE_BITS] to [BoolTarget; PROTOBUF_HASH_SIZE_BITS]
 pub fn bits_to_bytes(bits: &[bool]) -> Vec<u8> {
     let mut bytes = Vec::new();
     let nb_bytes = if bits.len() % 8 == 0 {
