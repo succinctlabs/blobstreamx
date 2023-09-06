@@ -1,3 +1,4 @@
+pub mod commitment;
 pub mod fixture;
 pub mod inputs;
 pub mod signature;

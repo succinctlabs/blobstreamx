@@ -300,6 +300,12 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn test_encoding() {
+        let block_height = 256;
+        println!("Block height: {:?}", block_height.encode());
+    }
+
+    #[test]
     fn test_commitment() {
         let mut first_arr = vec![0u8, 0];
         let arr = vec![
