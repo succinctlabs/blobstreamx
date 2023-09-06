@@ -54,17 +54,25 @@ pub async fn generate_data_commitment(start_block: usize, end_block: usize) {
             ),
         };
         let data_hash = block.header.data_hash;
+        println!("Data hash: {:?}", data_hash.unwrap().as_bytes());
 
         // concat the block height and the data hash
         let mut encoded_leaf = encode_block_height(i as u64);
-        println!("Encoded block height: {:?}", encoded_leaf);
 
-        encoded_leaf.extend_from_slice(&data_hash.unwrap().as_bytes());
+        encoded_leaf.extend(data_hash.unwrap().as_bytes().to_vec());
+
+        println!("Encoded leaf: {:?}", encoded_leaf);
+
+        println!("Length of encoded leaf: {:?}", encoded_leaf.len());
 
         encoded_leaves.push(encoded_leaf);
     }
 
+    println!("Encoded leaves length: {:?}", encoded_leaves.len());
+
     let root_hash = simple_hash_from_byte_vectors::<Sha256>(&encoded_leaves);
+
+    println!("Root Hash Bytes: {:?}", root_hash);
 
     // Print the root hash
     println!(
@@ -161,11 +169,49 @@ async fn write_block_fixture(block_number: usize) -> Result<(), Error> {
 
 #[cfg(test)]
 pub(crate) mod tests {
+    use crate::utils::leaf_hash;
+
     use super::*;
+    use sha2::{Digest, Sha256};
     use tokio::runtime::Runtime;
 
     #[tokio::test]
     async fn test_data_commitment() {
-        generate_data_commitment(10000, 10401).await
+        // End exclusive range: https://github.com/celestiaorg/celestia-core/blob/main/rpc/core/blocks.go#L537-L538
+        generate_data_commitment(452000, 452001).await
+    }
+
+    #[test]
+    fn test_commitment() {
+        println!(
+            "decoded data hash: {:?}",
+            hex::decode_upper("3D96B7D238E7E0456F6AF8E7CDF0A67BD6CF9C2089ECB559C659DCAA1F880353")
+        );
+        let mut first_arr = vec![0u8, 0];
+        let arr = vec![
+            0u8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 6, 229, 160, 61, 150, 183, 210, 56, 231, 224, 69, 111, 106, 248, 231, 205, 240, 166,
+            123, 214, 207, 156, 32, 137, 236, 181, 89, 198, 89, 220, 170, 31, 136, 3, 83,
+        ];
+
+        first_arr.extend_from_slice(&arr);
+
+        println!("First arr: {:?}, Len: {:?}", first_arr, first_arr.len());
+
+        let result = leaf_hash::<Sha256>(&arr);
+        println!("Result Bytes: {:?}", result);
+        println!(
+            "Result: {:?}",
+            String::from_utf8(hex::encode_upper(result)).unwrap()
+        );
+
+        // let mut hasher = Sha256::new();
+        // hasher.update(&first_arr);
+
+        // let result = hasher.finalize();
+        // println!(
+        //     "Result: {:?}",
+        //     String::from_utf8(hex::encode(result)).unwrap()
+        // );
     }
 }
