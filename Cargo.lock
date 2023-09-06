@@ -410,6 +410,7 @@ dependencies = [
  "clap",
  "curta",
  "digest 0.10.7",
+ "dotenv",
  "ed25519-consensus",
  "env_logger",
  "ethers",

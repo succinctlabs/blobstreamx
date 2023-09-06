@@ -5,6 +5,7 @@ use reqwest::Error;
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 use std::{
+    env,
     fs::{self, File},
     io::Write,
     path::Path,
@@ -31,8 +32,12 @@ pub fn encode_block_height(block_height: u64) -> Vec<u8> {
 }
 
 pub async fn generate_data_commitment(start_block: usize, end_block: usize) {
+    dotenv::dotenv().ok();
+
     // Get the dataHash of the block range (startBlock, endBlock)
-    let url = "http://rpc.testnet.celestia.citizencosmos.space/signed_block?height=".to_string();
+    let mut url = env::var("RPC_MOCHA_4").expect("RPC_MOCHA_4 is not set in .env");
+
+    url.push_str("/signed_block?height=");
 
     let mut encoded_leaves = Vec::new();
 
@@ -81,6 +86,8 @@ pub async fn generate_data_commitment(start_block: usize, end_block: usize) {
     );
 }
 
+pub async fn create_new_data_commitment_fixture(start_block: usize, end_block: usize) {}
+
 pub fn generate_val_array(num_validators: usize) {
     let mut rng = rand::thread_rng();
     // Generate an array of byte arrays where the byte arrays have variable length between 38 and 46 bytes and the total length of the array is less than n
@@ -124,9 +131,12 @@ pub async fn create_new_fixture(block_number: usize) -> Result<(), Error> {
 }
 
 async fn write_block_fixture(block_number: usize) -> Result<(), Error> {
-    // Serves latest block
-    let mut url =
-        "http://rpc.testnet.celestia.citizencosmos.space/signed_block?height=".to_string();
+    // Read RPC_MOCHA_3 from env
+    dotenv::dotenv().ok();
+    let mut url = env::var("RPC_MOCHA_3").expect("RPC_MOCHA_3 is not set in .env");
+
+    url.push_str("/signed_block?height=");
+
     url.push_str(block_number.to_string().as_str());
 
     // Send a GET request and wait for the response
@@ -178,15 +188,11 @@ pub(crate) mod tests {
     #[tokio::test]
     async fn test_data_commitment() {
         // End exclusive range: https://github.com/celestiaorg/celestia-core/blob/main/rpc/core/blocks.go#L537-L538
-        generate_data_commitment(452000, 452001).await
+        generate_data_commitment(4000, 4001).await
     }
 
     #[test]
     fn test_commitment() {
-        println!(
-            "decoded data hash: {:?}",
-            hex::decode_upper("3D96B7D238E7E0456F6AF8E7CDF0A67BD6CF9C2089ECB559C659DCAA1F880353")
-        );
         let mut first_arr = vec![0u8, 0];
         let arr = vec![
             0u8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,

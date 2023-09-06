@@ -86,7 +86,7 @@ pub fn get_path_indices(index: u64, total: u64) -> Vec<bool> {
 
 fn get_signed_block(block: usize) -> Box<SignedBlock> {
     let mut file = String::new();
-    file.push_str("./src/fixtures/");
+    file.push_str("./src/fixtures/mocha-3/");
     file.push_str(&block.to_string());
     file.push_str("/signed_block.json");
 

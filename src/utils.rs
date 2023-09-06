@@ -636,7 +636,7 @@ pub(crate) mod tests {
         // Generate test cases from Celestia block:
         let temp_block = TempSignedBlock::from(
             serde_json::from_str::<TempSignedBlock>(include_str!(
-                "./fixtures/signed_celestia_block.json"
+                "./fixtures/mocha-3/signed_celestia_block.json"
             ))
             .unwrap(),
         );
@@ -673,7 +673,7 @@ pub(crate) mod tests {
         // Generate test cases from Celestia block:
         let temp_block = Box::new(TempSignedBlock::from(
             serde_json::from_str::<TempSignedBlock>(include_str!(
-                "./fixtures/signed_celestia_block.json"
+                "./fixtures/mocha-3/signed_celestia_block.json"
             ))
             .unwrap(),
         ));
@@ -767,7 +767,7 @@ pub(crate) mod tests {
         // Generate test cases from Celestia block:
         let block = tendermint::Block::from(
             serde_json::from_str::<tendermint::block::Block>(include_str!(
-                "./fixtures/celestia_block.json"
+                "./fixtures/mocha-3/celestia_block.json"
             ))
             .unwrap(),
         );

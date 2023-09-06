@@ -8,6 +8,7 @@ anyhow = "1.0.71"
 clap = { version = "4.3.18", features = ["derive"] }
 curta = { git = "https://github.com/succinctlabs/curta.git" }
 digest = "0.10.7"
+dotenv = "0.15.0"
 ed25519-consensus = "2.1.0"
 env_logger = "0.10.0"
 ethers = "2.0.9"
