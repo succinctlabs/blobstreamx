@@ -394,13 +394,13 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
         self.connect(check_voting_power_bool.target, one);
 
         // Verifies signatures of the validators
-        // self.verify_signatures::<E, C>(
-        //     &validators_signed,
-        //     messages,
-        //     message_bit_lengths,
-        //     signatures,
-        //     pubkeys,
-        // );
+        self.verify_signatures::<E, C>(
+            &validators_signed,
+            messages,
+            message_bit_lengths,
+            signatures,
+            pubkeys,
+        );
 
         // Verify that the header is included in each message signed by an enabled validator
         for i in 0..VALIDATOR_SET_SIZE_MAX {
