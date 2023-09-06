@@ -25,6 +25,38 @@ struct VerifySignatureData {
     message: String,
 }
 
+pub fn encode_block_height(block_height: usize) -> String {}
+
+pub async fn generate_data_commitment(start_block: usize, end_block: usize) {
+    // Get the dataHash of the block range (startBlock, endBlock)
+    let url = "http://rpc.testnet.celestia.citizencosmos.space/signed_block?height=".to_string();
+
+    let mut data_hashes = Vec::new();
+    let mut block_heights = Vec::new();
+
+    let mut encoded_leaves = Vec::new();
+
+    for i in start_block..end_block {
+        let mut url = url.clone();
+        url.push_str(i.to_string().as_str());
+        let res = reqwest::get(url).await.unwrap().text().await.unwrap();
+        let v: Response = serde_json::from_str(&res).expect("Failed to parse JSON");
+        let temp_block = v.result;
+        let block = SignedBlock {
+            header: temp_block.header,
+            data: temp_block.data,
+            commit: temp_block.commit,
+            validator_set: ValidatorSet::new(
+                temp_block.validator_set.validators,
+                temp_block.validator_set.proposer,
+            ),
+        };
+        let data_hash = block.header.data_hash;
+        data_hashes.push(data_hash);
+        block_heights.push(i);
+    }
+}
+
 pub fn generate_val_array(num_validators: usize) {
     let mut rng = rand::thread_rng();
     // Generate an array of byte arrays where the byte arrays have variable length between 38 and 46 bytes and the total length of the array is less than n
