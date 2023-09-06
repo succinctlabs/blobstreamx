@@ -912,6 +912,8 @@ pub(crate) mod tests {
         println!("Verified proof");
     }
 
+    // TODO: Add these tests back once the interface for using Curta's SHA gadget is straightforward. Currently, we'd need to compute the total number of SHA's done in each of these tests, and fill out the rest of the SHA's similar to how it's done in test_skip & test_step.
+
     // #[test]
     // fn test_hash_validator_leaves() {
     //     let mut pw = PartialWitness::new();
