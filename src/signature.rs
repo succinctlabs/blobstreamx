@@ -352,7 +352,9 @@ pub(crate) mod tests {
             config::PoseidonGoldilocksConfig,
         },
     };
-    use plonky2x::frontend::ecc::ed25519::curve::eddsa::{verify_message, EDDSAPublicKey, EDDSASignature};
+    use plonky2x::frontend::ecc::ed25519::curve::eddsa::{
+        verify_message, EDDSAPublicKey, EDDSASignature,
+    };
     use subtle_encoding::hex;
 
     use plonky2x::frontend::num::biguint::CircuitBuilderBiguint;

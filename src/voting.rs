@@ -121,17 +121,19 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVoting<F, D> for Ci
         for i in 0..2 {
             // Get a vector of the first element of each validator's voting power using a map and collect
             let mut validator_voting_power_first = Vec::new();
-            for j in (VALIDATOR_SET_SIZE_MAX/2) * i..(VALIDATOR_SET_SIZE_MAX/2) * (i + 1) {
+            for j in (VALIDATOR_SET_SIZE_MAX / 2) * i..(VALIDATOR_SET_SIZE_MAX / 2) * (i + 1) {
                 validator_voting_power_first.push(validator_voting_power[j].0[0]);
             }
 
-            let (sum_lower_low, sum_lower_high) = self.add_many_u32(&mut validator_voting_power_first);
+            let (sum_lower_low, sum_lower_high) =
+                self.add_many_u32(&mut validator_voting_power_first);
 
             let mut validator_voting_power_second = Vec::new();
-            for j in (VALIDATOR_SET_SIZE_MAX/2) * i..(VALIDATOR_SET_SIZE_MAX/2) * (i + 1) {
+            for j in (VALIDATOR_SET_SIZE_MAX / 2) * i..(VALIDATOR_SET_SIZE_MAX / 2) * (i + 1) {
                 validator_voting_power_second.push(validator_voting_power[j].0[1]);
             }
-            let (sum_upper_low, sum_upper_high) = self.add_many_u32(&mut validator_voting_power_second);
+            let (sum_upper_low, sum_upper_high) =
+                self.add_many_u32(&mut validator_voting_power_second);
 
             self.assert_zero_u32(sum_upper_high);
 

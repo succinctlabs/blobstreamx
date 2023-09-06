@@ -7,7 +7,10 @@
 //! encoded using protobuf's default integer encoding, which consist of 7 bit payloads. You can
 //! read more about them here: https://protobuf.dev/programming-guides/encoding/#varints.
 
-use curta::{math::extension::cubic::parameters::CubicParameters, chip::hash::sha::sha256::builder_gadget::{SHA256BuilderGadget, SHA256Builder, CurtaBytes}};
+use curta::{
+    chip::hash::sha::sha256::builder_gadget::{CurtaBytes, SHA256Builder, SHA256BuilderGadget},
+    math::extension::cubic::parameters::CubicParameters,
+};
 use plonky2::{
     field::{extension::Extendable, types::Field},
     hash::hash_types::RichField,
@@ -52,7 +55,8 @@ use crate::{
     utils::{
         to_be_bits, EncBlockIDTarget, EncTendermintHashTarget, I64Target,
         MarshalledValidatorTarget, TendermintHashTarget, ValidatorMessageTarget, HASH_SIZE_BITS,
-        HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BITS, PROTOBUF_HASH_SIZE_BITS, PROTOBUF_BLOCK_ID_SHA256_NUM_BYTES, PROTOBUF_HASH_SHA256_NUM_BYTES,
+        HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SHA256_NUM_BYTES, PROTOBUF_BLOCK_ID_SIZE_BITS,
+        PROTOBUF_HASH_SHA256_NUM_BYTES, PROTOBUF_HASH_SIZE_BITS,
         VALIDATOR_MESSAGE_BYTES_LENGTH_MAX,
     },
     validator::TendermintValidator,
@@ -261,7 +265,12 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
         );
 
         // Verifies that the previous header hash in the block matches the previous header hash in the last block ID.
-        self.verify_prev_header_in_header::<E, C>(&mut gadget, header, prev_header, last_block_id_proof);
+        self.verify_prev_header_in_header::<E, C>(
+            &mut gadget,
+            header,
+            prev_header,
+            last_block_id_proof,
+        );
 
         // Extract the validators hash from the validator hash proof
         const HASH_START_BYTE: usize = 2;
@@ -291,7 +300,6 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
         }
 
         self.constrain_sha256_gadget::<C>(gadget);
-
     }
 
     fn verify_header<
@@ -613,7 +621,6 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
         // If VALIDATOR_SET_SIZE_MAX = N
         // Skip does (6N - 4) + 68 = 6N + 64 SHA-256 chunks
         // In order to reach 1024 chunks, we need to add 1024 - (6N + 64) = 960 - 6N chunks to the SHA gadget
-
 
         for _ in 0..(960 - 6 * VALIDATOR_SET_SIZE_MAX) {
             let bytes = CurtaBytes(self.add_virtual_target_arr::<64>());

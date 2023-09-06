@@ -6,7 +6,9 @@
 //! The `pubkey` is encoded as the raw list of bytes used in the public key. The `varint` is
 //! encoded using protobuf's default integer encoding, which consist of 7 bit payloads. You can
 //! read more about them here: https://protobuf.dev/programming-guides/encoding/#varints.
-use curta::chip::hash::sha::sha256::builder_gadget::{SHA256Builder, SHA256BuilderGadget, CurtaBytes};
+use curta::chip::hash::sha::sha256::builder_gadget::{
+    CurtaBytes, SHA256Builder, SHA256BuilderGadget,
+};
 use curta::math::extension::cubic::parameters::CubicParameters;
 use plonky2::field::extension::Extendable;
 use plonky2::iop::target::BoolTarget;
@@ -22,7 +24,7 @@ use tendermint::merkle::HASH_SIZE;
 use crate::utils::{
     I64Target, MarshalledValidatorTarget, TendermintHashTarget, HASH_SIZE_BITS,
     VALIDATOR_BIT_LENGTH_MAX, VALIDATOR_BYTE_LENGTH_MAX, VOTING_POWER_BITS_LENGTH_MAX,
-    VOTING_POWER_BYTES_LENGTH_MAX
+    VOTING_POWER_BYTES_LENGTH_MAX,
 };
 
 pub trait TendermintValidator<F: RichField + Extendable<D>, const D: usize> {
@@ -54,7 +56,12 @@ pub trait TendermintValidator<F: RichField + Extendable<D>, const D: usize> {
 
     /// Hashes leaf bytes to get the leaf hash according to the Tendermint spec. (0x00 || leafBytes)
     /// Note: Uses STARK gadget to generate SHA's.
-    fn leaf_hash_stark<E: CubicParameters<F>, const LEAF_SIZE_BITS: usize, const LEAF_SIZE_BITS_PLUS_8: usize, const NUM_BYTES: usize>(
+    fn leaf_hash_stark<
+        E: CubicParameters<F>,
+        const LEAF_SIZE_BITS: usize,
+        const LEAF_SIZE_BITS_PLUS_8: usize,
+        const NUM_BYTES: usize,
+    >(
         &mut self,
         gadget: &mut SHA256BuilderGadget<F, E, D>,
         leaf: &[BoolTarget; LEAF_SIZE_BITS],
@@ -153,7 +160,12 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintValidator<F, D>
         hash_so_far
     }
 
-    fn leaf_hash_stark<E: CubicParameters<F>, const LEAF_SIZE_BITS: usize, const LEAF_SIZE_BITS_PLUS_8: usize, const NUM_BYTES: usize>(
+    fn leaf_hash_stark<
+        E: CubicParameters<F>,
+        const LEAF_SIZE_BITS: usize,
+        const LEAF_SIZE_BITS_PLUS_8: usize,
+        const NUM_BYTES: usize,
+    >(
         &mut self,
         gadget: &mut SHA256BuilderGadget<F, E, D>,
         leaf: &[BoolTarget; LEAF_SIZE_BITS],
@@ -178,7 +190,8 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintValidator<F, D>
         }
 
         // Convert the [BoolTarget; N] into Curta bytes
-        let leaf_msg_bytes = self.convert_to_padded_curta_bytes::<LEAF_SIZE_BITS_PLUS_8, NUM_BYTES>(&leaf_msg_bits);
+        let leaf_msg_bytes =
+            self.convert_to_padded_curta_bytes::<LEAF_SIZE_BITS_PLUS_8, NUM_BYTES>(&leaf_msg_bits);
 
         // Load the output of the hash.
         let hash = self.sha256(&leaf_msg_bytes, gadget);
@@ -345,7 +358,8 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintValidator<F, D>
         }
 
         // Pad the leaf according to the SHA256 spec.
-        let padded_msg = pad_single_sha256_chunk(self, &enc_validator_bits, enc_validator_bit_length);
+        let padded_msg =
+            pad_single_sha256_chunk(self, &enc_validator_bits, enc_validator_bit_length);
 
         // Convert the [BoolTarget; N] into Curta bytes
         let bytes = CurtaBytes(self.add_virtual_target_arr::<64>());
@@ -432,7 +446,10 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintValidator<F, D>
         const SHA256_PADDED_NUM_BYTES: usize = 128;
         // Convert the [BoolTarget; N] into Curta bytes
         // Requires 128 bytes (two chunks) b/c message is 65 bytes
-        let leaf_msg_bytes = self.convert_to_padded_curta_bytes::<MSG_BITS_LENGTH, SHA256_PADDED_NUM_BYTES>(&message_bits);
+        let leaf_msg_bytes = self
+            .convert_to_padded_curta_bytes::<MSG_BITS_LENGTH, SHA256_PADDED_NUM_BYTES>(
+                &message_bits,
+            );
 
         // Load the output of the hash.
         // Note: Calculate the inner hash as if both validators are enabled.
@@ -506,8 +523,11 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintValidator<F, D>
         self.connect(num_validator_enabled, validator_set_size_max);
 
         // Hash each of the validators to get their corresponding leaf hash.
-        let mut current_validator_hashes = self
-            .hash_validator_leaves::<E, VALIDATOR_SET_SIZE_MAX>(gadget, validators, validator_byte_lengths);
+        let mut current_validator_hashes = self.hash_validator_leaves::<E, VALIDATOR_SET_SIZE_MAX>(
+            gadget,
+            validators,
+            validator_byte_lengths,
+        );
 
         // Whether to treat the validator as empty.
         let mut current_validator_enabled = validator_enabled.clone();
@@ -847,10 +867,9 @@ pub(crate) mod tests {
     fn test_starky_sha_gadget() {
         env_logger::init();
 
-
         let mut timing = TimingTree::new("Sha256 Plonky2 gadget", log::Level::Debug);
 
-            // Create a new plonky2 circuit
+        // Create a new plonky2 circuit
         let config = CircuitConfig::standard_recursion_config();
         let mut builder = CircuitBuilder::<F, D>::new(config);
 
@@ -894,7 +913,8 @@ pub(crate) mod tests {
         // We will use two types of a short message and one long message
 
         let long_msg = hex::decode("243f6a8885a308d313198a2e03707344a4093822299f31d0082efa98ec4e6c89452821e638d01377be5466cf34e90c6cc0ac29b7c97c50dd3f84d5b5b5470917").unwrap();
-        let expected_digest_long = "aca16131a2e4c4c49e656d35aac1f0e689b3151bb108fa6cf5bcc3ac08a09bf9";
+        let expected_digest_long =
+            "aca16131a2e4c4c49e656d35aac1f0e689b3151bb108fa6cf5bcc3ac08a09bf9";
 
         let long_messages = (0..512).map(|_| long_msg.clone()).collect::<Vec<_>>();
 
@@ -959,7 +979,6 @@ pub(crate) mod tests {
     //     let validators: Vec<&str> = vec!["6694200ba0e084f7184255abedc39af04463a4ff11e0e0c1326b1b82ea1de50c6b35cf6efa8f7ed3", "739d312e54353379a852b43de497ca4ec52bb49f59b7294a4d6cf19dd648e16cb530b7a7a1e35875d4ab4d90", "4277f2f871f3e041bcd4643c0cf18e5a931c2bfe121ce8983329a289a2b0d2161745a2ddf99bade9a1"];
 
     //     // Convert validators[0] to CurtaBytes.
-
 
     //     // let validators = validators
     //     //     .iter()
