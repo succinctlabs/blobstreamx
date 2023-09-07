@@ -13,6 +13,7 @@ use curta::math::extension::cubic::parameters::CubicParameters;
 use plonky2::field::extension::Extendable;
 use plonky2::iop::target::BoolTarget;
 use plonky2::iop::target::Target;
+use plonky2::plonk::config::{AlgebraicHasher, GenericConfig};
 use plonky2::{hash::hash_types::RichField, plonk::circuit_builder::CircuitBuilder};
 use plonky2x::frontend::ecc::ed25519::curve::curve_types::Curve;
 use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
@@ -96,13 +97,16 @@ pub trait CelestiaCommitment<F: RichField + Extendable<D>, const D: usize> {
     /// Compute the data commitment from the data hashes and block heights. WINDOW_RANGE is the number of blocks in the data commitment. NUM_LEAVES is the number of leaves in the tree for the data commitment.
     fn get_data_commitment<
         E: CubicParameters<F>,
+        C: GenericConfig<D, F = F, FE = F::Extension> + 'static,
         const WINDOW_RANGE: usize,
         const NUM_LEAVES: usize,
     >(
         &mut self,
         data_hashes: &Vec<TendermintHashTarget>,
         block_heights: &Vec<U32Target>,
-    ) -> TendermintHashTarget;
+    ) -> TendermintHashTarget
+    where
+        <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>;
 }
 
 impl<F: RichField + Extendable<D>, const D: usize> CelestiaCommitment<F, D>
@@ -173,7 +177,7 @@ impl<F: RichField + Extendable<D>, const D: usize> CelestiaCommitment<F, D>
         leaf: &[BoolTarget; LEAF_SIZE_BITS],
     ) -> TendermintHashTarget {
         // NUM_BYTES must be a multiple of 32
-        assert_eq!(NUM_BYTES % 32, 0);
+        assert_eq!(NUM_BYTES % 64, 0);
 
         // Calculate the message for the leaf hash.
         let mut leaf_msg_bits = [self._false(); LEAF_SIZE_BITS_PLUS_8];
@@ -343,13 +347,17 @@ impl<F: RichField + Extendable<D>, const D: usize> CelestiaCommitment<F, D>
 
     fn get_data_commitment<
         E: CubicParameters<F>,
+        C: GenericConfig<D, F = F, FE = F::Extension> + 'static,
         const WINDOW_RANGE: usize,
         const NUM_LEAVES: usize,
     >(
         &mut self,
         data_hashes: &Vec<TendermintHashTarget>,
         block_heights: &Vec<U32Target>,
-    ) -> TendermintHashTarget {
+    ) -> TendermintHashTarget
+    where
+        <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>,
+    {
         let mut gadget: SHA256BuilderGadget<F, E, D> = self.init_sha256();
 
         let mut leaves = vec![TendermintHashTarget([self._false(); HASH_SIZE_BITS]); NUM_LEAVES];
@@ -358,7 +366,7 @@ impl<F: RichField + Extendable<D>, const D: usize> CelestiaCommitment<F, D>
             // Encode the data hash and height into a tuple.
             let data_root_tuple = self.encode_data_root_tuple(&data_hashes[i], &block_heights[i]);
 
-            const DATA_TUPLE_ROOT_SIZE_BITS: usize = HASH_SIZE_BITS * 2;
+            const DATA_TUPLE_ROOT_SIZE_BITS: usize = 64 * 8;
             const DATA_TUPLE_ROOT_SIZE_BITS_PLUS_8: usize = DATA_TUPLE_ROOT_SIZE_BITS + 8;
 
             // Number of bytes in the padded message for SHA256.
@@ -371,9 +379,16 @@ impl<F: RichField + Extendable<D>, const D: usize> CelestiaCommitment<F, D>
             leaves[i] = leaf_hash;
             leaf_enabled[i] = self._true();
         }
-        for i in WINDOW_RANGE..NUM_LEAVES {
-            leaf_enabled[i] = self._false();
-        }
+
+        // Fill out the first SHA256 gadget with empty leaves.
+        // First chunk is 800 SHA-chunks
+        // Fill out 1024 - 800 = 224 SHA-chunks
+        let num_chunks_left = 224;
+        fill_out_sha_gadget::<F, E, D>(self, &mut gadget, num_chunks_left);
+        self.constrain_sha256_gadget::<C>(gadget);
+
+        let mut gadget: SHA256BuilderGadget<F, E, D> = self.init_sha256();
+
         // Hash each of the validators to get their corresponding leaf hash.
         let mut current_nodes = leaves.clone();
 
@@ -393,14 +408,37 @@ impl<F: RichField + Extendable<D>, const D: usize> CelestiaCommitment<F, D>
             merkle_layer_size /= 2;
         }
 
+        // If NUM_LEAVES=512, then we have 1024 - (511 * 2) = 2 SHA-chunks left.
+        // Each inner_hash_stark is 2 SHA chunks
+        let num_chunks_left = 2;
+        fill_out_sha_gadget::<F, E, D>(self, &mut gadget, num_chunks_left);
+        self.constrain_sha256_gadget::<C>(gadget);
+
         // Return the root hash.
         current_nodes[0]
+    }
+}
+
+fn fill_out_sha_gadget<F: RichField + Extendable<D>, E: CubicParameters<F>, const D: usize>(
+    builder: &mut CircuitBuilder<F, D>,
+    gadget: &mut SHA256BuilderGadget<F, E, D>,
+    num_chunks_left: usize,
+) {
+    let zero = builder.zero();
+    let bytes = CurtaBytes(builder.add_virtual_target_arr::<64>());
+    for i in 0..64 {
+        builder.connect(bytes.0[i], zero);
+    }
+
+    for _ in 0..num_chunks_left {
+        builder.sha256(&bytes, gadget);
     }
 }
 
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
+    use curta::math::goldilocks::cubic::GoldilocksCubicParameters;
     use plonky2::{
         iop::witness::{PartialWitness, WitnessWrite},
         plonk::{
@@ -409,10 +447,11 @@ pub(crate) mod tests {
             config::{GenericConfig, PoseidonGoldilocksConfig},
         },
     };
+    use subtle_encoding::hex;
 
     use crate::{
         commitment::CelestiaCommitment,
-        inputs::get_path_indices,
+        inputs::{generate_data_commitment_inputs, get_path_indices},
         utils::{
             f_bits_to_bytes, generate_proofs_from_header, hash_all_leaves, leaf_hash, to_be_bits,
             I64Target, MarshalledValidatorTarget, TendermintHashTarget, HASH_SIZE_BITS,
@@ -423,9 +462,68 @@ pub(crate) mod tests {
 
     type C = PoseidonGoldilocksConfig;
     type F = <C as GenericConfig<D>>::F;
+    type E = GoldilocksCubicParameters;
     type Curve = Ed25519;
     const D: usize = 2;
-    const VALIDATOR_SET_SIZE_MAX: usize = 4;
+
+    const WINDOW_SIZE: usize = 400;
+    const NUM_LEAVES: usize = 512;
+
+    #[test]
+    fn test_data_commitment() {
+        let mut pw = PartialWitness::new();
+        let config = CircuitConfig::standard_recursion_config();
+        let mut builder = CircuitBuilder::<F, D>::new(config);
+
+        const START_BLOCK: usize = 3800;
+        const END_BLOCK: usize = START_BLOCK + WINDOW_SIZE;
+
+        let inputs = generate_data_commitment_inputs(START_BLOCK, END_BLOCK);
+
+        let mut data_hashes_targets = Vec::new();
+        let mut block_heights_targets = Vec::new();
+        for i in 0..WINDOW_SIZE {
+            let mut data_hash_target = TendermintHashTarget([builder._false(); HASH_SIZE_BITS]);
+
+            let data_hash_bits = to_be_bits(inputs.data_hashes[i].into());
+            for j in 0..HASH_SIZE_BITS {
+                data_hash_target.0[j] = builder.constant_bool(data_hash_bits[j]);
+            }
+
+            let block_height = builder.constant_u32((START_BLOCK + i) as u32);
+
+            data_hashes_targets.push(data_hash_target);
+            block_heights_targets.push(block_height);
+        }
+
+        let root_hash_target = builder.get_data_commitment::<E, C, WINDOW_SIZE, NUM_LEAVES>(
+            &data_hashes_targets,
+            &block_heights_targets,
+        );
+
+        println!(
+            "Expected data commitment root: {:?}",
+            String::from_utf8(hex::encode(inputs.data_commitment_root)).unwrap()
+        );
+
+        let expected_data_commitment_bits = to_be_bits(inputs.data_commitment_root.into());
+
+        println!(
+            "Expected data commitment root bits: {:?}",
+            expected_data_commitment_bits
+        );
+
+        for i in 0..HASH_SIZE_BITS {
+            pw.set_bool_target(root_hash_target.0[i], expected_data_commitment_bits[i]);
+        }
+
+        let data = builder.build::<C>();
+        let proof = data.prove(pw).unwrap();
+
+        data.verify(proof).unwrap();
+
+        println!("Verified proof");
+    }
 
     #[test]
     fn test_encode_data_root_tuple() {

@@ -1,5 +1,6 @@
 use std::fs;
 
+use crate::fixture::DataCommitmentFixture;
 /// Source (tendermint-rs): https://github.com/informalsystems/tendermint-rs/blob/e930691a5639ef805c399743ac0ddbba0e9f53da/tendermint/src/merkle.rs#L32
 use crate::utils::{
     compute_hash_from_aunts, generate_proofs_from_header, leaf_hash, non_absent_vote, SignedBlock,
@@ -8,7 +9,7 @@ use crate::utils::{
 use ed25519_consensus::SigningKey;
 use sha2::Sha256;
 use tendermint::crypto::ed25519::VerificationKey;
-use tendermint::{private_key, Signature};
+use tendermint::{private_key, Hash, Signature};
 use tendermint::{validator::Set as ValidatorSet, vote::SignedVote, vote::ValidatorIndex};
 use tendermint_proto::types::BlockId as RawBlockId;
 use tendermint_proto::Protobuf;
@@ -69,6 +70,13 @@ pub struct CelestiaSkipBlockProof {
     pub base: CelestiaBaseBlockProof,
 }
 
+#[derive(Debug, Clone)]
+pub struct CelestiaDataCommitmentProofInputs {
+    pub data_hashes: Vec<Hash>,
+    pub block_heights: Vec<u32>,
+    pub data_commitment_root: Hash,
+}
+
 // If hash_so_far is on the left, False, else True
 pub fn get_path_indices(index: u64, total: u64) -> Vec<bool> {
     let mut path_indices = vec![];
@@ -110,6 +118,43 @@ fn get_signed_block(block: usize) -> Box<SignedBlock> {
     block
 }
 
+fn get_data_commitment_fixture(start_block: usize, end_block: usize) -> DataCommitmentFixture {
+    let mut file = String::new();
+    file.push_str("./src/fixtures/mocha-4/");
+    file.push_str(&start_block.to_string());
+    file.push_str("-");
+    file.push_str(&end_block.to_string());
+    file.push_str("/data_commitment.json");
+
+    let file_content = fs::read_to_string(file.as_str());
+
+    DataCommitmentFixture::from(
+        serde_json::from_str::<DataCommitmentFixture>(&file_content.unwrap())
+            .expect("failed to parse json"),
+    )
+}
+
+/// Generate the inputs for a skip proof from a trusted_block to block.
+pub fn generate_data_commitment_inputs(
+    start_block: usize,
+    end_block: usize,
+) -> CelestiaDataCommitmentProofInputs {
+    // Generate test cases from data commitment fixture
+    let fixture = get_data_commitment_fixture(start_block, end_block);
+
+    let mut block_heights = Vec::new();
+    for i in start_block..end_block {
+        block_heights.push(i as u32);
+    }
+
+    CelestiaDataCommitmentProofInputs {
+        data_hashes: fixture.data_hashes,
+        block_heights,
+        data_commitment_root: fixture.data_commitment,
+    }
+}
+
+/// Generate the base inputs for a proof of a Celestia block (to be used by the skip or step circuits).
 fn generate_base_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
     block: &Box<SignedBlock>,
 ) -> CelestiaBaseBlockProof {
@@ -240,6 +285,7 @@ fn generate_base_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
     celestia_block_proof
 }
 
+/// Generate the inputs for a step proof for consecutive Celestia blocks.
 pub fn generate_step_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
     block_number: usize,
 ) -> CelestiaStepBlockProof {
@@ -359,7 +405,7 @@ fn update_present_on_trusted_header(
     );
 }
 
-// Where block is the block we want to generate inputs for, and trusted_block is the block we're skipping from
+/// Generate the inputs for a skip proof from a trusted_block to block.
 pub fn generate_skip_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
     trusted_block: usize,
     block: usize,

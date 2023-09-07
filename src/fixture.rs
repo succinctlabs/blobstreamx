@@ -40,11 +40,11 @@ struct VerifySignatureData {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct DataCommitmentFixture {
-    start_block: u64,
-    end_block: u64,
-    data_hashes: Vec<Hash>,
-    data_commitment: Hash,
+pub struct DataCommitmentFixture {
+    pub start_block: u64,
+    pub end_block: u64,
+    pub data_hashes: Vec<Hash>,
+    pub data_commitment: Hash,
 }
 
 pub fn encode_block_height(block_height: u64) -> Vec<u8> {
@@ -294,9 +294,9 @@ pub(crate) mod tests {
     use sha2::Sha256;
 
     #[tokio::test]
-    async fn test_data_commitment() {
+    async fn calculate_data_commitment() {
         // End exclusive range: https://github.com/celestiaorg/celestia-core/blob/main/rpc/core/blocks.go#L537-L538
-        generate_data_commitment(4000, 4001).await
+        generate_data_commitment(3800, 4200).await
     }
 
     #[test]
