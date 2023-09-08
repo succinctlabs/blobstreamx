@@ -22,6 +22,7 @@ pub trait CelestiaCommitment<L: PlonkParameters<D>, const D: usize> {
     type Curve: Curve;
 
     /// Encodes the data hash and height into a tuple.
+    /// Spec: https://github.com/celestiaorg/celestia-core/blob/6933af1ead0ddf4a8c7516690e3674c6cdfa7bd8/rpc/core/blocks.go#L325-L334
     fn encode_data_root_tuple(
         &mut self,
         data_hash: &Bytes32Variable,
@@ -95,7 +96,6 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
         data_hash: &Bytes32Variable,
         height: &U32Variable,
     ) -> ArrayVariable<ByteVariable, 64> {
-        self.watch(data_hash, "data_hash");
         let mut encoded_tuple = Vec::new();
 
         // Encode the height.
@@ -157,7 +157,6 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
 
         // Calculate the message for the leaf hash.
         let encoded_leaf = ArrayVariable::<ByteVariable, LEAF_SIZE_BYTES_PLUS_1>::new(encoded_leaf);
-        self.watch(&encoded_leaf, "encoded leaf");
 
         // Load the output of the hash.
         // Use curta gadget to generate SHA's.
@@ -252,7 +251,6 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
                 .leaf_hash_stark::<E, DATA_TUPLE_ROOT_SIZE_BYTES, DATA_TUPLE_ROOT_SIZE_BYTES_PLUS_1, PADDED_SHA256_BYTES>(
                     &data_root_tuple,
                 );
-            self.watch(&leaf_hash, format!("leaf_hash {}", i).as_str());
             leaves.push(leaf_hash);
             leaf_enabled.push(self._true());
         }
@@ -275,14 +273,6 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
             (current_nodes, current_node_enabled) =
                 self.hash_merkle_layer::<E>(current_nodes, current_node_enabled, merkle_layer_size);
             merkle_layer_size /= 2;
-            self.watch(
-                &current_nodes[0],
-                format!("current_nodes {}", merkle_layer_size).as_str(),
-            );
-            self.watch(
-                &current_node_enabled[0],
-                format!("current_node_enabled {}", merkle_layer_size).as_str(),
-            );
         }
 
         self.constraint_sha256_curta();
@@ -412,22 +402,18 @@ pub(crate) mod tests {
 
         let mut builder = CircuitBuilder::<L, D>::new();
 
-        // const WINDOW_SIZE: usize = 400;
-        // const NUM_LEAVES: usize = 512;
-        const WINDOW_SIZE: usize = 4;
-        const NUM_LEAVES: usize = 4;
+        const WINDOW_SIZE: usize = 400;
+        const NUM_LEAVES: usize = 512;
+        // const WINDOW_SIZE: usize = 4;
+        // const NUM_LEAVES: usize = 4;
+        const START_BLOCK: usize = 3800;
+        const END_BLOCK: usize = START_BLOCK + WINDOW_SIZE;
 
         let celestia_data_commitment_var =
             builder.read::<CelestiaDataCommitmentProofInputVariable<WINDOW_SIZE>>();
-        builder.watch(&celestia_data_commitment_var, "input");
         let root_hash_target = builder.get_data_commitment::<E, C, WINDOW_SIZE, NUM_LEAVES>(
             &celestia_data_commitment_var.data_hashes,
             &celestia_data_commitment_var.block_heights,
-        );
-        builder.watch(&root_hash_target, "root_hash_target");
-        builder.watch(
-            &celestia_data_commitment_var.data_commitment_root,
-            "ASDASDASDASDDSADASDASD",
         );
         builder.assert_is_equal(
             root_hash_target,
@@ -435,9 +421,6 @@ pub(crate) mod tests {
         );
 
         let circuit = builder.build();
-
-        const START_BLOCK: usize = 3800;
-        const END_BLOCK: usize = START_BLOCK + WINDOW_SIZE;
 
         let mut input = circuit.input();
         input.write::<CelestiaDataCommitmentProofInputVariable<WINDOW_SIZE>>(
@@ -449,6 +432,9 @@ pub(crate) mod tests {
 
     #[test]
     fn test_encode_data_root_tuple() {
+        env::set_var("RUST_LOG", "debug");
+        env_logger::try_init().unwrap_or_default();
+
         let mut builder = CircuitBuilder::<L, D>::new();
 
         let data_hash =
