@@ -7,6 +7,8 @@ use crate::utils::{
     TempSignedBlock,
 };
 use ed25519_consensus::SigningKey;
+use ethers::types::H256;
+use plonky2x::frontend::eth::storage::generators::block;
 use sha2::Sha256;
 use tendermint::crypto::ed25519::VerificationKey;
 use tendermint::{private_key, Hash, Signature};
@@ -72,9 +74,9 @@ pub struct CelestiaSkipBlockProof {
 
 #[derive(Debug, Clone)]
 pub struct CelestiaDataCommitmentProofInputs {
-    pub data_hashes: Vec<Hash>,
+    pub data_hashes: Vec<H256>,
     pub block_heights: Vec<u32>,
-    pub data_commitment_root: Hash,
+    pub data_commitment_root: H256,
 }
 
 // If hash_so_far is on the left, False, else True
@@ -135,22 +137,26 @@ fn get_data_commitment_fixture(start_block: usize, end_block: usize) -> DataComm
 }
 
 /// Generate the inputs for a skip proof from a trusted_block to block.
-pub fn generate_data_commitment_inputs(
+pub fn generate_data_commitment_inputs<const WINDOW_SIZE: usize>(
     start_block: usize,
     end_block: usize,
 ) -> CelestiaDataCommitmentProofInputs {
     // Generate test cases from data commitment fixture
     let fixture = get_data_commitment_fixture(start_block, end_block);
 
+    let mut data_hashes = Vec::new();
     let mut block_heights = Vec::new();
     for i in start_block..end_block {
+        data_hashes.push(H256::from_slice(
+            fixture.data_hashes[i - start_block].as_bytes(),
+        ));
         block_heights.push(i as u32);
     }
 
     CelestiaDataCommitmentProofInputs {
-        data_hashes: fixture.data_hashes,
+        data_hashes,
         block_heights,
-        data_commitment_root: fixture.data_commitment,
+        data_commitment_root: H256::from_slice(fixture.data_commitment.as_bytes()),
     }
 }
 

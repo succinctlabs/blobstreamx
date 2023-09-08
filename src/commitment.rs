@@ -22,6 +22,7 @@ use plonky2x::frontend::ecc::ed25519::gadgets::curve::{AffinePointTarget, Circui
 use plonky2x::frontend::hash::sha::sha256::pad_single_sha256_chunk;
 use plonky2x::frontend::num::u32::gadgets::arithmetic_u32::CircuitBuilderU32;
 use plonky2x::frontend::vars::{ArrayVariable, Bytes32Variable, EvmVariable, U32Variable};
+use plonky2x::prelude::Variable;
 use plonky2x::prelude::{BoolVariable, ByteVariable, CircuitBuilder, CircuitVariable};
 use tendermint::merkle::HASH_SIZE;
 
@@ -75,8 +76,8 @@ pub trait CelestiaCommitment<L: PlonkParameters<D>, const D: usize> {
     /// If neither the left nor right node in a pair is enabled (empty), then the parent node is set to not enabled (empty).
     fn hash_merkle_layer<E: CubicParameters<L::Field>>(
         &mut self,
-        merkle_hashes: &mut Vec<Bytes32Variable>,
-        merkle_hash_enabled: &mut Vec<BoolVariable>,
+        merkle_hashes: Vec<Bytes32Variable>,
+        merkle_hash_enabled: Vec<BoolVariable>,
         num_hashes: usize,
     ) -> (Vec<Bytes32Variable>, Vec<BoolVariable>);
 
@@ -92,8 +93,8 @@ pub trait CelestiaCommitment<L: PlonkParameters<D>, const D: usize> {
         const NUM_LEAVES: usize,
     >(
         &mut self,
-        data_hashes: &Vec<Bytes32Variable>,
-        block_heights: &Vec<U32Variable>,
+        data_hashes: &ArrayVariable<Bytes32Variable, WINDOW_RANGE>,
+        block_heights: &ArrayVariable<U32Variable, WINDOW_RANGE>,
     ) -> Bytes32Variable
     where
         <C as GenericConfig<D>>::Hasher: AlgebraicHasher<L::Field>;
@@ -112,9 +113,6 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
 
         // Encode the height.
         let encoded_height = height.encode(self);
-        for i in 0..encoded_height.len() {
-            self.watch(&encoded_height[i], "encoded_height");
-        }
 
         encoded_tuple.extend(
             self.constant::<ArrayVariable<ByteVariable, 28>>(vec![0u8; 28])
@@ -198,12 +196,15 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
 
     fn hash_merkle_layer<E: CubicParameters<L::Field>>(
         &mut self,
-        merkle_hashes: &mut Vec<Bytes32Variable>,
-        merkle_hash_enabled: &mut Vec<BoolVariable>,
+        merkle_hashes: Vec<Bytes32Variable>,
+        merkle_hash_enabled: Vec<BoolVariable>,
         num_hashes: usize,
     ) -> (Vec<Bytes32Variable>, Vec<BoolVariable>) {
         let zero = self._false();
         let one = self._true();
+
+        let mut new_merkle_hashes = Vec::new();
+        let mut new_merkle_hash_enabled = Vec::new();
 
         for i in (0..num_hashes).step_by(2) {
             let both_nodes_enabled = self.and(merkle_hash_enabled[i], merkle_hash_enabled[i + 1]);
@@ -215,10 +216,10 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
             // Calculuate the inner hash.
             let inner_hash = self.inner_hash_stark::<E>(&merkle_hashes[i], &merkle_hashes[i + 1]);
 
-            merkle_hashes[i / 2] = self.select(both_nodes_enabled, inner_hash, merkle_hashes[i]);
+            new_merkle_hashes.push(self.select(both_nodes_enabled, inner_hash, merkle_hashes[i]));
 
             // Set the inner node one level up to disabled if both nodes are disabled.
-            merkle_hash_enabled[i / 2] = self.select(both_nodes_disabled, zero, one);
+            new_merkle_hash_enabled.push(self.select(both_nodes_disabled, zero, one));
         }
 
         // Return the hashes and enabled nodes for the next layer up.
@@ -236,19 +237,18 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
         const NUM_LEAVES: usize,
     >(
         &mut self,
-        data_hashes: &Vec<Bytes32Variable>,
-        block_heights: &Vec<U32Variable>,
+        data_hashes: &ArrayVariable<Bytes32Variable, WINDOW_RANGE>,
+        block_heights: &ArrayVariable<U32Variable, WINDOW_RANGE>,
     ) -> Bytes32Variable
     where
         <C as GenericConfig<D>>::Hasher: AlgebraicHasher<L::Field>,
     {
-        // let mut gadget: SHA256BuilderGadget<L::Field, E, D> = self.api.init_sha256();
-
         let mut leaves = Vec::new();
-        let mut leaf_enabled = vec![self._false(); NUM_LEAVES];
+        let mut leaf_enabled = Vec::new();
         for i in 0..WINDOW_RANGE {
             // Encode the data hash and height into a tuple.
             let data_root_tuple = self.encode_data_root_tuple(&data_hashes[i], &block_heights[i]);
+            // self.watch(&data_root_tuple, format!("data_root_tuple {}", i).as_str());
 
             const DATA_TUPLE_ROOT_SIZE_BYTES: usize = 64;
             const DATA_TUPLE_ROOT_SIZE_BYTES_PLUS_1: usize = DATA_TUPLE_ROOT_SIZE_BYTES + 1;
@@ -259,25 +259,15 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
                 .leaf_hash_stark::<E, DATA_TUPLE_ROOT_SIZE_BYTES, DATA_TUPLE_ROOT_SIZE_BYTES_PLUS_1, PADDED_SHA256_BYTES>(
                     &data_root_tuple,
                 );
+            self.watch(&leaf_hash, format!("leaf_hash {}", i).as_str());
             leaves.push(leaf_hash);
-            leaf_enabled[i] = self._true();
+            leaf_enabled.push(self._true());
         }
 
-        leaves.extend(vec![
-            self.constant::<Bytes32Variable>(
-                ethers::types::H256::zero()
-            );
-            NUM_LEAVES - WINDOW_RANGE
-        ]);
-
-        // Fill out the first SHA256 gadget with empty leaves.
-        // First chunk is 800 SHA-chunks
-        // Fill out 1024 - 800 = 224 SHA-chunks
-        // let num_chunks_left = 224;
-        // fill_out_sha_gadget::<L, E, D>(self, &mut gadget, num_chunks_left);
-        // self.api.constrain_sha256_gadget::<C>(gadget);
-
-        // let mut gadget: SHA256BuilderGadget<L::Field, E, D> = self.api.init_sha256();
+        for i in 0..NUM_LEAVES - WINDOW_RANGE {
+            leaves.push(self.constant::<Bytes32Variable>(ethers::types::H256::zero()));
+            leaf_enabled.push(self._false());
+        }
 
         // Hash each of the validators to get their corresponding leaf hash.
         let mut current_nodes = leaves.clone();
@@ -289,20 +279,19 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
 
         // Hash each layer of nodes to get the root according to the Tendermint spec, starting from the leaves.
         while merkle_layer_size > 1 {
-            (current_nodes, current_node_enabled) = self.hash_merkle_layer::<E>(
-                &mut current_nodes,
-                &mut current_node_enabled,
-                merkle_layer_size,
-            );
+            (current_nodes, current_node_enabled) =
+                self.hash_merkle_layer::<E>(current_nodes, current_node_enabled, merkle_layer_size);
             merkle_layer_size /= 2;
+            self.watch(
+                &current_nodes[0],
+                format!("current_nodes {}", merkle_layer_size).as_str(),
+            );
+            self.watch(
+                &current_node_enabled[0],
+                format!("current_node_enabled {}", merkle_layer_size).as_str(),
+            );
         }
-
-        // // If NUM_LEAVES=512, then we have 1024 - (511 * 2) = 2 SHA-chunks left.
-        // // Each inner_hash_stark is 2 SHA chunks
-        // let num_chunks_left = 2;
-        // fill_out_sha_gadget::<L, E, D>(self, &mut gadget, num_chunks_left);
-        // self.api.constrain_sha256_gadget::<C>(gadget);
-
+        self.watch(&current_nodes[0], format!("current_nodes AT END").as_str());
         // Return the root hash.
         current_nodes[0]
     }
@@ -310,10 +299,15 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
 
 #[cfg(test)]
 pub(crate) mod tests {
+    use std::{
+        env,
+        ops::{Index, Range},
+    };
+
     use super::*;
     use curta::math::goldilocks::cubic::GoldilocksCubicParameters;
     use plonky2::{
-        iop::witness::{PartialWitness, WitnessWrite},
+        iop::witness::{PartialWitness, Witness, WitnessWrite},
         plonk::{
             circuit_data::CircuitConfig,
             config::{GenericConfig, PoseidonGoldilocksConfig},
@@ -324,7 +318,9 @@ pub(crate) mod tests {
 
     use crate::{
         commitment::CelestiaCommitment,
-        inputs::{generate_data_commitment_inputs, get_path_indices},
+        inputs::{
+            generate_data_commitment_inputs, get_path_indices, CelestiaDataCommitmentProofInputs,
+        },
         utils::{
             f_bits_to_bytes, generate_proofs_from_header, hash_all_leaves, leaf_hash, to_be_bits,
             I64Target, MarshalledValidatorTarget, HASH_SIZE_BITS, HEADER_PROOF_DEPTH,
@@ -342,42 +338,132 @@ pub(crate) mod tests {
     const WINDOW_SIZE: usize = 400;
     const NUM_LEAVES: usize = 512;
 
-    // #[derive(Clone, Debug, CircuitVariable)]
-    // struct CelestiaDataCommitmentProofInputVariable {
-    //     data_hashes: Vec<Bytes32Variable>,
-    //     block_heights: Vec<U32Variable>,
-    //     data_commitment_root: Bytes32Variable,
-    // }
+    #[derive(Clone, Debug)]
+    struct CelestiaDataCommitmentProofInputVariable<const WINDOW_SIZE: usize> {
+        data_hashes: ArrayVariable<Bytes32Variable, WINDOW_SIZE>,
+        block_heights: ArrayVariable<U32Variable, WINDOW_SIZE>,
+        data_commitment_root: Bytes32Variable,
+    }
 
-    // #[test]
-    // fn test_data_commitment() {
-    //     let mut pw = PartialWitness::new();
-    //     let config = CircuitConfig::standard_recursion_config();
-    //     let mut builder = CircuitBuilder::<L, D>::new();
+    impl<const WINDOW_SIZE: usize> CircuitVariable
+        for CelestiaDataCommitmentProofInputVariable<WINDOW_SIZE>
+    {
+        type ValueType<F: RichField> = CelestiaDataCommitmentProofInputs;
 
-    //     let celestia_data_commitment_var =
-    //         builder.read::<CelestiaDataCommitmentProofInputVariable>();
-    //     let root_hash_target = builder.get_data_commitment::<E, C, WINDOW_SIZE, NUM_LEAVES>(
-    //         &celestia_data_commitment_var.data_hashes,
-    //         &celestia_data_commitment_var.block_heights,
-    //     );
-    //     builder.assert_is_equal(
-    //         root_hash_target,
-    //         celestia_data_commitment_var.data_commitment_root,
-    //     );
-    //     let circuit = builder.build();
+        fn init<L: PlonkParameters<D>, const D: usize>(builder: &mut CircuitBuilder<L, D>) -> Self {
+            Self {
+                data_hashes: ArrayVariable::<Bytes32Variable, WINDOW_SIZE>::init(builder),
+                block_heights: ArrayVariable::<U32Variable, WINDOW_SIZE>::init(builder),
+                data_commitment_root: Bytes32Variable::init(builder),
+            }
+        }
 
-    //     const START_BLOCK: usize = 3800;
-    //     const END_BLOCK: usize = START_BLOCK + WINDOW_SIZE;
+        fn constant<L: PlonkParameters<D>, const D: usize>(
+            builder: &mut CircuitBuilder<L, D>,
+            value: Self::ValueType<L::Field>,
+        ) -> Self {
+            Self {
+                data_hashes: ArrayVariable::<Bytes32Variable, WINDOW_SIZE>::constant(
+                    builder,
+                    value.data_hashes,
+                ),
+                block_heights: ArrayVariable::<U32Variable, WINDOW_SIZE>::constant(
+                    builder,
+                    value.block_heights,
+                ),
+                data_commitment_root: Bytes32Variable::constant(
+                    builder,
+                    value.data_commitment_root,
+                ),
+            }
+        }
 
-    //     let input = circuit.input();
-    //     input.write::<CelestiaDataCommitmentProofInputVariable>(generate_data_commitment_inputs(
-    //         START_BLOCK,
-    //         END_BLOCK,
-    //     ));
-    //     let (proof, mut output) = circuit.prove(&input);
-    //     circuit.verify(&proof, &input, &output);
-    // }
+        fn variables(&self) -> Vec<super::Variable> {
+            let mut vars = Vec::new();
+            vars.extend(self.data_hashes.variables());
+            vars.extend(self.block_heights.variables());
+            vars.extend(self.data_commitment_root.variables());
+            vars
+        }
+
+        fn from_variables(variables: &[Variable]) -> Self {
+            let num_elements = ArrayVariable::<Bytes32Variable, WINDOW_SIZE>::nb_elements();
+            let data_hashes = ArrayVariable::<Bytes32Variable, WINDOW_SIZE>::from_variables(
+                &variables[0..num_elements],
+            );
+            let mut offset = num_elements;
+            let num_elements = ArrayVariable::<U32Variable, WINDOW_SIZE>::nb_elements();
+            let block_heights = ArrayVariable::<U32Variable, WINDOW_SIZE>::from_variables(
+                &variables[offset..offset + num_elements],
+            );
+            offset += num_elements;
+            let data_commitment_root = Bytes32Variable::from_variables(
+                &variables[offset..offset + Bytes32Variable::nb_elements()],
+            );
+            Self {
+                data_hashes,
+                block_heights,
+                data_commitment_root,
+            }
+        }
+
+        fn get<F: RichField, W: Witness<F>>(&self, witness: &W) -> Self::ValueType<F> {
+            CelestiaDataCommitmentProofInputs {
+                data_hashes: self.data_hashes.get(witness),
+                block_heights: self.block_heights.get(witness),
+                data_commitment_root: self.data_commitment_root.get(witness),
+            }
+        }
+
+        fn set<F: RichField, W: WitnessWrite<F>>(
+            &self,
+            witness: &mut W,
+            value: Self::ValueType<F>,
+        ) {
+            self.data_hashes.set(witness, value.data_hashes);
+            self.block_heights.set(witness, value.block_heights);
+            self.data_commitment_root
+                .set(witness, value.data_commitment_root);
+        }
+    }
+
+    #[test]
+    fn test_data_commitment() {
+        env::set_var("RUST_LOG", "debug");
+        env_logger::try_init().unwrap_or_default();
+
+        let config = CircuitConfig::standard_recursion_config();
+        let mut builder = CircuitBuilder::<L, D>::new();
+
+        let celestia_data_commitment_var =
+            builder.read::<CelestiaDataCommitmentProofInputVariable<WINDOW_SIZE>>();
+        builder.watch(&celestia_data_commitment_var, "input");
+        let root_hash_target = builder.get_data_commitment::<E, C, WINDOW_SIZE, NUM_LEAVES>(
+            &celestia_data_commitment_var.data_hashes,
+            &celestia_data_commitment_var.block_heights,
+        );
+        builder.watch(&root_hash_target, "root_hash_target");
+        builder.assert_is_equal(
+            root_hash_target,
+            celestia_data_commitment_var.data_commitment_root,
+        );
+        builder.watch(
+            &celestia_data_commitment_var.data_commitment_root,
+            "ASDASDASDASDDSADASDASD",
+        );
+
+        let circuit = builder.build();
+
+        const START_BLOCK: usize = 3800;
+        const END_BLOCK: usize = START_BLOCK + WINDOW_SIZE;
+
+        let mut input = circuit.input();
+        input.write::<CelestiaDataCommitmentProofInputVariable<WINDOW_SIZE>>(
+            generate_data_commitment_inputs::<WINDOW_SIZE>(START_BLOCK, END_BLOCK),
+        );
+        let (proof, mut output) = circuit.prove(&input);
+        circuit.verify(&proof, &input, &output);
+    }
 
     #[test]
     fn test_encode_data_root_tuple() {
