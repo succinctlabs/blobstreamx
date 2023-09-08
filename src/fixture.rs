@@ -1,4 +1,4 @@
-use crate::utils::{SignedBlock, TempSignedBlock};
+use crate::utils::{leaf_hash, SignedBlock, TempSignedBlock};
 use ethers::abi::AbiEncode;
 use rand::Rng;
 use reqwest::Error;
@@ -15,15 +15,11 @@ use tendermint::{merkle::simple_hash_from_byte_vectors, validator::Set as Valida
 
 #[derive(Debug, Deserialize)]
 struct SignedBlockResponse {
-    jsonrpc: String,
-    id: i32,
     result: TempSignedBlock,
 }
 
 #[derive(Debug, Deserialize)]
 struct DataCommitmentResponse {
-    jsonrpc: String,
-    id: i32,
     result: DataCommitment,
 }
 
@@ -84,7 +80,7 @@ pub async fn generate_data_commitment(start_block: usize, end_block: usize) {
         let mut url = url.clone();
         url.push_str(i.to_string().as_str());
 
-        println!("Fetching block {}", i);
+        // println!("Fetching block {}", i);
         let res = reqwest::get(url).await.unwrap().text().await.unwrap();
         let v: SignedBlockResponse = serde_json::from_str(&res).expect("Failed to parse JSON");
         let temp_block = v.result;
@@ -98,25 +94,32 @@ pub async fn generate_data_commitment(start_block: usize, end_block: usize) {
             ),
         };
         let data_hash = block.header.data_hash;
-        println!("Data hash: {:?}", data_hash.unwrap().as_bytes());
+        // println!("Data hash: {:?}", data_hash.unwrap().as_bytes());
 
         // concat the block height and the data hash
         let mut encoded_leaf = encode_block_height(i as u64);
 
         encoded_leaf.extend(data_hash.unwrap().as_bytes().to_vec());
 
-        println!("Encoded leaf: {:?}", encoded_leaf);
+        // println!("Encoded leaf: {:?}", encoded_leaf);
 
-        println!("Length of encoded leaf: {:?}", encoded_leaf.len());
+        // println!("Length of encoded leaf: {:?}", encoded_leaf.len());
 
         encoded_leaves.push(encoded_leaf);
     }
 
-    println!("Encoded leaves length: {:?}", encoded_leaves.len());
+    // println!("Encoded leaves length: {:?}", encoded_leaves.len());
+
+    for leaf in &encoded_leaves {
+        println!(
+            "{}",
+            String::from_utf8(hex::encode(leaf_hash::<Sha256>(leaf))).expect("Found invalid UTF-8")
+        );
+    }
 
     let root_hash = simple_hash_from_byte_vectors::<Sha256>(&encoded_leaves);
 
-    println!("Root Hash Bytes: {:?}", root_hash);
+    // println!("Root Hash Bytes: {:?}", root_hash);
 
     // Print the root hash
     println!(
@@ -296,7 +299,7 @@ pub(crate) mod tests {
     #[tokio::test]
     async fn calculate_data_commitment() {
         // End exclusive range: https://github.com/celestiaorg/celestia-core/blob/main/rpc/core/blocks.go#L537-L538
-        generate_data_commitment(3800, 4200).await
+        generate_data_commitment(3800, 3804).await
     }
 
     #[test]

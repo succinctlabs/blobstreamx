@@ -6,30 +6,17 @@
 //! The `pubkey` is encoded as the raw list of bytes used in the public key. The `varint` is
 //! encoded using protobuf's default integer encoding, which consist of 7 bit payloads. You can
 //! read more about them here: https://protobuf.dev/programming-guides/encoding/#varints.
-use curta::chip::hash::sha::sha256::builder_gadget::{
-    CurtaBytes, SHA256Builder, SHA256BuilderGadget,
-};
+
 use curta::math::extension::cubic::parameters::CubicParameters;
 use plonky2::field::extension::Extendable;
-use plonky2::hash::hash_types::RichField;
-use plonky2::iop::target::BoolTarget;
-use plonky2::iop::target::Target;
+
 use plonky2::plonk::config::{AlgebraicHasher, GenericConfig};
 use plonky2x::backend::config::PlonkParameters;
 use plonky2x::frontend::ecc::ed25519::curve::curve_types::Curve;
 use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
-use plonky2x::frontend::ecc::ed25519::gadgets::curve::{AffinePointTarget, CircuitBuilderCurve};
-use plonky2x::frontend::hash::sha::sha256::pad_single_sha256_chunk;
-use plonky2x::frontend::num::u32::gadgets::arithmetic_u32::CircuitBuilderU32;
-use plonky2x::frontend::vars::{ArrayVariable, Bytes32Variable, EvmVariable, U32Variable};
-use plonky2x::prelude::Variable;
-use plonky2x::prelude::{BoolVariable, ByteVariable, CircuitBuilder, CircuitVariable};
-use tendermint::merkle::HASH_SIZE;
 
-use crate::utils::{
-    I64Target, MarshalledValidatorTarget, HASH_SIZE_BITS, VALIDATOR_BIT_LENGTH_MAX,
-    VALIDATOR_BYTE_LENGTH_MAX, VOTING_POWER_BITS_LENGTH_MAX, VOTING_POWER_BYTES_LENGTH_MAX,
-};
+use plonky2x::frontend::vars::{ArrayVariable, Bytes32Variable, EvmVariable, U32Variable};
+use plonky2x::prelude::{BoolVariable, ByteVariable, CircuitBuilder, CircuitVariable};
 
 pub trait CelestiaCommitment<L: PlonkParameters<D>, const D: usize> {
     type Curve: Curve;
@@ -97,7 +84,7 @@ pub trait CelestiaCommitment<L: PlonkParameters<D>, const D: usize> {
         block_heights: &ArrayVariable<U32Variable, WINDOW_RANGE>,
     ) -> Bytes32Variable
     where
-        <C as GenericConfig<D>>::Hasher: AlgebraicHasher<L::Field>;
+        <<L as PlonkParameters<D>>::Config as GenericConfig<D>>::Hasher: AlgebraicHasher<L::Field>;
 }
 
 impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for CircuitBuilder<L, D> {
@@ -109,17 +96,22 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
         height: &U32Variable,
     ) -> ArrayVariable<ByteVariable, 64> {
         self.watch(data_hash, "data_hash");
-        let mut encoded_tuple = data_hash.as_bytes().to_vec();
+        let mut encoded_tuple = Vec::new();
 
         // Encode the height.
         let encoded_height = height.encode(self);
 
+        // Pad the abi.encodePacked(height) to 32 bytes.
         encoded_tuple.extend(
             self.constant::<ArrayVariable<ByteVariable, 28>>(vec![0u8; 28])
                 .as_vec(),
         );
 
+        // Add the abi.encodePacked(height) to the tuple.
         encoded_tuple.extend(encoded_height);
+
+        // Add the data hash to the tuple.
+        encoded_tuple.extend(data_hash.as_bytes().to_vec());
 
         ArrayVariable::<ByteVariable, 64>::new(encoded_tuple)
     }
@@ -165,6 +157,7 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
 
         // Calculate the message for the leaf hash.
         let encoded_leaf = ArrayVariable::<ByteVariable, LEAF_SIZE_BYTES_PLUS_1>::new(encoded_leaf);
+        self.watch(&encoded_leaf, "encoded leaf");
 
         // Load the output of the hash.
         // Use curta gadget to generate SHA's.
@@ -223,7 +216,7 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
         }
 
         // Return the hashes and enabled nodes for the next layer up.
-        (merkle_hashes.to_vec(), merkle_hash_enabled.to_vec())
+        (new_merkle_hashes, new_merkle_hash_enabled)
     }
 
     fn get_data_commitment<
@@ -241,7 +234,7 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
         block_heights: &ArrayVariable<U32Variable, WINDOW_RANGE>,
     ) -> Bytes32Variable
     where
-        <C as GenericConfig<D>>::Hasher: AlgebraicHasher<L::Field>,
+        <<L as PlonkParameters<D>>::Config as GenericConfig<D>>::Hasher: AlgebraicHasher<L::Field>,
     {
         let mut leaves = Vec::new();
         let mut leaf_enabled = Vec::new();
@@ -264,7 +257,7 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
             leaf_enabled.push(self._true());
         }
 
-        for i in 0..NUM_LEAVES - WINDOW_RANGE {
+        for _ in 0..NUM_LEAVES - WINDOW_RANGE {
             leaves.push(self.constant::<Bytes32Variable>(ethers::types::H256::zero()));
             leaf_enabled.push(self._false());
         }
@@ -291,6 +284,9 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
                 format!("current_node_enabled {}", merkle_layer_size).as_str(),
             );
         }
+
+        self.constraint_sha256_curta();
+
         self.watch(&current_nodes[0], format!("current_nodes AT END").as_str());
         // Return the root hash.
         current_nodes[0]
@@ -299,44 +295,26 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use std::{
-        env,
-        ops::{Index, Range},
-    };
+    use std::env;
 
     use super::*;
     use curta::math::goldilocks::cubic::GoldilocksCubicParameters;
     use plonky2::{
-        iop::witness::{PartialWitness, Witness, WitnessWrite},
-        plonk::{
-            circuit_data::CircuitConfig,
-            config::{GenericConfig, PoseidonGoldilocksConfig},
-        },
+        hash::hash_types::RichField,
+        iop::witness::{Witness, WitnessWrite},
+        plonk::config::PoseidonGoldilocksConfig,
     };
-    use plonky2x::backend::config::DefaultParameters;
-    use subtle_encoding::hex;
+    use plonky2x::{backend::config::DefaultParameters, prelude::Variable};
 
     use crate::{
         commitment::CelestiaCommitment,
-        inputs::{
-            generate_data_commitment_inputs, get_path_indices, CelestiaDataCommitmentProofInputs,
-        },
-        utils::{
-            f_bits_to_bytes, generate_proofs_from_header, hash_all_leaves, leaf_hash, to_be_bits,
-            I64Target, MarshalledValidatorTarget, HASH_SIZE_BITS, HEADER_PROOF_DEPTH,
-            PROTOBUF_BLOCK_ID_SIZE_BITS, PROTOBUF_HASH_SIZE_BITS, VALIDATOR_BIT_LENGTH_MAX,
-        },
+        inputs::{generate_data_commitment_inputs, CelestiaDataCommitmentProofInputs},
     };
 
     type L = DefaultParameters;
     type C = PoseidonGoldilocksConfig;
-    type F = <C as GenericConfig<D>>::F;
     type E = GoldilocksCubicParameters;
-    type Curve = Ed25519;
     const D: usize = 2;
-
-    const WINDOW_SIZE: usize = 400;
-    const NUM_LEAVES: usize = 512;
 
     #[derive(Clone, Debug)]
     struct CelestiaDataCommitmentProofInputVariable<const WINDOW_SIZE: usize> {
@@ -378,7 +356,7 @@ pub(crate) mod tests {
             }
         }
 
-        fn variables(&self) -> Vec<super::Variable> {
+        fn variables(&self) -> Vec<Variable> {
             let mut vars = Vec::new();
             vars.extend(self.data_hashes.variables());
             vars.extend(self.block_heights.variables());
@@ -432,8 +410,12 @@ pub(crate) mod tests {
         env::set_var("RUST_LOG", "debug");
         env_logger::try_init().unwrap_or_default();
 
-        let config = CircuitConfig::standard_recursion_config();
         let mut builder = CircuitBuilder::<L, D>::new();
+
+        // const WINDOW_SIZE: usize = 400;
+        // const NUM_LEAVES: usize = 512;
+        const WINDOW_SIZE: usize = 4;
+        const NUM_LEAVES: usize = 4;
 
         let celestia_data_commitment_var =
             builder.read::<CelestiaDataCommitmentProofInputVariable<WINDOW_SIZE>>();
@@ -443,13 +425,13 @@ pub(crate) mod tests {
             &celestia_data_commitment_var.block_heights,
         );
         builder.watch(&root_hash_target, "root_hash_target");
-        builder.assert_is_equal(
-            root_hash_target,
-            celestia_data_commitment_var.data_commitment_root,
-        );
         builder.watch(
             &celestia_data_commitment_var.data_commitment_root,
             "ASDASDASDASDDSADASDASD",
+        );
+        builder.assert_is_equal(
+            root_hash_target,
+            celestia_data_commitment_var.data_commitment_root,
         );
 
         let circuit = builder.build();
@@ -461,7 +443,7 @@ pub(crate) mod tests {
         input.write::<CelestiaDataCommitmentProofInputVariable<WINDOW_SIZE>>(
             generate_data_commitment_inputs::<WINDOW_SIZE>(START_BLOCK, END_BLOCK),
         );
-        let (proof, mut output) = circuit.prove(&input);
+        let (proof, output) = circuit.prove(&input);
         circuit.verify(&proof, &input, &output);
     }
 
@@ -479,18 +461,22 @@ pub(crate) mod tests {
         builder.write(data_root_tuple);
         let circuit = builder.build();
 
-        // Compute the expected output for testing
-        let mut expected_data_tuple_root = vec![
-            255u8, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
-            255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
-        ];
+        let mut expected_data_tuple_root = Vec::new();
 
         let expected_height = [
             0u8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             0, 0, 1, 0,
         ];
 
+        // Compute the expected output for testing
+        let expected_data_root = vec![
+            255u8, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+            255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+        ];
+
         expected_data_tuple_root.extend_from_slice(&expected_height);
+
+        expected_data_tuple_root.extend_from_slice(&expected_data_root);
 
         let input = circuit.input();
         let (proof, mut output) = circuit.prove(&input);

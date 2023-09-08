@@ -8,10 +8,9 @@ use crate::utils::{
 };
 use ed25519_consensus::SigningKey;
 use ethers::types::H256;
-use plonky2x::frontend::eth::storage::generators::block;
 use sha2::Sha256;
 use tendermint::crypto::ed25519::VerificationKey;
-use tendermint::{private_key, Hash, Signature};
+use tendermint::{private_key, Signature};
 use tendermint::{validator::Set as ValidatorSet, vote::SignedVote, vote::ValidatorIndex};
 use tendermint_proto::types::BlockId as RawBlockId;
 use tendermint_proto::Protobuf;

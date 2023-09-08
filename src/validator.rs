@@ -610,7 +610,6 @@ pub(crate) mod tests {
     use curta::chip::hash::sha::sha256::SHA256Gadget;
     use curta::math::goldilocks::cubic::GoldilocksCubicParameters;
     use plonky2::field::types::Field;
-    use plonky2::iop::target::BoolTarget;
     use plonky2::plonk::prover::prove;
     use plonky2::timed;
     use plonky2::util::timing::TimingTree;
@@ -625,20 +624,11 @@ pub(crate) mod tests {
     use subtle_encoding::hex;
 
     use plonky2x::frontend::ecc::ed25519::curve::curve_types::AffinePoint;
-    use sha2::Sha256;
-    use tendermint_proto::types::BlockId as RawBlockId;
-    use tendermint_proto::Protobuf;
 
     use plonky2x::frontend::num::u32::gadgets::arithmetic_u32::U32Target;
 
     use crate::{
-        inputs::get_path_indices,
-        utils::{
-            f_bits_to_bytes, generate_proofs_from_header, hash_all_leaves, leaf_hash, to_be_bits,
-            I64Target, MarshalledValidatorTarget, TendermintHashTarget, HASH_SIZE_BITS,
-            HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BITS, PROTOBUF_HASH_SIZE_BITS,
-            VALIDATOR_BIT_LENGTH_MAX,
-        },
+        utils::{f_bits_to_bytes, to_be_bits, I64Target},
         validator::TendermintValidator,
     };
 
@@ -647,39 +637,38 @@ pub(crate) mod tests {
     type F = <C as GenericConfig<D>>::F;
     type Curve = Ed25519;
     const D: usize = 2;
-    const VALIDATOR_SET_SIZE_MAX: usize = 4;
 
-    // Generate the inputs from the validator byte arrays.
-    fn generate_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
-        builder: &mut CircuitBuilder<F, D>,
-        validators: &Vec<String>,
-    ) -> (Vec<MarshalledValidatorTarget>, Vec<Target>, Vec<BoolTarget>) {
-        let mut validator_byte_length: Vec<Target> = Vec::new();
+    // // Generate the inputs from the validator byte arrays.
+    // fn generate_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
+    //     builder: &mut CircuitBuilder<F, D>,
+    //     validators: &Vec<String>,
+    // ) -> (Vec<MarshalledValidatorTarget>, Vec<Target>, Vec<BoolTarget>) {
+    //     let mut validator_byte_length: Vec<Target> = Vec::new();
 
-        let mut validator_enabled: Vec<BoolTarget> = vec![builder._false(); VALIDATOR_SET_SIZE_MAX];
+    //     let mut validator_enabled: Vec<BoolTarget> = vec![builder._false(); VALIDATOR_SET_SIZE_MAX];
 
-        let mut validators_target: Vec<MarshalledValidatorTarget> =
-            vec![
-                MarshalledValidatorTarget([builder._false(); VALIDATOR_BIT_LENGTH_MAX]);
-                VALIDATOR_SET_SIZE_MAX
-            ];
+    //     let mut validators_target: Vec<MarshalledValidatorTarget> =
+    //         vec![
+    //             MarshalledValidatorTarget([builder._false(); VALIDATOR_BIT_LENGTH_MAX]);
+    //             VALIDATOR_SET_SIZE_MAX
+    //         ];
 
-        // Convert the hex strings to bytes.
-        for i in 0..validators.len() {
-            let val_byte_length = validators[i].len() / 2;
-            let validator_bits = to_be_bits(hex::decode(&validators[i]).unwrap().to_vec());
-            for j in 0..validator_bits.len() {
-                validators_target[i].0[j] = builder.constant_bool(validator_bits[j]);
-            }
-            validator_byte_length.push(builder.constant(F::from_canonical_usize(val_byte_length)));
-            validator_enabled[i] = builder._true();
-        }
+    //     // Convert the hex strings to bytes.
+    //     for i in 0..validators.len() {
+    //         let val_byte_length = validators[i].len() / 2;
+    //         let validator_bits = to_be_bits(hex::decode(&validators[i]).unwrap().to_vec());
+    //         for j in 0..validator_bits.len() {
+    //             validators_target[i].0[j] = builder.constant_bool(validator_bits[j]);
+    //         }
+    //         validator_byte_length.push(builder.constant(F::from_canonical_usize(val_byte_length)));
+    //         validator_enabled[i] = builder._true();
+    //     }
 
-        for _ in validators.len()..VALIDATOR_SET_SIZE_MAX {
-            validator_byte_length.push(builder.constant(F::from_canonical_usize(0)));
-        }
-        return (validators_target, validator_byte_length, validator_enabled);
-    }
+    //     for _ in validators.len()..VALIDATOR_SET_SIZE_MAX {
+    //         validator_byte_length.push(builder.constant(F::from_canonical_usize(0)));
+    //     }
+    //     return (validators_target, validator_byte_length, validator_enabled);
+    // }
 
     #[test]
     fn test_starky_sha_gadget() {
@@ -759,7 +748,7 @@ pub(crate) mod tests {
             })
             .collect::<Vec<_>>();
 
-        let mut expected_digests_values = expected_digests_long_message;
+        let expected_digests_values = expected_digests_long_message;
 
         // Assign the inputs
         for (msg_target, long_msg) in long_padded_msg_targets
