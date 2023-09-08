@@ -2754,6 +2754,7 @@ source = "git+https://github.com/mir-protocol/plonky2.git#65917f5f238bc2cff620bf
 [[package]]
 name = "plonky2x"
 version = "0.1.0"
+source = "git+ssh://git@github.com/succinctlabs/succinctx.git?branch=ratan/fix-sha256-curta#d862dff1ad795a1f81cf5d11d1ffea6ec4bec102"
 dependencies = [
  "anyhow",
  "array-macro",
