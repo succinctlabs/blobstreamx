@@ -1,4 +1,7 @@
-use crate::utils::{leaf_hash, SignedBlock, TempSignedBlock};
+use crate::{
+    inputs::{convert_to_H256, get_path_indices, InclusionProof},
+    utils::{generate_proofs_from_header, leaf_hash, SignedBlock, TempSignedBlock},
+};
 use ethers::abi::AbiEncode;
 use rand::Rng;
 use reqwest::Error;
@@ -12,6 +15,8 @@ use std::{
 };
 use subtle_encoding::hex;
 use tendermint::{merkle::simple_hash_from_byte_vectors, validator::Set as ValidatorSet, Hash};
+use tendermint_proto::types::BlockId as RawBlockId;
+use tendermint_proto::Protobuf;
 
 #[derive(Debug, Deserialize)]
 struct SignedBlockResponse {
@@ -41,6 +46,16 @@ pub struct DataCommitmentFixture {
     pub end_block: u64,
     pub data_hashes: Vec<Hash>,
     pub data_commitment: Hash,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct HeaderChainFixture {
+    pub current_block: u64,
+    pub trusted_block: u64,
+    pub curr_header: Hash,
+    pub trusted_header: Hash,
+    pub data_hash_proofs: Vec<InclusionProof>,
+    pub prev_header_proofs: Vec<InclusionProof>,
 }
 
 pub fn encode_block_height(block_height: u64) -> Vec<u8> {
@@ -126,6 +141,112 @@ pub async fn generate_data_commitment(start_block: usize, end_block: usize) {
         "Root Hash: {:?}",
         String::from_utf8(hex::encode(root_hash)).expect("Found invalid UTF-8")
     );
+}
+
+pub async fn get_signed_block_from_rpc(block: usize) -> Box<SignedBlock> {
+    dotenv::dotenv().ok();
+
+    let mut url = env::var("RPC_MOCHA_4").expect("RPC_MOCHA_4 is not set in .env");
+    url.push_str("/signed_block?height=");
+    url.push_str(block.to_string().as_str());
+
+    let res = reqwest::get(url).await.unwrap().text().await.unwrap();
+    let v: SignedBlockResponse = serde_json::from_str(&res).expect("Failed to parse JSON");
+    let temp_block = v.result;
+    Box::new(SignedBlock {
+        header: temp_block.header,
+        data: temp_block.data,
+        commit: temp_block.commit,
+        validator_set: ValidatorSet::new(
+            temp_block.validator_set.validators,
+            temp_block.validator_set.proposer,
+        ),
+    })
+}
+
+pub async fn create_header_chain_fixture(
+    trusted_block: usize,
+    current_block: usize,
+) -> Result<(), Error> {
+    let mut fixture: HeaderChainFixture = HeaderChainFixture {
+        current_block: current_block as u64,
+        trusted_block: trusted_block as u64,
+        curr_header: Hash::default(),
+        trusted_header: Hash::default(),
+        data_hash_proofs: Vec::new(),
+        prev_header_proofs: Vec::new(),
+    };
+
+    // Get the dataHash of the block range (startBlock, endBlock)
+    let block = get_signed_block_from_rpc(current_block).await;
+    fixture.curr_header = block.header.hash();
+
+    // Write the trusted header
+    let block = get_signed_block_from_rpc(trusted_block).await;
+    fixture.trusted_header = block.header.hash();
+
+    let mut data_hash_proofs = Vec::new();
+    let mut prev_header_proofs = Vec::new();
+
+    // Loop from endBlock to startBlock
+    for i in (trusted_block + 1..current_block + 1).rev() {
+        // Fetch the newer block
+        let block = get_signed_block_from_rpc(i).await;
+
+        // Get prev_header_hash proof from block 1 (newer block)
+        let enc_last_block_id_leaf =
+            Protobuf::<RawBlockId>::encode_vec(block.header.last_block_id.unwrap_or_default());
+        let (_root, proofs) = generate_proofs_from_header(&block.header);
+        let total = proofs[0].total;
+
+        let enc_last_block_id_proof = proofs[4].clone();
+        let enc_last_block_id_proof_indices = get_path_indices(4, total);
+        let last_block_id_proof = InclusionProof {
+            enc_leaf: enc_last_block_id_leaf.clone(),
+            path: enc_last_block_id_proof_indices,
+            proof: convert_to_H256(enc_last_block_id_proof.clone().aunts),
+        };
+        prev_header_proofs.push(last_block_id_proof);
+
+        // Fetch the older block
+        let block = get_signed_block_from_rpc(i - 1).await;
+
+        // Get data_hash proof from block 2 (older block)
+        let enc_data_hash_leaf = block.header.data_hash.unwrap().encode_vec();
+        let (_root, proofs) = generate_proofs_from_header(&block.header);
+        let total = proofs[0].total;
+
+        let enc_data_hash_proof = proofs[6].clone();
+        let enc_data_hash_proof_indices = get_path_indices(6, total);
+        let data_hash_proof = InclusionProof {
+            enc_leaf: enc_data_hash_leaf.clone(),
+            path: enc_data_hash_proof_indices,
+            proof: convert_to_H256(enc_data_hash_proof.clone().aunts),
+        };
+        data_hash_proofs.push(data_hash_proof);
+    }
+
+    fixture.data_hash_proofs = data_hash_proofs;
+    fixture.prev_header_proofs = prev_header_proofs;
+
+    // Write to JSON file
+    let json = serde_json::to_string(&fixture).unwrap();
+
+    let mut path = "./src/fixtures/mocha-4/".to_string();
+    path.push_str(trusted_block.to_string().as_str());
+    path.push_str("-".to_string().as_str());
+    path.push_str(current_block.to_string().as_str());
+    path.push_str("/header_chain.json");
+
+    // Ensure the directory exists
+    if let Some(parent) = Path::new(&path).parent() {
+        fs::create_dir_all(parent).unwrap();
+    }
+
+    let mut file = File::create(&path).unwrap();
+    file.write_all(json.as_bytes()).unwrap();
+
+    Ok(())
 }
 
 pub async fn create_data_commitment_fixture(

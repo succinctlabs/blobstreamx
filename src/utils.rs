@@ -26,10 +26,12 @@ use tendermint_proto::{
 pub const HASH_SIZE_BITS: usize = HASH_SIZE * 8;
 
 /// The number of bits in a protobuf-encoded SHA256 hash.
-pub const PROTOBUF_HASH_SIZE_BITS: usize = HASH_SIZE_BITS + 8 * 2;
+pub const PROTOBUF_HASH_SIZE_BYTES: usize = HASH_SIZE + 2;
+pub const PROTOBUF_HASH_SIZE_BITS: usize = PROTOBUF_HASH_SIZE_BYTES * 8;
 
 /// The number of bits in a protobuf-encoded tendermint block ID.
-pub const PROTOBUF_BLOCK_ID_SIZE_BITS: usize = 72 * 8;
+pub const PROTOBUF_BLOCK_ID_SIZE_BYTES: usize = 72;
+pub const PROTOBUF_BLOCK_ID_SIZE_BITS: usize = PROTOBUF_BLOCK_ID_SIZE_BYTES * 8;
 
 // Constants that represent the number of bytes necessary to pad the protobuf encoded data for SHA256
 pub const PROTOBUF_HASH_SHA256_NUM_BYTES: usize = 64;

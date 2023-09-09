@@ -1,6 +1,6 @@
 use std::fs;
 
-use crate::fixture::DataCommitmentFixture;
+use crate::fixture::{DataCommitmentFixture, HeaderChainFixture};
 /// Source (tendermint-rs): https://github.com/informalsystems/tendermint-rs/blob/e930691a5639ef805c399743ac0ddbba0e9f53da/tendermint/src/merkle.rs#L32
 use crate::utils::{
     compute_hash_from_aunts, generate_proofs_from_header, leaf_hash, non_absent_vote, SignedBlock,
@@ -8,6 +8,7 @@ use crate::utils::{
 };
 use ed25519_consensus::SigningKey;
 use ethers::types::H256;
+use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 use tendermint::crypto::ed25519::VerificationKey;
 use tendermint::{private_key, Signature};
@@ -37,12 +38,12 @@ pub struct ValidatorHashField {
 }
 
 /// The protobuf-encoded leaf (a hash), and it's corresponding proof and path indices against the header.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InclusionProof {
     pub enc_leaf: Vec<u8>,
     // Path and proof should have a fixed length of HEADER_PROOF_DEPTH.
     pub path: Vec<bool>,
-    pub proof: Vec<[u8; 32]>,
+    pub proof: Vec<H256>,
 }
 
 #[derive(Debug, Clone)]
@@ -78,6 +79,14 @@ pub struct CelestiaDataCommitmentProofInputs {
     pub data_commitment_root: H256,
 }
 
+#[derive(Debug, Clone)]
+pub struct CelestiaHeaderChainProofInputs {
+    pub current_header: H256,
+    pub trusted_header: H256,
+    pub prev_header_proofs: Vec<InclusionProof>,
+    pub data_hash_proofs: Vec<InclusionProof>,
+}
+
 // If hash_so_far is on the left, False, else True
 pub fn get_path_indices(index: u64, total: u64) -> Vec<bool> {
     let mut path_indices = vec![];
@@ -92,7 +101,7 @@ pub fn get_path_indices(index: u64, total: u64) -> Vec<bool> {
     path_indices
 }
 
-fn get_signed_block(block: usize) -> Box<SignedBlock> {
+fn get_signed_block_from_fixture(block: usize) -> Box<SignedBlock> {
     let mut file = String::new();
     file.push_str("./src/fixtures/mocha-3/");
     file.push_str(&block.to_string());
@@ -157,6 +166,65 @@ pub fn generate_data_commitment_inputs<const WINDOW_SIZE: usize>(
         block_heights,
         data_commitment_root: H256::from_slice(fixture.data_commitment.as_bytes()),
     }
+}
+
+pub fn get_header_chain_fixture(trusted_block: usize, current_block: usize) -> HeaderChainFixture {
+    let mut file = String::new();
+    file.push_str("./src/fixtures/mocha-4/");
+    file.push_str(&trusted_block.to_string());
+    file.push_str("-");
+    file.push_str(&current_block.to_string());
+    file.push_str("/header_chain.json");
+
+    let file_content = fs::read_to_string(file.as_str());
+
+    HeaderChainFixture::from(
+        serde_json::from_str::<HeaderChainFixture>(&file_content.unwrap())
+            .expect("failed to parse json"),
+    )
+}
+
+/// Generate the inputs for a skip proof from a trusted_block to block.
+pub fn generate_header_chain_inputs<const WINDOW_SIZE: usize>(
+    trusted_block: usize,
+    current_block: usize,
+) -> CelestiaHeaderChainProofInputs {
+    assert!(
+        current_block - trusted_block == WINDOW_SIZE,
+        "window size does not match"
+    );
+    // Generate test cases from header chain fixture
+    let fixture = get_header_chain_fixture(trusted_block, current_block);
+
+    let mut data_hash_proofs = Vec::new();
+    let mut prev_header_proofs = Vec::new();
+    for i in 0..WINDOW_SIZE {
+        data_hash_proofs.push(InclusionProof {
+            enc_leaf: fixture.data_hash_proofs[i].enc_leaf.clone(),
+            path: fixture.data_hash_proofs[i].path.clone(),
+            proof: fixture.data_hash_proofs[i].proof.clone(),
+        });
+        prev_header_proofs.push(InclusionProof {
+            enc_leaf: fixture.prev_header_proofs[i].enc_leaf.clone(),
+            path: fixture.prev_header_proofs[i].path.clone(),
+            proof: fixture.prev_header_proofs[i].proof.clone(),
+        });
+    }
+
+    CelestiaHeaderChainProofInputs {
+        current_header: H256::from_slice(fixture.curr_header.as_bytes()),
+        trusted_header: H256::from_slice(fixture.trusted_header.as_bytes()),
+        prev_header_proofs,
+        data_hash_proofs,
+    }
+}
+
+pub fn convert_to_H256(aunts: Vec<[u8; 32]>) -> Vec<H256> {
+    let mut aunts_h256 = Vec::new();
+    for aunt in aunts {
+        aunts_h256.push(H256::from_slice(&aunt));
+    }
+    aunts_h256
 }
 
 /// Generate the base inputs for a proof of a Celestia block (to be used by the skip or step circuits).
@@ -258,7 +326,7 @@ fn generate_base_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
     let data_hash_proof = InclusionProof {
         enc_leaf: enc_data_hash_leaf,
         path: enc_data_hash_proof_indices,
-        proof: enc_data_hash_proof.aunts,
+        proof: convert_to_H256(enc_data_hash_proof.aunts),
     };
 
     let enc_validators_hash_proof = proofs[7].clone();
@@ -266,14 +334,14 @@ fn generate_base_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
     let validators_hash_proof = InclusionProof {
         enc_leaf: enc_validators_hash_leaf,
         path: enc_validators_hash_proof_indices,
-        proof: enc_validators_hash_proof.aunts,
+        proof: convert_to_H256(enc_validators_hash_proof.aunts),
     };
     let enc_next_validators_hash_proof = proofs[8].clone();
     let enc_next_validators_hash_proof_indices = get_path_indices(8, total);
     let next_validators_hash_proof = InclusionProof {
         enc_leaf: enc_next_validators_hash_leaf,
         path: enc_next_validators_hash_proof_indices,
-        proof: enc_next_validators_hash_proof.aunts,
+        proof: convert_to_H256(enc_next_validators_hash_proof.aunts),
     };
 
     println!("num validators: {}", validators.len());
@@ -295,8 +363,8 @@ pub fn generate_step_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
     block_number: usize,
 ) -> CelestiaStepBlockProof {
     // Generate test cases from Celestia block:
-    let prev_block = get_signed_block(block_number - 1);
-    let block = get_signed_block(block_number);
+    let prev_block = get_signed_block_from_fixture(block_number - 1);
+    let block = get_signed_block_from_fixture(block_number);
 
     let (_root, proofs) = generate_proofs_from_header(&block.header);
     let total = proofs[0].total;
@@ -312,7 +380,7 @@ pub fn generate_step_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
     let last_block_id_proof = InclusionProof {
         enc_leaf: enc_leaf.clone(),
         path: enc_last_block_id_proof_indices,
-        proof: enc_last_block_id_proof.clone().aunts,
+        proof: convert_to_H256(enc_last_block_id_proof.clone().aunts),
     };
     assert_eq!(
         leaf_hash::<Sha256>(&enc_leaf),
@@ -349,7 +417,7 @@ pub fn generate_step_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
     let prev_header_next_validators_hash_proof = InclusionProof {
         enc_leaf: enc_prev_header_next_validators_hash_leaf,
         path: enc_prev_header_next_validators_hash_proof_indices,
-        proof: enc_prev_header_next_validators_hash_proof.aunts,
+        proof: convert_to_H256(enc_prev_header_next_validators_hash_proof.aunts),
     };
 
     let base = generate_base_inputs::<VALIDATOR_SET_SIZE_MAX>(&block);
@@ -416,12 +484,12 @@ pub fn generate_skip_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
     block: usize,
 ) -> CelestiaSkipBlockProof {
     // Generate test cases from Celestia block:
-    let block = get_signed_block(block);
+    let block = get_signed_block_from_fixture(block);
 
     let mut base = generate_base_inputs::<VALIDATOR_SET_SIZE_MAX>(&block);
 
     // Get the trusted_block
-    let trusted_block = get_signed_block(trusted_block);
+    let trusted_block = get_signed_block_from_fixture(trusted_block);
 
     let mut trusted_validator_fields = Vec::new();
 
@@ -475,7 +543,7 @@ pub fn generate_skip_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
     let validators_hash_proof = InclusionProof {
         enc_leaf: enc_validators_hash_leaf,
         path: enc_validators_hash_proof_indices,
-        proof: enc_validators_hash_proof.aunts,
+        proof: convert_to_H256(enc_validators_hash_proof.aunts),
     };
 
     // Set the present_on_trusted_header field for each validator that is needed to reach the 1/3 threshold
@@ -496,8 +564,8 @@ pub(crate) mod tests {
 
     #[test]
     fn get_shared_voting_power() {
-        let block_1 = get_signed_block(50000);
-        let block_2 = get_signed_block(100000);
+        let block_1 = get_signed_block_from_fixture(50000);
+        let block_2 = get_signed_block_from_fixture(100000);
 
         // Parse each block to compute the validators that are the same from block_1 to block_2, and the cumulative voting power of the shared validators
         let mut shared_voting_power = 0;

@@ -17,19 +17,27 @@ enum Function {
         #[clap(short, long)]
         validators: usize,
     },
-    /// Calls the get_celestia_consensus_signatures function
+    /// Calls the create_block_fixture function
     CreateBlockFixture {
         /// The block number to create a new fixture for
         #[clap(short, long)]
         block: usize,
     },
-    /// Calls the get_celestia_consensus_signatures function
+    /// Calls the create_data_commitment_fixture function
     CreateDataCommitmentFixture {
         /// The block number range to create a new fixture for
         #[clap(short, long)]
         start_block: usize,
         #[clap(short, long)]
         end_block: usize,
+    },
+    /// Calls the create_header_chain_fixture function
+    CreateHeaderChainFixture {
+        /// The block number range to create a new fixture for
+        #[clap(short, long)]
+        trusted_block: usize,
+        #[clap(short, long)]
+        current_block: usize,
     },
     /// Generates step inputs
     GenerateStepInputs {
@@ -66,6 +74,14 @@ async fn main() {
             end_block,
         } => {
             fixture::create_data_commitment_fixture(start_block, end_block)
+                .await
+                .expect("Failed to create new fixture");
+        }
+        Function::CreateHeaderChainFixture {
+            trusted_block,
+            current_block,
+        } => {
+            fixture::create_header_chain_fixture(trusted_block, current_block)
                 .await
                 .expect("Failed to create new fixture");
         }

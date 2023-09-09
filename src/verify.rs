@@ -1078,11 +1078,15 @@ pub fn set_base_pw<
             inputs.next_validators_hash_proof.path[i],
         );
 
-        let data_hash_aunt = to_be_bits(inputs.data_hash_proof.proof[i].to_vec());
+        let data_hash_aunt = to_be_bits(inputs.data_hash_proof.proof[i].as_bytes().to_vec());
 
-        let val_hash_aunt = to_be_bits(inputs.validator_hash_proof.proof[i].to_vec());
+        let val_hash_aunt = to_be_bits(inputs.validator_hash_proof.proof[i].as_bytes().to_vec());
 
-        let next_val_aunt = to_be_bits(inputs.next_validators_hash_proof.proof[i].to_vec());
+        let next_val_aunt = to_be_bits(
+            inputs.next_validators_hash_proof.proof[i]
+                .as_bytes()
+                .to_vec(),
+        );
 
         // Set aunts for each of the proofs
         for j in 0..HASH_SIZE_BITS {
@@ -1213,9 +1217,13 @@ pub fn set_step_pw<
             inputs.prev_header_next_validators_hash_proof.path[i],
         );
 
-        let last_block_id_aunt = to_be_bits(inputs.last_block_id_proof.proof[i].to_vec());
-        let prev_header_next_validators_hash_aunt =
-            to_be_bits(inputs.prev_header_next_validators_hash_proof.proof[i].to_vec());
+        let last_block_id_aunt =
+            to_be_bits(inputs.last_block_id_proof.proof[i].as_bytes().to_vec());
+        let prev_header_next_validators_hash_aunt = to_be_bits(
+            inputs.prev_header_next_validators_hash_proof.proof[i]
+                .as_bytes()
+                .to_vec(),
+        );
 
         // Set aunts for each of the proofs
         for j in 0..HASH_SIZE_BITS {
@@ -1266,8 +1274,11 @@ pub fn set_skip_pw<
             inputs.trusted_validator_hash_proof.path[i],
         );
 
-        let trusted_validator_hash_aunt =
-            to_be_bits(inputs.trusted_validator_hash_proof.proof[i].to_vec());
+        let trusted_validator_hash_aunt = to_be_bits(
+            inputs.trusted_validator_hash_proof.proof[i]
+                .as_bytes()
+                .to_vec(),
+        );
 
         // Set aunts for the proof
         for j in 0..HASH_SIZE_BITS {
