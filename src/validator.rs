@@ -638,38 +638,6 @@ pub(crate) mod tests {
     type Curve = Ed25519;
     const D: usize = 2;
 
-    // // Generate the inputs from the validator byte arrays.
-    // fn generate_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
-    //     builder: &mut CircuitBuilder<F, D>,
-    //     validators: &Vec<String>,
-    // ) -> (Vec<MarshalledValidatorTarget>, Vec<Target>, Vec<BoolTarget>) {
-    //     let mut validator_byte_length: Vec<Target> = Vec::new();
-
-    //     let mut validator_enabled: Vec<BoolTarget> = vec![builder._false(); VALIDATOR_SET_SIZE_MAX];
-
-    //     let mut validators_target: Vec<MarshalledValidatorTarget> =
-    //         vec![
-    //             MarshalledValidatorTarget([builder._false(); VALIDATOR_BIT_LENGTH_MAX]);
-    //             VALIDATOR_SET_SIZE_MAX
-    //         ];
-
-    //     // Convert the hex strings to bytes.
-    //     for i in 0..validators.len() {
-    //         let val_byte_length = validators[i].len() / 2;
-    //         let validator_bits = to_be_bits(hex::decode(&validators[i]).unwrap().to_vec());
-    //         for j in 0..validator_bits.len() {
-    //             validators_target[i].0[j] = builder.constant_bool(validator_bits[j]);
-    //         }
-    //         validator_byte_length.push(builder.constant(F::from_canonical_usize(val_byte_length)));
-    //         validator_enabled[i] = builder._true();
-    //     }
-
-    //     for _ in validators.len()..VALIDATOR_SET_SIZE_MAX {
-    //         validator_byte_length.push(builder.constant(F::from_canonical_usize(0)));
-    //     }
-    //     return (validators_target, validator_byte_length, validator_enabled);
-    // }
-
     #[test]
     fn test_starky_sha_gadget() {
         env_logger::init();
