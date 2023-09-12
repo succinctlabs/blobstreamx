@@ -8,7 +8,6 @@
 //! read more about them here: https://protobuf.dev/programming-guides/encoding/#varints.
 
 use curta::math::extension::cubic::parameters::CubicParameters;
-use ethers::types::H256;
 use plonky2::field::extension::Extendable;
 
 use plonky2::hash::hash_types::RichField;

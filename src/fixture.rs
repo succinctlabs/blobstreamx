@@ -412,7 +412,7 @@ async fn write_block_fixture(block_number: usize) -> Result<(), Error> {
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use crate::utils::leaf_hash;
+    use crate::utils::{leaf_hash, proofs_from_byte_slices};
 
     use super::*;
     use sha2::Sha256;
@@ -457,5 +457,50 @@ pub(crate) mod tests {
         //     "Result: {:?}",
         //     String::from_utf8(hex::encode(result)).unwrap()
         // );
+    }
+
+    #[test]
+    fn test_merkle_hash() {
+        let element = vec![0u8; 48];
+        let arr = vec![element; 32];
+        let result = simple_hash_from_byte_vectors::<Sha256>(&arr);
+        println!(
+            "Result: {:?}",
+            String::from_utf8(hex::encode(result)).unwrap()
+        );
+    }
+
+    #[test]
+    fn test_merkle_proof() {
+        let element = vec![0u8; 48];
+        let arr = vec![element; 2];
+
+        let (root_hash, proofs) = proofs_from_byte_slices(arr);
+
+        println!(
+            "Root hash: {:?}",
+            String::from_utf8(hex::encode(root_hash)).unwrap()
+        );
+
+        let computed_root_hash = proofs[0].compute_root_hash().unwrap();
+
+        println!(
+            "Leaf: {:?}",
+            String::from_utf8(hex::encode(proofs[0].leaf_hash)).unwrap()
+        );
+
+        println!(
+            "Aunts: {:?}",
+            proofs[0]
+                .aunts
+                .iter()
+                .map(|x| String::from_utf8(hex::encode(x)).unwrap())
+                .collect::<Vec<_>>()
+        );
+
+        println!(
+            "Path indices: {:?}",
+            get_path_indices(proofs[0].index, proofs[0].total)
+        )
     }
 }

@@ -260,7 +260,7 @@ pub struct ProofNode {
 }
 
 impl Proof {
-    fn new(total: u64, index: u64, leaf_hash: Hash, aunts: Vec<Hash>) -> Self {
+    pub fn new(total: u64, index: u64, leaf_hash: Hash, aunts: Vec<Hash>) -> Self {
         Proof {
             total,
             index,
@@ -269,7 +269,7 @@ impl Proof {
         }
     }
 
-    fn compute_root_hash(&self) -> Option<Hash> {
+    pub fn compute_root_hash(&self) -> Option<Hash> {
         compute_hash_from_aunts(self.index, self.total, self.leaf_hash, self.aunts.clone())
     }
 
@@ -411,7 +411,7 @@ pub fn compute_hash_from_aunts(
     }
 }
 
-fn proofs_from_byte_slices(items: Vec<Vec<u8>>) -> (Hash, Vec<Proof>) {
+pub fn proofs_from_byte_slices(items: Vec<Vec<u8>>) -> (Hash, Vec<Proof>) {
     let (trails, root) = trails_from_byte_slices(items.clone());
     let root_hash = root.borrow().hash;
     let mut proofs = Vec::new();
