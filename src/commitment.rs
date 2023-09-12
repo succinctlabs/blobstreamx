@@ -14,7 +14,7 @@ use plonky2::field::extension::Extendable;
 use plonky2::hash::hash_types::RichField;
 use plonky2::iop::witness::{Witness, WitnessWrite};
 use plonky2::plonk::config::{AlgebraicHasher, GenericConfig};
-use plonky2x::backend::config::PlonkParameters;
+use plonky2x::backend::circuit::PlonkParameters;
 use plonky2x::frontend::ecc::ed25519::curve::curve_types::Curve;
 use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
 
@@ -493,7 +493,7 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
         // Load the output of the hash.
         // Use curta gadget to generate SHA's.
         // Note: This can be removed when sha256 interface is fixed.
-        self.sha256_curta(&encoded_leaf.as_slice())
+        self.curta_sha256(&encoded_leaf.as_slice())
     }
 
     fn inner_hash_stark<E: CubicParameters<L::Field>>(
@@ -515,7 +515,7 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
 
         // Load the output of the hash.
         // Note: Calculate the inner hash as if both validators are enabled.
-        self.sha256_curta(&encoded_leaf)
+        self.curta_sha256(&encoded_leaf)
     }
 
     fn hash_merkle_layer<E: CubicParameters<L::Field>>(
@@ -606,7 +606,7 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
         }
 
         // TODO: Move this to the build function once prove header chain is complete
-        self.constraint_sha256_curta();
+        self.curta_constrain_sha256();
 
         self.watch(&current_nodes[0], format!("current_nodes AT END").as_str());
         // Return the root hash.
@@ -668,7 +668,7 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
         self.assert_is_equal(curr_header_hash, trusted_header);
 
         // TODO: Move this out of this function once prove header chain is integrated with data commitment
-        self.constraint_sha256_curta();
+        self.curta_constrain_sha256();
     }
 }
 
@@ -683,7 +683,7 @@ pub(crate) mod tests {
         iop::witness::{Witness, WitnessWrite},
         plonk::config::PoseidonGoldilocksConfig,
     };
-    use plonky2x::{backend::config::DefaultParameters, prelude::Variable};
+    use plonky2x::{backend::circuit::DefaultParameters, prelude::Variable};
 
     use crate::{
         commitment::CelestiaCommitment,
@@ -740,7 +740,7 @@ pub(crate) mod tests {
 
         let mut builder = CircuitBuilder::<L, D>::new();
 
-        const WINDOW_SIZE: usize = 400;
+        const WINDOW_SIZE: usize = 4;
         const TRUSTED_BLOCK: usize = 3800;
         const CURRENT_BLOCK: usize = TRUSTED_BLOCK + WINDOW_SIZE;
 
