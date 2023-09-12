@@ -1,5 +1,5 @@
 use crate::{
-    inputs::{convert_to_H256, get_path_indices, InclusionProof},
+    inputs::{convert_to_H256, get_path_indices, TempMerkleInclusionProof},
     utils::{generate_proofs_from_header, leaf_hash, SignedBlock, TempSignedBlock},
 };
 use ethers::abi::AbiEncode;
@@ -54,8 +54,8 @@ pub struct HeaderChainFixture {
     pub trusted_block: u64,
     pub curr_header: Hash,
     pub trusted_header: Hash,
-    pub data_hash_proofs: Vec<InclusionProof>,
-    pub prev_header_proofs: Vec<InclusionProof>,
+    pub data_hash_proofs: Vec<TempMerkleInclusionProof>,
+    pub prev_header_proofs: Vec<TempMerkleInclusionProof>,
 }
 
 pub fn encode_block_height(block_height: u64) -> Vec<u8> {
@@ -201,7 +201,7 @@ pub async fn create_header_chain_fixture(
 
         let enc_last_block_id_proof = proofs[4].clone();
         let enc_last_block_id_proof_indices = get_path_indices(4, total);
-        let last_block_id_proof = InclusionProof {
+        let last_block_id_proof = TempMerkleInclusionProof {
             enc_leaf: enc_last_block_id_leaf.clone(),
             path: enc_last_block_id_proof_indices,
             proof: convert_to_H256(enc_last_block_id_proof.clone().aunts),
@@ -218,7 +218,7 @@ pub async fn create_header_chain_fixture(
 
         let enc_data_hash_proof = proofs[6].clone();
         let enc_data_hash_proof_indices = get_path_indices(6, total);
-        let data_hash_proof = InclusionProof {
+        let data_hash_proof = TempMerkleInclusionProof {
             enc_leaf: enc_data_hash_leaf.clone(),
             path: enc_data_hash_proof_indices,
             proof: convert_to_H256(enc_data_hash_proof.clone().aunts),
@@ -472,7 +472,7 @@ pub(crate) mod tests {
 
     #[test]
     fn test_merkle_proof() {
-        let element = vec![0u8; 48];
+        let element = vec![0u8; 2];
         let arr = vec![element; 2];
 
         let (root_hash, proofs) = proofs_from_byte_slices(arr);
