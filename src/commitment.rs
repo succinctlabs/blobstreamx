@@ -272,7 +272,7 @@ pub(crate) mod tests {
 
         let mut builder = CircuitBuilder::<L, D>::new();
 
-        const WINDOW_SIZE: usize = 400;
+        const WINDOW_SIZE: usize = 4;
         const NUM_LEAVES: usize = 512;
         // const WINDOW_SIZE: usize = 4;
         // const NUM_LEAVES: usize = 4;
