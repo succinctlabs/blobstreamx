@@ -179,6 +179,7 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
         let root = self.compute_root_from_leaves::<WINDOW_RANGE, NB_LEAVES, 64>(&leaves);
 
         self.watch(&root, format!("root").as_str());
+
         // Return the root hash.
         root
     }
@@ -284,10 +285,10 @@ pub(crate) mod tests {
             &celestia_data_commitment_var.data_hashes,
             &celestia_data_commitment_var.block_heights,
         );
-        // builder.assert_is_equal(
-        //     root_hash_target,
-        //     celestia_data_commitment_var.data_commitment_root,
-        // );
+        builder.assert_is_equal(
+            root_hash_target,
+            celestia_data_commitment_var.data_commitment_root,
+        );
 
         let circuit = builder.build();
 
