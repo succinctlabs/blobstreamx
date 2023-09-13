@@ -1,12 +1,3 @@
-//! The protobuf encoding of a Tendermint validator is a deterministic function of the validator's
-//! public key (32 bytes) and voting power (int64). The encoding is as follows in bytes:
-//
-//!     10 34 10 32 <pubkey> 16 <varint>
-//
-//! The `pubkey` is encoded as the raw list of bytes used in the public key. The `varint` is
-//! encoded using protobuf's default integer encoding, which consist of 7 bit payloads. You can
-//! read more about them here: https://protobuf.dev/programming-guides/encoding/#varints.
-
 use curta::math::extension::cubic::parameters::CubicParameters;
 use plonky2::field::extension::Extendable;
 
@@ -212,12 +203,10 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
             let data_hash_proof = &data_hash_proofs[i];
             let prev_header_proof = &prev_header_proofs[i];
 
-            // TODO: Find a cleaner way to add the PLUS_ONE constraint
             let data_hash_proof_root = self
                 .get_root_from_merkle_proof::<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES>(
                     &data_hash_proof,
                 );
-            // TODO: Find a cleaner way to add the PLUS_ONE constraint
             let prev_header_proof_root = self
                 .get_root_from_merkle_proof::<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES>(
                     &prev_header_proof,
@@ -273,14 +262,12 @@ pub(crate) mod tests {
 
         const WINDOW_SIZE: usize = 4;
         const NUM_LEAVES: usize = 4;
-        // const WINDOW_SIZE: usize = 4;
-        // const NUM_LEAVES: usize = 4;
         const START_BLOCK: usize = 3800;
         const END_BLOCK: usize = START_BLOCK + WINDOW_SIZE;
 
         let celestia_data_commitment_var =
             builder.read::<CelestiaDataCommitmentProofInputVariable<WINDOW_SIZE>>();
-        // builder.watch(&celestia_data_commitment_var, "data commitment var");
+
         let root_hash_target = builder.get_data_commitment::<E, C, WINDOW_SIZE, NUM_LEAVES>(
             &celestia_data_commitment_var.data_hashes,
             &celestia_data_commitment_var.block_heights,

@@ -95,7 +95,6 @@ pub async fn generate_data_commitment(start_block: usize, end_block: usize) {
         let mut url = url.clone();
         url.push_str(i.to_string().as_str());
 
-        // println!("Fetching block {}", i);
         let res = reqwest::get(url).await.unwrap().text().await.unwrap();
         let v: SignedBlockResponse = serde_json::from_str(&res).expect("Failed to parse JSON");
         let temp_block = v.result;
@@ -109,21 +108,14 @@ pub async fn generate_data_commitment(start_block: usize, end_block: usize) {
             ),
         };
         let data_hash = block.header.data_hash;
-        // println!("Data hash: {:?}", data_hash.unwrap().as_bytes());
 
         // concat the block height and the data hash
         let mut encoded_leaf = encode_block_height(i as u64);
 
         encoded_leaf.extend(data_hash.unwrap().as_bytes().to_vec());
 
-        // println!("Encoded leaf: {:?}", encoded_leaf);
-
-        // println!("Length of encoded leaf: {:?}", encoded_leaf.len());
-
         encoded_leaves.push(encoded_leaf);
     }
-
-    // println!("Encoded leaves length: {:?}", encoded_leaves.len());
 
     for leaf in &encoded_leaves {
         println!(
@@ -133,8 +125,6 @@ pub async fn generate_data_commitment(start_block: usize, end_block: usize) {
     }
 
     let root_hash = simple_hash_from_byte_vectors::<Sha256>(&encoded_leaves);
-
-    // println!("Root Hash Bytes: {:?}", root_hash);
 
     // Print the root hash
     println!(
@@ -448,15 +438,6 @@ pub(crate) mod tests {
             "Result: {:?}",
             String::from_utf8(hex::encode_upper(result)).unwrap()
         );
-
-        // let mut hasher = Sha256::new();
-        // hasher.update(&first_arr);
-
-        // let result = hasher.finalize();
-        // println!(
-        //     "Result: {:?}",
-        //     String::from_utf8(hex::encode(result)).unwrap()
-        // );
     }
 
     #[test]

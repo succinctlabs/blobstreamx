@@ -41,6 +41,7 @@ pub struct ValidatorHashField {
 }
 
 /// The protobuf-encoded leaf (a hash), and it's corresponding proof and path indices against the header.
+/// TODO: Remove this once we port step & skip circuits to use CircuitVariable
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TempMerkleInclusionProof {
     pub enc_leaf: Vec<u8>,
@@ -74,21 +75,6 @@ pub struct CelestiaSkipBlockProof {
     pub trusted_validator_fields: Vec<ValidatorHashField>,
     pub base: CelestiaBaseBlockProof,
 }
-
-// #[derive(Debug, Clone)]
-// pub struct CelestiaDataCommitmentProofInputs {
-//     pub data_hashes: Vec<H256>,
-//     pub block_heights: Vec<u32>,
-//     pub data_commitment_root: H256,
-// }
-
-// #[derive(Debug, Clone)]
-// pub struct CelestiaHeaderChainProofInputs {
-//     pub current_header: H256,
-//     pub trusted_header: H256,
-//     pub prev_header_proofs: Vec<InclusionProof>,
-//     pub data_hash_proofs: Vec<InclusionProof>,
-// }
 
 // If hash_so_far is on the left, False, else True
 pub fn get_path_indices(index: u64, total: u64) -> Vec<bool> {
@@ -199,41 +185,34 @@ pub fn generate_header_chain_inputs<const WINDOW_SIZE: usize, F: RichField>(
     // Generate test cases from header chain fixture
     let fixture = get_header_chain_fixture(trusted_block, current_block);
 
-    let mut temp_data_hash_proofs = Vec::new();
-    let mut temp_prev_header_proofs = Vec::new();
-    for i in 0..WINDOW_SIZE {
-        temp_data_hash_proofs.push(TempMerkleInclusionProof {
-            enc_leaf: fixture.data_hash_proofs[i].enc_leaf.clone(),
-            path: fixture.data_hash_proofs[i].path.clone(),
-            proof: fixture.data_hash_proofs[i].proof.clone(),
-        });
-        temp_prev_header_proofs.push(TempMerkleInclusionProof {
-            enc_leaf: fixture.prev_header_proofs[i].enc_leaf.clone(),
-            path: fixture.prev_header_proofs[i].path.clone(),
-            proof: fixture.prev_header_proofs[i].proof.clone(),
-        });
-    }
-
     let mut data_hash_proofs = Vec::new();
     let mut prev_header_proofs = Vec::new();
     for i in 0..WINDOW_SIZE {
         data_hash_proofs.push(InclusionProof {
-            leaf: temp_data_hash_proofs[i]
+            leaf: fixture.data_hash_proofs[i]
                 .enc_leaf
                 .clone()
                 .try_into()
                 .unwrap(),
-            path_indices: temp_data_hash_proofs[i].path.clone(),
-            aunts: temp_data_hash_proofs[i].proof.clone().try_into().unwrap(),
+            path_indices: fixture.data_hash_proofs[i].path.clone(),
+            aunts: fixture.data_hash_proofs[i]
+                .proof
+                .clone()
+                .try_into()
+                .unwrap(),
         });
         prev_header_proofs.push(InclusionProof {
-            leaf: temp_prev_header_proofs[i]
+            leaf: fixture.prev_header_proofs[i]
                 .enc_leaf
                 .clone()
                 .try_into()
                 .unwrap(),
-            path_indices: temp_prev_header_proofs[i].path.clone(),
-            aunts: temp_prev_header_proofs[i].proof.clone().try_into().unwrap(),
+            path_indices: fixture.prev_header_proofs[i].path.clone(),
+            aunts: fixture.prev_header_proofs[i]
+                .proof
+                .clone()
+                .try_into()
+                .unwrap(),
         });
     }
 

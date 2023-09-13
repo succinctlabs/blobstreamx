@@ -67,7 +67,7 @@ async fn main() {
         Function::CreateBlockFixture { block } => {
             fixture::create_block_fixture(block)
                 .await
-                .expect("Failed to create new fixture");
+                .expect("Failed to create new block fixture");
         }
         Function::CreateDataCommitmentFixture {
             start_block,
@@ -75,7 +75,7 @@ async fn main() {
         } => {
             fixture::create_data_commitment_fixture(start_block, end_block)
                 .await
-                .expect("Failed to create new fixture");
+                .expect("Failed to create new data commitment fixture");
         }
         Function::CreateHeaderChainFixture {
             trusted_block,
@@ -83,7 +83,7 @@ async fn main() {
         } => {
             fixture::create_header_chain_fixture(trusted_block, current_block)
                 .await
-                .expect("Failed to create new fixture");
+                .expect("Failed to create new header chain fixture");
         }
         Function::GenerateStepInputs { block } => {
             const VALIDATOR_SET_SIZE_MAX: usize = 128;
