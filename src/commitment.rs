@@ -74,7 +74,7 @@ pub trait CelestiaCommitment<L: PlonkParameters<D>, const D: usize> {
         <<L as PlonkParameters<D>>::Config as GenericConfig<D>>::Hasher: AlgebraicHasher<L::Field>;
 
     /// Prove header chain from current_header to trusted_header
-    /// Merkle prove the last block id against the current ehader
+    /// Merkle prove the last block id against the current header
     /// Merkle prove the data hash for every header (except the current header)
     /// Note: data_hash_proofs and prev_header_proofs should be in order from current_header to trusted_header
     fn prove_header_chain<
