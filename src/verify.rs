@@ -1331,6 +1331,8 @@ pub fn set_skip_pw<
 
 #[cfg(test)]
 pub(crate) mod tests {
+    use std::env;
+
     use super::*;
     use curta::math::goldilocks::cubic::GoldilocksCubicParameters;
     use plonky2::field::goldilocks_field::GoldilocksField;
@@ -1403,7 +1405,9 @@ pub(crate) mod tests {
     }
 
     fn test_step_template<const VALIDATOR_SET_SIZE_MAX: usize>(block: usize) {
-        let _ = env_logger::builder().is_test(true).try_init();
+        env::set_var("RUST_LOG", "debug");
+        env_logger::try_init().unwrap_or_default();
+
         let mut timing = TimingTree::new("Verify Celestia Step", log::Level::Debug);
 
         let mut pw = PartialWitness::new();
@@ -1459,7 +1463,8 @@ pub(crate) mod tests {
     }
 
     fn test_skip_template<const VALIDATOR_SET_SIZE_MAX: usize>(trusted_block: usize, block: usize) {
-        let _ = env_logger::builder().is_test(true).try_init();
+        env::set_var("RUST_LOG", "debug");
+        env_logger::try_init().unwrap_or_default();
         let mut timing = TimingTree::new("Verify Celestia Skip", log::Level::Debug);
 
         let mut pw = PartialWitness::new();
