@@ -205,7 +205,6 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
         // Verify the current header height proof against the current header.
         let encoded_height = self.marshal_u32_as_varint(&height);
         let encoded_height = self.encode_marshalled_varint(&encoded_height);
-        self.watch(&encoded_height, "encoded height");
 
         // Extend encoded_height to 64 bytes for curta_sha256_variable.
         let mut encoded_height_extended = [ByteVariable::init(self); 64];
@@ -230,11 +229,9 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
             last_chunk,
             encoded_height_byte_length,
         );
-        self.watch(&leaf_hash, "leaf_hash");
 
         let computed_root = self
             .get_root_from_merkle_proof_hashed_leaf::<HEADER_PROOF_DEPTH>(&proof, &path, leaf_hash);
-        self.watch(&computed_root, "computed root");
 
         self.assert_is_equal(computed_root, header);
     }
@@ -273,10 +270,7 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
         }
 
         let leaves = ArrayVariable::<BytesVariable<64>, WINDOW_RANGE>::new(leaves);
-        // self.watch(&leaves, format!("leaves").as_str());
         let root = self.compute_root_from_leaves::<WINDOW_RANGE, NB_LEAVES, 64>(&leaves);
-
-        self.watch(&root, format!("root").as_str());
 
         // Return the root hash.
         root
@@ -318,37 +312,38 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
             input.trusted_header_height_byte_length,
         );
 
-        // self.assert_is_equal(trusted_header_height_proof_root, input.trusted_header);
+        // Verify the header chain.
+        let mut curr_header_hash = input.current_header;
 
-        // let mut curr_header_hash = input.current_header;
+        for i in 0..WINDOW_RANGE {
+            let data_hash_proof = &input.data_hash_proofs[i];
+            let prev_header_proof = &input.prev_header_proofs[i];
 
-        // for i in 0..WINDOW_RANGE {
-        //     let data_hash_proof = &input.data_hash_proofs[i];
-        //     let prev_header_proof = &input.prev_header_proofs[i];
+            let data_hash_proof_root = self
+                .get_root_from_merkle_proof::<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES>(
+                    &data_hash_proof,
+                );
+            let prev_header_proof_root = self
+                .get_root_from_merkle_proof::<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES>(
+                    &prev_header_proof,
+                );
 
-        //     let data_hash_proof_root = self
-        //         .get_root_from_merkle_proof::<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES>(
-        //             &data_hash_proof,
-        //         );
-        //     let prev_header_proof_root = self
-        //         .get_root_from_merkle_proof::<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES>(
-        //             &prev_header_proof,
-        //         );
+            // Verify the prev header proof against the current header hash.
+            self.assert_is_equal(prev_header_proof_root, curr_header_hash);
 
-        //     // Verify the prev header proof against the current header hash.
-        //     self.assert_is_equal(prev_header_proof_root, curr_header_hash);
+            // Extract the prev header hash from the prev header proof.
+            let prev_header_hash = self
+                .extract_hash_from_protobuf::<2, PROTOBUF_BLOCK_ID_SIZE_BYTES>(
+                    &prev_header_proof.leaf,
+                );
 
-        //     // Extract the prev header hash from the prev header proof.
-        //     let prev_header_hash =
-        //         self.extract_hash_from_protobuf::<2, 72>(&prev_header_proof.leaf);
+            // Verify the data hash proof against the prev header hash.
+            self.assert_is_equal(data_hash_proof_root, prev_header_hash);
 
-        //     // Verify the data hash proof against the prev header hash.
-        //     self.assert_is_equal(data_hash_proof_root, prev_header_hash);
-
-        //     curr_header_hash = prev_header_hash;
-        // }
-        // // Verify the last header hash in the chain is the trusted header.
-        // self.assert_is_equal(curr_header_hash, input.trusted_header);
+            curr_header_hash = prev_header_hash;
+        }
+        // Verify the last header hash in the chain is the trusted header.
+        self.assert_is_equal(curr_header_hash, input.trusted_header);
     }
 }
 
@@ -358,15 +353,8 @@ pub(crate) mod tests {
 
     use super::*;
     use curta::math::goldilocks::cubic::GoldilocksCubicParameters;
-    use plonky2::{
-        hash::hash_types::RichField,
-        iop::witness::{Witness, WitnessWrite},
-        plonk::config::PoseidonGoldilocksConfig,
-    };
-    use plonky2x::{
-        backend::circuit::DefaultParameters,
-        frontend::num::u32::gadgets::arithmetic_u32::CircuitBuilderU32, prelude::Variable,
-    };
+    use plonky2::plonk::config::PoseidonGoldilocksConfig;
+    use plonky2x::backend::circuit::DefaultParameters;
 
     use crate::{
         commitment::CelestiaCommitment,
@@ -426,8 +414,6 @@ pub(crate) mod tests {
 
         let celestia_header_chain_var =
             builder.read::<CelestiaHeaderChainProofInputVariable<WINDOW_SIZE>>();
-
-        // builder.watch(&celestia_header_chain_var, "header chain var");
 
         builder.prove_header_chain::<E, C, WINDOW_SIZE>(celestia_header_chain_var);
 
