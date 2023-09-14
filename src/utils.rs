@@ -829,6 +829,6 @@ pub(crate) mod tests {
         // Generate test cases from Celestia block:
         let block = get_signed_block_from_rpc(1500).await;
 
-        let (_root, proofs) = generate_proofs_from_header(&block.header);
+        let (_root, _proofs) = generate_proofs_from_header(&block.header);
     }
 }

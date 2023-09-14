@@ -1,5 +1,5 @@
 use crate::{
-    inputs::{convert_to_H256, get_path_indices, TempMerkleInclusionProof},
+    inputs::{convert_to_h256, get_path_indices, TempMerkleInclusionProof},
     utils::{generate_proofs_from_header, leaf_hash, SignedBlock, TempSignedBlock},
 };
 use ethers::abi::AbiEncode;
@@ -167,7 +167,7 @@ pub fn get_header_and_height_proof(block: &SignedBlock) -> TempMerkleInclusionPr
     let enc_height_proof = TempMerkleInclusionProof {
         enc_leaf: enc_height,
         path: enc_height_proof_indices,
-        proof: convert_to_H256(enc_height_proof.clone().aunts),
+        proof: convert_to_h256(enc_height_proof.clone().aunts),
     };
     enc_height_proof
 }
@@ -230,7 +230,7 @@ pub async fn create_header_chain_fixture(
         let last_block_id_proof = TempMerkleInclusionProof {
             enc_leaf: enc_last_block_id_leaf.clone(),
             path: enc_last_block_id_proof_indices,
-            proof: convert_to_H256(enc_last_block_id_proof.clone().aunts),
+            proof: convert_to_h256(enc_last_block_id_proof.clone().aunts),
         };
         prev_header_proofs.push(last_block_id_proof);
 
@@ -247,7 +247,7 @@ pub async fn create_header_chain_fixture(
         let data_hash_proof = TempMerkleInclusionProof {
             enc_leaf: enc_data_hash_leaf.clone(),
             path: enc_data_hash_proof_indices,
-            proof: convert_to_H256(enc_data_hash_proof.clone().aunts),
+            proof: convert_to_h256(enc_data_hash_proof.clone().aunts),
         };
         data_hash_proofs.push(data_hash_proof);
     }
@@ -498,8 +498,6 @@ pub(crate) mod tests {
             "Root hash: {:?}",
             String::from_utf8(hex::encode(root_hash)).unwrap()
         );
-
-        let computed_root_hash = proofs[0].compute_root_hash().unwrap();
 
         println!(
             "Leaf: {:?}",
