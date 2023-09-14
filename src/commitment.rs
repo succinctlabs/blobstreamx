@@ -1,5 +1,4 @@
 use curta::math::extension::cubic::parameters::CubicParameters;
-use curta::maybe_rayon::rayon::str::Bytes;
 use plonky2::field::extension::Extendable;
 
 use plonky2::hash::hash_types::RichField;
@@ -13,7 +12,6 @@ use itertools::Itertools;
 
 use plonky2x::frontend::merkle::tree::MerkleInclusionProofVariable;
 use plonky2x::frontend::num::u32::gadgets::arithmetic_u32::{CircuitBuilderU32, U32Target};
-use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::frontend::vars::{ArrayVariable, Bytes32Variable, EvmVariable, U32Variable};
 use plonky2x::prelude::{
     BoolVariable, ByteVariable, BytesVariable, CircuitBuilder, CircuitVariable, Variable,
@@ -290,6 +288,7 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
     ) where
         <<L as PlonkParameters<D>>::Config as GenericConfig<D>>::Hasher: AlgebraicHasher<L::Field>,
     {
+        // Verify current_block_height - trusted_block_height == WINDOW_RANGE
         let height_diff = self.sub(input.current_header_height, input.trusted_header_height);
         let window_range_target = self.constant::<U32Variable>(WINDOW_RANGE as u32);
         self.assert_is_equal(height_diff, window_range_target);
