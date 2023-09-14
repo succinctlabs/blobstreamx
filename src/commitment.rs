@@ -12,7 +12,7 @@ use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
 use itertools::Itertools;
 
 use plonky2x::frontend::merkle::tree::MerkleInclusionProofVariable;
-use plonky2x::frontend::num::u32::gadgets::arithmetic_u32::U32Target;
+use plonky2x::frontend::num::u32::gadgets::arithmetic_u32::{CircuitBuilderU32, U32Target};
 use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::frontend::vars::{ArrayVariable, Bytes32Variable, EvmVariable, U32Variable};
 use plonky2x::prelude::{
@@ -21,7 +21,7 @@ use plonky2x::prelude::{
 
 use crate::utils::{
     I64Target, HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES,
-    PROTOBUF_VARINT_SIZE_BYTES,
+    PROTOBUF_VARINT_SIZE_BYTES, VARINT_SIZE_BYTES,
 };
 use crate::validator::TendermintValidator;
 
@@ -38,12 +38,12 @@ pub struct CelestiaDataCommitmentProofInputVariable<const WINDOW_SIZE: usize> {
 pub struct CelestiaHeaderChainProofInputVariable<const WINDOW_RANGE: usize> {
     pub current_header: Bytes32Variable,
     pub current_header_height_proof:
-        MerkleInclusionProofVariable<HEADER_PROOF_DEPTH, PROTOBUF_VARINT_SIZE_BYTES>,
+        MerkleInclusionProofVariable<HEADER_PROOF_DEPTH, VARINT_SIZE_BYTES>,
     pub current_header_height_byte_length: U32Variable,
     pub current_header_height: U32Variable,
     pub trusted_header: Bytes32Variable,
     pub trusted_header_height_proof:
-        MerkleInclusionProofVariable<HEADER_PROOF_DEPTH, PROTOBUF_VARINT_SIZE_BYTES>,
+        MerkleInclusionProofVariable<HEADER_PROOF_DEPTH, VARINT_SIZE_BYTES>,
     pub trusted_header_height_byte_length: U32Variable,
     pub trusted_header_height: U32Variable,
     pub data_hash_proofs: ArrayVariable<
@@ -61,7 +61,15 @@ pub trait CelestiaCommitment<L: PlonkParameters<D>, const D: usize> {
 
     /// Serializes a u32 as a protobuf varint.
     /// NOTE: Block height is a i64 (but always positive), but u32 is used for simplicity.
+    /// This caps the block height at 2^32 - 1.
     fn marshal_u32_as_varint(&mut self, num: &U32Variable) -> BytesVariable<9>;
+
+    /// Encodes the marshalled varint into a BytesVariable<10>.
+    /// Prepends the 0x08 byte to the marshalled varint.
+    fn encode_marshalled_varint(
+        &mut self,
+        marshalled_varint: &BytesVariable<9>,
+    ) -> BytesVariable<10>;
 
     /// Encodes the data hash and height into a tuple.
     /// Spec: https://github.com/celestiaorg/celestia-core/blob/6933af1ead0ddf4a8c7516690e3674c6cdfa7bd8/rpc/core/blocks.go#L325-L334
@@ -119,21 +127,33 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
     type Curve = Ed25519;
 
     fn marshal_u32_as_varint(&mut self, num: &U32Variable) -> BytesVariable<9> {
-        // Lower then upper bytes.
-        let voting_power = I64Target([U32Target(num.targets()[0]), U32Target::default()]);
+        let zero_u32 = self.api.constant_u32(0);
+        // Lower bytes, then the upper bytes
+        let voting_power = I64Target([U32Target(num.targets()[0]), zero_u32]);
         let marshalled_bits = self.api.marshal_int64_varint(&voting_power);
+
         // Convert marshalled_bits to BytesVariable<9>.
         let marshalled_bytes = marshalled_bits
             .chunks(8)
             .map(|chunk| {
-                let targets = chunk.iter().map(|b| b.target).collect_vec();
+                // Reverse bit order in each byte (f_bits_to_bytes).
+                let targets = chunk.iter().rev().map(|b| b.target).collect_vec();
                 ByteVariable::from_targets(&targets)
             })
             .collect_vec();
 
-        let mut bytes = [ByteVariable::init(self); 9];
-        bytes.copy_from_slice(&marshalled_bytes);
-        BytesVariable(bytes)
+        BytesVariable(marshalled_bytes.try_into().unwrap())
+    }
+
+    fn encode_marshalled_varint(
+        &mut self,
+        marshalled_varint: &BytesVariable<9>,
+    ) -> BytesVariable<10> {
+        // Prepend the 0x08 byte to the marshalled varint.
+        let mut encoded_marshalled_varint = Vec::new();
+        encoded_marshalled_varint.push(self.constant::<ByteVariable>(8u8));
+        encoded_marshalled_varint.extend_from_slice(&marshalled_varint.0);
+        BytesVariable(encoded_marshalled_varint.try_into().unwrap())
     }
 
     fn encode_data_root_tuple(
@@ -159,9 +179,7 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
         encoded_tuple.extend(data_hash.as_bytes().to_vec());
 
         // Convert Vec<ByteVariable> to BytesVariable<64>.
-        let mut hash_bytes_array = [ByteVariable::init(self); 64];
-        hash_bytes_array.copy_from_slice(&encoded_tuple);
-        BytesVariable::<64>(hash_bytes_array)
+        BytesVariable::<64>(encoded_tuple.try_into().unwrap())
     }
 
     fn extract_hash_from_protobuf<const START_BYTE: usize, const PROTOBUF_LENGTH_BYTES: usize>(
@@ -227,11 +245,15 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
 
         // Verify the current header height proof against the current header.
         let encoded_height = self.marshal_u32_as_varint(&input.current_header_height);
-        self.watch(&encoded_height, "encoded_height");
+        let encoded_height = self.encode_marshalled_varint(&encoded_height);
+        self.watch(&encoded_height, "encoded current header height");
         // Extend encoded_height to 64 bytes.
         let mut encoded_height_extended = [ByteVariable::init(self); 64];
         for i in 0..PROTOBUF_VARINT_SIZE_BYTES {
             encoded_height_extended[i] = encoded_height.0[i];
+        }
+        for i in PROTOBUF_VARINT_SIZE_BYTES..64 {
+            encoded_height_extended[i] = self.constant::<ByteVariable>(0u8);
         }
         let encoded_height = BytesVariable::<64>(encoded_height_extended);
 
@@ -252,9 +274,16 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
         self.assert_is_equal(current_header_height_proof_root, input.current_header);
 
         // Verify the trusted header height proof against the current header.
+        let encoded_height = self.marshal_u32_as_varint(&input.trusted_header_height);
+        let encoded_height = self.encode_marshalled_varint(&encoded_height);
+        self.watch(&encoded_height, "encoded trusted header height");
+        // Extend encoded_height to 64 bytes.
         let mut encoded_height_extended = [ByteVariable::init(self); 64];
         for i in 0..PROTOBUF_VARINT_SIZE_BYTES {
             encoded_height_extended[i] = encoded_height.0[i];
+        }
+        for i in PROTOBUF_VARINT_SIZE_BYTES..64 {
+            encoded_height_extended[i] = self.constant::<ByteVariable>(0u8);
         }
         let encoded_height = BytesVariable::<64>(encoded_height_extended);
 
@@ -318,7 +347,10 @@ pub(crate) mod tests {
         iop::witness::{Witness, WitnessWrite},
         plonk::config::PoseidonGoldilocksConfig,
     };
-    use plonky2x::{backend::circuit::DefaultParameters, prelude::Variable};
+    use plonky2x::{
+        backend::circuit::DefaultParameters,
+        frontend::num::u32::gadgets::arithmetic_u32::CircuitBuilderU32, prelude::Variable,
+    };
 
     use crate::{
         commitment::CelestiaCommitment,
@@ -400,9 +432,10 @@ pub(crate) mod tests {
 
         let mut builder = CircuitBuilder::<L, D>::new();
 
-        let height = builder.constant::<U32Variable>(1);
+        let height = builder.constant::<U32Variable>(3804);
 
         let encoded_height = builder.marshal_u32_as_varint(&height);
+        let encoded_height = builder.encode_marshalled_varint(&encoded_height);
         builder.watch(&encoded_height, "encoded_height");
 
         let circuit = builder.build();

@@ -777,7 +777,9 @@ pub(crate) mod tests {
             // TODO: Need to add check in marshal that this is not negative
             let voting_power_i64 = test_case.0;
             let voting_power_lower = voting_power_i64 & ((1 << 32) - 1);
+            println!("voting_power_lower: {:?}", voting_power_lower);
             let voting_power_upper = voting_power_i64 >> 32;
+            println!("voting_power_upper: {:?}", voting_power_upper);
 
             let voting_power_lower_target =
                 U32Target(builder.constant(F::from_canonical_usize(voting_power_lower as usize)));

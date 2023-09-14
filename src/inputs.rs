@@ -5,7 +5,7 @@ use crate::fixture::{DataCommitmentFixture, HeaderChainFixture};
 /// Source (tendermint-rs): https://github.com/informalsystems/tendermint-rs/blob/e930691a5639ef805c399743ac0ddbba0e9f53da/tendermint/src/merkle.rs#L32
 use crate::utils::{
     compute_hash_from_aunts, generate_proofs_from_header, leaf_hash, non_absent_vote, SignedBlock,
-    TempSignedBlock, PROTOBUF_VARINT_SIZE_BYTES,
+    TempSignedBlock, PROTOBUF_VARINT_SIZE_BYTES, VARINT_SIZE_BYTES,
 };
 use ed25519_consensus::SigningKey;
 use ethers::types::H256;
@@ -220,7 +220,7 @@ pub fn generate_header_chain_inputs<const WINDOW_SIZE: usize, F: RichField>(
         current_header: H256::from_slice(fixture.curr_header.as_bytes()),
         current_header_height_proof: InclusionProof {
             // TODO: We use the height to generate the leaf, can remove this when we refactor the type
-            leaf: [0u8; PROTOBUF_VARINT_SIZE_BYTES],
+            leaf: [0u8; VARINT_SIZE_BYTES],
             path_indices: fixture.current_block_height_proof.path.clone(),
             aunts: fixture
                 .current_block_height_proof
@@ -234,7 +234,7 @@ pub fn generate_header_chain_inputs<const WINDOW_SIZE: usize, F: RichField>(
         trusted_header: H256::from_slice(fixture.trusted_header.as_bytes()),
         trusted_header_height_proof: InclusionProof {
             // TODO: We use the height to generate the leaf, can remove this when we refactor the type
-            leaf: [0u8; PROTOBUF_VARINT_SIZE_BYTES],
+            leaf: [0u8; VARINT_SIZE_BYTES],
             path_indices: fixture.trusted_block_height_proof.path.clone(),
             aunts: fixture
                 .trusted_block_height_proof

@@ -25,8 +25,9 @@ use tendermint_proto::{
 /// The number of bits in a SHA256 hash.
 pub const HASH_SIZE_BITS: usize = HASH_SIZE * 8;
 
-/// The number of bytes in a protobuf-encoded varint.
-pub const PROTOBUF_VARINT_SIZE_BYTES: usize = 9;
+/// The number of bytes in a varint.
+pub const VARINT_SIZE_BYTES: usize = 9;
+pub const PROTOBUF_VARINT_SIZE_BYTES: usize = VARINT_SIZE_BYTES + 1;
 
 /// The number of bits in a protobuf-encoded SHA256 hash.
 pub const PROTOBUF_HASH_SIZE_BYTES: usize = HASH_SIZE + 2;
