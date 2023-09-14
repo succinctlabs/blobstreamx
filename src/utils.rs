@@ -124,7 +124,6 @@ pub fn bits_to_bytes(bits: &[bool]) -> Vec<u8> {
 }
 
 pub fn f_bits_to_bytes<F: RichField>(bits: &[F]) -> Vec<u8> {
-    println!("bits: {:?}", bits.len());
     let mut bytes = Vec::new();
     let nb_bytes = if bits.len() % 8 == 0 {
         bits.len() / 8
@@ -531,8 +530,6 @@ pub fn generate_proofs_from_header(h: &Header) -> (Hash, Vec<Proof>) {
         h.evidence_hash.unwrap_or_default().encode_vec(),
         h.proposer_address.encode_vec(),
     ];
-
-    println!("fields_bytes: {:?}", fields_bytes);
 
     proofs_from_byte_slices(fields_bytes)
 }
