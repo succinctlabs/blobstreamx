@@ -3,7 +3,7 @@ use plonky2::field::extension::Extendable;
 
 use plonky2::hash::hash_types::RichField;
 use plonky2::iop::witness::{Witness, WitnessWrite};
-use plonky2::plonk::config::{AlgebraicHasher, GenericConfig};
+use plonky2::plonk::config::GenericConfig;
 use plonky2x::backend::circuit::PlonkParameters;
 use plonky2x::frontend::ecc::ed25519::curve::curve_types::Curve;
 use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
@@ -32,18 +32,19 @@ pub struct CelestiaDataCommitmentProofInputVariable<const WINDOW_SIZE: usize> {
 }
 
 #[derive(Clone, Debug, CircuitVariable)]
+#[value_name(HeaderVariableInput)]
+pub struct HeaderVariable {
+    pub header: Bytes32Variable,
+    pub header_height_proof: MerkleInclusionProofVariable<HEADER_PROOF_DEPTH, VARINT_SIZE_BYTES>,
+    pub height_byte_length: U32Variable,
+    pub height: U32Variable,
+}
+
+#[derive(Clone, Debug, CircuitVariable)]
 #[value_name(CelestiaHeaderChainProofInput)]
 pub struct CelestiaHeaderChainProofInputVariable<const WINDOW_RANGE: usize> {
-    pub current_header: Bytes32Variable,
-    pub current_header_height_proof:
-        MerkleInclusionProofVariable<HEADER_PROOF_DEPTH, VARINT_SIZE_BYTES>,
-    pub current_header_height_byte_length: U32Variable,
-    pub current_header_height: U32Variable,
-    pub trusted_header: Bytes32Variable,
-    pub trusted_header_height_proof:
-        MerkleInclusionProofVariable<HEADER_PROOF_DEPTH, VARINT_SIZE_BYTES>,
-    pub trusted_header_height_byte_length: U32Variable,
-    pub trusted_header_height: U32Variable,
+    pub current_header: HeaderVariable,
+    pub trusted_header: HeaderVariable,
     pub data_hash_proofs: ArrayVariable<
         MerkleInclusionProofVariable<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES>,
         WINDOW_RANGE,
@@ -297,30 +298,30 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
         input: CelestiaHeaderChainProofInputVariable<WINDOW_RANGE>,
     ) {
         // Verify current_block_height - trusted_block_height == WINDOW_RANGE
-        let height_diff = self.sub(input.current_header_height, input.trusted_header_height);
+        let height_diff = self.sub(input.current_header.height, input.trusted_header.height);
         let window_range_target = self.constant::<U32Variable>(WINDOW_RANGE as u32);
         self.assert_is_equal(height_diff, window_range_target);
 
         // Verify the current block's height
         self.verify_block_height(
-            input.current_header,
-            &input.current_header_height_proof.aunts,
-            &input.current_header_height_proof.path_indices,
-            &input.current_header_height,
-            input.current_header_height_byte_length,
+            input.current_header.header,
+            &input.current_header.header_height_proof.aunts,
+            &input.current_header.header_height_proof.path_indices,
+            &input.current_header.height,
+            input.current_header.height_byte_length,
         );
 
         // Verify the trusted block's height
         self.verify_block_height(
-            input.trusted_header,
-            &input.trusted_header_height_proof.aunts,
-            &input.trusted_header_height_proof.path_indices,
-            &input.trusted_header_height,
-            input.trusted_header_height_byte_length,
+            input.trusted_header.header,
+            &input.trusted_header.header_height_proof.aunts,
+            &input.trusted_header.header_height_proof.path_indices,
+            &input.trusted_header.height,
+            input.trusted_header.height_byte_length,
         );
 
         // Verify the header chain.
-        let mut curr_header_hash = input.current_header;
+        let mut curr_header_hash = input.current_header.header;
 
         for i in 0..WINDOW_RANGE {
             let data_hash_proof = &input.data_hash_proofs[i];
@@ -350,7 +351,7 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
             curr_header_hash = prev_header_hash;
         }
         // Verify the last header hash in the chain is the trusted header.
-        self.assert_is_equal(curr_header_hash, input.trusted_header);
+        self.assert_is_equal(curr_header_hash, input.trusted_header.header);
     }
 
     fn prove_data_commitment<
@@ -370,7 +371,7 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
         // Compute the data commitment.
         let data_commitment = self.get_data_commitment::<E, C, WINDOW_RANGE, NB_LEAVES>(
             data_hashes,
-            input.trusted_header_height,
+            input.trusted_header.height,
         );
         // Verify the header chain.
         self.prove_header_chain::<E, C, WINDOW_RANGE>(input);
@@ -517,7 +518,7 @@ pub(crate) mod tests {
         let circuit = builder.build();
 
         let input = circuit.input();
-        let (proof, mut output) = circuit.prove(&input);
+        let (proof, output) = circuit.prove(&input);
         circuit.verify(&proof, &input, &output);
 
         println!("Verified proof");
