@@ -93,6 +93,7 @@ pub trait CelestiaCommitment<L: PlonkParameters<D>, const D: usize> {
     ) -> Bytes32Variable;
 
     /// Compute the data commitment from the data hashes and block heights. WINDOW_RANGE is the number of blocks in the data commitment. NUM_LEAVES is the number of leaves in the tree for the data commitment.
+    /// Assumes the data hashes are already proven.
     fn get_data_commitment<
         E: CubicParameters<L::Field>,
         C: GenericConfig<
@@ -105,16 +106,11 @@ pub trait CelestiaCommitment<L: PlonkParameters<D>, const D: usize> {
     >(
         &mut self,
         data_hashes: &ArrayVariable<Bytes32Variable, WINDOW_RANGE>,
-        block_heights: &ArrayVariable<U32Variable, WINDOW_RANGE>,
-    ) -> Bytes32Variable
-    where
-        <<L as PlonkParameters<D>>::Config as GenericConfig<D>>::Hasher: AlgebraicHasher<L::Field>;
+        start_block: U32Variable,
+    ) -> Bytes32Variable;
 
-    /// Prove header chain from current_header to trusted_header.
-    /// Prove the block height for the current header and the trusted header.
-    /// Pass in the block height to get_data_commitment.
-    /// Merkle prove the last block id against the current header
-    /// Merkle prove the data hash for every header (except the current header)
+    /// Prove header chain from current_header to trusted_header & the block heights for the current header and the trusted header.
+    /// Merkle prove the last block id against the current header, and the data hash for each header except the current header.
     /// Note: data_hash_proofs and prev_header_proofs should be in order from current_header to trusted_header
     fn prove_header_chain<
         E: CubicParameters<L::Field>,
@@ -127,8 +123,23 @@ pub trait CelestiaCommitment<L: PlonkParameters<D>, const D: usize> {
     >(
         &mut self,
         input: CelestiaHeaderChainProofInputVariable<WINDOW_RANGE>,
-    ) where
-        <<L as PlonkParameters<D>>::Config as GenericConfig<D>>::Hasher: AlgebraicHasher<L::Field>;
+    );
+
+    /// Prove the header chain from current_header to trusted_header & compute the data commitment.
+    fn prove_data_commitment<
+        E: CubicParameters<L::Field>,
+        C: GenericConfig<
+                D,
+                F = L::Field,
+                FE = <<L as PlonkParameters<D>>::Field as Extendable<D>>::Extension,
+            > + 'static,
+        const WINDOW_RANGE: usize,
+        const NB_LEAVES: usize,
+    >(
+        &mut self,
+        input: CelestiaHeaderChainProofInputVariable<WINDOW_RANGE>,
+        data_hashes: &ArrayVariable<Bytes32Variable, WINDOW_RANGE>,
+    ) -> Bytes32Variable;
 }
 
 impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for CircuitBuilder<L, D> {
@@ -255,16 +266,15 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
     >(
         &mut self,
         data_hashes: &ArrayVariable<Bytes32Variable, WINDOW_RANGE>,
-        block_heights: &ArrayVariable<U32Variable, WINDOW_RANGE>,
-    ) -> Bytes32Variable
-    where
-        <<L as PlonkParameters<D>>::Config as GenericConfig<D>>::Hasher: AlgebraicHasher<L::Field>,
-    {
+        start_block: U32Variable,
+    ) -> Bytes32Variable {
         let mut leaves = Vec::new();
 
         for i in 0..WINDOW_RANGE {
+            let curr_idx = self.constant::<U32Variable>(i as u32);
+            let block_height = self.add(start_block, curr_idx);
             // Encode the data hash and height into a tuple.
-            leaves.push(self.encode_data_root_tuple(&data_hashes[i], &block_heights[i]));
+            leaves.push(self.encode_data_root_tuple(&data_hashes[i], &block_height));
         }
 
         let leaves = ArrayVariable::<BytesVariable<64>, WINDOW_RANGE>::new(leaves);
@@ -285,9 +295,7 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
     >(
         &mut self,
         input: CelestiaHeaderChainProofInputVariable<WINDOW_RANGE>,
-    ) where
-        <<L as PlonkParameters<D>>::Config as GenericConfig<D>>::Hasher: AlgebraicHasher<L::Field>,
-    {
+    ) {
         // Verify current_block_height - trusted_block_height == WINDOW_RANGE
         let height_diff = self.sub(input.current_header_height, input.trusted_header_height);
         let window_range_target = self.constant::<U32Variable>(WINDOW_RANGE as u32);
@@ -344,6 +352,32 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
         // Verify the last header hash in the chain is the trusted header.
         self.assert_is_equal(curr_header_hash, input.trusted_header);
     }
+
+    fn prove_data_commitment<
+        E: CubicParameters<L::Field>,
+        C: GenericConfig<
+                D,
+                F = L::Field,
+                FE = <<L as PlonkParameters<D>>::Field as Extendable<D>>::Extension,
+            > + 'static,
+        const WINDOW_RANGE: usize,
+        const NB_LEAVES: usize,
+    >(
+        &mut self,
+        input: CelestiaHeaderChainProofInputVariable<WINDOW_RANGE>,
+        data_hashes: &ArrayVariable<Bytes32Variable, WINDOW_RANGE>,
+    ) -> Bytes32Variable {
+        // Compute the data commitment.
+        let data_commitment = self.get_data_commitment::<E, C, WINDOW_RANGE, NB_LEAVES>(
+            data_hashes,
+            input.trusted_header_height,
+        );
+        // Verify the header chain.
+        self.prove_header_chain::<E, C, WINDOW_RANGE>(input);
+
+        // Return the data commitment.
+        data_commitment
+    }
 }
 
 #[cfg(test)]
@@ -367,6 +401,46 @@ pub(crate) mod tests {
     const D: usize = 2;
 
     #[test]
+    fn test_prove_data_commitment() {
+        env::set_var("RUST_LOG", "debug");
+        env_logger::try_init().unwrap_or_default();
+
+        let mut builder = CircuitBuilder::<L, D>::new();
+
+        const WINDOW_SIZE: usize = 4;
+        const NUM_LEAVES: usize = 4;
+        const START_BLOCK: usize = 3800;
+        const END_BLOCK: usize = START_BLOCK + WINDOW_SIZE;
+
+        let celestia_data_commitment_var =
+            builder.read::<CelestiaDataCommitmentProofInputVariable<WINDOW_SIZE>>();
+
+        let celestia_header_chain_var =
+            builder.read::<CelestiaHeaderChainProofInputVariable<WINDOW_SIZE>>();
+
+        let root_hash_target = builder.prove_data_commitment::<E, C, WINDOW_SIZE, NUM_LEAVES>(
+            celestia_header_chain_var,
+            &celestia_data_commitment_var.data_hashes,
+        );
+        builder.assert_is_equal(
+            root_hash_target,
+            celestia_data_commitment_var.data_commitment_root,
+        );
+
+        let circuit = builder.build();
+
+        let mut input = circuit.input();
+        input.write::<CelestiaDataCommitmentProofInputVariable<WINDOW_SIZE>>(
+            generate_data_commitment_inputs::<WINDOW_SIZE, F>(START_BLOCK, END_BLOCK),
+        );
+        input.write::<CelestiaHeaderChainProofInputVariable<WINDOW_SIZE>>(
+            generate_header_chain_inputs::<WINDOW_SIZE, F>(START_BLOCK, END_BLOCK),
+        );
+        let (proof, output) = circuit.prove(&input);
+        circuit.verify(&proof, &input, &output);
+    }
+
+    #[test]
     fn test_data_commitment() {
         env::set_var("RUST_LOG", "debug");
         env_logger::try_init().unwrap_or_default();
@@ -381,9 +455,10 @@ pub(crate) mod tests {
         let celestia_data_commitment_var =
             builder.read::<CelestiaDataCommitmentProofInputVariable<WINDOW_SIZE>>();
 
+        let start_block = builder.constant::<U32Variable>(START_BLOCK as u32);
         let root_hash_target = builder.get_data_commitment::<E, C, WINDOW_SIZE, NUM_LEAVES>(
             &celestia_data_commitment_var.data_hashes,
-            &celestia_data_commitment_var.block_heights,
+            start_block,
         );
         builder.assert_is_equal(
             root_hash_target,
