@@ -1,6 +1,46 @@
 {
     "current_block": 3804,
+    "current_block_height_proof": {
+        "enc_leaf": [
+            8,
+            220,
+            29
+        ],
+        "path": [
+            false,
+            true,
+            false,
+            false
+        ],
+        "proof": [
+            "0x4d3099381ca5b5d7d5a8db1f4820dc304c38f266dca0af9641b4ef37d1d2772f",
+            "0x858ea254bdd304b8f663d33782ff39252b94b1eead446ac222d9deaa737b2ca3",
+            "0x67403046e53cd6ca27740e5c7fd4039712cb96f6150a1ae2216f08fd1735441e",
+            "0xc1672b1383d3acc502c70fb7de1e439b6ec2eb1e64d2846424b559c814fcec3f"
+        ]
+    },
+    "encoded_current_height_byte_length": 3,
     "trusted_block": 3800,
+    "trusted_block_height_proof": {
+        "enc_leaf": [
+            8,
+            216,
+            29
+        ],
+        "path": [
+            false,
+            true,
+            false,
+            false
+        ],
+        "proof": [
+            "0xc9672a2a9f9edb1e58af6397bd34282445685985273080c9a068bf34a513c714",
+            "0x858ea254bdd304b8f663d33782ff39252b94b1eead446ac222d9deaa737b2ca3",
+            "0x11d3f1012986df1868fb395940f41216f30602eccaa8727b1e2771d856d5493a",
+            "0xbe576a838247ad352a3770ba144f417b35cc57be4f557dc3125db387abc0ab6a"
+        ]
+    },
+    "encoded_trusted_height_byte_length": 3,
     "curr_header": "375A27E95D31F9E5B776477AC1E7A86219766F19F06CE35D96D4C2150BF4934E",
     "trusted_header": "77DB8C74272AF2D6ED907A4A7C8F031A40F0ED0E89E85C399829FBD356985161",
     "data_hash_proofs": [

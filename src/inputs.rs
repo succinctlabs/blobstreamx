@@ -5,7 +5,7 @@ use crate::fixture::{DataCommitmentFixture, HeaderChainFixture};
 /// Source (tendermint-rs): https://github.com/informalsystems/tendermint-rs/blob/e930691a5639ef805c399743ac0ddbba0e9f53da/tendermint/src/merkle.rs#L32
 use crate::utils::{
     compute_hash_from_aunts, generate_proofs_from_header, leaf_hash, non_absent_vote, SignedBlock,
-    TempSignedBlock,
+    TempSignedBlock, PROTOBUF_VARINT_SIZE_BYTES,
 };
 use ed25519_consensus::SigningKey;
 use ethers::types::H256;
@@ -218,7 +218,33 @@ pub fn generate_header_chain_inputs<const WINDOW_SIZE: usize, F: RichField>(
 
     CelestiaHeaderChainProofInput {
         current_header: H256::from_slice(fixture.curr_header.as_bytes()),
+        current_header_height_proof: InclusionProof {
+            // TODO: We use the height to generate the leaf, can remove this when we refactor the type
+            leaf: [0u8; PROTOBUF_VARINT_SIZE_BYTES],
+            path_indices: fixture.current_block_height_proof.path.clone(),
+            aunts: fixture
+                .current_block_height_proof
+                .proof
+                .clone()
+                .try_into()
+                .unwrap(),
+        },
+        current_header_height_byte_length: fixture.encoded_current_height_byte_length,
+        current_header_height: fixture.current_block,
         trusted_header: H256::from_slice(fixture.trusted_header.as_bytes()),
+        trusted_header_height_proof: InclusionProof {
+            // TODO: We use the height to generate the leaf, can remove this when we refactor the type
+            leaf: [0u8; PROTOBUF_VARINT_SIZE_BYTES],
+            path_indices: fixture.trusted_block_height_proof.path.clone(),
+            aunts: fixture
+                .trusted_block_height_proof
+                .proof
+                .clone()
+                .try_into()
+                .unwrap(),
+        },
+        trusted_header_height_byte_length: fixture.encoded_trusted_height_byte_length,
+        trusted_header_height: fixture.trusted_block,
         prev_header_proofs,
         data_hash_proofs,
     }

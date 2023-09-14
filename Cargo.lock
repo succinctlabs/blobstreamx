@@ -432,6 +432,7 @@ dependencies = [
  "ed25519-consensus",
  "env_logger",
  "ethers",
+ "itertools 0.11.0",
  "log",
  "num",
  "plonky2",
@@ -2795,7 +2796,6 @@ source = "git+https://github.com/mir-protocol/plonky2.git#9508b4909054eebd70c981
 [[package]]
 name = "plonky2x"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/succinctx.git#48bdeaf8c09f5a446bea2c3aa95b6217b3255abc"
 dependencies = [
  "anyhow",
  "array-macro",
@@ -2833,7 +2833,6 @@ dependencies = [
 [[package]]
 name = "plonky2x-derive"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/succinctx.git#48bdeaf8c09f5a446bea2c3aa95b6217b3255abc"
 dependencies = [
  "proc-macro2",
  "quote",

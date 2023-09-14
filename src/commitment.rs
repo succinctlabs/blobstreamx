@@ -1,4 +1,5 @@
 use curta::math::extension::cubic::parameters::CubicParameters;
+use curta::maybe_rayon::rayon::str::Bytes;
 use plonky2::field::extension::Extendable;
 
 use plonky2::hash::hash_types::RichField;
@@ -8,13 +9,21 @@ use plonky2x::backend::circuit::PlonkParameters;
 use plonky2x::frontend::ecc::ed25519::curve::curve_types::Curve;
 use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
 
+use itertools::Itertools;
+
 use plonky2x::frontend::merkle::tree::MerkleInclusionProofVariable;
+use plonky2x::frontend::num::u32::gadgets::arithmetic_u32::U32Target;
+use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::frontend::vars::{ArrayVariable, Bytes32Variable, EvmVariable, U32Variable};
 use plonky2x::prelude::{
     BoolVariable, ByteVariable, BytesVariable, CircuitBuilder, CircuitVariable, Variable,
 };
 
-use crate::utils::{HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES};
+use crate::utils::{
+    I64Target, HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES,
+    PROTOBUF_VARINT_SIZE_BYTES,
+};
+use crate::validator::TendermintValidator;
 
 #[derive(Clone, Debug, CircuitVariable)]
 #[value_name(CelestiaDataCommitmentProofInput)]
@@ -28,7 +37,15 @@ pub struct CelestiaDataCommitmentProofInputVariable<const WINDOW_SIZE: usize> {
 #[value_name(CelestiaHeaderChainProofInput)]
 pub struct CelestiaHeaderChainProofInputVariable<const WINDOW_RANGE: usize> {
     pub current_header: Bytes32Variable,
+    pub current_header_height_proof:
+        MerkleInclusionProofVariable<HEADER_PROOF_DEPTH, PROTOBUF_VARINT_SIZE_BYTES>,
+    pub current_header_height_byte_length: U32Variable,
+    pub current_header_height: U32Variable,
     pub trusted_header: Bytes32Variable,
+    pub trusted_header_height_proof:
+        MerkleInclusionProofVariable<HEADER_PROOF_DEPTH, PROTOBUF_VARINT_SIZE_BYTES>,
+    pub trusted_header_height_byte_length: U32Variable,
+    pub trusted_header_height: U32Variable,
     pub data_hash_proofs: ArrayVariable<
         MerkleInclusionProofVariable<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES>,
         WINDOW_RANGE,
@@ -41,6 +58,10 @@ pub struct CelestiaHeaderChainProofInputVariable<const WINDOW_RANGE: usize> {
 
 pub trait CelestiaCommitment<L: PlonkParameters<D>, const D: usize> {
     type Curve: Curve;
+
+    /// Serializes a u32 as a protobuf varint.
+    /// NOTE: Block height is a i64 (but always positive), but u32 is used for simplicity.
+    fn marshal_u32_as_varint(&mut self, num: &U32Variable) -> BytesVariable<9>;
 
     /// Encodes the data hash and height into a tuple.
     /// Spec: https://github.com/celestiaorg/celestia-core/blob/6933af1ead0ddf4a8c7516690e3674c6cdfa7bd8/rpc/core/blocks.go#L325-L334
@@ -73,7 +94,9 @@ pub trait CelestiaCommitment<L: PlonkParameters<D>, const D: usize> {
     where
         <<L as PlonkParameters<D>>::Config as GenericConfig<D>>::Hasher: AlgebraicHasher<L::Field>;
 
-    /// Prove header chain from current_header to trusted_header
+    /// Prove header chain from current_header to trusted_header.
+    /// Prove the block height for the current header and the trusted header.
+    /// Pass in the block height to get_data_commitment.
     /// Merkle prove the last block id against the current header
     /// Merkle prove the data hash for every header (except the current header)
     /// Note: data_hash_proofs and prev_header_proofs should be in order from current_header to trusted_header
@@ -87,22 +110,31 @@ pub trait CelestiaCommitment<L: PlonkParameters<D>, const D: usize> {
         const WINDOW_RANGE: usize,
     >(
         &mut self,
-        curr_header: Bytes32Variable,
-        trusted_header: Bytes32Variable,
-        data_hash_proofs: ArrayVariable<
-            MerkleInclusionProofVariable<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES>,
-            WINDOW_RANGE,
-        >,
-        prev_header_proofs: ArrayVariable<
-            MerkleInclusionProofVariable<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES>,
-            WINDOW_RANGE,
-        >,
+        input: CelestiaHeaderChainProofInputVariable<WINDOW_RANGE>,
     ) where
         <<L as PlonkParameters<D>>::Config as GenericConfig<D>>::Hasher: AlgebraicHasher<L::Field>;
 }
 
 impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for CircuitBuilder<L, D> {
     type Curve = Ed25519;
+
+    fn marshal_u32_as_varint(&mut self, num: &U32Variable) -> BytesVariable<9> {
+        // Lower then upper bytes.
+        let voting_power = I64Target([U32Target(num.targets()[0]), U32Target::default()]);
+        let marshalled_bits = self.api.marshal_int64_varint(&voting_power);
+        // Convert marshalled_bits to BytesVariable<9>.
+        let marshalled_bytes = marshalled_bits
+            .chunks(8)
+            .map(|chunk| {
+                let targets = chunk.iter().map(|b| b.target).collect_vec();
+                ByteVariable::from_targets(&targets)
+            })
+            .collect_vec();
+
+        let mut bytes = [ByteVariable::init(self); 9];
+        bytes.copy_from_slice(&marshalled_bytes);
+        BytesVariable(bytes)
+    }
 
     fn encode_data_root_tuple(
         &mut self,
@@ -185,23 +217,69 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
         const WINDOW_RANGE: usize,
     >(
         &mut self,
-        curr_header: Bytes32Variable,
-        trusted_header: Bytes32Variable,
-        data_hash_proofs: ArrayVariable<
-            MerkleInclusionProofVariable<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES>,
-            WINDOW_RANGE,
-        >,
-        prev_header_proofs: ArrayVariable<
-            MerkleInclusionProofVariable<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES>,
-            WINDOW_RANGE,
-        >,
+        input: CelestiaHeaderChainProofInputVariable<WINDOW_RANGE>,
     ) where
         <<L as PlonkParameters<D>>::Config as GenericConfig<D>>::Hasher: AlgebraicHasher<L::Field>,
     {
-        let mut curr_header_hash = curr_header;
+        let height_diff = self.sub(input.current_header_height, input.trusted_header_height);
+        let window_range_target = self.constant::<U32Variable>(WINDOW_RANGE as u32);
+        self.assert_is_equal(height_diff, window_range_target);
+
+        // Verify the current header height proof against the current header.
+        let encoded_height = self.marshal_u32_as_varint(&input.current_header_height);
+        self.watch(&encoded_height, "encoded_height");
+        // Extend encoded_height to 64 bytes.
+        let mut encoded_height_extended = [ByteVariable::init(self); 64];
+        for i in 0..PROTOBUF_VARINT_SIZE_BYTES {
+            encoded_height_extended[i] = encoded_height.0[i];
+        }
+        let encoded_height = BytesVariable::<64>(encoded_height_extended);
+
+        let last_chunk = self.constant::<U32Variable>(0);
+        let leaf_hash = self.curta_sha256_variable::<1>(
+            &encoded_height.0,
+            last_chunk,
+            input.current_header_height_byte_length,
+        );
+        self.watch(&leaf_hash, "leaf_hash");
+
+        let current_header_height_proof_root = self
+            .get_root_from_merkle_proof_hashed_leaf::<HEADER_PROOF_DEPTH>(
+                &input.current_header_height_proof.aunts,
+                &input.current_header_height_proof.path_indices,
+                leaf_hash,
+            );
+        self.assert_is_equal(current_header_height_proof_root, input.current_header);
+
+        // Verify the trusted header height proof against the current header.
+        let mut encoded_height_extended = [ByteVariable::init(self); 64];
+        for i in 0..PROTOBUF_VARINT_SIZE_BYTES {
+            encoded_height_extended[i] = encoded_height.0[i];
+        }
+        let encoded_height = BytesVariable::<64>(encoded_height_extended);
+
+        let last_chunk = self.constant::<U32Variable>(0);
+        let leaf_hash = self.curta_sha256_variable::<1>(
+            &encoded_height.0,
+            last_chunk,
+            input.trusted_header_height_byte_length,
+        );
+
+        self.watch(&leaf_hash, "leaf_hash");
+
+        let trusted_header_height_proof_root = self
+            .get_root_from_merkle_proof_hashed_leaf::<HEADER_PROOF_DEPTH>(
+                &input.trusted_header_height_proof.aunts,
+                &input.trusted_header_height_proof.path_indices,
+                leaf_hash,
+            );
+        self.assert_is_equal(trusted_header_height_proof_root, input.trusted_header);
+
+        let mut curr_header_hash = input.current_header;
+
         for i in 0..WINDOW_RANGE {
-            let data_hash_proof = &data_hash_proofs[i];
-            let prev_header_proof = &prev_header_proofs[i];
+            let data_hash_proof = &input.data_hash_proofs[i];
+            let prev_header_proof = &input.prev_header_proofs[i];
 
             let data_hash_proof_root = self
                 .get_root_from_merkle_proof::<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES>(
@@ -225,7 +303,7 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
             curr_header_hash = prev_header_hash;
         }
         // Verify the last header hash in the chain is the trusted header.
-        self.assert_is_equal(curr_header_hash, trusted_header);
+        self.assert_is_equal(curr_header_hash, input.trusted_header);
     }
 }
 
@@ -301,12 +379,9 @@ pub(crate) mod tests {
         let celestia_header_chain_var =
             builder.read::<CelestiaHeaderChainProofInputVariable<WINDOW_SIZE>>();
 
-        builder.prove_header_chain::<E, C, WINDOW_SIZE>(
-            celestia_header_chain_var.current_header,
-            celestia_header_chain_var.trusted_header,
-            celestia_header_chain_var.data_hash_proofs,
-            celestia_header_chain_var.prev_header_proofs,
-        );
+        // builder.watch(&celestia_header_chain_var, "header chain var");
+
+        builder.prove_header_chain::<E, C, WINDOW_SIZE>(celestia_header_chain_var);
 
         let circuit = builder.build();
 
@@ -316,6 +391,27 @@ pub(crate) mod tests {
         );
         let (proof, output) = circuit.prove(&input);
         circuit.verify(&proof, &input, &output);
+    }
+
+    #[test]
+    fn test_encode_varint() {
+        env::set_var("RUST_LOG", "debug");
+        env_logger::try_init().unwrap_or_default();
+
+        let mut builder = CircuitBuilder::<L, D>::new();
+
+        let height = builder.constant::<U32Variable>(1);
+
+        let encoded_height = builder.marshal_u32_as_varint(&height);
+        builder.watch(&encoded_height, "encoded_height");
+
+        let circuit = builder.build();
+
+        let input = circuit.input();
+        let (proof, mut output) = circuit.prove(&input);
+        circuit.verify(&proof, &input, &output);
+
+        println!("Verified proof");
     }
 
     #[test]
