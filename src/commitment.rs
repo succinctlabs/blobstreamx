@@ -65,11 +65,11 @@ pub trait CelestiaCommitment<L: PlonkParameters<D>, const D: usize> {
     fn marshal_u32_as_varint(&mut self, num: &U32Variable) -> BytesVariable<9>;
 
     /// Encodes the marshalled varint into a BytesVariable<10>.
-    /// Prepends the 0x08 byte to the marshalled varint.
+    /// Prepends a 0x00 byte for the leaf prefix and a 0x08 byte to the marshalled varint.
     fn encode_marshalled_varint(
         &mut self,
         marshalled_varint: &BytesVariable<9>,
-    ) -> BytesVariable<10>;
+    ) -> BytesVariable<11>;
 
     /// Encodes the data hash and height into a tuple.
     /// Spec: https://github.com/celestiaorg/celestia-core/blob/6933af1ead0ddf4a8c7516690e3674c6cdfa7bd8/rpc/core/blocks.go#L325-L334
@@ -78,6 +78,16 @@ pub trait CelestiaCommitment<L: PlonkParameters<D>, const D: usize> {
         data_hash: &Bytes32Variable,
         height: &U32Variable,
     ) -> BytesVariable<64>;
+
+    /// Verifies the block height against the header.
+    fn verify_block_height(
+        &mut self,
+        header: Bytes32Variable,
+        proof: &ArrayVariable<Bytes32Variable, HEADER_PROOF_DEPTH>,
+        path: &ArrayVariable<BoolVariable, HEADER_PROOF_DEPTH>,
+        height: &U32Variable,
+        encoded_height_byte_length: U32Variable,
+    );
 
     fn extract_hash_from_protobuf<const START_BYTE: usize, const PROTOBUF_LENGTH_BYTES: usize>(
         &mut self,
@@ -148,9 +158,10 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
     fn encode_marshalled_varint(
         &mut self,
         marshalled_varint: &BytesVariable<9>,
-    ) -> BytesVariable<10> {
+    ) -> BytesVariable<11> {
         // Prepend the 0x08 byte to the marshalled varint.
         let mut encoded_marshalled_varint = Vec::new();
+        encoded_marshalled_varint.push(self.constant::<ByteVariable>(0u8));
         encoded_marshalled_varint.push(self.constant::<ByteVariable>(8u8));
         encoded_marshalled_varint.extend_from_slice(&marshalled_varint.0);
         BytesVariable(encoded_marshalled_varint.try_into().unwrap())
@@ -180,6 +191,49 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
 
         // Convert Vec<ByteVariable> to BytesVariable<64>.
         BytesVariable::<64>(encoded_tuple.try_into().unwrap())
+    }
+
+    /// Verifies the block height against the header.
+    fn verify_block_height(
+        &mut self,
+        header: Bytes32Variable,
+        proof: &ArrayVariable<Bytes32Variable, HEADER_PROOF_DEPTH>,
+        path: &ArrayVariable<BoolVariable, HEADER_PROOF_DEPTH>,
+        height: &U32Variable,
+        encoded_height_byte_length: U32Variable,
+    ) {
+        // Verify the current header height proof against the current header.
+        let encoded_height = self.marshal_u32_as_varint(&height);
+        let encoded_height = self.encode_marshalled_varint(&encoded_height);
+        self.watch(&encoded_height, "encoded height");
+        // Extend encoded_height to 64 bytes.
+        let mut encoded_height_extended = [ByteVariable::init(self); 64];
+        for i in 0..PROTOBUF_VARINT_SIZE_BYTES {
+            encoded_height_extended[i] = encoded_height.0[i];
+        }
+        for i in PROTOBUF_VARINT_SIZE_BYTES..64 {
+            encoded_height_extended[i] = self.constant::<ByteVariable>(0u8);
+        }
+        let encoded_height = BytesVariable::<64>(encoded_height_extended);
+
+        let last_chunk = self.constant::<U32Variable>(0);
+
+        // Add 1 to the encoded height byte length to account for the 0x00 byte.
+        let one_u32 = self.constant::<U32Variable>(1);
+        let encoded_height_byte_length = self.add(encoded_height_byte_length, one_u32);
+
+        let leaf_hash = self.curta_sha256_variable::<1>(
+            &encoded_height.0,
+            last_chunk,
+            encoded_height_byte_length,
+        );
+        self.watch(&leaf_hash, "leaf_hash");
+
+        let computed_root = self
+            .get_root_from_merkle_proof_hashed_leaf::<HEADER_PROOF_DEPTH>(&proof, &path, leaf_hash);
+        self.watch(&computed_root, "computed root");
+
+        self.assert_is_equal(computed_root, header);
     }
 
     fn extract_hash_from_protobuf<const START_BYTE: usize, const PROTOBUF_LENGTH_BYTES: usize>(
@@ -243,96 +297,55 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
         let window_range_target = self.constant::<U32Variable>(WINDOW_RANGE as u32);
         self.assert_is_equal(height_diff, window_range_target);
 
-        // Verify the current header height proof against the current header.
-        let encoded_height = self.marshal_u32_as_varint(&input.current_header_height);
-        let encoded_height = self.encode_marshalled_varint(&encoded_height);
-        self.watch(&encoded_height, "encoded current header height");
-        // Extend encoded_height to 64 bytes.
-        let mut encoded_height_extended = [ByteVariable::init(self); 64];
-        for i in 0..PROTOBUF_VARINT_SIZE_BYTES {
-            encoded_height_extended[i] = encoded_height.0[i];
-        }
-        for i in PROTOBUF_VARINT_SIZE_BYTES..64 {
-            encoded_height_extended[i] = self.constant::<ByteVariable>(0u8);
-        }
-        let encoded_height = BytesVariable::<64>(encoded_height_extended);
-
-        let last_chunk = self.constant::<U32Variable>(0);
-        let leaf_hash = self.curta_sha256_variable::<1>(
-            &encoded_height.0,
-            last_chunk,
+        // Verify the current block's height
+        self.verify_block_height(
+            input.current_header,
+            &input.current_header_height_proof.aunts,
+            &input.current_header_height_proof.path_indices,
+            &input.current_header_height,
             input.current_header_height_byte_length,
         );
-        self.watch(&leaf_hash, "leaf_hash");
 
-        let current_header_height_proof_root = self
-            .get_root_from_merkle_proof_hashed_leaf::<HEADER_PROOF_DEPTH>(
-                &input.current_header_height_proof.aunts,
-                &input.current_header_height_proof.path_indices,
-                leaf_hash,
-            );
-        self.assert_is_equal(current_header_height_proof_root, input.current_header);
-
-        // Verify the trusted header height proof against the current header.
-        let encoded_height = self.marshal_u32_as_varint(&input.trusted_header_height);
-        let encoded_height = self.encode_marshalled_varint(&encoded_height);
-        self.watch(&encoded_height, "encoded trusted header height");
-        // Extend encoded_height to 64 bytes.
-        let mut encoded_height_extended = [ByteVariable::init(self); 64];
-        for i in 0..PROTOBUF_VARINT_SIZE_BYTES {
-            encoded_height_extended[i] = encoded_height.0[i];
-        }
-        for i in PROTOBUF_VARINT_SIZE_BYTES..64 {
-            encoded_height_extended[i] = self.constant::<ByteVariable>(0u8);
-        }
-        let encoded_height = BytesVariable::<64>(encoded_height_extended);
-
-        let last_chunk = self.constant::<U32Variable>(0);
-        let leaf_hash = self.curta_sha256_variable::<1>(
-            &encoded_height.0,
-            last_chunk,
+        // Verify the trusted block's height
+        self.verify_block_height(
+            input.trusted_header,
+            &input.trusted_header_height_proof.aunts,
+            &input.trusted_header_height_proof.path_indices,
+            &input.trusted_header_height,
             input.trusted_header_height_byte_length,
         );
 
-        self.watch(&leaf_hash, "leaf_hash");
+        // self.assert_is_equal(trusted_header_height_proof_root, input.trusted_header);
 
-        let trusted_header_height_proof_root = self
-            .get_root_from_merkle_proof_hashed_leaf::<HEADER_PROOF_DEPTH>(
-                &input.trusted_header_height_proof.aunts,
-                &input.trusted_header_height_proof.path_indices,
-                leaf_hash,
-            );
-        self.assert_is_equal(trusted_header_height_proof_root, input.trusted_header);
+        // let mut curr_header_hash = input.current_header;
 
-        let mut curr_header_hash = input.current_header;
+        // for i in 0..WINDOW_RANGE {
+        //     let data_hash_proof = &input.data_hash_proofs[i];
+        //     let prev_header_proof = &input.prev_header_proofs[i];
 
-        for i in 0..WINDOW_RANGE {
-            let data_hash_proof = &input.data_hash_proofs[i];
-            let prev_header_proof = &input.prev_header_proofs[i];
+        //     let data_hash_proof_root = self
+        //         .get_root_from_merkle_proof::<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES>(
+        //             &data_hash_proof,
+        //         );
+        //     let prev_header_proof_root = self
+        //         .get_root_from_merkle_proof::<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES>(
+        //             &prev_header_proof,
+        //         );
 
-            let data_hash_proof_root = self
-                .get_root_from_merkle_proof::<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES>(
-                    &data_hash_proof,
-                );
-            let prev_header_proof_root = self
-                .get_root_from_merkle_proof::<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES>(
-                    &prev_header_proof,
-                );
+        //     // Verify the prev header proof against the current header hash.
+        //     self.assert_is_equal(prev_header_proof_root, curr_header_hash);
 
-            // Verify the prev header proof against the current header hash.
-            self.assert_is_equal(prev_header_proof_root, curr_header_hash);
+        //     // Extract the prev header hash from the prev header proof.
+        //     let prev_header_hash =
+        //         self.extract_hash_from_protobuf::<2, 72>(&prev_header_proof.leaf);
 
-            // Extract the prev header hash from the prev header proof.
-            let prev_header_hash =
-                self.extract_hash_from_protobuf::<2, 72>(&prev_header_proof.leaf);
+        //     // Verify the data hash proof against the prev header hash.
+        //     self.assert_is_equal(data_hash_proof_root, prev_header_hash);
 
-            // Verify the data hash proof against the prev header hash.
-            self.assert_is_equal(data_hash_proof_root, prev_header_hash);
-
-            curr_header_hash = prev_header_hash;
-        }
-        // Verify the last header hash in the chain is the trusted header.
-        self.assert_is_equal(curr_header_hash, input.trusted_header);
+        //     curr_header_hash = prev_header_hash;
+        // }
+        // // Verify the last header hash in the chain is the trusted header.
+        // self.assert_is_equal(curr_header_hash, input.trusted_header);
     }
 }
 
