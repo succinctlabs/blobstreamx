@@ -82,9 +82,13 @@ pub const VALIDATOR_MESSAGE_BYTES_LENGTH_MAX: usize = 124;
 #[derive(Debug, Clone, Copy)]
 pub struct EncBlockIDTarget(pub [BoolTarget; PROTOBUF_BLOCK_ID_SIZE_BITS]);
 
+pub type EncBlockIDVariable = BytesVariable<PROTOBUF_BLOCK_ID_SIZE_BYTES>;
+
 /// A protobuf-encoded tendermint hash as a 34 byte target.
 #[derive(Debug, Clone, Copy)]
 pub struct EncTendermintHashTarget(pub [BoolTarget; PROTOBUF_HASH_SIZE_BITS]);
+
+pub type EncTendermintHashVariable = BytesVariable<PROTOBUF_HASH_SIZE_BYTES>;
 
 /// The Tendermint hash as a 32 byte target.
 #[derive(Debug, Clone, Copy)]
@@ -101,6 +105,8 @@ pub struct I64Target(pub [U32Target; 2]);
 /// The message signed by the validator as a target.
 #[derive(Debug, Clone, Copy)]
 pub struct ValidatorMessageTarget(pub [BoolTarget; VALIDATOR_MESSAGE_BYTES_LENGTH_MAX * 8]);
+
+pub type ValidatorMessageVariable = BytesVariable<VALIDATOR_MESSAGE_BYTES_LENGTH_MAX>;
 
 // Convert from [BoolTarget; HASH_SIZE_BITS] to [BoolTarget; PROTOBUF_HASH_SIZE_BITS]
 pub fn bits_to_bytes(bits: &[bool]) -> Vec<u8> {
