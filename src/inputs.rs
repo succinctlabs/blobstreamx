@@ -1,11 +1,13 @@
 use std::fs;
 
-use crate::commitment::{CelestiaDataCommitmentProofInput, CelestiaHeaderChainProofInput};
+use crate::commitment::{
+    CelestiaDataCommitmentProofInput, CelestiaHeaderChainProofInput, HeaderVariableInput,
+};
 use crate::fixture::{DataCommitmentFixture, HeaderChainFixture};
 /// Source (tendermint-rs): https://github.com/informalsystems/tendermint-rs/blob/e930691a5639ef805c399743ac0ddbba0e9f53da/tendermint/src/merkle.rs#L32
 use crate::utils::{
     compute_hash_from_aunts, generate_proofs_from_header, leaf_hash, non_absent_vote, SignedBlock,
-    TempSignedBlock,
+    TempSignedBlock, VARINT_SIZE_BYTES,
 };
 use ed25519_consensus::SigningKey;
 use ethers::types::H256;
@@ -217,14 +219,44 @@ pub fn generate_header_chain_inputs<const WINDOW_SIZE: usize, F: RichField>(
     }
 
     CelestiaHeaderChainProofInput {
-        current_header: H256::from_slice(fixture.curr_header.as_bytes()),
-        trusted_header: H256::from_slice(fixture.trusted_header.as_bytes()),
+        current_header: HeaderVariableInput {
+            header: H256::from_slice(fixture.curr_header.as_bytes()),
+            header_height_proof: InclusionProof {
+                // TODO: We use the height to generate the leaf, can remove this when we refactor the type
+                leaf: [0u8; VARINT_SIZE_BYTES],
+                path_indices: fixture.current_block_height_proof.path.clone(),
+                aunts: fixture
+                    .current_block_height_proof
+                    .proof
+                    .clone()
+                    .try_into()
+                    .unwrap(),
+            },
+            height: fixture.current_block,
+            height_byte_length: fixture.encoded_current_height_byte_length,
+        },
+        trusted_header: HeaderVariableInput {
+            header: H256::from_slice(fixture.trusted_header.as_bytes()),
+            header_height_proof: InclusionProof {
+                // TODO: We use the height to generate the leaf, can remove this when we refactor the type
+                leaf: [0u8; VARINT_SIZE_BYTES],
+                path_indices: fixture.trusted_block_height_proof.path.clone(),
+                aunts: fixture
+                    .trusted_block_height_proof
+                    .proof
+                    .clone()
+                    .try_into()
+                    .unwrap(),
+            },
+            height: fixture.trusted_block,
+            height_byte_length: fixture.encoded_trusted_height_byte_length,
+        },
         prev_header_proofs,
         data_hash_proofs,
     }
 }
 
-pub fn convert_to_H256(aunts: Vec<[u8; 32]>) -> Vec<H256> {
+pub fn convert_to_h256(aunts: Vec<[u8; 32]>) -> Vec<H256> {
     let mut aunts_h256 = Vec::new();
     for aunt in aunts {
         aunts_h256.push(H256::from_slice(&aunt));
@@ -331,7 +363,7 @@ fn generate_base_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
     let data_hash_proof = TempMerkleInclusionProof {
         enc_leaf: enc_data_hash_leaf,
         path: enc_data_hash_proof_indices,
-        proof: convert_to_H256(enc_data_hash_proof.aunts),
+        proof: convert_to_h256(enc_data_hash_proof.aunts),
     };
 
     let enc_validators_hash_proof = proofs[7].clone();
@@ -339,14 +371,14 @@ fn generate_base_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
     let validators_hash_proof = TempMerkleInclusionProof {
         enc_leaf: enc_validators_hash_leaf,
         path: enc_validators_hash_proof_indices,
-        proof: convert_to_H256(enc_validators_hash_proof.aunts),
+        proof: convert_to_h256(enc_validators_hash_proof.aunts),
     };
     let enc_next_validators_hash_proof = proofs[8].clone();
     let enc_next_validators_hash_proof_indices = get_path_indices(8, total);
     let next_validators_hash_proof = TempMerkleInclusionProof {
         enc_leaf: enc_next_validators_hash_leaf,
         path: enc_next_validators_hash_proof_indices,
-        proof: convert_to_H256(enc_next_validators_hash_proof.aunts),
+        proof: convert_to_h256(enc_next_validators_hash_proof.aunts),
     };
 
     println!("num validators: {}", validators.len());
@@ -385,7 +417,7 @@ pub fn generate_step_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
     let last_block_id_proof = TempMerkleInclusionProof {
         enc_leaf: enc_leaf.clone(),
         path: enc_last_block_id_proof_indices,
-        proof: convert_to_H256(enc_last_block_id_proof.clone().aunts),
+        proof: convert_to_h256(enc_last_block_id_proof.clone().aunts),
     };
     assert_eq!(
         leaf_hash::<Sha256>(&enc_leaf),
@@ -422,7 +454,7 @@ pub fn generate_step_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
     let prev_header_next_validators_hash_proof = TempMerkleInclusionProof {
         enc_leaf: enc_prev_header_next_validators_hash_leaf,
         path: enc_prev_header_next_validators_hash_proof_indices,
-        proof: convert_to_H256(enc_prev_header_next_validators_hash_proof.aunts),
+        proof: convert_to_h256(enc_prev_header_next_validators_hash_proof.aunts),
     };
 
     let base = generate_base_inputs::<VALIDATOR_SET_SIZE_MAX>(&block);
@@ -548,7 +580,7 @@ pub fn generate_skip_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
     let validators_hash_proof = TempMerkleInclusionProof {
         enc_leaf: enc_validators_hash_leaf,
         path: enc_validators_hash_proof_indices,
-        proof: convert_to_H256(enc_validators_hash_proof.aunts),
+        proof: convert_to_h256(enc_validators_hash_proof.aunts),
     };
 
     // Set the present_on_trusted_header field for each validator that is needed to reach the 1/3 threshold

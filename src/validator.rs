@@ -755,6 +755,7 @@ pub(crate) mod tests {
         // The tuples hold the form: (voting_power_i64, voting_power_varint_bytes).
         let test_cases = [
             (1i64, vec![1u8]),
+            (3804i64, vec![220u8, 29u8]),
             (1234567890i64, vec![210, 133, 216, 204, 4]),
             (38957235239i64, vec![167, 248, 160, 144, 145, 1]),
             (9999999999999i64, vec![255, 191, 202, 243, 132, 163, 2]),
@@ -776,7 +777,9 @@ pub(crate) mod tests {
             // TODO: Need to add check in marshal that this is not negative
             let voting_power_i64 = test_case.0;
             let voting_power_lower = voting_power_i64 & ((1 << 32) - 1);
+            println!("voting_power_lower: {:?}", voting_power_lower);
             let voting_power_upper = voting_power_i64 >> 32;
+            println!("voting_power_upper: {:?}", voting_power_upper);
 
             let voting_power_lower_target =
                 U32Target(builder.constant(F::from_canonical_usize(voting_power_lower as usize)));

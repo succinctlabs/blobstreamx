@@ -1,5 +1,5 @@
 use crate::{
-    inputs::{convert_to_H256, get_path_indices, TempMerkleInclusionProof},
+    inputs::{convert_to_h256, get_path_indices, TempMerkleInclusionProof},
     utils::{generate_proofs_from_header, leaf_hash, SignedBlock, TempSignedBlock},
 };
 use ethers::abi::AbiEncode;
@@ -50,8 +50,12 @@ pub struct DataCommitmentFixture {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct HeaderChainFixture {
-    pub current_block: u64,
-    pub trusted_block: u64,
+    pub current_block: u32,
+    pub current_block_height_proof: TempMerkleInclusionProof,
+    pub encoded_current_height_byte_length: u32,
+    pub trusted_block: u32,
+    pub trusted_block_height_proof: TempMerkleInclusionProof,
+    pub encoded_trusted_height_byte_length: u32,
     pub curr_header: Hash,
     pub trusted_header: Hash,
     pub data_hash_proofs: Vec<TempMerkleInclusionProof>,
@@ -154,26 +158,58 @@ pub async fn get_signed_block_from_rpc(block: usize) -> Box<SignedBlock> {
     })
 }
 
+pub fn get_header_and_height_proof(block: &SignedBlock) -> TempMerkleInclusionProof {
+    let (_root, proofs) = generate_proofs_from_header(&block.header);
+    let total = proofs[0].total;
+    let enc_height_proof = proofs[2].clone();
+    let enc_height_proof_indices = get_path_indices(2, total);
+    let enc_height = block.header.height.encode_vec();
+    let enc_height_proof = TempMerkleInclusionProof {
+        enc_leaf: enc_height,
+        path: enc_height_proof_indices,
+        proof: convert_to_h256(enc_height_proof.clone().aunts),
+    };
+    enc_height_proof
+}
+
 pub async fn create_header_chain_fixture(
     trusted_block: usize,
     current_block: usize,
 ) -> Result<(), Error> {
     let mut fixture: HeaderChainFixture = HeaderChainFixture {
-        current_block: current_block as u64,
-        trusted_block: trusted_block as u64,
+        current_block: current_block as u32,
+        trusted_block: trusted_block as u32,
         curr_header: Hash::default(),
+        current_block_height_proof: TempMerkleInclusionProof {
+            enc_leaf: Vec::new(),
+            path: Vec::new(),
+            proof: Vec::new(),
+        },
+        encoded_current_height_byte_length: 0,
         trusted_header: Hash::default(),
+        trusted_block_height_proof: TempMerkleInclusionProof {
+            enc_leaf: Vec::new(),
+            path: Vec::new(),
+            proof: Vec::new(),
+        },
+        encoded_trusted_height_byte_length: 0,
         data_hash_proofs: Vec::new(),
         prev_header_proofs: Vec::new(),
     };
 
-    // Get the dataHash of the block range (startBlock, endBlock)
+    // Get the header hash and block height proof of the current block
     let block = get_signed_block_from_rpc(current_block).await;
+    let height_proof = get_header_and_height_proof(&block);
     fixture.curr_header = block.header.hash();
+    fixture.current_block_height_proof = height_proof.clone();
+    fixture.encoded_current_height_byte_length = height_proof.enc_leaf.len() as u32;
 
-    // Write the trusted header
+    // Get the header hash and block height proof of the trusted block
     let block = get_signed_block_from_rpc(trusted_block).await;
+    let height_proof = get_header_and_height_proof(&block);
     fixture.trusted_header = block.header.hash();
+    fixture.trusted_block_height_proof = height_proof.clone();
+    fixture.encoded_trusted_height_byte_length = height_proof.enc_leaf.len() as u32;
 
     let mut data_hash_proofs = Vec::new();
     let mut prev_header_proofs = Vec::new();
@@ -194,7 +230,7 @@ pub async fn create_header_chain_fixture(
         let last_block_id_proof = TempMerkleInclusionProof {
             enc_leaf: enc_last_block_id_leaf.clone(),
             path: enc_last_block_id_proof_indices,
-            proof: convert_to_H256(enc_last_block_id_proof.clone().aunts),
+            proof: convert_to_h256(enc_last_block_id_proof.clone().aunts),
         };
         prev_header_proofs.push(last_block_id_proof);
 
@@ -211,7 +247,7 @@ pub async fn create_header_chain_fixture(
         let data_hash_proof = TempMerkleInclusionProof {
             enc_leaf: enc_data_hash_leaf.clone(),
             path: enc_data_hash_proof_indices,
-            proof: convert_to_H256(enc_data_hash_proof.clone().aunts),
+            proof: convert_to_h256(enc_data_hash_proof.clone().aunts),
         };
         data_hash_proofs.push(data_hash_proof);
     }
@@ -462,8 +498,6 @@ pub(crate) mod tests {
             "Root hash: {:?}",
             String::from_utf8(hex::encode(root_hash)).unwrap()
         );
-
-        let computed_root_hash = proofs[0].compute_root_hash().unwrap();
 
         println!(
             "Leaf: {:?}",
