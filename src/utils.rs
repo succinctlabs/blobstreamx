@@ -2,6 +2,7 @@ use plonky2::hash::hash_types::RichField;
 
 use plonky2::iop::target::BoolTarget;
 use plonky2x::frontend::num::u32::gadgets::arithmetic_u32::U32Target;
+use plonky2x::prelude::{Bytes32Variable, BytesVariable};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::cell::RefCell;
@@ -21,7 +22,6 @@ use tendermint_proto::{
     types::BlockId as RawBlockId, types::Data as RawData,
     version::Consensus as RawConsensusVersion, Protobuf,
 };
-
 /// The number of bits in a SHA256 hash.
 pub const HASH_SIZE_BITS: usize = HASH_SIZE * 8;
 
@@ -90,9 +90,9 @@ pub struct EncTendermintHashTarget(pub [BoolTarget; PROTOBUF_HASH_SIZE_BITS]);
 #[derive(Debug, Clone, Copy)]
 pub struct TendermintHashTarget(pub [BoolTarget; HASH_SIZE_BITS]);
 
-/// The marshalled validator bits as a target.
-#[derive(Debug, Clone, Copy)]
-pub struct MarshalledValidatorTarget(pub [BoolTarget; VALIDATOR_BIT_LENGTH_MAX]);
+pub type TendermintHashVariable = Bytes32Variable;
+/// The marshalled validator bytes as a variable.
+pub type MarshalledValidatorVariable = BytesVariable<VALIDATOR_BYTE_LENGTH_MAX>;
 
 /// The voting power as a list of 2 u32 targets.
 #[derive(Debug, Clone, Copy)]

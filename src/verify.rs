@@ -55,7 +55,7 @@ use crate::{
     signature::TendermintSignature,
     utils::{
         to_be_bits, EncBlockIDTarget, EncTendermintHashTarget, I64Target,
-        MarshalledValidatorTarget, TendermintHashTarget, ValidatorMessageTarget, HASH_SIZE_BITS,
+        MarshalledValidatorVariable, TendermintHashTarget, ValidatorMessageTarget, HASH_SIZE_BITS,
         HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SHA256_NUM_BYTES, PROTOBUF_BLOCK_ID_SIZE_BITS,
         PROTOBUF_HASH_SHA256_NUM_BYTES, PROTOBUF_HASH_SIZE_BITS,
         VALIDATOR_MESSAGE_BYTES_LENGTH_MAX,
@@ -316,7 +316,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
         // Assumes the validators are sorted in the correct order
         let byte_lengths: Vec<Target> =
             validators.iter().map(|v| v.validator_byte_length).collect();
-        let marshalled_validators: Vec<MarshalledValidatorTarget> = validators
+        let marshalled_validators: Vec<MarshalledValidatorVariable> = validators
             .iter()
             .map(|v| self.marshal_tendermint_validator(&v.pubkey.0, &v.voting_power))
             .collect();
@@ -661,7 +661,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
             );
         }
 
-        let marshalled_trusted_validators: Vec<MarshalledValidatorTarget> =
+        let marshalled_trusted_validators: Vec<MarshalledValidatorVariable> =
             trusted_validator_hash_fields
                 .iter()
                 .map(|v| self.marshal_tendermint_validator(&v.pubkey.0, &v.voting_power))

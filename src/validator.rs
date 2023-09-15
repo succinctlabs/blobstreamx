@@ -6,6 +6,12 @@
 //! The `pubkey` is encoded as the raw list of bytes used in the public key. The `varint` is
 //! encoded using protobuf's default integer encoding, which consist of 7 bit payloads. You can
 //! read more about them here: https://protobuf.dev/programming-guides/encoding/#varints.
+use crate::utils::TendermintHashVariable;
+use crate::utils::{
+    MarshalledValidatorVariable, TendermintHashTarget, HASH_SIZE_BITS, VALIDATOR_BIT_LENGTH_MAX,
+    VALIDATOR_BYTE_LENGTH_MAX, VOTING_POWER_BITS_LENGTH_MAX, VOTING_POWER_BYTES_LENGTH_MAX,
+};
+use crate::voting;
 use curta::chip::hash::sha::sha256::builder_gadget::{
     CurtaBytes, SHA256Builder, SHA256BuilderGadget,
 };
@@ -19,15 +25,16 @@ use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
 use plonky2x::frontend::ecc::ed25519::gadgets::curve::{AffinePointTarget, CircuitBuilderCurve};
 use plonky2x::frontend::hash::sha::sha256::pad_single_sha256_chunk;
 use plonky2x::frontend::num::u32::gadgets::arithmetic_u32::CircuitBuilderU32;
+use plonky2x::frontend::num::u32::gadgets::arithmetic_u32::U32Target;
 use plonky2x::frontend::uint::uint64::U64Variable;
+use plonky2x::frontend::vars::U32Variable;
+use plonky2x::prelude::Field;
 use tendermint::merkle::HASH_SIZE;
 
-use crate::utils::{
-    MarshalledValidatorTarget, TendermintHashTarget, HASH_SIZE_BITS, VALIDATOR_BIT_LENGTH_MAX,
-    VALIDATOR_BYTE_LENGTH_MAX, VOTING_POWER_BITS_LENGTH_MAX, VOTING_POWER_BYTES_LENGTH_MAX,
+use plonky2x::prelude::{
+    BoolVariable, ByteVariable, BytesVariable, CircuitBuilder, CircuitVariable, PlonkParameters,
+    Variable,
 };
-
-use plonky2x::prelude::{BoolVariable, ByteVariable, CircuitBuilder, PlonkParameters, Variable};
 
 pub trait TendermintValidator<L: PlonkParameters<D>, const D: usize> {
     type Curve: Curve;
@@ -36,37 +43,37 @@ pub trait TendermintValidator<L: PlonkParameters<D>, const D: usize> {
     fn marshal_int64_varint(
         &mut self,
         num: &U64Variable,
-    ) -> [BoolTarget; VOTING_POWER_BITS_LENGTH_MAX];
+    ) -> [ByteVariable; VOTING_POWER_BYTES_LENGTH_MAX];
 
     /// Serializes the validator public key and voting power to bytes.
     fn marshal_tendermint_validator(
         &mut self,
         pubkey: &AffinePointTarget<Self::Curve>,
         voting_power: &U64Variable,
-    ) -> MarshalledValidatorTarget;
+    ) -> MarshalledValidatorVariable;
 
     /// Hashes validator bytes to get the leaf according to the Tendermint spec. (0x00 || validatorBytes)
     /// Note: This function differs from leaf_hash_stark because the validator bytes length is variable.
     fn hash_validator_leaf(
         &mut self,
-        validator: &MarshalledValidatorTarget,
-        validator_byte_length: Target,
-    ) -> TendermintHashTarget;
+        validator: &MarshalledValidatorVariable,
+        validator_byte_length: Variable,
+    ) -> TendermintHashVariable;
 
     /// Hashes multiple validators to get their leaves according to the Tendermint spec using hash_validator_leaf.
     fn hash_validator_leaves<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
-        validators: &Vec<MarshalledValidatorTarget>,
-        validator_byte_lengths: &Vec<Target>,
-    ) -> Vec<TendermintHashTarget>;
+        validators: &Vec<MarshalledValidatorVariable>,
+        validator_byte_lengths: &Vec<Variable>,
+    ) -> Vec<TendermintHashVariable>;
 
     /// Compute the expected validator hash from the validator set.
     fn hash_validator_set<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
-        validators: &Vec<MarshalledValidatorTarget>,
-        validator_byte_lengths: &Vec<Target>,
-        validator_enabled: &Vec<BoolTarget>,
-    ) -> TendermintHashTarget;
+        validators: &Vec<MarshalledValidatorVariable>,
+        validator_byte_lengths: &Vec<Variable>,
+        validator_enabled: &Vec<BoolVariable>,
+    ) -> TendermintHashVariable;
 }
 
 impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for CircuitBuilder<L, D> {
@@ -75,28 +82,27 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for Circui
     fn marshal_int64_varint(
         &mut self,
         voting_power: &U64Variable,
-    ) -> [BoolTarget; VOTING_POWER_BITS_LENGTH_MAX] {
-        let zero = self.zero();
-        let one = self.one();
+    ) -> [ByteVariable; VOTING_POWER_BYTES_LENGTH_MAX] {
+        let zero = self.zero::<Variable>();
+        let one = self.one::<Variable>();
 
         // The remaining bytes of the serialized validator are the voting power as a "varint".
         // Note: need to be careful regarding U64 and I64 differences.
-        let voting_power_bits_lower = self.u32_to_bits_le(voting_power.0[0]);
-        let voting_power_bits_upper = self.u32_to_bits_le(voting_power.0[1]);
-        let voting_power_bits = [voting_power_bits_lower, voting_power_bits_upper].concat();
+        let voting_power_bits = self.to_le_bits(*voting_power);
 
         // Check that the MSB of the voting power is zero.
-        self.assert_zero(voting_power_bits[voting_power_bits.len() - 1].target);
+        self.api
+            .assert_zero(voting_power_bits[voting_power_bits.len() - 1].0 .0);
 
         // The septet (7 bit) payloads  of the "varint".
         let septets = (0..VOTING_POWER_BYTES_LENGTH_MAX)
             .map(|i| {
-                let mut base = F::ONE;
-                let mut septet = self.zero();
+                let mut base = L::Field::ONE;
+                let mut septet = self.zero::<Variable>();
                 for j in 0..7 {
                     let bit = voting_power_bits[i * 7 + j];
-                    septet = self.mul_const_add(base, bit.target, septet);
-                    base *= F::TWO;
+                    septet = Variable(self.api.mul_const_add(base, bit.0 .0, septet.0));
+                    base *= L::Field::TWO;
                 }
                 septet
             })
@@ -104,171 +110,120 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for Circui
 
         // Calculates whether the septet is not zero.
         let is_zero_septets = (0..VOTING_POWER_BYTES_LENGTH_MAX)
-            .map(|i| self.is_equal(septets[i], zero).target)
+            .map(|i| self.is_equal(septets[i], zero))
             .collect::<Vec<_>>();
 
         // Calculates the index of the last non-zero septet.
         let mut last_seen_non_zero_septet_idx = self.zero();
         for i in 0..VOTING_POWER_BYTES_LENGTH_MAX {
-            let is_nonzero_septet = self.sub(one, is_zero_septets[i]);
-            let condition = BoolTarget::new_unsafe(is_nonzero_septet);
-            let idx = self.constant(F::from_canonical_usize(i));
+            // Ok to cast as BoolVraiable sinec is_zero_septets[i] is 0 or 1 so result is either 0 or 1
+            let is_nonzero_septet = BoolVariable(self.sub(one, is_zero_septets[i].0));
+            let idx = self.constant::<Variable>(L::Field::from_canonical_usize(i));
             last_seen_non_zero_septet_idx =
-                self.select(condition, idx, last_seen_non_zero_septet_idx);
+                self.select(is_nonzero_septet, idx, last_seen_non_zero_septet_idx);
         }
+
+        let mut res = [self.zero(); VOTING_POWER_BYTES_LENGTH_MAX];
 
         // If the index of a septet is elss than the last non-zero septet, set the most significant
         // bit of the byte to 1 and copy the septet bits into the lower 7 bits. Otherwise, still
         // copy the bit but the set the most significant bit to zero.
-        let mut buffer = [self._false(); VOTING_POWER_BYTES_LENGTH_MAX * 8];
         for i in 0..VOTING_POWER_BYTES_LENGTH_MAX {
             // If the index is less than the last non-zero septet index, `diff` will be in
             // [0, VOTING_POWER_BYTES_LENGTH_MAX).
-            let idx = self.constant(F::from_canonical_usize(i + 1));
+            let idx = self.constant(L::Field::from_canonical_usize(i + 1));
             let diff = self.sub(last_seen_non_zero_septet_idx, idx);
 
             // Calculates whether we've seen at least one `diff` in [0, VOTING_POWER_BYTES_LENGTH_MAX).
-            let mut is_lt_last_non_zero_septet_idx = BoolTarget::new_unsafe(zero);
+            let mut is_lt_last_non_zero_septet_idx = self._false();
             for j in 0..VOTING_POWER_BYTES_LENGTH_MAX {
-                let candidate_idx = self.constant(F::from_canonical_usize(j));
+                let candidate_idx = self.constant(L::Field::from_canonical_usize(j));
                 let is_candidate = self.is_equal(diff, candidate_idx);
                 is_lt_last_non_zero_septet_idx =
                     self.or(is_lt_last_non_zero_septet_idx, is_candidate);
             }
 
+            let mut buffer = [self._false(); 8];
             // Copy septet bits into the buffer.
             for j in 0..7 {
                 let bit = voting_power_bits[i * 7 + j];
-                buffer[i * 8 + j] = bit;
+                buffer[j] = bit;
             }
 
             // Set the most significant bit of the byte to 1 if the index is less than the last
             // non-zero septet index.
-            buffer[i * 8 + 7] = is_lt_last_non_zero_septet_idx;
+            buffer[7] = is_lt_last_non_zero_septet_idx;
+
+            res[i] = ByteVariable::from_variables_unsafe(
+                &buffer.iter().map(|x| x.0).collect::<Vec<Variable>>(),
+            );
         }
 
-        return buffer;
+        return res;
     }
 
     fn marshal_tendermint_validator(
         &mut self,
         pubkey: &AffinePointTarget<Self::Curve>,
         voting_power: &U64Variable,
-    ) -> MarshalledValidatorTarget {
-        let mut ptr = 0;
-        let mut buffer = [self._false(); VALIDATOR_BYTE_LENGTH_MAX * 8];
+    ) -> MarshalledValidatorVariable {
+        let mut res = Vec::new();
+        res.push(self.constant::<ByteVariable>(10u8));
+        res.push(self.constant::<ByteVariable>(34u8));
+        res.push(self.constant::<ByteVariable>(10u8));
+        res.push(self.constant::<ByteVariable>(32u8));
 
-        // The first four prefix bytes of the serialized validator are `10 34 10 32`.
-        let prefix_pubkey_bytes = [10, 34, 10, 32];
-        for i in 0..prefix_pubkey_bytes.len() {
-            for j in 0..8 {
-                let bit = self.constant(F::from_canonical_u64((prefix_pubkey_bytes[i] >> j) & 1));
-                buffer[ptr] = BoolTarget::new_unsafe(bit);
-                ptr += 1;
-            }
+        let mut compressed_point = self.api.compress_point(pubkey);
+
+        // TODO: in the future compressed_point should probably return a Bytes32Variable
+        for i in 0..32 {
+            let byte_variable = ByteVariable::from_variables_unsafe(
+                &compressed_point.bit_targets[i * 8..(i + 1) * 8]
+                    .iter()
+                    .map(|x| Variable(x.target))
+                    .collect::<Vec<Variable>>(),
+            );
+            res.push(byte_variable);
         }
 
-        self.curve_assert_valid(pubkey);
-
-        let mut compressed_point = self.compress_point(pubkey);
-
-        // Reverse to le bytes and le bits
-        compressed_point.bit_targets.reverse();
-
-        for i in 0..compressed_point.bit_targets.len() {
-            buffer[ptr] = compressed_point.bit_targets[i];
-            ptr += 1;
-        }
-
-        // The next byte of the serialized validator is `16`.
-        let prefix_voting_power_byte = 16;
-        for j in 0..8 {
-            let bit = self.constant(F::from_canonical_u64((prefix_voting_power_byte >> j) & 1));
-            buffer[ptr] = BoolTarget::new_unsafe(bit);
-            ptr += 1;
-        }
+        res.push(self.constant::<ByteVariable>(16u8));
 
         // The remaining bytes of the serialized validator are the voting power as a "varint".
-        let voting_power_bits = self.marshal_int64_varint(voting_power);
-        for i in 0..VOTING_POWER_BYTES_LENGTH_MAX {
-            for j in 0..8 {
-                buffer[ptr] = voting_power_bits[i * 8 + j];
-                ptr += 1;
-            }
-        }
+        let voting_power_serialized = self.marshal_int64_varint(voting_power);
+        res.extend_from_slice(&voting_power_serialized);
 
-        // Flip the bit order.
-        let mut temp_buffer = [self._false(); VALIDATOR_BYTE_LENGTH_MAX * 8];
-        let mut temp_ptr = 0;
-        for (_, bits) in buffer.chunks_mut(8).enumerate() {
-            for (bit_num, _) in bits.iter().enumerate() {
-                temp_buffer[temp_ptr] = bits[7 - bit_num];
-                temp_ptr += 1;
-            }
-        }
+        assert_eq!(res.len(), VALIDATOR_BYTE_LENGTH_MAX);
 
-        MarshalledValidatorTarget(temp_buffer)
+        BytesVariable::<VALIDATOR_BYTE_LENGTH_MAX>(res.try_into().unwrap())
     }
 
     fn hash_validator_leaf(
         &mut self,
-        validator: &MarshalledValidatorTarget,
-        validator_byte_length: Target,
-    ) -> TendermintHashTarget {
-        let one = self.one();
-        let eight = self.constant(F::from_canonical_usize(8));
+        validator: &MarshalledValidatorVariable,
+        validator_byte_length: Variable,
+    ) -> TendermintHashVariable {
+        let mut prepended_validator_bytes = vec![self.zero::<ByteVariable>()];
+        prepended_validator_bytes.extend(validator.0.to_vec());
 
-        // self.curta_sha256_variable(input, last_chunk, input_byte_length)
-
-        // Add one to account for the 0x00 byte.
+        let one = self.one::<Variable>();
         let enc_validator_byte_length = self.add(one, validator_byte_length);
-        // Multiply by 8 to get the bit length.
-        let enc_validator_bit_length = self.mul(enc_validator_byte_length, eight);
+        // TODO: note this is a bit unsafe, so perhaps we should change `curta_sha256_variable` to take in a Variable
+        // instead of a U32Variable
+        let input_byte_length = U32Variable(validator_byte_length);
 
-        // Encode leaf 0x00 || validator_bits.
-        let mut enc_validator_bits = [self._false(); VALIDATOR_BIT_LENGTH_MAX + 8];
-        for i in 0..VALIDATOR_BIT_LENGTH_MAX {
-            enc_validator_bits[i + 8] = validator.0[i];
-        }
+        let zero = self.zero::<U32Variable>();
 
-        // Pad the leaf according to the SHA256 spec.
-        let padded_msg =
-            pad_single_sha256_chunk(self, &enc_validator_bits, enc_validator_bit_length);
-
-        // Convert the [BoolTarget; N] into Curta bytes.
-        let bytes = CurtaBytes(self.add_virtual_target_arr::<64>());
-        const SHA256_SINGLE_CHUNK_BITS_SIZE: usize = 512;
-
-        for i in (0..SHA256_SINGLE_CHUNK_BITS_SIZE).step_by(8) {
-            let mut byte = self.zero();
-            for j in 0..8 {
-                let bit = padded_msg[i + j];
-                // MSB is first.
-                byte = self.mul_const_add(F::from_canonical_u8(1 << (7 - j)), bit.target, byte);
-            }
-            self.connect(byte, bytes.0[i / 8]);
-        }
-
-        let hash = self.sha256(&bytes, gadget);
-
-        self.convert_from_curta_bytes(&hash)
+        // VALIDATOR_BYTE_LENGTH_MAX = 46 so we only need 1 chunk
+        self.curta_sha256_variable::<1>(&prepended_validator_bytes, zero, input_byte_length)
     }
 
     fn hash_validator_leaves<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
-        validators: &Vec<MarshalledValidatorTarget>,
-        validator_byte_lengths: &Vec<Target>,
-    ) -> Vec<TendermintHashTarget> {
-        let num_validators = self.constant(F::from_canonical_usize(validators.len()));
-        let num_validator_byte_lengths =
-            self.constant(F::from_canonical_usize(validator_byte_lengths.len()));
-        let validator_set_size_max = self.constant(F::from_canonical_usize(VALIDATOR_SET_SIZE_MAX));
-
-        // Assert the validators length is VALIDATOR_SET_SIZE_MAX.
-        self.connect(num_validators, validator_set_size_max);
-
-        // Assert the validator_byte_length length is VALIDATOR_SET_SIZE_MAX.
-        self.connect(num_validator_byte_lengths, validator_set_size_max);
+        validators: &Vec<MarshalledValidatorVariable>,
+        validator_byte_lengths: &Vec<Variable>,
+    ) -> Vec<TendermintHashVariable> {
+        assert_eq!(validators.len(), VALIDATOR_SET_SIZE_MAX);
+        assert_eq!(validator_byte_lengths.len(), VALIDATOR_SET_SIZE_MAX);
 
         // For each validator
         // 1) Generate the SHA256 hash for each potential byte length of the validator from VALIDATOR_BYTE_LENGTH_MIN to VALIDATOR_BYTE_LENGTH_MAX.
@@ -276,55 +231,37 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for Circui
         // 3) Return the correct hash.
 
         // Hash each of the validators into a leaf hash.
-        let mut validators_leaf_hashes =
-            [TendermintHashTarget([self._false(); HASH_SIZE_BITS]); VALIDATOR_SET_SIZE_MAX];
+        let mut validators_leaf_hashes = Vec::new();
         for i in 0..VALIDATOR_SET_SIZE_MAX {
-            validators_leaf_hashes[i] =
-                self.hash_validator_leaf(gadget, &validators[i], validator_byte_lengths[i]);
+            validators_leaf_hashes
+                .push(self.hash_validator_leaf(&validators[i], validator_byte_lengths[i]))
         }
-
-        validators_leaf_hashes.to_vec()
+        validators_leaf_hashes
     }
 
     fn hash_validator_set<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
-        validators: &Vec<MarshalledValidatorTarget>,
-        validator_byte_lengths: &Vec<Target>,
-        validator_enabled: &Vec<BoolTarget>,
-    ) -> TendermintHashTarget {
-        let num_validators = self.constant(F::from_canonical_usize(validators.len()));
-        let num_validator_byte_lengths =
-            self.constant(F::from_canonical_usize(validator_byte_lengths.len()));
-        let num_validator_enabled = self.constant(F::from_canonical_usize(validator_enabled.len()));
-        let validator_set_size_max = self.constant(F::from_canonical_usize(VALIDATOR_SET_SIZE_MAX));
-
-        // Assert validators length is VALIDATOR_SET_SIZE_MAX
-        self.connect(num_validators, validator_set_size_max);
-
-        // Assert validator_byte_length length is VALIDATOR_SET_SIZE_MAX
-        self.connect(num_validator_byte_lengths, validator_set_size_max);
-
-        // Assert validator_enabled length is VALIDATOR_SET_SIZE_MAX
-        self.connect(num_validator_enabled, validator_set_size_max);
+        validators: &Vec<MarshalledValidatorVariable>,
+        validator_byte_lengths: &Vec<Variable>,
+        validator_enabled: &Vec<BoolVariable>,
+    ) -> TendermintHashVariable {
+        assert_eq!(validators.len(), VALIDATOR_SET_SIZE_MAX);
+        assert_eq!(validator_byte_lengths.len(), VALIDATOR_SET_SIZE_MAX);
+        assert_eq!(validator_enabled.len(), VALIDATOR_SET_SIZE_MAX);
 
         // Hash each of the validators to get their corresponding leaf hash.
-        let mut current_validator_hashes = self.hash_validator_leaves::<E, VALIDATOR_SET_SIZE_MAX>(
-            gadget,
-            validators,
-            validator_byte_lengths,
-        );
+        let mut current_validator_hashes = self
+            .hash_validator_leaves::<VALIDATOR_SET_SIZE_MAX>(validators, validator_byte_lengths);
 
         // Whether to treat the validator as empty.
         let mut current_validator_enabled = validator_enabled.clone();
 
         let mut merkle_layer_size = VALIDATOR_SET_SIZE_MAX;
-
         // Hash each layer of nodes to get the root according to the Tendermint spec, starting from the leaves.
         while merkle_layer_size > 1 {
-            (current_validator_hashes, current_validator_enabled) = self.hash_merkle_layer::<E>(
-                gadget,
-                &mut current_validator_hashes,
-                &mut current_validator_enabled,
+            (current_validator_hashes, current_validator_enabled) = self.hash_merkle_layer(
+                current_validator_hashes,
+                current_validator_enabled,
                 merkle_layer_size,
             );
             merkle_layer_size /= 2;
@@ -353,11 +290,9 @@ pub(crate) mod tests {
             config::{GenericConfig, PoseidonGoldilocksConfig},
         },
     };
-    use subtle_encoding::hex;
-
     use plonky2x::frontend::ecc::ed25519::curve::curve_types::AffinePoint;
-
-    use plonky2x::frontend::num::u32::gadgets::arithmetic_u32::U32Target;
+    use plonky2x::prelude::DefaultBuilder;
+    use subtle_encoding::hex;
 
     use crate::{
         utils::{f_bits_to_bytes, to_be_bits},
@@ -370,111 +305,6 @@ pub(crate) mod tests {
     type F = <C as GenericConfig<D>>::F;
     type Curve = Ed25519;
     const D: usize = 2;
-
-    #[test]
-    fn test_starky_sha_gadget() {
-        env_logger::init();
-
-        let mut timing = TimingTree::new("Sha256 Plonky2 gadget", log::Level::Debug);
-
-        // Create a new plonky2 circuit
-        let config = CircuitConfig::standard_recursion_config();
-        let mut builder = CircuitBuilder::<F, D>::new(config);
-
-        // Initialize the SHA gadget
-        let mut gadget: SHA256BuilderGadget<F, E, D> = builder.init_sha256();
-
-        // We will hash 256 messages of padded length 128 bytes.
-
-        // Initialize targets
-        let long_padded_msg_targets = (0..512)
-            .map(|_| CurtaBytes(builder.add_virtual_target_arr::<128>()))
-            .collect::<Vec<_>>();
-
-        let mut digest_targets = Vec::new();
-        let mut expected_digests = Vec::new();
-
-        for long_padded_msg in long_padded_msg_targets.iter() {
-            // Get the hash of the padded message
-            let digest = builder.sha256(long_padded_msg, &mut gadget);
-            digest_targets.push(digest);
-            let expected_digest = CurtaBytes(builder.add_virtual_target_arr::<32>());
-            expected_digests.push(expected_digest);
-        }
-
-        // Connect the expected and output digests
-        for (digest, expected) in digest_targets.iter().zip(expected_digests.iter()) {
-            for (d, e) in digest.0.iter().zip(expected.0.iter()) {
-                builder.connect(*d, *e);
-            }
-        }
-
-        // Register the SHA constraints in the builder
-        builder.constrain_sha256_gadget::<SC>(gadget);
-
-        // Build the circuit
-        let data = builder.build::<C>();
-
-        // Assign input values and make the proof
-        let mut pw = PartialWitness::new();
-
-        // We will use two types of a short message and one long message
-
-        let long_msg = hex::decode("243f6a8885a308d313198a2e03707344a4093822299f31d0082efa98ec4e6c89452821e638d01377be5466cf34e90c6cc0ac29b7c97c50dd3f84d5b5b5470917").unwrap();
-        let expected_digest_long =
-            "aca16131a2e4c4c49e656d35aac1f0e689b3151bb108fa6cf5bcc3ac08a09bf9";
-
-        let long_messages = (0..512).map(|_| long_msg.clone()).collect::<Vec<_>>();
-
-        // Pad the long messages
-        let padded_long_messages = long_messages
-            .iter()
-            .map(|m| {
-                SHA256Gadget::pad(m)
-                    .into_iter()
-                    .map(F::from_canonical_u8)
-                    .collect::<Vec<_>>()
-            })
-            .collect::<Vec<_>>();
-
-        // Get the expected digest values
-        let expected_digests_long_message = (0..512)
-            .map(|_| expected_digest_long)
-            .map(|digest| {
-                hex::decode(digest)
-                    .unwrap()
-                    .into_iter()
-                    .map(F::from_canonical_u8)
-                    .collect::<Vec<_>>()
-            })
-            .collect::<Vec<_>>();
-
-        let expected_digests_values = expected_digests_long_message;
-
-        // Assign the inputs
-        for (msg_target, long_msg) in long_padded_msg_targets
-            .iter()
-            .zip(padded_long_messages.iter())
-        {
-            pw.set_target_arr(&msg_target.0, long_msg);
-        }
-
-        for (digest, value) in expected_digests.iter().zip(expected_digests_values.iter()) {
-            pw.set_target_arr(&digest.0, value);
-        }
-
-        // Generate the proof
-        let proof = timed!(
-            timing,
-            "Generate proof",
-            prove(&data.prover_only, &data.common, pw, &mut timing)
-        )
-        .unwrap();
-        timing.print();
-
-        // Verify the proof
-        data.verify(proof).unwrap();
-    }
 
     #[test]
     fn test_marshal_int64_varint() {
@@ -502,36 +332,28 @@ pub(crate) mod tests {
             ),
         ];
 
+        // Define the circuit
+        let mut builder = DefaultBuilder::new();
+        let voting_power_variable = builder.read::<U64Variable>();
+        let result = builder.marshal_int64_varint(&voting_power_variable);
+        for i in 0..9 {
+            builder.write(result[i]);
+        }
+        let circuit = builder.build();
+
         for test_case in test_cases {
-            let pw = PartialWitness::new();
-            let config = CircuitConfig::standard_recursion_config();
-            let mut builder = CircuitBuilder::<F, D>::new(config);
+            let mut input = circuit.input();
+            input.write::<U64Variable>((test_case.0 as u64).into());
+            let (proof, mut output) = circuit.prove(&input);
 
-            // TODO: Need to add check in marshal that this is not negative
-            let voting_power_i64 = test_case.0;
-            let voting_power_variable = builder.constant::<U64Variable>(voting_power_i64 as u64);
-            let result = builder.marshal_int64_varint(&voting_power_target);
-
-            for i in 0..result.len() {
-                builder.register_public_input(result[i].target);
-            }
-
-            let data = builder.build::<C>();
-            let proof = data.prove(pw).unwrap();
-
-            let marshalled_bytes = f_bits_to_bytes(&proof.public_inputs);
             let expected_bytes = test_case.1;
 
             println!("Voting Power: {:?}", test_case.0);
             println!("Expected Varint Encoding (Bytes): {:?}", expected_bytes);
-            println!("Produced Varint Encoding (Bytes): {:?}", marshalled_bytes);
 
-            for i in 0..marshalled_bytes.len() {
-                if i >= expected_bytes.len() {
-                    assert_eq!(marshalled_bytes[i], 0);
-                    continue;
-                }
-                assert_eq!(marshalled_bytes[i], expected_bytes[i]);
+            for byte in expected_bytes {
+                let output_byte = output.read::<ByteVariable>();
+                assert_eq!(output_byte, byte);
             }
         }
     }
@@ -544,48 +366,28 @@ pub(crate) mod tests {
         let expected_marshal =
             "0a220a20de25aec935b10f657b43fa97e5a8d4e523bdb0f9972605f0b064eff7b17048ba10aa8d06";
 
-        let pw = PartialWitness::new();
-        let config = CircuitConfig::standard_ecc_config();
-        let mut builder = CircuitBuilder::<F, D>::new(config);
+        // Define the circuit
+        let mut builder = DefaultBuilder::new();
+        let voting_power_variable = builder.read::<U64Variable>();
+        let pub_key = builder.read::<AffinePointTarget<Curve>>();
+        let result = builder.marshal_tendermint_validator(&pub_key, &voting_power_variable);
+        builder.write(result);
+        let circuit = builder.build();
 
-        let voting_power_variable = builder.constant::<U64Variable>(voting_power_i64 as u64);
+        let mut input = circuit.input();
+        input.write::<U64Variable>((voting_power_i64 as u64).into());
         let pub_key_uncompressed: AffinePoint<Curve> =
             AffinePoint::new_from_compressed_point(&hex::decode(pubkey).unwrap());
-
-        let pub_key_affine_t = builder.constant_affine_point(pub_key_uncompressed);
+        input.write::<AffinePointTarget<Curve>>(pub_key_uncompressed);
+        let (proof, mut output) = circuit.prove(&input);
+        let output_bytes = output.read::<BytesVariable<VALIDATOR_BYTE_LENGTH_MAX>>();
 
         let pub_key = pub_key_uncompressed.compress_point();
-
         // Convert pub_key to bytes from biguint
         let pub_key_bytes = pub_key.to_bytes_le();
-
-        println!("pub_key: {:?}", pub_key_bytes);
-        println!("expected marshal: {:?}", hex::decode(expected_marshal));
-
-        let result =
-            builder.marshal_tendermint_validator(&pub_key_affine_t, &voting_power_variable);
-
-        let expected_bits = to_be_bits(hex::decode(expected_marshal).unwrap().to_vec());
-
-        // Only check the hash bits
-        for i in 0..result.0.len() {
-            if i < expected_bits.len() {
-                let expected_bit_t = builder.constant_bool(expected_bits[i]);
-                builder.connect(result.0[i].target, expected_bit_t.target);
-            } else {
-                let expected_bit_t = builder.constant_bool(false);
-                builder.connect(result.0[i].target, expected_bit_t.target);
-            }
+        for i in 0..46 {
+            assert_eq!(output_bytes[i], pub_key_bytes[i]);
         }
-
-        let data = builder.build::<C>();
-        let proof = data.prove(pw).unwrap();
-
-        println!("Created proof");
-
-        data.verify(proof).unwrap();
-
-        println!("Verified proof");
     }
 
     // TODO: Add these tests back once the interface for using Curta's SHA gadget is straightforward. Currently, we'd need to compute the total number of SHA's done in each of these tests, and fill out the rest of the SHA's similar to how it's done in test_skip & test_step.
