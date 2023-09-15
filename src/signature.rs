@@ -8,6 +8,7 @@
 //! read more about them here: https://protobuf.dev/programming-guides/encoding/#varints.
 use curta::math::extension::cubic::parameters::CubicParameters;
 use curta::math::field::Field;
+use curta::plonky2::stark::config::CurtaConfig;
 use num::BigUint;
 use plonky2::field::extension::Extendable;
 use plonky2::iop::target::BoolTarget;
@@ -76,10 +77,7 @@ pub trait TendermintSignature<F: RichField + Extendable<D>, const D: usize> {
     ) -> BoolTarget;
 
     /// Verifies the signatures of the validators in the validator set.
-    fn verify_signatures<
-        E: CubicParameters<F>,
-        C: GenericConfig<D, F = F, FE = F::Extension> + 'static,
-    >(
+    fn verify_signatures<E: CubicParameters<F>, Config: CurtaConfig<D, F = F, FE = F::Extension>>(
         &mut self,
         // This message should be range-checked before being passed in.
         validator_active: &Vec<BoolTarget>,
@@ -87,21 +85,16 @@ pub trait TendermintSignature<F: RichField + Extendable<D>, const D: usize> {
         message_bit_lengths: Vec<Target>,
         eddsa_sig_targets: Vec<&EDDSASignatureTarget<Self::Curve>>,
         eddsa_pubkey_targets: Vec<&EDDSAPublicKeyTarget<Self::Curve>>,
-    ) where
-        <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>;
+    );
 
     /// Verifies a single signature of a Tendermint validator.
-    fn verify_signature<
-        E: CubicParameters<F>,
-        C: GenericConfig<D, F = F, FE = F::Extension> + 'static,
-    >(
+    fn verify_signature<E: CubicParameters<F>, Config: CurtaConfig<D, F = F, FE = F::Extension>>(
         &mut self,
         // This message should be range-checked before being passed in.
         message: Vec<BoolTarget>,
         eddsa_sig_target: &EDDSASignatureTarget<Self::Curve>,
         eddsa_pubkey_target: &EDDSAPublicKeyTarget<Self::Curve>,
-    ) where
-        <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>;
+    );
 }
 
 impl<F: RichField + Extendable<D>, const D: usize> TendermintSignature<F, D>
@@ -215,7 +208,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintSignature<F, D>
     /// Verifies the signatures of the validators in the validator set.
     fn verify_signatures<
         E: CubicParameters<F>,
-        C: GenericConfig<D, F = F, FE = F::Extension> + 'static,
+        Config: CurtaConfig<D, F = F, FE = F::Extension>,
     >(
         &mut self,
         validator_active: &Vec<BoolTarget>,
@@ -225,9 +218,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintSignature<F, D>
         message_bit_lengths: Vec<Target>,
         eddsa_sig_targets: Vec<&EDDSASignatureTarget<Self::Curve>>,
         eddsa_pubkey_targets: Vec<&EDDSAPublicKeyTarget<Self::Curve>>,
-    ) where
-        <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>,
-    {
+    ) {
         // TODO: UPDATE message.len() to VALIDATOR_SET_SIZE_MAX
         assert!(
             messages.len() == eddsa_sig_targets.len()
@@ -246,7 +237,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintSignature<F, D>
             F,
             Self::Curve,
             E,
-            C,
+            Config,
             D,
             VALIDATOR_MESSAGE_BITS_LENGTH_MAX,
         >(self, messages.len());
@@ -306,21 +297,16 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintSignature<F, D>
     }
 
     /// Verifies the signatures of the validators in the validator set.
-    fn verify_signature<
-        E: CubicParameters<F>,
-        C: GenericConfig<D, F = F, FE = F::Extension> + 'static,
-    >(
+    fn verify_signature<E: CubicParameters<F>, Config: CurtaConfig<D, F = F, FE = F::Extension>>(
         &mut self,
         // This should be the messaged signed by the validator that the header hash is extracted from.
         // We should range check this outside of the circuit.
         message: Vec<BoolTarget>,
         eddsa_sig_target: &EDDSASignatureTarget<Self::Curve>,
         eddsa_pubkey_target: &EDDSAPublicKeyTarget<Self::Curve>,
-    ) where
-        <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>,
-    {
+    ) {
         let message_bytes_len: usize = message.len() / 8;
-        let eddsa_target = verify_signatures_circuit::<F, Self::Curve, E, C, D>(
+        let eddsa_target = verify_signatures_circuit::<F, Self::Curve, E, Config, D>(
             self,
             1,
             message_bytes_len as u128,
@@ -341,6 +327,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintSignature<F, D>
 pub(crate) mod tests {
     use super::*;
     use curta::math::goldilocks::cubic::GoldilocksCubicParameters;
+    use curta::plonky2::stark::config::CurtaPoseidonGoldilocksConfig;
     use num::BigUint;
     use plonky2::field::goldilocks_field::GoldilocksField;
     use plonky2::field::types::Field;
@@ -391,6 +378,7 @@ pub(crate) mod tests {
         type Curve = Ed25519;
         type E = GoldilocksCubicParameters;
         type C = PoseidonGoldilocksConfig;
+        type SC = CurtaPoseidonGoldilocksConfig;
         const D: usize = 2;
 
         let pw = PartialWitness::new();
@@ -438,7 +426,7 @@ pub(crate) mod tests {
 
         let validator_active = vec![builder._false()];
 
-        builder.verify_signatures::<E, C>(
+        builder.verify_signatures::<E, SC>(
             &validator_active,
             vec![msg_bits_target],
             vec![msg_bit_length_t],

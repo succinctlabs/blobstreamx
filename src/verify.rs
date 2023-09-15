@@ -10,6 +10,7 @@
 use curta::{
     chip::hash::sha::sha256::builder_gadget::{CurtaBytes, SHA256Builder, SHA256BuilderGadget},
     math::extension::cubic::parameters::CubicParameters,
+    plonky2::stark::config::CurtaConfig,
 };
 use plonky2::{
     field::{extension::Extendable, types::Field},
@@ -135,33 +136,31 @@ pub trait TendermintVerify<F: RichField + Extendable<D>, const D: usize> {
     /// Verifies that the previous header hash in the block matches the previous header hash in the last block ID.
     fn verify_prev_header_in_header<
         E: CubicParameters<F>,
-        C: GenericConfig<D, F = F, FE = F::Extension> + 'static,
+        Config: CurtaConfig<D, F = F, FE = F::Extension>,
     >(
         &mut self,
         gadget: &mut SHA256BuilderGadget<F, E, D>,
         header: &TendermintHashTarget,
         prev_header: &TendermintHashTarget,
         last_block_id_proof: &BlockIDInclusionProofTarget,
-    ) where
-        <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>;
+    );
 
     /// Verifies that the previous header hash in the block matches the previous header hash in the last block ID.
     fn verify_prev_header_next_validators_hash<
         E: CubicParameters<F>,
-        C: GenericConfig<D, F = F, FE = F::Extension> + 'static,
+        Config: CurtaConfig<D, F = F, FE = F::Extension>,
     >(
         &mut self,
         gadget: &mut SHA256BuilderGadget<F, E, D>,
         validators_hash: &TendermintHashTarget,
         prev_header: &TendermintHashTarget,
         prev_header_next_validators_hash_proof: &HashInclusionProofTarget,
-    ) where
-        <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>;
+    );
 
     /// Verifies a Tendermint consensus block.
     fn verify_header<
         E: CubicParameters<F>,
-        C: GenericConfig<D, F = F, FE = F::Extension> + 'static,
+        Config: CurtaConfig<D, F = F, FE = F::Extension>,
         const VALIDATOR_SET_SIZE_MAX: usize,
     >(
         &mut self,
@@ -172,13 +171,12 @@ pub trait TendermintVerify<F: RichField + Extendable<D>, const D: usize> {
         validator_hash_proof: &HashInclusionProofTarget,
         next_validators_hash_proof: &HashInclusionProofTarget,
         round_present: &BoolTarget,
-    ) where
-        <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>;
+    );
 
     /// Sequentially verifies a Tendermint consensus block.
     fn step<
         E: CubicParameters<F>,
-        C: GenericConfig<D, F = F, FE = F::Extension> + 'static,
+        Config: CurtaConfig<D, F = F, FE = F::Extension>,
         const VALIDATOR_SET_SIZE_MAX: usize,
     >(
         &mut self,
@@ -191,13 +189,12 @@ pub trait TendermintVerify<F: RichField + Extendable<D>, const D: usize> {
         prev_header_next_validators_hash_proof: &HashInclusionProofTarget,
         last_block_id_proof: &BlockIDInclusionProofTarget,
         round_present: &BoolTarget,
-    ) where
-        <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>;
+    );
 
     /// Verifies that the trusted validators have signed the current header.
     fn verify_trusted_validators<
         E: CubicParameters<F>,
-        C: GenericConfig<D, F = F, FE = F::Extension> + 'static,
+        Config: CurtaConfig<D, F = F, FE = F::Extension>,
         const VALIDATOR_SET_SIZE_MAX: usize,
     >(
         &mut self,
@@ -206,13 +203,12 @@ pub trait TendermintVerify<F: RichField + Extendable<D>, const D: usize> {
         trusted_header: &TendermintHashTarget,
         trusted_validator_hash_proof: &HashInclusionProofTarget,
         trusted_validator_hash_fields: &Vec<ValidatorHashFieldTarget<Self::Curve>>,
-    ) where
-        <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>;
+    );
 
     /// Verifies a Tendermint block that is non-sequential with the trusted block.
     fn skip<
         E: CubicParameters<F>,
-        C: GenericConfig<D, F = F, FE = F::Extension> + 'static,
+        Config: CurtaConfig<D, F = F, FE = F::Extension>,
         const VALIDATOR_SET_SIZE_MAX: usize,
     >(
         &mut self,
@@ -225,8 +221,7 @@ pub trait TendermintVerify<F: RichField + Extendable<D>, const D: usize> {
         trusted_header: &TendermintHashTarget,
         trusted_validator_hash_proof: &HashInclusionProofTarget,
         trusted_validator_hash_fields: &Vec<ValidatorHashFieldTarget<Self::Curve>>,
-    ) where
-        <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>;
+    );
 }
 
 impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for CircuitBuilder<F, D> {
@@ -234,7 +229,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
 
     fn step<
         E: CubicParameters<F>,
-        C: GenericConfig<D, F = F, FE = F::Extension> + 'static,
+        Config: CurtaConfig<D, F = F, FE = F::Extension>,
         const VALIDATOR_SET_SIZE_MAX: usize,
     >(
         &mut self,
@@ -247,14 +242,12 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
         prev_header_next_validators_hash_proof: &HashInclusionProofTarget,
         last_block_id_proof: &BlockIDInclusionProofTarget,
         round_present: &BoolTarget,
-    ) where
-        <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>,
-    {
+    ) {
         let zero = self.zero();
         let mut gadget: SHA256BuilderGadget<F, E, D> = self.init_sha256();
 
         // Verifies that 2/3 of the validators signed the headers
-        self.verify_header::<E, C, VALIDATOR_SET_SIZE_MAX>(
+        self.verify_header::<E, Config, VALIDATOR_SET_SIZE_MAX>(
             &mut gadget,
             validators,
             header,
@@ -265,7 +258,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
         );
 
         // Verifies that the previous header hash in the block matches the previous header hash in the last block ID.
-        self.verify_prev_header_in_header::<E, C>(
+        self.verify_prev_header_in_header::<E, Config>(
             &mut gadget,
             header,
             prev_header,
@@ -280,7 +273,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
             );
 
         // Verifies that the next validators hash in the previous block matches the current validators hash
-        self.verify_prev_header_next_validators_hash::<E, C>(
+        self.verify_prev_header_next_validators_hash::<E, Config>(
             &mut gadget,
             &validators_hash,
             prev_header,
@@ -299,12 +292,12 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
             self.sha256(&bytes, &mut gadget);
         }
 
-        self.constrain_sha256_gadget::<C>(gadget);
+        self.constrain_sha256_gadget::<Config>(gadget);
     }
 
     fn verify_header<
         E: CubicParameters<F>,
-        C: GenericConfig<D, F = F, FE = F::Extension> + 'static,
+        Config: CurtaConfig<D, F = F, FE = F::Extension>,
         const VALIDATOR_SET_SIZE_MAX: usize,
     >(
         &mut self,
@@ -315,9 +308,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
         validator_hash_proof: &HashInclusionProofTarget,
         next_validators_hash_proof: &HashInclusionProofTarget,
         round_present: &BoolTarget,
-    ) where
-        <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>,
-    {
+    ) {
         let one = self.one();
         let false_t = self._false();
         let true_t = self._true();
@@ -402,7 +393,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
         self.connect(check_voting_power_bool.target, one);
 
         // Verifies signatures of the validators
-        self.verify_signatures::<E, C>(
+        self.verify_signatures::<E, Config>(
             &validators_signed,
             messages,
             message_bit_lengths,
@@ -473,16 +464,14 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
 
     fn verify_prev_header_in_header<
         E: CubicParameters<F>,
-        C: GenericConfig<D, F = F, FE = F::Extension> + 'static,
+        Config: CurtaConfig<D, F = F, FE = F::Extension>,
     >(
         &mut self,
         gadget: &mut SHA256BuilderGadget<F, E, D>,
         header: &TendermintHashTarget,
         prev_header: &TendermintHashTarget,
         last_block_id_proof: &BlockIDInclusionProofTarget,
-    ) where
-        <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>,
-    {
+    ) {
         let false_t = self._false();
         let true_t = self._true();
 
@@ -527,16 +516,14 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
 
     fn verify_prev_header_next_validators_hash<
         E: CubicParameters<F>,
-        C: GenericConfig<D, F = F, FE = F::Extension> + 'static,
+        Config: CurtaConfig<D, F = F, FE = F::Extension>,
     >(
         &mut self,
         gadget: &mut SHA256BuilderGadget<F, E, D>,
         validators_hash: &TendermintHashTarget,
         prev_header: &TendermintHashTarget,
         prev_header_next_validators_hash_proof: &HashInclusionProofTarget,
-    ) where
-        <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>,
-    {
+    ) {
         let false_t = self._false();
         let true_t = self._true();
         let next_val_hash_path = vec![false_t, false_t, false_t, true_t];
@@ -581,7 +568,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
 
     fn skip<
         E: CubicParameters<F>,
-        C: GenericConfig<D, F = F, FE = F::Extension> + 'static,
+        Config: CurtaConfig<D, F = F, FE = F::Extension>,
         const VALIDATOR_SET_SIZE_MAX: usize,
     >(
         &mut self,
@@ -594,13 +581,11 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
         trusted_header: &TendermintHashTarget,
         trusted_validator_hash_proof: &HashInclusionProofTarget,
         trusted_validator_hash_fields: &Vec<ValidatorHashFieldTarget<Self::Curve>>,
-    ) where
-        <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>,
-    {
+    ) {
         let zero = self.zero();
         let mut gadget: SHA256BuilderGadget<F, E, D> = self.init_sha256();
 
-        self.verify_trusted_validators::<E, C, VALIDATOR_SET_SIZE_MAX>(
+        self.verify_trusted_validators::<E, Config, VALIDATOR_SET_SIZE_MAX>(
             &mut gadget,
             validators,
             trusted_header,
@@ -608,7 +593,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
             trusted_validator_hash_fields,
         );
 
-        self.verify_header::<E, C, VALIDATOR_SET_SIZE_MAX>(
+        self.verify_header::<E, Config, VALIDATOR_SET_SIZE_MAX>(
             &mut gadget,
             validators,
             header,
@@ -632,12 +617,12 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
         }
 
         // Constrain SHA256 gadget
-        self.constrain_sha256_gadget::<C>(gadget);
+        self.constrain_sha256_gadget::<Config>(gadget);
     }
 
     fn verify_trusted_validators<
         E: CubicParameters<F>,
-        C: GenericConfig<D, F = F, FE = F::Extension> + 'static,
+        Config: CurtaConfig<D, F = F, FE = F::Extension>,
         const VALIDATOR_SET_SIZE_MAX: usize,
     >(
         &mut self,
@@ -646,9 +631,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintVerify<F, D> for Ci
         trusted_header: &TendermintHashTarget,
         trusted_validator_hash_proof: &HashInclusionProofTarget,
         trusted_validator_hash_fields: &Vec<ValidatorHashFieldTarget<Self::Curve>>,
-    ) where
-        <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>,
-    {
+    ) {
         // Note: A trusted validator is one who is present on the trusted header
         let false_t = self._false();
         let true_t = self._true();
@@ -854,15 +837,12 @@ pub fn make_base_circuit<
     F: RichField + Extendable<D>,
     const D: usize,
     C: Curve,
-    Config: GenericConfig<D, F = F, FE = F::Extension> + 'static,
+    Config: CurtaConfig<D, F = F, FE = F::Extension>,
     E: CubicParameters<F>,
     const VALIDATOR_SET_SIZE_MAX: usize,
 >(
     builder: &mut CircuitBuilder<F, D>,
-) -> BaseBlockProofTarget<Ed25519>
-where
-    Config::Hasher: AlgebraicHasher<F>,
-{
+) -> BaseBlockProofTarget<Ed25519> {
     type Curve = Ed25519;
     let mut validators = Vec::new();
     for _i in 0..VALIDATOR_SET_SIZE_MAX {
@@ -925,7 +905,7 @@ pub fn make_step_circuit<
     F: RichField + Extendable<D>,
     const D: usize,
     C: Curve,
-    Config: GenericConfig<D, F = F, FE = F::Extension> + 'static,
+    Config: CurtaConfig<D, F = F, FE = F::Extension>,
     E: CubicParameters<F>,
     const VALIDATOR_SET_SIZE_MAX: usize,
 >(
@@ -970,7 +950,7 @@ pub fn make_skip_circuit<
     F: RichField + Extendable<D>,
     const D: usize,
     C: Curve,
-    Config: GenericConfig<D, F = F, FE = F::Extension> + 'static,
+    Config: CurtaConfig<D, F = F, FE = F::Extension>,
     E: CubicParameters<F>,
     const VALIDATOR_SET_SIZE_MAX: usize,
 >(
@@ -1335,6 +1315,7 @@ pub(crate) mod tests {
 
     use super::*;
     use curta::math::goldilocks::cubic::GoldilocksCubicParameters;
+    use curta::plonky2::stark::config::CurtaPoseidonGoldilocksConfig;
     use plonky2::field::goldilocks_field::GoldilocksField;
     use plonky2::field::types::Field;
     use plonky2::{
@@ -1418,12 +1399,13 @@ pub(crate) mod tests {
         type Curve = Ed25519;
         type E = GoldilocksCubicParameters;
         type C = PoseidonGoldilocksConfig;
+        type SC = CurtaPoseidonGoldilocksConfig;
         const D: usize = 2;
 
         println!("Making step circuit");
 
         let celestia_step_proof_target =
-            make_step_circuit::<GoldilocksField, D, Curve, C, E, VALIDATOR_SET_SIZE_MAX>(
+            make_step_circuit::<GoldilocksField, D, Curve, SC, E, VALIDATOR_SET_SIZE_MAX>(
                 &mut builder,
             );
 
@@ -1475,12 +1457,13 @@ pub(crate) mod tests {
         type Curve = Ed25519;
         type E = GoldilocksCubicParameters;
         type C = PoseidonGoldilocksConfig;
+        type SC = CurtaPoseidonGoldilocksConfig;
         const D: usize = 2;
 
         println!("Making skip circuit");
 
         let celestia_skip_proof_target =
-            make_skip_circuit::<GoldilocksField, D, Curve, C, E, VALIDATOR_SET_SIZE_MAX>(
+            make_skip_circuit::<GoldilocksField, D, Curve, SC, E, VALIDATOR_SET_SIZE_MAX>(
                 &mut builder,
             );
 
