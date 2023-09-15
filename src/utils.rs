@@ -25,11 +25,17 @@ use tendermint_proto::{
 /// The number of bits in a SHA256 hash.
 pub const HASH_SIZE_BITS: usize = HASH_SIZE * 8;
 
+/// The number of bytes in a varint.
+pub const VARINT_SIZE_BYTES: usize = 9;
+pub const PROTOBUF_VARINT_SIZE_BYTES: usize = VARINT_SIZE_BYTES + 1;
+
 /// The number of bits in a protobuf-encoded SHA256 hash.
-pub const PROTOBUF_HASH_SIZE_BITS: usize = HASH_SIZE_BITS + 8 * 2;
+pub const PROTOBUF_HASH_SIZE_BYTES: usize = HASH_SIZE + 2;
+pub const PROTOBUF_HASH_SIZE_BITS: usize = PROTOBUF_HASH_SIZE_BYTES * 8;
 
 /// The number of bits in a protobuf-encoded tendermint block ID.
-pub const PROTOBUF_BLOCK_ID_SIZE_BITS: usize = 72 * 8;
+pub const PROTOBUF_BLOCK_ID_SIZE_BYTES: usize = 72;
+pub const PROTOBUF_BLOCK_ID_SIZE_BITS: usize = PROTOBUF_BLOCK_ID_SIZE_BYTES * 8;
 
 // Constants that represent the number of bytes necessary to pad the protobuf encoded data for SHA256
 pub const PROTOBUF_HASH_SHA256_NUM_BYTES: usize = 64;
@@ -258,7 +264,7 @@ pub struct ProofNode {
 }
 
 impl Proof {
-    fn new(total: u64, index: u64, leaf_hash: Hash, aunts: Vec<Hash>) -> Self {
+    pub fn new(total: u64, index: u64, leaf_hash: Hash, aunts: Vec<Hash>) -> Self {
         Proof {
             total,
             index,
@@ -267,7 +273,7 @@ impl Proof {
         }
     }
 
-    fn compute_root_hash(&self) -> Option<Hash> {
+    pub fn compute_root_hash(&self) -> Option<Hash> {
         compute_hash_from_aunts(self.index, self.total, self.leaf_hash, self.aunts.clone())
     }
 
@@ -409,7 +415,7 @@ pub fn compute_hash_from_aunts(
     }
 }
 
-fn proofs_from_byte_slices(items: Vec<Vec<u8>>) -> (Hash, Vec<Proof>) {
+pub fn proofs_from_byte_slices(items: Vec<Vec<u8>>) -> (Hash, Vec<Proof>) {
     let (trails, root) = trails_from_byte_slices(items.clone());
     let root_hash = root.borrow().hash;
     let mut proofs = Vec::new();
@@ -582,6 +588,8 @@ pub(crate) mod tests {
     use subtle_encoding::hex;
     use tendermint_proto::{types::SimpleValidator as RawSimpleValidator, Protobuf};
 
+    use crate::fixture::get_signed_block_from_rpc;
+
     use super::{generate_proofs_from_header, TempSignedBlock};
     use tendermint::{
         merkle::simple_hash_from_byte_vectors,
@@ -641,7 +649,7 @@ pub(crate) mod tests {
         // Generate test cases from Celestia block:
         let temp_block = TempSignedBlock::from(
             serde_json::from_str::<TempSignedBlock>(include_str!(
-                "./fixtures/signed_celestia_block.json"
+                "./fixtures/mocha-3/signed_celestia_block.json"
             ))
             .unwrap(),
         );
@@ -678,7 +686,7 @@ pub(crate) mod tests {
         // Generate test cases from Celestia block:
         let temp_block = Box::new(TempSignedBlock::from(
             serde_json::from_str::<TempSignedBlock>(include_str!(
-                "./fixtures/signed_celestia_block.json"
+                "./fixtures/mocha-3/signed_celestia_block.json"
             ))
             .unwrap(),
         ));
@@ -772,7 +780,7 @@ pub(crate) mod tests {
         // Generate test cases from Celestia block:
         let block = tendermint::Block::from(
             serde_json::from_str::<tendermint::block::Block>(include_str!(
-                "./fixtures/celestia_block.json"
+                "./fixtures/mocha-3/celestia_block.json"
             ))
             .unwrap(),
         );
@@ -814,5 +822,13 @@ pub(crate) mod tests {
         }
 
         assert_eq!(current_hash, root_hash);
+    }
+
+    #[tokio::test]
+    async fn test_generate_proofs_from_header() {
+        // Generate test cases from Celestia block:
+        let block = get_signed_block_from_rpc(1500).await;
+
+        let (_root, _proofs) = generate_proofs_from_header(&block.header);
     }
 }

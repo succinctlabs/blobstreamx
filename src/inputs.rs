@@ -1,12 +1,19 @@
 use std::fs;
 
-use crate::fixture::create_new_fixture;
+use crate::commitment::{
+    CelestiaDataCommitmentProofInput, CelestiaHeaderChainProofInput, HeaderVariableInput,
+};
+use crate::fixture::{DataCommitmentFixture, HeaderChainFixture};
 /// Source (tendermint-rs): https://github.com/informalsystems/tendermint-rs/blob/e930691a5639ef805c399743ac0ddbba0e9f53da/tendermint/src/merkle.rs#L32
 use crate::utils::{
     compute_hash_from_aunts, generate_proofs_from_header, leaf_hash, non_absent_vote, SignedBlock,
-    TempSignedBlock,
+    TempSignedBlock, VARINT_SIZE_BYTES,
 };
 use ed25519_consensus::SigningKey;
+use ethers::types::H256;
+use plonky2x::frontend::merkle::tree::InclusionProof;
+use plonky2x::prelude::RichField;
+use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 use tendermint::crypto::ed25519::VerificationKey;
 use tendermint::{private_key, Signature};
@@ -36,36 +43,37 @@ pub struct ValidatorHashField {
 }
 
 /// The protobuf-encoded leaf (a hash), and it's corresponding proof and path indices against the header.
-#[derive(Debug, Clone)]
-pub struct InclusionProof {
+/// TODO: Remove this once we port step & skip circuits to use CircuitVariable
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TempMerkleInclusionProof {
     pub enc_leaf: Vec<u8>,
     // Path and proof should have a fixed length of HEADER_PROOF_DEPTH.
     pub path: Vec<bool>,
-    pub proof: Vec<[u8; 32]>,
+    pub proof: Vec<H256>,
 }
 
 #[derive(Debug, Clone)]
 pub struct CelestiaBaseBlockProof {
     pub validators: Vec<Validator>,
     pub header: Vec<u8>,
-    pub data_hash_proof: InclusionProof,
-    pub validator_hash_proof: InclusionProof,
-    pub next_validators_hash_proof: InclusionProof,
+    pub data_hash_proof: TempMerkleInclusionProof,
+    pub validator_hash_proof: TempMerkleInclusionProof,
+    pub next_validators_hash_proof: TempMerkleInclusionProof,
     pub round_present: bool,
 }
 
 #[derive(Debug, Clone)]
 pub struct CelestiaStepBlockProof {
-    pub prev_header_next_validators_hash_proof: InclusionProof,
+    pub prev_header_next_validators_hash_proof: TempMerkleInclusionProof,
     pub prev_header: Vec<u8>,
-    pub last_block_id_proof: InclusionProof,
+    pub last_block_id_proof: TempMerkleInclusionProof,
     pub base: CelestiaBaseBlockProof,
 }
 
 #[derive(Debug, Clone)]
 pub struct CelestiaSkipBlockProof {
     pub trusted_header: Vec<u8>,
-    pub trusted_validator_hash_proof: InclusionProof,
+    pub trusted_validator_hash_proof: TempMerkleInclusionProof,
     pub trusted_validator_fields: Vec<ValidatorHashField>,
     pub base: CelestiaBaseBlockProof,
 }
@@ -84,9 +92,9 @@ pub fn get_path_indices(index: u64, total: u64) -> Vec<bool> {
     path_indices
 }
 
-fn get_signed_block(block: usize) -> Box<SignedBlock> {
+fn get_signed_block_from_fixture(block: usize) -> Box<SignedBlock> {
     let mut file = String::new();
-    file.push_str("./src/fixtures/");
+    file.push_str("./src/fixtures/mocha-3/");
     file.push_str(&block.to_string());
     file.push_str("/signed_block.json");
 
@@ -111,6 +119,152 @@ fn get_signed_block(block: usize) -> Box<SignedBlock> {
     block
 }
 
+fn get_data_commitment_fixture(start_block: usize, end_block: usize) -> DataCommitmentFixture {
+    let mut file = String::new();
+    file.push_str("./src/fixtures/mocha-4/");
+    file.push_str(&start_block.to_string());
+    file.push_str("-");
+    file.push_str(&end_block.to_string());
+    file.push_str("/data_commitment.json");
+
+    let file_content = fs::read_to_string(file.as_str());
+
+    DataCommitmentFixture::from(
+        serde_json::from_str::<DataCommitmentFixture>(&file_content.unwrap())
+            .expect("failed to parse json"),
+    )
+}
+
+/// Generate the inputs for a skip proof from a trusted_block to block.
+pub fn generate_data_commitment_inputs<const WINDOW_SIZE: usize, F: RichField>(
+    start_block: usize,
+    end_block: usize,
+) -> CelestiaDataCommitmentProofInput<WINDOW_SIZE, F> {
+    // Generate test cases from data commitment fixture
+    let fixture = get_data_commitment_fixture(start_block, end_block);
+
+    let mut data_hashes = Vec::new();
+    let mut block_heights = Vec::new();
+    for i in start_block..end_block {
+        data_hashes.push(H256::from_slice(
+            fixture.data_hashes[i - start_block].as_bytes(),
+        ));
+        block_heights.push(i as u32);
+    }
+
+    CelestiaDataCommitmentProofInput {
+        data_hashes,
+        block_heights,
+        data_commitment_root: H256::from_slice(fixture.data_commitment.as_bytes()),
+    }
+}
+
+pub fn get_header_chain_fixture(trusted_block: usize, current_block: usize) -> HeaderChainFixture {
+    let mut file = String::new();
+    file.push_str("./src/fixtures/mocha-4/");
+    file.push_str(&trusted_block.to_string());
+    file.push_str("-");
+    file.push_str(&current_block.to_string());
+    file.push_str("/header_chain.json");
+
+    let file_content = fs::read_to_string(file.as_str());
+
+    HeaderChainFixture::from(
+        serde_json::from_str::<HeaderChainFixture>(&file_content.unwrap())
+            .expect("failed to parse json"),
+    )
+}
+
+/// Generate the inputs for a skip proof from a trusted_block to block.
+pub fn generate_header_chain_inputs<const WINDOW_SIZE: usize, F: RichField>(
+    trusted_block: usize,
+    current_block: usize,
+) -> CelestiaHeaderChainProofInput<WINDOW_SIZE, F> {
+    assert!(
+        current_block - trusted_block == WINDOW_SIZE,
+        "window size does not match"
+    );
+    // Generate test cases from header chain fixture
+    let fixture = get_header_chain_fixture(trusted_block, current_block);
+
+    let mut data_hash_proofs = Vec::new();
+    let mut prev_header_proofs = Vec::new();
+    for i in 0..WINDOW_SIZE {
+        data_hash_proofs.push(InclusionProof {
+            leaf: fixture.data_hash_proofs[i]
+                .enc_leaf
+                .clone()
+                .try_into()
+                .unwrap(),
+            path_indices: fixture.data_hash_proofs[i].path.clone(),
+            aunts: fixture.data_hash_proofs[i]
+                .proof
+                .clone()
+                .try_into()
+                .unwrap(),
+        });
+        prev_header_proofs.push(InclusionProof {
+            leaf: fixture.prev_header_proofs[i]
+                .enc_leaf
+                .clone()
+                .try_into()
+                .unwrap(),
+            path_indices: fixture.prev_header_proofs[i].path.clone(),
+            aunts: fixture.prev_header_proofs[i]
+                .proof
+                .clone()
+                .try_into()
+                .unwrap(),
+        });
+    }
+
+    CelestiaHeaderChainProofInput {
+        current_header: HeaderVariableInput {
+            header: H256::from_slice(fixture.curr_header.as_bytes()),
+            header_height_proof: InclusionProof {
+                // TODO: We use the height to generate the leaf, can remove this when we refactor the type
+                leaf: [0u8; VARINT_SIZE_BYTES],
+                path_indices: fixture.current_block_height_proof.path.clone(),
+                aunts: fixture
+                    .current_block_height_proof
+                    .proof
+                    .clone()
+                    .try_into()
+                    .unwrap(),
+            },
+            height: fixture.current_block,
+            height_byte_length: fixture.encoded_current_height_byte_length,
+        },
+        trusted_header: HeaderVariableInput {
+            header: H256::from_slice(fixture.trusted_header.as_bytes()),
+            header_height_proof: InclusionProof {
+                // TODO: We use the height to generate the leaf, can remove this when we refactor the type
+                leaf: [0u8; VARINT_SIZE_BYTES],
+                path_indices: fixture.trusted_block_height_proof.path.clone(),
+                aunts: fixture
+                    .trusted_block_height_proof
+                    .proof
+                    .clone()
+                    .try_into()
+                    .unwrap(),
+            },
+            height: fixture.trusted_block,
+            height_byte_length: fixture.encoded_trusted_height_byte_length,
+        },
+        prev_header_proofs,
+        data_hash_proofs,
+    }
+}
+
+pub fn convert_to_h256(aunts: Vec<[u8; 32]>) -> Vec<H256> {
+    let mut aunts_h256 = Vec::new();
+    for aunt in aunts {
+        aunts_h256.push(H256::from_slice(&aunt));
+    }
+    aunts_h256
+}
+
+/// Generate the base inputs for a proof of a Celestia block (to be used by the skip or step circuits).
 fn generate_base_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
     block: &Box<SignedBlock>,
 ) -> CelestiaBaseBlockProof {
@@ -206,25 +360,25 @@ fn generate_base_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
     let total = proofs[0].total;
     let enc_data_hash_proof = proofs[6].clone();
     let enc_data_hash_proof_indices = get_path_indices(6, total);
-    let data_hash_proof = InclusionProof {
+    let data_hash_proof = TempMerkleInclusionProof {
         enc_leaf: enc_data_hash_leaf,
         path: enc_data_hash_proof_indices,
-        proof: enc_data_hash_proof.aunts,
+        proof: convert_to_h256(enc_data_hash_proof.aunts),
     };
 
     let enc_validators_hash_proof = proofs[7].clone();
     let enc_validators_hash_proof_indices = get_path_indices(7, total);
-    let validators_hash_proof = InclusionProof {
+    let validators_hash_proof = TempMerkleInclusionProof {
         enc_leaf: enc_validators_hash_leaf,
         path: enc_validators_hash_proof_indices,
-        proof: enc_validators_hash_proof.aunts,
+        proof: convert_to_h256(enc_validators_hash_proof.aunts),
     };
     let enc_next_validators_hash_proof = proofs[8].clone();
     let enc_next_validators_hash_proof_indices = get_path_indices(8, total);
-    let next_validators_hash_proof = InclusionProof {
+    let next_validators_hash_proof = TempMerkleInclusionProof {
         enc_leaf: enc_next_validators_hash_leaf,
         path: enc_next_validators_hash_proof_indices,
-        proof: enc_next_validators_hash_proof.aunts,
+        proof: convert_to_h256(enc_next_validators_hash_proof.aunts),
     };
 
     println!("num validators: {}", validators.len());
@@ -241,12 +395,13 @@ fn generate_base_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
     celestia_block_proof
 }
 
+/// Generate the inputs for a step proof for consecutive Celestia blocks.
 pub fn generate_step_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
     block_number: usize,
 ) -> CelestiaStepBlockProof {
     // Generate test cases from Celestia block:
-    let prev_block = get_signed_block(block_number - 1);
-    let block = get_signed_block(block_number);
+    let prev_block = get_signed_block_from_fixture(block_number - 1);
+    let block = get_signed_block_from_fixture(block_number);
 
     let (_root, proofs) = generate_proofs_from_header(&block.header);
     let total = proofs[0].total;
@@ -259,10 +414,10 @@ pub fn generate_step_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
     );
     let enc_leaf =
         Protobuf::<RawBlockId>::encode_vec(block.header.last_block_id.unwrap_or_default());
-    let last_block_id_proof = InclusionProof {
+    let last_block_id_proof = TempMerkleInclusionProof {
         enc_leaf: enc_leaf.clone(),
         path: enc_last_block_id_proof_indices,
-        proof: enc_last_block_id_proof.clone().aunts,
+        proof: convert_to_h256(enc_last_block_id_proof.clone().aunts),
     };
     assert_eq!(
         leaf_hash::<Sha256>(&enc_leaf),
@@ -296,10 +451,10 @@ pub fn generate_step_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
         prev_block.header.next_validators_hash.encode_vec();
     let enc_prev_header_next_validators_hash_proof = prev_block_proofs[8].clone();
     let enc_prev_header_next_validators_hash_proof_indices = get_path_indices(8, prev_block_total);
-    let prev_header_next_validators_hash_proof = InclusionProof {
+    let prev_header_next_validators_hash_proof = TempMerkleInclusionProof {
         enc_leaf: enc_prev_header_next_validators_hash_leaf,
         path: enc_prev_header_next_validators_hash_proof_indices,
-        proof: enc_prev_header_next_validators_hash_proof.aunts,
+        proof: convert_to_h256(enc_prev_header_next_validators_hash_proof.aunts),
     };
 
     let base = generate_base_inputs::<VALIDATOR_SET_SIZE_MAX>(&block);
@@ -360,18 +515,18 @@ fn update_present_on_trusted_header(
     );
 }
 
-// Where block is the block we want to generate inputs for, and trusted_block is the block we're skipping from
+/// Generate the inputs for a skip proof from a trusted_block to block.
 pub fn generate_skip_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
     trusted_block: usize,
     block: usize,
 ) -> CelestiaSkipBlockProof {
     // Generate test cases from Celestia block:
-    let block = get_signed_block(block);
+    let block = get_signed_block_from_fixture(block);
 
     let mut base = generate_base_inputs::<VALIDATOR_SET_SIZE_MAX>(&block);
 
     // Get the trusted_block
-    let trusted_block = get_signed_block(trusted_block);
+    let trusted_block = get_signed_block_from_fixture(trusted_block);
 
     let mut trusted_validator_fields = Vec::new();
 
@@ -422,10 +577,10 @@ pub fn generate_skip_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
     let enc_validators_hash_leaf = trusted_block.header.validators_hash.encode_vec();
     let enc_validators_hash_proof = proofs[7].clone();
     let enc_validators_hash_proof_indices = get_path_indices(7, total);
-    let validators_hash_proof = InclusionProof {
+    let validators_hash_proof = TempMerkleInclusionProof {
         enc_leaf: enc_validators_hash_leaf,
         path: enc_validators_hash_proof_indices,
-        proof: enc_validators_hash_proof.aunts,
+        proof: convert_to_h256(enc_validators_hash_proof.aunts),
     };
 
     // Set the present_on_trusted_header field for each validator that is needed to reach the 1/3 threshold
@@ -446,8 +601,8 @@ pub(crate) mod tests {
 
     #[test]
     fn get_shared_voting_power() {
-        let block_1 = get_signed_block(50000);
-        let block_2 = get_signed_block(100000);
+        let block_1 = get_signed_block_from_fixture(50000);
+        let block_2 = get_signed_block_from_fixture(100000);
 
         // Parse each block to compute the validators that are the same from block_1 to block_2, and the cumulative voting power of the shared validators
         let mut shared_voting_power = 0;

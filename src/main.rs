@@ -1,3 +1,4 @@
+pub mod commitment;
 pub mod fixture;
 pub mod inputs;
 pub mod signature;
@@ -16,11 +17,27 @@ enum Function {
         #[clap(short, long)]
         validators: usize,
     },
-    /// Calls the get_celestia_consensus_signatures function
-    CreateNewFixture {
+    /// Calls the create_block_fixture function
+    CreateBlockFixture {
         /// The block number to create a new fixture for
         #[clap(short, long)]
         block: usize,
+    },
+    /// Calls the create_data_commitment_fixture function
+    CreateDataCommitmentFixture {
+        /// The block number range to create a new fixture for
+        #[clap(short, long)]
+        start_block: usize,
+        #[clap(short, long)]
+        end_block: usize,
+    },
+    /// Calls the create_header_chain_fixture function
+    CreateHeaderChainFixture {
+        /// The block number range to create a new fixture for
+        #[clap(short, long)]
+        trusted_block: usize,
+        #[clap(short, long)]
+        current_block: usize,
     },
     /// Generates step inputs
     GenerateStepInputs {
@@ -47,10 +64,26 @@ async fn main() {
             println!("Number of validators: {}", validators);
             fixture::generate_val_array(validators);
         }
-        Function::CreateNewFixture { block } => {
-            fixture::create_new_fixture(block)
+        Function::CreateBlockFixture { block } => {
+            fixture::create_block_fixture(block)
                 .await
-                .expect("Failed to create new fixture");
+                .expect("Failed to create new block fixture");
+        }
+        Function::CreateDataCommitmentFixture {
+            start_block,
+            end_block,
+        } => {
+            fixture::create_data_commitment_fixture(start_block, end_block)
+                .await
+                .expect("Failed to create new data commitment fixture");
+        }
+        Function::CreateHeaderChainFixture {
+            trusted_block,
+            current_block,
+        } => {
+            fixture::create_header_chain_fixture(trusted_block, current_block)
+                .await
+                .expect("Failed to create new header chain fixture");
         }
         Function::GenerateStepInputs { block } => {
             const VALIDATOR_SET_SIZE_MAX: usize = 128;

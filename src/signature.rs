@@ -25,7 +25,6 @@ use plonky2x::frontend::ecc::ed25519::gadgets::eddsa::{
     verify_signatures_circuit, EDDSAPublicKeyTarget, EDDSASignatureTarget,
 };
 use plonky2x::frontend::num::nonnative::nonnative::CircuitBuilderNonNative;
-use plonky2x::prelude::GoldilocksField;
 
 use crate::utils::to_be_bits;
 use crate::utils::{

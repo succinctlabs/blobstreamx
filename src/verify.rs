@@ -1078,11 +1078,15 @@ pub fn set_base_pw<
             inputs.next_validators_hash_proof.path[i],
         );
 
-        let data_hash_aunt = to_be_bits(inputs.data_hash_proof.proof[i].to_vec());
+        let data_hash_aunt = to_be_bits(inputs.data_hash_proof.proof[i].as_bytes().to_vec());
 
-        let val_hash_aunt = to_be_bits(inputs.validator_hash_proof.proof[i].to_vec());
+        let val_hash_aunt = to_be_bits(inputs.validator_hash_proof.proof[i].as_bytes().to_vec());
 
-        let next_val_aunt = to_be_bits(inputs.next_validators_hash_proof.proof[i].to_vec());
+        let next_val_aunt = to_be_bits(
+            inputs.next_validators_hash_proof.proof[i]
+                .as_bytes()
+                .to_vec(),
+        );
 
         // Set aunts for each of the proofs
         for j in 0..HASH_SIZE_BITS {
@@ -1213,9 +1217,13 @@ pub fn set_step_pw<
             inputs.prev_header_next_validators_hash_proof.path[i],
         );
 
-        let last_block_id_aunt = to_be_bits(inputs.last_block_id_proof.proof[i].to_vec());
-        let prev_header_next_validators_hash_aunt =
-            to_be_bits(inputs.prev_header_next_validators_hash_proof.proof[i].to_vec());
+        let last_block_id_aunt =
+            to_be_bits(inputs.last_block_id_proof.proof[i].as_bytes().to_vec());
+        let prev_header_next_validators_hash_aunt = to_be_bits(
+            inputs.prev_header_next_validators_hash_proof.proof[i]
+                .as_bytes()
+                .to_vec(),
+        );
 
         // Set aunts for each of the proofs
         for j in 0..HASH_SIZE_BITS {
@@ -1266,8 +1274,11 @@ pub fn set_skip_pw<
             inputs.trusted_validator_hash_proof.path[i],
         );
 
-        let trusted_validator_hash_aunt =
-            to_be_bits(inputs.trusted_validator_hash_proof.proof[i].to_vec());
+        let trusted_validator_hash_aunt = to_be_bits(
+            inputs.trusted_validator_hash_proof.proof[i]
+                .as_bytes()
+                .to_vec(),
+        );
 
         // Set aunts for the proof
         for j in 0..HASH_SIZE_BITS {
@@ -1320,6 +1331,8 @@ pub fn set_skip_pw<
 
 #[cfg(test)]
 pub(crate) mod tests {
+    use std::env;
+
     use super::*;
     use curta::math::goldilocks::cubic::GoldilocksCubicParameters;
     use plonky2::field::goldilocks_field::GoldilocksField;
@@ -1392,7 +1405,9 @@ pub(crate) mod tests {
     }
 
     fn test_step_template<const VALIDATOR_SET_SIZE_MAX: usize>(block: usize) {
-        let _ = env_logger::builder().is_test(true).try_init();
+        env::set_var("RUST_LOG", "debug");
+        env_logger::try_init().unwrap_or_default();
+
         let mut timing = TimingTree::new("Verify Celestia Step", log::Level::Debug);
 
         let mut pw = PartialWitness::new();
@@ -1448,7 +1463,8 @@ pub(crate) mod tests {
     }
 
     fn test_skip_template<const VALIDATOR_SET_SIZE_MAX: usize>(trusted_block: usize, block: usize) {
-        let _ = env_logger::builder().is_test(true).try_init();
+        env::set_var("RUST_LOG", "debug");
+        env_logger::try_init().unwrap_or_default();
         let mut timing = TimingTree::new("Verify Celestia Skip", log::Level::Debug);
 
         let mut pw = PartialWitness::new();
