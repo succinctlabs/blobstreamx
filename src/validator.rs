@@ -11,44 +11,45 @@ use curta::chip::hash::sha::sha256::builder_gadget::{
 };
 use curta::math::extension::cubic::parameters::CubicParameters;
 use plonky2::field::extension::Extendable;
+use plonky2::hash::hash_types::RichField;
 use plonky2::iop::target::BoolTarget;
 use plonky2::iop::target::Target;
-use plonky2::{hash::hash_types::RichField, plonk::circuit_builder::CircuitBuilder};
 use plonky2x::frontend::ecc::ed25519::curve::curve_types::Curve;
 use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
 use plonky2x::frontend::ecc::ed25519::gadgets::curve::{AffinePointTarget, CircuitBuilderCurve};
 use plonky2x::frontend::hash::sha::sha256::pad_single_sha256_chunk;
 use plonky2x::frontend::num::u32::gadgets::arithmetic_u32::CircuitBuilderU32;
+use plonky2x::frontend::uint::uint64::U64Variable;
 use tendermint::merkle::HASH_SIZE;
 
 use crate::utils::{
-    I64Target, MarshalledValidatorTarget, TendermintHashTarget, HASH_SIZE_BITS,
-    VALIDATOR_BIT_LENGTH_MAX, VALIDATOR_BYTE_LENGTH_MAX, VOTING_POWER_BITS_LENGTH_MAX,
-    VOTING_POWER_BYTES_LENGTH_MAX,
+    MarshalledValidatorTarget, TendermintHashTarget, HASH_SIZE_BITS, VALIDATOR_BIT_LENGTH_MAX,
+    VALIDATOR_BYTE_LENGTH_MAX, VOTING_POWER_BITS_LENGTH_MAX, VOTING_POWER_BYTES_LENGTH_MAX,
 };
 
-pub trait TendermintValidator<F: RichField + Extendable<D>, const D: usize> {
+use plonky2x::prelude::{BoolVariable, ByteVariable, CircuitBuilder, PlonkParameters, Variable};
+
+pub trait TendermintValidator<L: PlonkParameters<D>, const D: usize> {
     type Curve: Curve;
 
     /// Serializes an int64 as a protobuf varint.
     fn marshal_int64_varint(
         &mut self,
-        num: &I64Target,
+        num: &U64Variable,
     ) -> [BoolTarget; VOTING_POWER_BITS_LENGTH_MAX];
 
     /// Serializes the validator public key and voting power to bytes.
     fn marshal_tendermint_validator(
         &mut self,
         pubkey: &AffinePointTarget<Self::Curve>,
-        voting_power: &I64Target,
+        voting_power: &U64Variable,
     ) -> MarshalledValidatorTarget;
 
     /// Verify a merkle proof against the specified root hash.
     /// Note: This function will only work for leaves with a length of 34 bytes (protobuf-encoded SHA256 hash)
     /// Output is the merkle root
-    fn get_root_from_merkle_proof<E: CubicParameters<F>, const PROOF_DEPTH: usize>(
+    fn get_root_from_merkle_proof<const PROOF_DEPTH: usize>(
         &mut self,
-        gadget: &mut SHA256BuilderGadget<F, E, D>,
         aunts: &Vec<TendermintHashTarget>,
         path_indices: &Vec<BoolTarget>,
         leaf_hash: &TendermintHashTarget,
@@ -58,37 +59,32 @@ pub trait TendermintValidator<F: RichField + Extendable<D>, const D: usize> {
     /// Note: Uses STARK gadget to generate SHA's.
     /// LEAF_SIZE_BITS_PLUS_8 is the number of bits in the protobuf-encoded leaf bytes.
     fn leaf_hash_stark<
-        E: CubicParameters<F>,
         const LEAF_SIZE_BITS: usize,
         const LEAF_SIZE_BITS_PLUS_8: usize,
         const NUM_BYTES: usize,
     >(
         &mut self,
-        gadget: &mut SHA256BuilderGadget<F, E, D>,
         leaf: &[BoolTarget; LEAF_SIZE_BITS],
     ) -> TendermintHashTarget;
 
     /// Hashes validator bytes to get the leaf according to the Tendermint spec. (0x00 || validatorBytes)
     /// Note: This function differs from leaf_hash_stark because the validator bytes length is variable.
-    fn hash_validator_leaf<E: CubicParameters<F>>(
+    fn hash_validator_leaf(
         &mut self,
-        gadget: &mut SHA256BuilderGadget<F, E, D>,
         validator: &MarshalledValidatorTarget,
         validator_byte_length: Target,
     ) -> TendermintHashTarget;
 
     /// Hashes multiple validators to get their leaves according to the Tendermint spec using hash_validator_leaf.
-    fn hash_validator_leaves<E: CubicParameters<F>, const VALIDATOR_SET_SIZE_MAX: usize>(
+    fn hash_validator_leaves<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
-        gadget: &mut SHA256BuilderGadget<F, E, D>,
         validators: &Vec<MarshalledValidatorTarget>,
         validator_byte_lengths: &Vec<Target>,
     ) -> Vec<TendermintHashTarget>;
 
     /// Hashes two nodes to get the inner node according to the Tendermint spec. (0x01 || left || right)
-    fn inner_hash_stark<E: CubicParameters<F>>(
+    fn inner_hash_stark(
         &mut self,
-        gadget: &mut SHA256BuilderGadget<F, E, D>,
         left: &TendermintHashTarget,
         right: &TendermintHashTarget,
     ) -> TendermintHashTarget;
@@ -96,18 +92,16 @@ pub trait TendermintValidator<F: RichField + Extendable<D>, const D: usize> {
     /// Hashes a layer of the Merkle tree according to the Tendermint spec. (0x01 || left || right)
     /// If in a pair the right node is not enabled (empty), then the left node is passed up to the next layer.
     /// If neither the left nor right node in a pair is enabled (empty), then the parent node is set to not enabled (empty).
-    fn hash_merkle_layer<E: CubicParameters<F>>(
+    fn hash_merkle_layer(
         &mut self,
-        gadget: &mut SHA256BuilderGadget<F, E, D>,
         merkle_hashes: &mut Vec<TendermintHashTarget>,
         merkle_hash_enabled: &mut Vec<BoolTarget>,
         num_hashes: usize,
     ) -> (Vec<TendermintHashTarget>, Vec<BoolTarget>);
 
     /// Compute the expected validator hash from the validator set.
-    fn hash_validator_set<E: CubicParameters<F>, const VALIDATOR_SET_SIZE_MAX: usize>(
+    fn hash_validator_set<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
-        gadget: &mut SHA256BuilderGadget<F, E, D>,
         validators: &Vec<MarshalledValidatorTarget>,
         validator_byte_lengths: &Vec<Target>,
         validator_enabled: &Vec<BoolTarget>,
@@ -126,14 +120,11 @@ pub trait TendermintValidator<F: RichField + Extendable<D>, const D: usize> {
     ) -> TendermintHashTarget;
 }
 
-impl<F: RichField + Extendable<D>, const D: usize> TendermintValidator<F, D>
-    for CircuitBuilder<F, D>
-{
+impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for CircuitBuilder<L, D> {
     type Curve = Ed25519;
 
-    fn get_root_from_merkle_proof<E: CubicParameters<F>, const PROOF_DEPTH: usize>(
+    fn get_root_from_merkle_proof<const PROOF_DEPTH: usize>(
         &mut self,
-        gadget: &mut SHA256BuilderGadget<F, E, D>,
         aunts: &Vec<TendermintHashTarget>,
         // TODO: Should we hard-code path_indices to correspond to dataHash, validatorsHash and nextValidatorsHash?
         path_indices: &Vec<BoolTarget>,
@@ -162,13 +153,11 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintValidator<F, D>
     }
 
     fn leaf_hash_stark<
-        E: CubicParameters<F>,
         const LEAF_SIZE_BITS: usize,
         const LEAF_SIZE_BITS_PLUS_8: usize,
         const NUM_BYTES: usize,
     >(
         &mut self,
-        gadget: &mut SHA256BuilderGadget<F, E, D>,
         leaf: &[BoolTarget; LEAF_SIZE_BITS],
     ) -> TendermintHashTarget {
         // NUM_BYTES must be a multiple of 32
@@ -199,7 +188,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintValidator<F, D>
 
     fn marshal_int64_varint(
         &mut self,
-        voting_power: &I64Target,
+        voting_power: &U64Variable,
     ) -> [BoolTarget; VOTING_POWER_BITS_LENGTH_MAX] {
         let zero = self.zero();
         let one = self.one();
@@ -278,7 +267,7 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintValidator<F, D>
     fn marshal_tendermint_validator(
         &mut self,
         pubkey: &AffinePointTarget<Self::Curve>,
-        voting_power: &I64Target,
+        voting_power: &U64Variable,
     ) -> MarshalledValidatorTarget {
         let mut ptr = 0;
         let mut buffer = [self._false(); VALIDATOR_BYTE_LENGTH_MAX * 8];
@@ -335,9 +324,8 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintValidator<F, D>
         MarshalledValidatorTarget(temp_buffer)
     }
 
-    fn hash_validator_leaf<E: CubicParameters<F>>(
+    fn hash_validator_leaf(
         &mut self,
-        gadget: &mut SHA256BuilderGadget<F, E, D>,
         validator: &MarshalledValidatorTarget,
         validator_byte_length: Target,
     ) -> TendermintHashTarget {
@@ -378,9 +366,8 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintValidator<F, D>
         self.convert_from_curta_bytes(&hash)
     }
 
-    fn hash_validator_leaves<E: CubicParameters<F>, const VALIDATOR_SET_SIZE_MAX: usize>(
+    fn hash_validator_leaves<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
-        gadget: &mut SHA256BuilderGadget<F, E, D>,
         validators: &Vec<MarshalledValidatorTarget>,
         validator_byte_lengths: &Vec<Target>,
     ) -> Vec<TendermintHashTarget> {
@@ -411,9 +398,8 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintValidator<F, D>
         validators_leaf_hashes.to_vec()
     }
 
-    fn inner_hash_stark<E: CubicParameters<F>>(
+    fn inner_hash_stark(
         &mut self,
-        gadget: &mut SHA256BuilderGadget<F, E, D>,
         left: &TendermintHashTarget,
         right: &TendermintHashTarget,
     ) -> TendermintHashTarget {
@@ -454,9 +440,8 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintValidator<F, D>
         self.convert_from_curta_bytes(&inner_hash)
     }
 
-    fn hash_merkle_layer<E: CubicParameters<F>>(
+    fn hash_merkle_layer(
         &mut self,
-        gadget: &mut SHA256BuilderGadget<F, E, D>,
         merkle_hashes: &mut Vec<TendermintHashTarget>,
         merkle_hash_enabled: &mut Vec<BoolTarget>,
         num_hashes: usize,
@@ -496,9 +481,8 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintValidator<F, D>
         (merkle_hashes.to_vec(), merkle_hash_enabled.to_vec())
     }
 
-    fn hash_validator_set<E: CubicParameters<F>, const VALIDATOR_SET_SIZE_MAX: usize>(
+    fn hash_validator_set<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
-        gadget: &mut SHA256BuilderGadget<F, E, D>,
         validators: &Vec<MarshalledValidatorTarget>,
         validator_byte_lengths: &Vec<Target>,
         validator_enabled: &Vec<BoolTarget>,
@@ -629,7 +613,7 @@ pub(crate) mod tests {
     use plonky2x::frontend::num::u32::gadgets::arithmetic_u32::U32Target;
 
     use crate::{
-        utils::{f_bits_to_bytes, to_be_bits, I64Target},
+        utils::{f_bits_to_bytes, to_be_bits},
         validator::TendermintValidator,
     };
 
@@ -778,17 +762,7 @@ pub(crate) mod tests {
 
             // TODO: Need to add check in marshal that this is not negative
             let voting_power_i64 = test_case.0;
-            let voting_power_lower = voting_power_i64 & ((1 << 32) - 1);
-            println!("voting_power_lower: {:?}", voting_power_lower);
-            let voting_power_upper = voting_power_i64 >> 32;
-            println!("voting_power_upper: {:?}", voting_power_upper);
-
-            let voting_power_lower_target =
-                U32Target(builder.constant(F::from_canonical_usize(voting_power_lower as usize)));
-            let voting_power_upper_target =
-                U32Target(builder.constant(F::from_canonical_usize(voting_power_upper as usize)));
-            let voting_power_target =
-                I64Target([voting_power_lower_target, voting_power_upper_target]);
+            let voting_power_variable = builder.constant::<U64Variable>(voting_power_i64 as u64);
             let result = builder.marshal_int64_varint(&voting_power_target);
 
             for i in 0..result.len() {
@@ -827,15 +801,7 @@ pub(crate) mod tests {
         let config = CircuitConfig::standard_ecc_config();
         let mut builder = CircuitBuilder::<F, D>::new(config);
 
-        let voting_power_lower = voting_power_i64 & ((1 << 32) - 1);
-        let voting_power_upper = voting_power_i64 >> 32;
-
-        let voting_power_lower_target =
-            U32Target(builder.constant(F::from_canonical_usize(voting_power_lower as usize)));
-        let voting_power_upper_target =
-            U32Target(builder.constant(F::from_canonical_usize(voting_power_upper as usize)));
-        let voting_power_target = I64Target([voting_power_lower_target, voting_power_upper_target]);
-
+        let voting_power_variable = builder.constant::<U64Variable>(voting_power_i64 as u64);
         let pub_key_uncompressed: AffinePoint<Curve> =
             AffinePoint::new_from_compressed_point(&hex::decode(pubkey).unwrap());
 
@@ -849,7 +815,8 @@ pub(crate) mod tests {
         println!("pub_key: {:?}", pub_key_bytes);
         println!("expected marshal: {:?}", hex::decode(expected_marshal));
 
-        let result = builder.marshal_tendermint_validator(&pub_key_affine_t, &voting_power_target);
+        let result =
+            builder.marshal_tendermint_validator(&pub_key_affine_t, &voting_power_variable);
 
         let expected_bits = to_be_bits(hex::decode(expected_marshal).unwrap().to_vec());
 
