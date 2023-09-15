@@ -609,6 +609,7 @@ pub(crate) mod tests {
     use super::*;
     use curta::chip::hash::sha::sha256::SHA256Gadget;
     use curta::math::goldilocks::cubic::GoldilocksCubicParameters;
+    use curta::plonky2::stark::config::CurtaPoseidonGoldilocksConfig;
     use plonky2::field::types::Field;
     use plonky2::plonk::prover::prove;
     use plonky2::timed;
@@ -633,6 +634,7 @@ pub(crate) mod tests {
     };
 
     type C = PoseidonGoldilocksConfig;
+    type SC = CurtaPoseidonGoldilocksConfig;
     type E = GoldilocksCubicParameters;
     type F = <C as GenericConfig<D>>::F;
     type Curve = Ed25519;
@@ -677,7 +679,7 @@ pub(crate) mod tests {
         }
 
         // Register the SHA constraints in the builder
-        builder.constrain_sha256_gadget::<C>(gadget);
+        builder.constrain_sha256_gadget::<SC>(gadget);
 
         // Build the circuit
         let data = builder.build::<C>();
