@@ -150,7 +150,7 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
         let zero_u32 = self.api.constant_u32(0);
         // Lower bytes, then the upper bytes
         let voting_power = I64Target([U32Target(num.targets()[0]), zero_u32]);
-        let marshalled_bits = self.api.marshal_int64_varint(&voting_power);
+        let marshalled_bits = self.marshal_int64_varint(&voting_power);
 
         // Convert marshalled_bits to BytesVariable<9>.
         let marshalled_bytes = marshalled_bits
