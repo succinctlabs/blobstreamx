@@ -45,28 +45,6 @@ pub trait TendermintValidator<L: PlonkParameters<D>, const D: usize> {
         voting_power: &U64Variable,
     ) -> MarshalledValidatorTarget;
 
-    /// Verify a merkle proof against the specified root hash.
-    /// Note: This function will only work for leaves with a length of 34 bytes (protobuf-encoded SHA256 hash)
-    /// Output is the merkle root
-    fn get_root_from_merkle_proof<const PROOF_DEPTH: usize>(
-        &mut self,
-        aunts: &Vec<TendermintHashTarget>,
-        path_indices: &Vec<BoolTarget>,
-        leaf_hash: &TendermintHashTarget,
-    ) -> TendermintHashTarget;
-
-    /// Hashes leaf bytes to get the leaf hash according to the Tendermint spec. (0x00 || leafBytes)
-    /// Note: Uses STARK gadget to generate SHA's.
-    /// LEAF_SIZE_BITS_PLUS_8 is the number of bits in the protobuf-encoded leaf bytes.
-    fn leaf_hash_stark<
-        const LEAF_SIZE_BITS: usize,
-        const LEAF_SIZE_BITS_PLUS_8: usize,
-        const NUM_BYTES: usize,
-    >(
-        &mut self,
-        leaf: &[BoolTarget; LEAF_SIZE_BITS],
-    ) -> TendermintHashTarget;
-
     /// Hashes validator bytes to get the leaf according to the Tendermint spec. (0x00 || validatorBytes)
     /// Note: This function differs from leaf_hash_stark because the validator bytes length is variable.
     fn hash_validator_leaf(
@@ -82,23 +60,6 @@ pub trait TendermintValidator<L: PlonkParameters<D>, const D: usize> {
         validator_byte_lengths: &Vec<Target>,
     ) -> Vec<TendermintHashTarget>;
 
-    /// Hashes two nodes to get the inner node according to the Tendermint spec. (0x01 || left || right)
-    fn inner_hash_stark(
-        &mut self,
-        left: &TendermintHashTarget,
-        right: &TendermintHashTarget,
-    ) -> TendermintHashTarget;
-
-    /// Hashes a layer of the Merkle tree according to the Tendermint spec. (0x01 || left || right)
-    /// If in a pair the right node is not enabled (empty), then the left node is passed up to the next layer.
-    /// If neither the left nor right node in a pair is enabled (empty), then the parent node is set to not enabled (empty).
-    fn hash_merkle_layer(
-        &mut self,
-        merkle_hashes: &mut Vec<TendermintHashTarget>,
-        merkle_hash_enabled: &mut Vec<BoolTarget>,
-        num_hashes: usize,
-    ) -> (Vec<TendermintHashTarget>, Vec<BoolTarget>);
-
     /// Compute the expected validator hash from the validator set.
     fn hash_validator_set<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
@@ -106,85 +67,10 @@ pub trait TendermintValidator<L: PlonkParameters<D>, const D: usize> {
         validator_byte_lengths: &Vec<Target>,
         validator_enabled: &Vec<BoolTarget>,
     ) -> TendermintHashTarget;
-
-    // Convert from [BoolTarget; N * 8] to SHA-256 padded CurtaBytes<N>
-    fn convert_to_padded_curta_bytes<const NUM_BITS: usize, const NUM_BYTES: usize>(
-        &mut self,
-        bits: &[BoolTarget; NUM_BITS],
-    ) -> CurtaBytes<NUM_BYTES>;
-
-    // Convert from SHA-256 output hash CurtaBytes<HASH_SIZE> to [BoolTarget; HASH_SIZE_BITS]
-    fn convert_from_curta_bytes(
-        &mut self,
-        curta_bytes: &CurtaBytes<HASH_SIZE>,
-    ) -> TendermintHashTarget;
 }
 
 impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for CircuitBuilder<L, D> {
     type Curve = Ed25519;
-
-    fn get_root_from_merkle_proof<const PROOF_DEPTH: usize>(
-        &mut self,
-        aunts: &Vec<TendermintHashTarget>,
-        // TODO: Should we hard-code path_indices to correspond to dataHash, validatorsHash and nextValidatorsHash?
-        path_indices: &Vec<BoolTarget>,
-        // This leaf should already be hashed. (0x00 || leafBytes)
-        leaf_hash: &TendermintHashTarget,
-    ) -> TendermintHashTarget {
-        let mut hash_so_far = *leaf_hash;
-        for i in 0..PROOF_DEPTH {
-            let aunt = aunts[i];
-            let path_index = path_indices[i];
-            let left_hash_pair = self.inner_hash_stark::<E>(gadget, &hash_so_far, &aunt);
-            let right_hash_pair = self.inner_hash_stark::<E>(gadget, &aunt, &hash_so_far);
-
-            let mut hash_pair = [self._false(); HASH_SIZE_BITS];
-            for j in 0..HASH_SIZE_BITS {
-                // If the path index is 0, then the right hash is the aunt.
-                hash_pair[j] = BoolTarget::new_unsafe(self.select(
-                    path_index,
-                    right_hash_pair.0[j].target,
-                    left_hash_pair.0[j].target,
-                ));
-            }
-            hash_so_far = TendermintHashTarget(hash_pair);
-        }
-        hash_so_far
-    }
-
-    fn leaf_hash_stark<
-        const LEAF_SIZE_BITS: usize,
-        const LEAF_SIZE_BITS_PLUS_8: usize,
-        const NUM_BYTES: usize,
-    >(
-        &mut self,
-        leaf: &[BoolTarget; LEAF_SIZE_BITS],
-    ) -> TendermintHashTarget {
-        // NUM_BYTES must be a multiple of 32
-        assert_eq!(NUM_BYTES % 32, 0);
-
-        // Calculate the message for the leaf hash.
-        let mut leaf_msg_bits = [self._false(); LEAF_SIZE_BITS_PLUS_8];
-
-        // 0x00
-        for k in 0..8 {
-            leaf_msg_bits[k] = self._false();
-        }
-
-        // validatorBytes
-        for k in 8..LEAF_SIZE_BITS_PLUS_8 {
-            leaf_msg_bits[k] = leaf[k - 8];
-        }
-
-        // Convert the [BoolTarget; N] into Curta bytes
-        let leaf_msg_bytes =
-            self.convert_to_padded_curta_bytes::<LEAF_SIZE_BITS_PLUS_8, NUM_BYTES>(&leaf_msg_bits);
-
-        // Load the output of the hash.
-        let hash = self.sha256(&leaf_msg_bytes, gadget);
-
-        self.convert_from_curta_bytes(&hash)
-    }
 
     fn marshal_int64_varint(
         &mut self,
@@ -332,6 +218,8 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for Circui
         let one = self.one();
         let eight = self.constant(F::from_canonical_usize(8));
 
+        // self.curta_sha256_variable(input, last_chunk, input_byte_length)
+
         // Add one to account for the 0x00 byte.
         let enc_validator_byte_length = self.add(one, validator_byte_length);
         // Multiply by 8 to get the bit length.
@@ -398,89 +286,6 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for Circui
         validators_leaf_hashes.to_vec()
     }
 
-    fn inner_hash_stark(
-        &mut self,
-        left: &TendermintHashTarget,
-        right: &TendermintHashTarget,
-    ) -> TendermintHashTarget {
-        // Calculate the length of the message for the inner hash.
-        // 0x01 || left || right
-        const MSG_BITS_LENGTH: usize = 8 + (HASH_SIZE_BITS * 2);
-
-        // Calculate the message for the inner hash.
-        let mut message_bits = [self._false(); MSG_BITS_LENGTH];
-
-        // 0x01
-        for k in 0..7 {
-            message_bits[k] = self._false();
-        }
-        message_bits[7] = self._true();
-
-        // left
-        for k in 8..8 + HASH_SIZE_BITS {
-            message_bits[k] = left.0[k - 8];
-        }
-
-        // right
-        for k in 8 + HASH_SIZE_BITS..MSG_BITS_LENGTH {
-            message_bits[k] = right.0[k - (8 + HASH_SIZE_BITS)];
-        }
-
-        const SHA256_PADDED_NUM_BYTES: usize = 128;
-        // Convert the [BoolTarget; N] into Curta bytes which requires a padded length of 128 bytes because the message is 65 bytes.
-        let leaf_msg_bytes = self
-            .convert_to_padded_curta_bytes::<MSG_BITS_LENGTH, SHA256_PADDED_NUM_BYTES>(
-                &message_bits,
-            );
-
-        // Load the output of the hash.
-        // Note: Calculate the inner hash as if both validators are enabled.
-        let inner_hash = self.sha256(&leaf_msg_bytes, gadget);
-
-        self.convert_from_curta_bytes(&inner_hash)
-    }
-
-    fn hash_merkle_layer(
-        &mut self,
-        merkle_hashes: &mut Vec<TendermintHashTarget>,
-        merkle_hash_enabled: &mut Vec<BoolTarget>,
-        num_hashes: usize,
-    ) -> (Vec<TendermintHashTarget>, Vec<BoolTarget>) {
-        let zero = self.zero();
-        let one = self.one();
-
-        for i in (0..num_hashes).step_by(2) {
-            let both_nodes_enabled = self.and(merkle_hash_enabled[i], merkle_hash_enabled[i + 1]);
-
-            let first_node_disabled = self.not(merkle_hash_enabled[i]);
-            let second_node_disabled = self.not(merkle_hash_enabled[i + 1]);
-            let both_nodes_disabled = self.and(first_node_disabled, second_node_disabled);
-
-            // Calculuate the inner hash.
-            let inner_hash = self.inner_hash_stark::<E>(
-                gadget,
-                &TendermintHashTarget(merkle_hashes[i].0),
-                &TendermintHashTarget(merkle_hashes[i + 1].0),
-            );
-
-            for k in 0..HASH_SIZE_BITS {
-                // If the left node is enabled and the right node is disabled, we pass up the left hash instead of the inner hash.
-                merkle_hashes[i / 2].0[k] = BoolTarget::new_unsafe(self.select(
-                    both_nodes_enabled,
-                    inner_hash.0[k].target,
-                    merkle_hashes[i].0[k].target,
-                ));
-            }
-
-            // Set the inner node one level up to disabled if both nodes are disabled.
-            merkle_hash_enabled[i / 2] =
-                BoolTarget::new_unsafe(self.select(both_nodes_disabled, zero, one));
-        }
-
-        // Return the hashes and enabled nodes for the next layer up.
-        (merkle_hashes.to_vec(), merkle_hash_enabled.to_vec())
-    }
-
     fn hash_validator_set<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
         validators: &Vec<MarshalledValidatorTarget>,
@@ -527,64 +332,6 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for Circui
 
         // Return the root hash.
         current_validator_hashes[0]
-    }
-
-    fn convert_to_padded_curta_bytes<const MSG_SIZE_BITS: usize, const NUM_BYTES: usize>(
-        &mut self,
-        bits: &[BoolTarget; MSG_SIZE_BITS],
-    ) -> CurtaBytes<NUM_BYTES> {
-        let zero = self.zero();
-
-        let bytes = CurtaBytes(self.add_virtual_target_arr::<NUM_BYTES>());
-        for i in (0..MSG_SIZE_BITS).step_by(8) {
-            let mut byte = self.zero();
-            for j in 0..8 {
-                let bit = bits[i + j];
-                // MSB first
-                byte = self.mul_const_add(F::from_canonical_u8(1 << (7 - j)), bit.target, byte);
-            }
-            self.connect(byte, bytes.0[i / 8]);
-            // bytes.0[i / 8] = byte;
-        }
-
-        // Push padding byte (0x80)
-        let padding_byte = self.constant(F::from_canonical_u64(0x80));
-        self.connect(padding_byte, bytes.0[MSG_SIZE_BITS / 8]);
-
-        // Reserve 8 bytes for the length of the message.
-        for i in ((MSG_SIZE_BITS + 8) / 8)..NUM_BYTES - 8 {
-            // Fill the rest of the bits with zero's
-            self.connect(zero, bytes.0[i]);
-        }
-
-        // Set the length bits to the length of the message.
-        let len = ((MSG_SIZE_BITS) as u64).to_be_bytes();
-        for i in 0..8 {
-            let bit = self.constant(F::from_canonical_u8(len[i]));
-            self.connect(bit, bytes.0[NUM_BYTES - 8 + i]);
-        }
-        bytes
-    }
-
-    fn convert_from_curta_bytes(
-        &mut self,
-        curta_bytes: &CurtaBytes<HASH_SIZE>,
-    ) -> TendermintHashTarget {
-        // Convert the Curta bytes into [BoolTarget; N]
-        let mut return_hash = [self._false(); HASH_SIZE_BITS];
-        for i in 0..HASH_SIZE {
-            // Decompose each byte into LE bits
-            let mut bits = self.split_le(curta_bytes.0[i], 8);
-
-            // Flip to BE bits
-            bits.reverse();
-
-            // Store in return hash
-            for j in 0..8 {
-                return_hash[i * 8 + j] = bits[j];
-            }
-        }
-        TendermintHashTarget(return_hash)
     }
 }
 
