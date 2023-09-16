@@ -8,10 +8,7 @@ use plonky2x::backend::circuit::PlonkParameters;
 use plonky2x::frontend::ecc::ed25519::curve::curve_types::Curve;
 use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
 
-use itertools::Itertools;
-
 use plonky2x::frontend::merkle::tree::MerkleInclusionProofVariable;
-use plonky2x::frontend::num::u32::gadgets::arithmetic_u32::{CircuitBuilderU32, U32Target};
 use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::frontend::vars::{ArrayVariable, Bytes32Variable, EvmVariable, U32Variable};
 use plonky2x::prelude::{
@@ -19,7 +16,7 @@ use plonky2x::prelude::{
 };
 
 use crate::utils::{
-    I64Target, HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES,
+    HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES,
     PROTOBUF_VARINT_SIZE_BYTES, VARINT_SIZE_BYTES,
 };
 use crate::validator::TendermintValidator;

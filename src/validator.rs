@@ -8,28 +8,14 @@
 //! read more about them here: https://protobuf.dev/programming-guides/encoding/#varints.
 use crate::utils::TendermintHashVariable;
 use crate::utils::{
-    MarshalledValidatorVariable, TendermintHashTarget, HASH_SIZE_BITS, VALIDATOR_BIT_LENGTH_MAX,
-    VALIDATOR_BYTE_LENGTH_MAX, VOTING_POWER_BITS_LENGTH_MAX, VOTING_POWER_BYTES_LENGTH_MAX,
+    MarshalledValidatorVariable, VALIDATOR_BYTE_LENGTH_MAX, VOTING_POWER_BYTES_LENGTH_MAX,
 };
-use crate::voting;
-use curta::chip::hash::sha::sha256::builder_gadget::{
-    CurtaBytes, SHA256Builder, SHA256BuilderGadget,
-};
-use curta::math::extension::cubic::parameters::CubicParameters;
-use plonky2::field::extension::Extendable;
-use plonky2::hash::hash_types::RichField;
-use plonky2::iop::target::BoolTarget;
-use plonky2::iop::target::Target;
 use plonky2x::frontend::ecc::ed25519::curve::curve_types::Curve;
 use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
 use plonky2x::frontend::ecc::ed25519::gadgets::curve::{AffinePointTarget, CircuitBuilderCurve};
-use plonky2x::frontend::hash::sha::sha256::pad_single_sha256_chunk;
-use plonky2x::frontend::num::u32::gadgets::arithmetic_u32::CircuitBuilderU32;
-use plonky2x::frontend::num::u32::gadgets::arithmetic_u32::U32Target;
 use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::frontend::vars::U32Variable;
 use plonky2x::prelude::Field;
-use tendermint::merkle::HASH_SIZE;
 
 use plonky2x::prelude::{
     BoolVariable, ByteVariable, BytesVariable, CircuitBuilder, CircuitVariable, PlonkParameters,
@@ -173,7 +159,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for Circui
         res.push(self.constant::<ByteVariable>(10u8));
         res.push(self.constant::<ByteVariable>(32u8));
 
-        let mut compressed_point = self.api.compress_point(pubkey);
+        let compressed_point = self.api.compress_point(pubkey);
 
         // TODO: in the future compressed_point should probably return a Bytes32Variable
         for i in 0..32 {

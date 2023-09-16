@@ -138,15 +138,16 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVoting for CircuitBuilder<
         &mut self,
         validator_voting_power: &Vec<U64Variable>,
     ) -> U64Variable {
-        let mut api = self.api;
+        let api = &mut self.api;
+        let zero = api.zero();
         // Sum up the voting power of all the validators
         let validator_voting_power = validator_voting_power
             .iter()
             .map(|v| u64_variable_to_i64_target_legacy(v))
             .collect::<Vec<_>>();
 
-        let mut voting_power_low = U32Target(self.api.zero());
-        let mut voting_power_high = U32Target(self.api.zero());
+        let mut voting_power_low = U32Target(zero);
+        let mut voting_power_high = U32Target(zero);
 
         // Note: We can only put a max of 80 targets into add_many_u32 (max num_routed_wires), which is why we need to split the sum into 2 chunks.
         for i in 0..2 {
@@ -197,7 +198,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVoting for CircuitBuilder<
         threshold_numerator: &U32Variable,
         threshold_denominator: &U32Variable,
     ) -> BoolVariable {
-        let mut api = self.api;
+        let api = &mut self.api;
         let accumalated_power_convert = u64_variable_to_i64_target_legacy(accumulated_power);
         let total_voting_power_convert = u64_variable_to_i64_target_legacy(total_voting_power);
         let threshold_numerator_convert = U32Target(threshold_numerator.0 .0.clone());
@@ -206,19 +207,19 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVoting for CircuitBuilder<
 
         // Compute accumulated_voting_power * m
         let scaled_accumulated_vp = mul_i64_by_u32(
-            &mut api,
+            api,
             &accumalated_power_convert,
             threshold_denominator_convert,
         );
 
         // Compute total_vp * n
         let scaled_total_vp = mul_i64_by_u32(
-            &mut api,
+            api,
             &total_voting_power_convert,
             threshold_numerator_convert,
         );
 
-        let res = is_i64_gte(&mut api, &scaled_accumulated_vp, &scaled_total_vp);
+        let res = is_i64_gte(api, &scaled_accumulated_vp, &scaled_total_vp);
         BoolVariable(Variable(res.target))
     }
 
@@ -230,7 +231,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVoting for CircuitBuilder<
         threshold_numerator: &U32Variable,
         threshold_denominator: &U32Variable,
     ) -> BoolVariable {
-        let mut api = self.api;
+        let api = &mut self.api;
         // Accumulate the voting power from the enabled validators.
         let mut accumulated_voting_power =
             I64Target([U32Target(api.zero()), U32Target(api.zero())]);

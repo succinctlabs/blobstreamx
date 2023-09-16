@@ -2,9 +2,9 @@ use plonky2::hash::hash_types::RichField;
 
 use plonky2::iop::target::BoolTarget;
 use plonky2x::frontend::ecc::ed25519::curve::curve_types::Curve;
-use plonky2x::frontend::ecc::ed25519::gadgets::curve::{AffinePointTarget, CircuitBuilderCurve};
+use plonky2x::frontend::ecc::ed25519::gadgets::curve::AffinePointTarget;
 use plonky2x::frontend::num::u32::gadgets::arithmetic_u32::U32Target;
-use plonky2x::prelude::{BoolVariable, Bytes32Variable, BytesVariable};
+use plonky2x::prelude::{Bytes32Variable, BytesVariable};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::cell::RefCell;
@@ -81,7 +81,7 @@ pub const VOTING_POWER_BITS_LENGTH_MAX: usize = VOTING_POWER_BYTES_LENGTH_MAX * 
 // const VALIDATOR_MESSAGE_BYTES_LENGTH_MAX: usize = 124;
 pub const VALIDATOR_MESSAGE_BYTES_LENGTH_MAX: usize = 124;
 
-pub type EDDSAPublicKeyVariable<C: Curve> = AffinePointTarget<C>;
+pub type EDDSAPublicKeyVariable<C> = AffinePointTarget<C>;
 
 /// A protobuf-encoded tendermint block ID as a 72 byte target.
 #[derive(Debug, Clone, Copy)]

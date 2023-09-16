@@ -6,15 +6,9 @@
 //! The `pubkey` is encoded as the raw list of bytes used in the public key. The `varint` is
 //! encoded using protobuf's default integer encoding, which consist of 7 bit payloads. You can
 //! read more about them here: https://protobuf.dev/programming-guides/encoding/#varints.
-use curta::math::extension::cubic::parameters::CubicParameters;
 use curta::math::field::Field;
-use curta::plonky2::stark::config::CurtaConfig;
 use num::BigUint;
-use plonky2::field::extension::Extendable;
 use plonky2::field::types::PrimeField;
-use plonky2::hash::hash_types::RichField;
-use plonky2::iop::target::BoolTarget;
-use plonky2::iop::target::Target;
 use plonky2x::frontend::ecc::ed25519::curve::curve_types::AffinePoint;
 use plonky2x::frontend::ecc::ed25519::curve::curve_types::Curve;
 use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
@@ -22,10 +16,7 @@ use plonky2x::frontend::ecc::ed25519::field::ed25519_scalar::Ed25519Scalar;
 use plonky2x::frontend::ecc::ed25519::gadgets::curve::AffinePointTarget;
 use plonky2x::frontend::ecc::ed25519::gadgets::curve::CircuitBuilderCurve;
 use plonky2x::frontend::ecc::ed25519::gadgets::eddsa::verify_variable_signatures_circuit;
-use plonky2x::frontend::ecc::ed25519::gadgets::eddsa::EDDSAVariableTargets;
-use plonky2x::frontend::ecc::ed25519::gadgets::eddsa::{
-    verify_signatures_circuit, EDDSAPublicKeyTarget, EDDSASignatureTarget,
-};
+use plonky2x::frontend::ecc::ed25519::gadgets::eddsa::EDDSASignatureTarget;
 use plonky2x::frontend::num::nonnative::nonnative::CircuitBuilderNonNative;
 use plonky2x::frontend::num::nonnative::nonnative::NonNativeTarget;
 use plonky2x::frontend::vars::U32Variable;
@@ -34,14 +25,9 @@ use plonky2x::prelude::Bytes32Variable;
 use plonky2x::prelude::BytesVariable;
 use plonky2x::prelude::CircuitBuilder;
 use plonky2x::prelude::PlonkParameters;
-use plonky2x::prelude::Variable;
 
-use crate::utils::to_be_bits;
 use crate::utils::ValidatorMessageVariable;
-use crate::utils::{
-    TendermintHashTarget, ValidatorMessageTarget, HASH_SIZE_BITS,
-    VALIDATOR_MESSAGE_BYTES_LENGTH_MAX,
-};
+use crate::utils::VALIDATOR_MESSAGE_BYTES_LENGTH_MAX;
 
 pub struct DummySignatureTarget<C: Curve> {
     // TODO: Change back to EDDSAPublicKeyTarget after type alias on EDDSAPublicKeyTarget
