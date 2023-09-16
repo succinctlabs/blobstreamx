@@ -10,7 +10,10 @@ use crate::utils::{
     TempSignedBlock, VARINT_SIZE_BYTES,
 };
 use ed25519_consensus::SigningKey;
-use ethers::types::H256;
+use ethers::types::{H256, U64};
+use plonky2x::frontend::ecc::ed25519::curve::curve_types::AffinePoint;
+use plonky2x::frontend::ecc::ed25519::curve::curve_types::Curve;
+use plonky2x::frontend::ecc::ed25519::gadgets::eddsa::EDDSASignatureTarget;
 use plonky2x::frontend::merkle::tree::InclusionProof;
 use plonky2x::prelude::RichField;
 use serde::{Deserialize, Serialize};
@@ -21,17 +24,20 @@ use tendermint::{validator::Set as ValidatorSet, vote::SignedVote, vote::Validat
 use tendermint_proto::types::BlockId as RawBlockId;
 use tendermint_proto::Protobuf;
 
+use crate::utils::VALIDATOR_MESSAGE_BYTES_LENGTH_MAX;
+use plonky2x::prelude::CircuitVariable;
+
 #[derive(Debug, Clone)]
-pub struct Validator {
-    pub pubkey: VerificationKey,
-    pub signature: Signature,
-    pub message: Vec<u8>,
-    pub message_bit_length: usize,
-    pub voting_power: u64,
-    pub validator_byte_length: usize,
+pub struct Validator<F, C: Curve> {
+    pub pubkey: AffinePoint<C>,
+    pub signature: <EDDSASignatureTarget<C> as CircuitVariable>::ValueType,
+    pub message: [u8; VALIDATOR_MESSAGE_BYTES_LENGTH_MAX],
+    pub message_bit_length: F,
+    pub voting_power: U64,
+    pub validator_byte_length: F,
     pub enabled: bool,
     pub signed: bool,
-    pub present_on_trusted_header: Option<bool>,
+    pub present_on_trusted_header: bool,
 }
 
 #[derive(Debug, Clone)]

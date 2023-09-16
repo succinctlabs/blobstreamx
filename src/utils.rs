@@ -192,7 +192,6 @@ pub fn to_le_bits(msg: Vec<u8>) -> Vec<bool> {
     }
     res
 }
-
 /*
 * Mocking comet-bft proof logic in Rust
 * TODO: Upstream to tendermint-rs

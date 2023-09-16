@@ -702,6 +702,7 @@ pub(crate) mod tests {
     use crate::inputs::{
         generate_skip_inputs, generate_step_inputs, CelestiaSkipBlockProof, CelestiaStepBlockProof,
     };
+    use crate::utils::VALIDATOR_MESSAGE_BYTES_LENGTH_MAX;
 
     // TODO: this test should be moved to the `signature` file
     #[test]
@@ -727,14 +728,15 @@ pub(crate) mod tests {
             hex::decode("8909e1b73b7d987e95a7541d96ed484c17a4b0411e98ee4b7c890ad21302ff8c")
                 .unwrap();
         let header_hash_h256 = H256::from_slice(&header_hash);
-        let signed_message = hex::decode("6b080211de3202000000000022480a208909e1b73b7d987e95a7541d96ed484c17a4b0411e98ee4b7c890ad21302ff8c12240801122061263df4855e55fcab7aab0a53ee32cf4f29a1101b56de4a9d249d44e4cf96282a0b089dce84a60610ebb7a81932076d6f6368612d33").unwrap();
+        let mut signed_message = hex::decode("6b080211de3202000000000022480a208909e1b73b7d987e95a7541d96ed484c17a4b0411e98ee4b7c890ad21302ff8c12240801122061263df4855e55fcab7aab0a53ee32cf4f29a1101b56de4a9d249d44e4cf96282a0b089dce84a60610ebb7a81932076d6f6368612d33").unwrap();
+        signed_message.resize(VALIDATOR_MESSAGE_BYTES_LENGTH_MAX, 0u8);
         let mut input = circuit.input();
         input.write::<ValidatorMessageVariable>(signed_message.try_into().unwrap());
         input.write::<TendermintHashVariable>(header_hash_h256);
         input.write::<BoolVariable>(false);
         let (_, mut output) = circuit.prove(&input);
         let verified = output.read::<BoolVariable>();
-        assert!(!verified);
+        assert!(verified);
     }
 
     fn test_step_template<const VALIDATOR_SET_SIZE_MAX: usize>(block: usize) {
