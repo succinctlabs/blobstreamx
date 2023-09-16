@@ -15,8 +15,8 @@ use plonky2x::{
     frontend::uint::uint64::U64Variable,
     frontend::vars::U32Variable,
     prelude::{
-        ArrayVariable, BoolVariable, CircuitBuilder, CircuitVariable, PlonkParameters, RichField,
-        Variable, Witness, WitnessWrite,
+        ArrayVariable, BoolVariable, Bytes32Variable, BytesVariable, CircuitBuilder,
+        CircuitVariable, PlonkParameters, RichField, Variable, Witness, WitnessWrite,
     },
 };
 
@@ -112,6 +112,13 @@ pub struct BaseBlockProofVariable<
 pub trait TendermintVerify<const HEADER_PROOF_DEPTH: usize, const VALIDATOR_SET_SIZE_MAX: usize> {
     type Curve: Curve;
 
+    fn get_root<const LEAF_SIZE_BYTES: usize>(
+        &mut self,
+        leaf: &BytesVariable<LEAF_SIZE_BYTES>,
+        path: &ArrayVariable<BoolVariable, HEADER_PROOF_DEPTH>,
+        proof: &ArrayVariable<TendermintHashVariable, HEADER_PROOF_DEPTH>,
+    ) -> Bytes32Variable;
+
     /// Verifies that the previous header hash in the block matches the previous header hash in the last block ID.
     fn verify_prev_header_in_header(
         &mut self,
@@ -200,6 +207,16 @@ impl<
 {
     type Curve = Ed25519;
 
+    fn get_root<const LEAF_SIZE_BYTES: usize>(
+        &mut self,
+        leaf: &BytesVariable<LEAF_SIZE_BYTES>,
+        path: &ArrayVariable<BoolVariable, HEADER_PROOF_DEPTH>,
+        proof: &ArrayVariable<TendermintHashVariable, HEADER_PROOF_DEPTH>,
+    ) -> Bytes32Variable {
+        let hashed_leaf = self.leaf_hash(&leaf.0);
+        self.get_root_from_merkle_proof_hashed_leaf(proof, path, hashed_leaf)
+    }
+
     fn assert_voting_check(
         &mut self,
         validators: ArrayVariable<ValidatorVariable<Self::Curve>, VALIDATOR_SET_SIZE_MAX>,
@@ -249,7 +266,12 @@ impl<
         );
 
         // Verifies that the previous header hash in the block matches the previous header hash in the last block ID.
-        self.verify_prev_header_in_header(header, prev_header, last_block_id_proof);
+        // self.verify_prev_header_in_header(header, prev_header, last_block_id_proof);
+        // FIXME: why is Rust compiler being weird
+        <plonky2x::prelude::CircuitBuilder<L, D> as TendermintVerify<
+            HEADER_PROOF_DEPTH,
+            VALIDATOR_SET_SIZE_MAX,
+        >>::verify_prev_header_in_header(self, header, prev_header, last_block_id_proof);
 
         // Extract the validators hash from the validator hash proof
         const HASH_START_BYTE: usize = 2;
@@ -259,7 +281,14 @@ impl<
             );
 
         // Verifies that the next validators hash in the previous block matches the current validators hash
-        self.verify_prev_header_next_validators_hash(
+        // self.verify_prev_header_next_validators_hash();
+        // FIXME: why is Rust compiler being weird
+
+        <plonky2x::prelude::CircuitBuilder<L, D> as TendermintVerify<
+            HEADER_PROOF_DEPTH,
+            VALIDATOR_SET_SIZE_MAX,
+        >>::verify_prev_header_next_validators_hash(
+            self,
             &validators_hash,
             prev_header,
             prev_header_next_validators_hash_proof,
@@ -275,7 +304,6 @@ impl<
         next_validators_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
         round_present: &BoolVariable,
     ) {
-        let one = self.one();
         let false_t = self._false();
         let true_t = self._true();
         // Verify each of the validators marshal correctly
@@ -290,7 +318,7 @@ impl<
         let marshalled_validators: Vec<MarshalledValidatorVariable> = validators
             .as_vec()
             .iter()
-            .map(|v| self.marshal_tendermint_validator(&v.pubkey.0, &v.voting_power))
+            .map(|v| self.marshal_tendermint_validator(&v.pubkey, &v.voting_power))
             .collect();
         let validators_enabled: Vec<BoolVariable> =
             validators.as_vec().iter().map(|v| v.enabled).collect();
@@ -313,7 +341,7 @@ impl<
             validators.as_vec().iter().map(|v| v.pubkey).collect();
 
         // Verifies signatures of the validators
-        self.verify_signatures(
+        self.verify_signatures::<VALIDATOR_SET_SIZE_MAX>(
             &validators_signed,
             messages,
             message_bit_lengths,
@@ -322,8 +350,11 @@ impl<
         );
 
         // Compute the validators hash
-        let validators_hash_target =
-            self.hash_validator_set(&marshalled_validators, &byte_lengths, &validators_enabled);
+        let validators_hash_target = self.hash_validator_set::<VALIDATOR_SET_SIZE_MAX>(
+            &marshalled_validators,
+            &byte_lengths,
+            &validators_enabled,
+        );
 
         /// Start of the hash in protobuf encoded validator hash & last block id
         const HASH_START_BYTE: usize = 2;
@@ -337,7 +368,18 @@ impl<
         // Assert the accumulated voting power is greater than the threshold
         let threshold_numerator = self.constant::<U32Variable>(2u32);
         let threshold_denominator = self.constant::<U32Variable>(3u32);
-        self.assert_voting_check(
+        // TODO: why is rust compiler being so weird
+        // self.assert_voting_check(
+        //     *validators,
+        //     &threshold_numerator,
+        //     &threshold_denominator,
+        //     validators_signed,
+        // );
+        <plonky2x::prelude::CircuitBuilder<L, D> as TendermintVerify<
+            HEADER_PROOF_DEPTH,
+            VALIDATOR_SET_SIZE_MAX,
+        >>::assert_voting_check(
+            self,
             *validators,
             &threshold_numerator,
             &threshold_denominator,
@@ -363,11 +405,21 @@ impl<
         let val_hash_path = vec![true_t, true_t, true_t, false_t];
         let next_val_hash_path = vec![false_t, false_t, false_t, true_t];
 
-        let header_from_data_root_proof = self.get_root_from_merkle_proof(&data_hash_proof);
-        let header_from_validator_root_proof =
-            self.get_root_from_merkle_proof(&validator_hash_proof);
-        let header_from_next_validators_root_proof =
-            self.get_root_from_merkle_proof(&next_validators_hash_proof);
+        let header_from_data_root_proof = self.get_root::<PROTOBUF_HASH_SIZE_BYTES>(
+            &data_hash_proof.enc_leaf,
+            &data_hash_path.try_into().unwrap(),
+            &data_hash_proof.proof,
+        );
+        let header_from_validator_root_proof = self.get_root(
+            &validator_hash_proof.enc_leaf,
+            &val_hash_path.try_into().unwrap(),
+            &validator_hash_proof.proof,
+        );
+        let header_from_next_validators_root_proof = self.get_root(
+            &next_validators_hash_proof.enc_leaf,
+            &next_val_hash_path.try_into().unwrap(),
+            &next_validators_hash_proof.proof,
+        );
 
         // Confirm that the header from the proof of {validator_hash, next_validators_hash, data_hash, last_block_id} all match the header
         self.assert_is_equal(*header, header_from_data_root_proof);
@@ -385,8 +437,11 @@ impl<
         const HASH_START_BYTE: usize = 2;
 
         let last_block_id_path = vec![self._false(), self._false(), self._true(), self._false()];
-        let header_from_last_block_id_proof =
-            self.get_root_from_merkle_proof::<HEADER_PROOF_DEPTH>(last_block_id_proof);
+        let header_from_last_block_id_proof = self.get_root(
+            &last_block_id_proof.enc_leaf,
+            &last_block_id_path.try_into().unwrap(),
+            &last_block_id_proof.proof,
+        );
         // TODO: add back a comment here I think
         self.assert_is_equal(header_from_last_block_id_proof, *header);
 
@@ -405,10 +460,11 @@ impl<
         prev_header_next_validators_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
     ) {
         let next_val_hash_path = vec![self._false(), self._false(), self._false(), self._true()];
-        let header_from_next_validators_root_proof = self
-            .get_root_from_merkle_proof::<HEADER_PROOF_DEPTH>(
-                &prev_header_next_validators_hash_proof,
-            );
+        let header_from_next_validators_root_proof = self.get_root(
+            &prev_header_next_validators_hash_proof.enc_leaf,
+            &next_val_hash_path.try_into().unwrap(),
+            &prev_header_next_validators_hash_proof.proof,
+        );
         // Confirm that the prev_header computed from the proof of {next_validators_hash} matches the prev_header
         self.assert_is_equal(header_from_next_validators_root_proof, *prev_header);
 
@@ -469,13 +525,14 @@ impl<
         // Note: A trusted validator is one who is present on the trusted header
         let false_t = self._false();
         let true_t = self._true();
-        let one = self.one();
 
         // Get the header from the validator hash merkle proof
         let val_hash_path = vec![true_t, true_t, true_t, false_t];
-
-        let header_from_validator_root_proof =
-            self.get_root_from_merkle_proof(&trusted_validator_hash_proof);
+        let header_from_validator_root_proof = self.get_root(
+            &trusted_validator_hash_proof.enc_leaf,
+            &val_hash_path.try_into().unwrap(),
+            &trusted_validator_hash_proof.proof,
+        );
 
         // Confirm the validator hash proof matches the trusted header
         self.assert_is_equal(header_from_validator_root_proof, *trusted_header);
@@ -484,7 +541,7 @@ impl<
             trusted_validator_hash_fields
                 .as_vec()
                 .iter()
-                .map(|v| self.marshal_tendermint_validator(&v.pubkey.0, &v.voting_power))
+                .map(|v| self.marshal_tendermint_validator(&v.pubkey, &v.voting_power))
                 .collect();
 
         let trusted_validators_enabled: Vec<BoolVariable> = trusted_validator_hash_fields
