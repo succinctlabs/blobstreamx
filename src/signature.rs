@@ -11,33 +11,44 @@ use curta::math::field::Field;
 use curta::plonky2::stark::config::CurtaConfig;
 use num::BigUint;
 use plonky2::field::extension::Extendable;
+use plonky2::field::types::PrimeField;
+use plonky2::hash::hash_types::RichField;
 use plonky2::iop::target::BoolTarget;
 use plonky2::iop::target::Target;
-use plonky2::plonk::config::AlgebraicHasher;
-use plonky2::plonk::config::GenericConfig;
-use plonky2::{hash::hash_types::RichField, plonk::circuit_builder::CircuitBuilder};
 use plonky2x::frontend::ecc::ed25519::curve::curve_types::AffinePoint;
 use plonky2x::frontend::ecc::ed25519::curve::curve_types::Curve;
 use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
 use plonky2x::frontend::ecc::ed25519::field::ed25519_scalar::Ed25519Scalar;
+use plonky2x::frontend::ecc::ed25519::gadgets::curve::AffinePointTarget;
 use plonky2x::frontend::ecc::ed25519::gadgets::curve::CircuitBuilderCurve;
 use plonky2x::frontend::ecc::ed25519::gadgets::eddsa::verify_variable_signatures_circuit;
+use plonky2x::frontend::ecc::ed25519::gadgets::eddsa::EDDSAVariableTargets;
 use plonky2x::frontend::ecc::ed25519::gadgets::eddsa::{
     verify_signatures_circuit, EDDSAPublicKeyTarget, EDDSASignatureTarget,
 };
 use plonky2x::frontend::num::nonnative::nonnative::CircuitBuilderNonNative;
+use plonky2x::frontend::num::nonnative::nonnative::NonNativeTarget;
+use plonky2x::frontend::vars::U32Variable;
+use plonky2x::prelude::BoolVariable;
+use plonky2x::prelude::Bytes32Variable;
+use plonky2x::prelude::BytesVariable;
+use plonky2x::prelude::CircuitBuilder;
+use plonky2x::prelude::PlonkParameters;
+use plonky2x::prelude::Variable;
 
 use crate::utils::to_be_bits;
+use crate::utils::ValidatorMessageVariable;
 use crate::utils::{
     TendermintHashTarget, ValidatorMessageTarget, HASH_SIZE_BITS,
     VALIDATOR_MESSAGE_BYTES_LENGTH_MAX,
 };
 
 pub struct DummySignatureTarget<C: Curve> {
-    pub pubkey: EDDSAPublicKeyTarget<C>,
+    // TODO: Change back to EDDSAPublicKeyTarget after type alias on EDDSAPublicKeyTarget
+    pub pubkey: AffinePointTarget<C>,
     pub signature: EDDSASignatureTarget<C>,
-    pub message: ValidatorMessageTarget,
-    pub message_bit_length: Target,
+    pub message: ValidatorMessageVariable,
+    pub message_bit_length: U32Variable,
 }
 
 // Private key is [0u8; 32]
@@ -46,7 +57,8 @@ const DUMMY_PUBLIC_KEY: [u8; 32] = [
     226, 67, 166, 58, 192, 72, 161, 139, 89, 218, 41,
 ];
 const DUMMY_MSG: [u8; 32] = [0u8; 32];
-const DUMMY_MSG_LENGTH_BITS: usize = 256;
+const DUMMY_MSG_LENGTH_BYTES: u32 = 32;
+const DUMMY_MSG_LENGTH_BITS: u32 = 256;
 // dummy_msg signed by the dummy private key
 const DUMMY_SIGNATURE: [u8; 64] = [
     61, 161, 235, 223, 169, 110, 221, 24, 29, 190, 54, 89, 209, 192, 81, 196, 49, 240, 86, 165,
@@ -55,52 +67,43 @@ const DUMMY_SIGNATURE: [u8; 64] = [
     10,
 ];
 
-pub trait TendermintSignature<F: RichField + Extendable<D>, const D: usize> {
+pub trait TendermintSignature<L: PlonkParameters<D>, const D: usize> {
     type Curve: Curve;
+    type ScalarField: PrimeField;
 
     /// Returns the dummy targets
     fn get_dummy_targets(&mut self) -> DummySignatureTarget<Self::Curve>;
 
     // Extract a hash from a protobuf-encoded array of bits.
-    fn extract_hash_from_protobuf<const START_BYTE: usize, const PROTOBUF_MSG_LENGTH_BITS: usize>(
+    fn extract_hash_from_protobuf<const START_BYTE: usize, const PROTOBUF_MSG_LENGTH_BYTES: usize>(
         &mut self,
-        hash: &[BoolTarget; PROTOBUF_MSG_LENGTH_BITS],
-    ) -> TendermintHashTarget;
+        hash: &BytesVariable<PROTOBUF_MSG_LENGTH_BYTES>,
+    ) -> Bytes32Variable;
 
     /// Extract the header hash from the signed message from a validator.
     fn verify_hash_in_message(
         &mut self,
-        message: &ValidatorMessageTarget,
-        header_hash: &TendermintHashTarget,
+        message: &ValidatorMessageVariable,
+        header_hash: Bytes32Variable,
         // Should be the same for all validators
-        round_present_in_message: &BoolTarget,
-    ) -> BoolTarget;
+        round_present_in_message: BoolVariable,
+    ) -> BoolVariable;
 
     /// Verifies the signatures of the validators in the validator set.
-    fn verify_signatures<E: CubicParameters<F>, Config: CurtaConfig<D, F = F, FE = F::Extension>>(
+    fn verify_signatures<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
         // This message should be range-checked before being passed in.
-        validator_active: &Vec<BoolTarget>,
-        messages: Vec<ValidatorMessageTarget>,
-        message_bit_lengths: Vec<Target>,
-        eddsa_sig_targets: Vec<&EDDSASignatureTarget<Self::Curve>>,
-        eddsa_pubkey_targets: Vec<&EDDSAPublicKeyTarget<Self::Curve>>,
-    );
-
-    /// Verifies a single signature of a Tendermint validator.
-    fn verify_signature<E: CubicParameters<F>, Config: CurtaConfig<D, F = F, FE = F::Extension>>(
-        &mut self,
-        // This message should be range-checked before being passed in.
-        message: Vec<BoolTarget>,
-        eddsa_sig_target: &EDDSASignatureTarget<Self::Curve>,
-        eddsa_pubkey_target: &EDDSAPublicKeyTarget<Self::Curve>,
+        validator_active: &Vec<BoolVariable>,
+        messages: Vec<ValidatorMessageVariable>,
+        message_bit_lengths: Vec<U32Variable>,
+        eddsa_sig_targets: Vec<EDDSASignatureTarget<Self::Curve>>,
+        eddsa_pubkey_targets: Vec<AffinePointTarget<Self::Curve>>,
     );
 }
 
-impl<F: RichField + Extendable<D>, const D: usize> TendermintSignature<F, D>
-    for CircuitBuilder<F, D>
-{
+impl<L: PlonkParameters<D>, const D: usize> TendermintSignature<L, D> for CircuitBuilder<L, D> {
     type Curve = Ed25519;
+    type ScalarField = Ed25519Scalar;
 
     fn get_dummy_targets(&mut self) -> DummySignatureTarget<Self::Curve> {
         // Convert the dummy public key to a target
@@ -114,28 +117,20 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintSignature<F, D>
         let sig_s_biguint = BigUint::from_bytes_le(&DUMMY_SIGNATURE[32..64]);
         let sig_s = Ed25519Scalar::from_noncanonical_biguint(sig_s_biguint.clone());
 
-        let pubkey = EDDSAPublicKeyTarget(self.constant_affine_point(pub_key_uncompressed));
+        let pubkey = self.constant::<AffinePointTarget<Self::Curve>>(pub_key_uncompressed);
 
         let signature = EDDSASignatureTarget {
-            r: self.constant_affine_point(sig_r),
-            s: self.constant_nonnative(sig_s),
+            r: self.constant::<AffinePointTarget<Self::Curve>>(sig_r),
+            s: self.constant::<NonNativeTarget<Self::ScalarField>>(sig_s),
         };
 
-        let mut message = Vec::new();
-        let dummy_msg_bits = to_be_bits(DUMMY_MSG.to_vec());
+        let message = self.zero::<BytesVariable<VALIDATOR_MESSAGE_BYTES_LENGTH_MAX>>();
 
-        for i in 0..DUMMY_MSG_LENGTH_BITS {
-            message.push(self.constant_bool(dummy_msg_bits[i]));
-        }
-        // Fill out the rest of the message with zeros
-        message.resize(VALIDATOR_MESSAGE_BYTES_LENGTH_MAX * 8, self._false());
-
-        let dummy_msg_length = self.constant(F::from_canonical_usize(DUMMY_MSG_LENGTH_BITS));
-
-        let message = ValidatorMessageTarget(message.try_into().unwrap());
+        // TODO: Change to DUMMY_MSG_LENGTH_BYTES once we switch verify_variable_signatures.
+        let dummy_msg_length = self.constant::<U32Variable>(DUMMY_MSG_LENGTH_BITS);
 
         DummySignatureTarget {
-            pubkey,
+            pubkey: pubkey,
             signature,
             message,
             message_bit_length: dummy_msg_length,
@@ -144,26 +139,23 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintSignature<F, D>
 
     fn extract_hash_from_protobuf<
         const START_BYTE: usize,
-        const PROTOBUF_MSG_LENGTH_BITS: usize,
+        const PROTOBUF_MSG_LENGTH_BYTES: usize,
     >(
         &mut self,
-        hash: &[BoolTarget; PROTOBUF_MSG_LENGTH_BITS],
-    ) -> TendermintHashTarget {
-        let mut result = [self._false(); HASH_SIZE_BITS];
-        // Skip first 2 bytes
-        for i in 0..HASH_SIZE_BITS {
-            result[i] = hash[i + (8 * START_BYTE)];
-        }
-        TendermintHashTarget(result)
+        bytes: &BytesVariable<PROTOBUF_MSG_LENGTH_BYTES>,
+    ) -> Bytes32Variable {
+        Bytes32Variable(BytesVariable(
+            bytes.0[START_BYTE..START_BYTE + 32].try_into().unwrap(),
+        ))
     }
 
     fn verify_hash_in_message(
         &mut self,
-        message: &ValidatorMessageTarget,
-        header_hash: &TendermintHashTarget,
+        message: &ValidatorMessageVariable,
+        header_hash: Bytes32Variable,
         // Should be the same for all validators
-        round_present_in_message: &BoolTarget,
-    ) -> BoolTarget {
+        round_present_in_message: BoolVariable,
+    ) -> BoolVariable {
         // Logic:
         //      Verify that header_hash is equal to the hash in the message at the correct index.
         //      If the round is missing, then the hash starts at index 16.
@@ -173,111 +165,56 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintSignature<F, D>
 
         const INCLUDING_ROUND_START_IDX: usize = 25;
 
-        let round_absent_in_message = self.not(*round_present_in_message);
+        let round_missing_header = self.extract_hash_from_protobuf::<MISSING_ROUND_START_IDX, VALIDATOR_MESSAGE_BYTES_LENGTH_MAX>(&message);
+        let round_present_header = self.extract_hash_from_protobuf::<INCLUDING_ROUND_START_IDX, VALIDATOR_MESSAGE_BYTES_LENGTH_MAX>(&message);
 
-        let mut vec_round_missing = [self._false(); HASH_SIZE_BITS];
+        let computed_header = self.select(
+            round_present_in_message,
+            round_present_header,
+            round_missing_header,
+        );
 
-        let mut vec_round_present = [self._false(); HASH_SIZE_BITS];
-
-        let mut eq_so_far = self._true();
-
-        for i in 0..HASH_SIZE_BITS {
-            vec_round_present[i] = message.0[(INCLUDING_ROUND_START_IDX) * 8 + i];
-            vec_round_missing[i] = message.0[(MISSING_ROUND_START_IDX) * 8 + i];
-
-            let round_present_eq =
-                self.is_equal(header_hash.0[i].target, vec_round_present[i].target);
-            let round_missing_eq =
-                self.is_equal(header_hash.0[i].target, vec_round_missing[i].target);
-
-            // Pick the correct bit based on whether the round is present or not.
-            // Select operation as boolean (A & B) | (!A & C) where A is the selector bit.
-            let left = self.and(*round_present_in_message, round_present_eq);
-
-            let right = self.and(round_absent_in_message, round_missing_eq);
-
-            let hash_eq = self.or(left, right);
-
-            // AND the check of the bits so far
-            eq_so_far = self.and(eq_so_far, hash_eq);
-        }
-
-        eq_so_far
+        self.is_equal(computed_header, header_hash)
     }
 
     /// Verifies the signatures of the validators in the validator set.
-    fn verify_signatures<
-        E: CubicParameters<F>,
-        Config: CurtaConfig<D, F = F, FE = F::Extension>,
-    >(
+    fn verify_signatures<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
-        validator_active: &Vec<BoolTarget>,
-        // Variable length messages, need to be cast into VALIDATOR_MESSAGE_BYTES_LENGTH_MAX*8 long
-        messages: Vec<ValidatorMessageTarget>,
         // This message should be range-checked before being passed in.
-        message_bit_lengths: Vec<Target>,
-        eddsa_sig_targets: Vec<&EDDSASignatureTarget<Self::Curve>>,
-        eddsa_pubkey_targets: Vec<&EDDSAPublicKeyTarget<Self::Curve>>,
+        validator_active: &Vec<BoolVariable>,
+        messages: Vec<ValidatorMessageVariable>,
+        message_bit_lengths: Vec<U32Variable>,
+        eddsa_sig_targets: Vec<EDDSASignatureTarget<Self::Curve>>,
+        eddsa_pubkey_targets: Vec<AffinePointTarget<Self::Curve>>,
     ) {
-        // TODO: UPDATE message.len() to VALIDATOR_SET_SIZE_MAX
-        assert!(
-            messages.len() == eddsa_sig_targets.len()
-                && messages.len() == eddsa_pubkey_targets.len(),
-        );
-
-        println!("messages.len(): {}", messages.len());
-
         const VALIDATOR_MESSAGE_BITS_LENGTH_MAX: usize = VALIDATOR_MESSAGE_BYTES_LENGTH_MAX * 8;
 
-        let zero = self.zero();
-        let one = self.one();
         let dummy_target = self.get_dummy_targets();
 
         let eddsa_target = verify_variable_signatures_circuit::<
-            F,
+            L::Field,
             Self::Curve,
-            E,
-            Config,
+            L::CubicParams,
+            L::CurtaConfig,
             D,
             VALIDATOR_MESSAGE_BITS_LENGTH_MAX,
-        >(self, messages.len());
+        >(&mut self.api, messages.len());
 
-        for i in 0..messages.len() {
-            let message = &messages[i];
-            let eddsa_sig_target = eddsa_sig_targets[i];
-            // Select dummy pubkey if the validator did not sign this round.
-            let eddsa_pubkey_target = eddsa_pubkey_targets[i];
-
-            // TODO: Fix clone?
-            let pubkey_targets = [eddsa_pubkey_target.0.clone(), dummy_target.pubkey.0.clone()];
-
-            let sig_r_target = [eddsa_sig_target.r.clone(), dummy_target.signature.r.clone()];
-
-            let sig_s_target = [eddsa_sig_target.s.clone(), dummy_target.signature.s.clone()];
-
-            let idx = self.select(validator_active[i], zero, one);
-
+        for i in 0..VALIDATOR_SET_SIZE_MAX {
             // Select the correct pubkey based on whether the validator signed this round.
-            let eddsa_pubkey_target = self.random_access_affine_point(idx, pubkey_targets.to_vec());
+            let eddsa_pubkey = self.select(
+                validator_active[i],
+                eddsa_pubkey_targets[i].clone(),
+                dummy_target.pubkey.clone(),
+            );
 
-            // Select the correct sig r based on whether the validator signed this round
-            let sig_r = self.random_access_affine_point(idx, sig_r_target.to_vec());
+            let eddsa_sig = self.select(
+                validator_active[i],
+                eddsa_sig_targets[i].clone(),
+                dummy_target.signature.clone(),
+            );
 
-            // Select the correct sig s based on whether the validator signed this round
-            let sig_s = self.random_access_nonnative(idx, sig_s_target.to_vec());
-
-            let eddsa_sig_target = EDDSASignatureTarget { r: sig_r, s: sig_s };
-
-            // Select correct message based on whether the validator signed this round
-            for j in 0..VALIDATOR_MESSAGE_BITS_LENGTH_MAX {
-                let bit = self.select(
-                    validator_active[i],
-                    message.0[j].target,
-                    // All dummy message bits are zero
-                    zero,
-                );
-                self.connect(eddsa_target.msgs[i][j].target, bit);
-            }
+            let msg = self.select(validator_active[i], messages[i], dummy_target.message);
 
             let bit_length = self.select(
                 validator_active[i],
@@ -285,41 +222,24 @@ impl<F: RichField + Extendable<D>, const D: usize> TendermintSignature<F, D>
                 dummy_target.message_bit_length,
             );
 
-            self.connect(eddsa_target.msgs_lengths[i], bit_length);
+            // TODO: REMOVE THESE CONSTRAINTS AFTER VERIFY_VARIABLE_SIGNATURES_CIRCUIT is ported
+            // TODO: Check the endianness of msg if this fails
+            let msg_bool_targets = self.to_le_bits(msg);
+            for j in 0..VALIDATOR_MESSAGE_BITS_LENGTH_MAX {
+                self.api
+                    .connect(eddsa_target.msgs[i][j].target, msg_bool_targets[j].0 .0);
+            }
+            self.api
+                .connect(eddsa_target.msgs_lengths[i], bit_length.0 .0);
 
-            // Select dummy signature if the validator did not sign this round.
-            self.connect_nonnative(&eddsa_target.sigs[i].s, &eddsa_sig_target.s);
-            self.connect_nonnative(&eddsa_target.sigs[i].r.x, &eddsa_sig_target.r.x);
-            self.connect_nonnative(&eddsa_target.sigs[i].r.y, &eddsa_sig_target.r.y);
+            self.api
+                .connect_nonnative(&eddsa_target.sigs[i].s, &eddsa_sig.s);
+            self.api
+                .connect_affine_point(&eddsa_sig.r, &eddsa_target.sigs[i].r);
 
-            self.connect_affine_point(&eddsa_target.pub_keys[i].0, &eddsa_pubkey_target);
+            self.api
+                .connect_affine_point(&eddsa_pubkey, &eddsa_target.pub_keys[i].0);
         }
-    }
-
-    /// Verifies the signatures of the validators in the validator set.
-    fn verify_signature<E: CubicParameters<F>, Config: CurtaConfig<D, F = F, FE = F::Extension>>(
-        &mut self,
-        // This should be the messaged signed by the validator that the header hash is extracted from.
-        // We should range check this outside of the circuit.
-        message: Vec<BoolTarget>,
-        eddsa_sig_target: &EDDSASignatureTarget<Self::Curve>,
-        eddsa_pubkey_target: &EDDSAPublicKeyTarget<Self::Curve>,
-    ) {
-        let message_bytes_len: usize = message.len() / 8;
-        let eddsa_target = verify_signatures_circuit::<F, Self::Curve, E, Config, D>(
-            self,
-            1,
-            message_bytes_len as u128,
-        );
-
-        for i in 0..message.len() {
-            self.connect(eddsa_target.msgs[0][i].target, message[i].target);
-        }
-
-        self.connect_affine_point(&eddsa_target.sigs[0].r, &eddsa_sig_target.r);
-        self.connect_nonnative(&eddsa_target.sigs[0].s, &eddsa_sig_target.s);
-
-        self.connect_affine_point(&eddsa_target.pub_keys[0].0, &eddsa_pubkey_target.0);
     }
 }
 
@@ -333,14 +253,12 @@ pub(crate) mod tests {
     use plonky2::field::types::Field;
     use plonky2::{
         iop::witness::{PartialWitness, WitnessWrite},
-        plonk::{
-            circuit_builder::CircuitBuilder, circuit_data::CircuitConfig,
-            config::PoseidonGoldilocksConfig,
-        },
+        plonk::{circuit_data::CircuitConfig, config::PoseidonGoldilocksConfig},
     };
     use plonky2x::frontend::ecc::ed25519::curve::eddsa::{
         verify_message, EDDSAPublicKey, EDDSASignature,
     };
+    use plonky2x::prelude::{bytes, CircuitBuilder, DefaultParameters};
     use subtle_encoding::hex;
 
     use plonky2x::frontend::num::biguint::CircuitBuilderBiguint;
@@ -350,7 +268,7 @@ pub(crate) mod tests {
     use tendermint::crypto::ed25519::SigningKey;
     use tendermint::private_key;
 
-    use crate::utils::to_be_bits;
+    use crate::utils::{to_be_bits, to_le_bits};
 
     #[test]
     fn test_generate_signature() {
@@ -374,32 +292,31 @@ pub(crate) mod tests {
     }
 
     fn verify_eddsa_signature(msg_bytes: Vec<u8>, pub_key_bytes: Vec<u8>, sig_bytes: Vec<u8>) {
-        type F = GoldilocksField;
+        type L = DefaultParameters;
+        type F = <L as PlonkParameters<D>>::Field;
         type Curve = Ed25519;
-        type E = GoldilocksCubicParameters;
         type C = PoseidonGoldilocksConfig;
-        type SC = CurtaPoseidonGoldilocksConfig;
+        type E = GoldilocksCubicParameters;
         const D: usize = 2;
 
-        let pw = PartialWitness::new();
-        let mut builder = CircuitBuilder::<F, D>::new(CircuitConfig::standard_ecc_config());
+        let mut builder = CircuitBuilder::<L, D>::new();
 
-        let msg_bits = to_be_bits(msg_bytes.to_vec());
-        let msg_bit_length = msg_bits.len();
-        let msg_bit_length_t = builder.constant(F::from_canonical_usize(msg_bit_length));
-        let mut msg_bits_target = Vec::new();
-        for i in 0..msg_bits.len() {
-            msg_bits_target.push(builder.constant_bool(msg_bits[i]));
-        }
-        msg_bits_target.resize(VALIDATOR_MESSAGE_BYTES_LENGTH_MAX * 8, builder._false());
+        let mut new_msg_bytes = msg_bytes.clone();
 
-        let msg_bits_target = ValidatorMessageTarget(msg_bits_target.try_into().unwrap());
+        new_msg_bytes.resize(VALIDATOR_MESSAGE_BYTES_LENGTH_MAX, 0u8);
+
+        let msg_bytes_variable = builder
+            .constant::<BytesVariable<VALIDATOR_MESSAGE_BYTES_LENGTH_MAX>>(
+                new_msg_bytes.clone().try_into().unwrap(),
+            );
+
+        let msg_bit_length_t = builder.constant::<U32Variable>(msg_bytes.len() as u32 * 8);
 
         let pub_key_uncompressed: AffinePoint<Curve> =
             AffinePoint::new_from_compressed_point(&pub_key_bytes);
 
         let eddsa_pub_key_target =
-            EDDSAPublicKeyTarget(builder.constant_affine_point(pub_key_uncompressed));
+            EDDSAPublicKeyTarget(builder.api.constant_affine_point(pub_key_uncompressed));
 
         let sig_r = AffinePoint::new_from_compressed_point(&sig_bytes[0..32]);
         assert!(sig_r.is_valid());
@@ -409,15 +326,15 @@ pub(crate) mod tests {
         let sig = EDDSASignature { r: sig_r, s: sig_s };
 
         assert!(verify_message(
-            &msg_bits,
+            &to_be_bits(msg_bytes.clone()),
             &sig,
             &EDDSAPublicKey(pub_key_uncompressed)
         ));
         println!("verified signature");
 
-        let sig_r_target = builder.constant_affine_point(sig_r);
-        let sig_s_biguint_target = builder.constant_biguint(&sig_s_biguint);
-        let sig_s_target = builder.biguint_to_nonnative(&sig_s_biguint_target);
+        let sig_r_target = builder.api.constant_affine_point(sig_r);
+        let sig_s_biguint_target = builder.api.constant_biguint(&sig_s_biguint);
+        let sig_s_target = builder.api.biguint_to_nonnative(&sig_s_biguint_target);
 
         let eddsa_sig_target = EDDSASignatureTarget {
             r: sig_r_target,
@@ -426,42 +343,19 @@ pub(crate) mod tests {
 
         let validator_active = vec![builder._false()];
 
-        builder.verify_signatures::<E, SC>(
+        builder.verify_signatures::<1>(
             &validator_active,
-            vec![msg_bits_target],
+            vec![msg_bytes_variable],
             vec![msg_bit_length_t],
-            vec![&eddsa_sig_target],
-            vec![&eddsa_pub_key_target],
+            vec![eddsa_sig_target],
+            vec![eddsa_pub_key_target.0],
         );
 
-        let inner_data = builder.build::<C>();
-        let inner_proof = inner_data.prove(pw).unwrap();
-        inner_data.verify(inner_proof.clone()).unwrap();
+        let circuit = builder.build();
 
-        let mut outer_builder = CircuitBuilder::<F, D>::new(CircuitConfig::standard_ecc_config());
-        let inner_proof_target = outer_builder.add_virtual_proof_with_pis(&inner_data.common);
-        let inner_verifier_data =
-            outer_builder.add_virtual_verifier_data(inner_data.common.config.fri_config.cap_height);
-        outer_builder.verify_proof::<C>(
-            &inner_proof_target,
-            &inner_verifier_data,
-            &inner_data.common,
-        );
-
-        let outer_data = outer_builder.build::<C>();
-        for gate in outer_data.common.gates.iter() {
-            println!("ecddsa verify recursive gate: {:?}", gate);
-        }
-
-        let mut outer_pw = PartialWitness::new();
-        outer_pw.set_proof_with_pis_target(&inner_proof_target, &inner_proof);
-        outer_pw.set_verifier_data_target(&inner_verifier_data, &inner_data.verifier_only);
-
-        let outer_proof = outer_data.prove(outer_pw).unwrap();
-
-        outer_data
-            .verify(outer_proof)
-            .expect("failed to verify proof");
+        let input = circuit.input();
+        let (proof, output) = circuit.prove(&input);
+        circuit.verify(&proof, &input, &output);
     }
 
     #[test]
