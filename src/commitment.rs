@@ -12,6 +12,7 @@ use itertools::Itertools;
 
 use plonky2x::frontend::merkle::tree::MerkleInclusionProofVariable;
 use plonky2x::frontend::num::u32::gadgets::arithmetic_u32::{CircuitBuilderU32, U32Target};
+use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::frontend::vars::{ArrayVariable, Bytes32Variable, EvmVariable, U32Variable};
 use plonky2x::prelude::{
     BoolVariable, ByteVariable, BytesVariable, CircuitBuilder, CircuitVariable, Variable,
@@ -147,22 +148,14 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
     type Curve = Ed25519;
 
     fn marshal_u32_as_varint(&mut self, num: &U32Variable) -> BytesVariable<9> {
-        let zero_u32 = self.api.constant_u32(0);
         // Lower bytes, then the upper bytes
-        let voting_power = I64Target([U32Target(num.targets()[0]), zero_u32]);
-        let marshalled_bits = self.marshal_int64_varint(&voting_power);
+        let voting_power_limbs = [*num, self.constant::<U32Variable>(0)];
+        let voting_power = U64Variable {
+            limbs: voting_power_limbs,
+            _marker: std::marker::PhantomData,
+        };
 
-        // Convert marshalled_bits to BytesVariable<9>.
-        let marshalled_bytes = marshalled_bits
-            .chunks(8)
-            .map(|chunk| {
-                // Reverse bit order in each byte (f_bits_to_bytes).
-                let targets = chunk.iter().rev().map(|b| b.target).collect_vec();
-                ByteVariable::from_targets(&targets)
-            })
-            .collect_vec();
-
-        BytesVariable(marshalled_bytes.try_into().unwrap())
+        BytesVariable(self.marshal_int64_varint(&voting_power))
     }
 
     fn encode_marshalled_varint(

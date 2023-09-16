@@ -7,15 +7,12 @@
 //! encoded using protobuf's default integer encoding, which consist of 7 bit payloads. You can
 //! read more about them here: https://protobuf.dev/programming-guides/encoding/#varints.
 
-use ethers::types::U64;
-use plonky2::iop::target::{BoolTarget, Target};
-
-use plonky2x::frontend::ecc::ed25519::{
-    curve::{curve_types::Curve, ed25519::Ed25519},
-    gadgets::{curve::CircuitBuilderCurve, eddsa::EDDSASignatureTarget},
-};
 use plonky2x::{
-    frontend::num::u32::gadgets::arithmetic_u32::{CircuitBuilderU32, U32Target},
+    frontend::ecc::ed25519::{
+        curve::{curve_types::Curve, ed25519::Ed25519},
+        gadgets::eddsa::EDDSASignatureTarget,
+    },
+    frontend::uint::uint64::U64Variable,
     frontend::vars::U32Variable,
     prelude::{
         ArrayVariable, BoolVariable, CircuitBuilder, CircuitVariable, PlonkParameters, RichField,
@@ -28,20 +25,12 @@ use crate::utils::{
     ValidatorMessageVariable,
 };
 use crate::{
-    inputs::{CelestiaBaseBlockProof, CelestiaSkipBlockProof, CelestiaStepBlockProof},
     signature::TendermintSignature,
-    utils::{
-        to_be_bits, EncBlockIDTarget, EncTendermintHashTarget, I64Target,
-        MarshalledValidatorVariable, TendermintHashTarget, ValidatorMessageTarget, HASH_SIZE_BITS,
-        HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SHA256_NUM_BYTES, PROTOBUF_BLOCK_ID_SIZE_BITS,
-        PROTOBUF_HASH_SHA256_NUM_BYTES, PROTOBUF_HASH_SIZE_BITS,
-        VALIDATOR_MESSAGE_BYTES_LENGTH_MAX,
-    },
+    utils::{MarshalledValidatorVariable, PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES},
     validator::TendermintValidator,
     voting::TendermintVoting,
 };
-use num::BigUint;
-use plonky2x::frontend::uint::uint64::U64Variable;
+
 #[derive(Debug, Clone, CircuitVariable)]
 pub struct ValidatorVariable<C: Curve> {
     pubkey: EDDSAPublicKeyVariable<C>,
@@ -218,7 +207,7 @@ impl<
         threshold_denominator: &U32Variable,
         include_in_check: Vec<BoolVariable>,
     ) {
-        assert_eq!(validators.as_vec().len() == include_in_check.len());
+        assert_eq!(validators.as_vec().len(), include_in_check.len());
         let validator_voting_power: Vec<U64Variable> =
             validators.as_vec().iter().map(|v| v.voting_power).collect();
 
@@ -249,8 +238,6 @@ impl<
         last_block_id_proof: &BlockIDInclusionProofVariable<HEADER_PROOF_DEPTH>,
         round_present: &BoolVariable,
     ) {
-        let zero = self.zero();
-
         // Verifies that 2/3 of the validators signed the headers
         self.verify_header(
             validators,
@@ -264,12 +251,11 @@ impl<
         // Verifies that the previous header hash in the block matches the previous header hash in the last block ID.
         self.verify_prev_header_in_header(header, prev_header, last_block_id_proof);
 
-        // TODO: this was clowntown, remove
         // Extract the validators hash from the validator hash proof
         const HASH_START_BYTE: usize = 2;
         let validators_hash = self
-            .extract_hash_from_protobuf::<HASH_START_BYTE, PROTOBUF_HASH_SIZE_BITS>(
-                &validator_hash_proof.enc_leaf.0,
+            .extract_hash_from_protobuf::<HASH_START_BYTE, PROTOBUF_HASH_SIZE_BYTES>(
+                &validator_hash_proof.enc_leaf,
             );
 
         // Verifies that the next validators hash in the previous block matches the current validators hash
@@ -294,6 +280,8 @@ impl<
         let true_t = self._true();
         // Verify each of the validators marshal correctly
         // Assumes the validators are sorted in the correct order
+
+        // TODO: clean up below, it's a bit horrendous
         let byte_lengths: Vec<Variable> = validators
             .as_vec()
             .iter()
@@ -304,35 +292,34 @@ impl<
             .iter()
             .map(|v| self.marshal_tendermint_validator(&v.pubkey.0, &v.voting_power))
             .collect();
-        let validators_signed: Vec<BoolVariable> =
-            validators.as_vec().iter().map(|v| v.signed).collect();
         let validators_enabled: Vec<BoolVariable> =
             validators.as_vec().iter().map(|v| v.enabled).collect();
-
         let validator_voting_power: Vec<U64Variable> =
             validators.as_vec().iter().map(|v| v.voting_power).collect();
 
-        let mut messages: Vec<Vec<BoolVariable>> = validators
+        // Fields used for verifying signatures
+        let validators_signed: Vec<BoolVariable> =
+            validators.as_vec().iter().map(|v| v.signed).collect();
+        let mut messages: Vec<ValidatorMessageVariable> =
+            validators.as_vec().iter().map(|v| v.message).collect();
+        let message_bit_lengths: Vec<U32Variable> = validators
             .as_vec()
             .iter()
-            .map(|v| v.message.0.to_vec())
+            .map(|v| U32Variable(v.message_bit_length))
             .collect();
-        for i in 0..messages.len() {
-            messages[i].resize(VALIDATOR_MESSAGE_BYTES_LENGTH_MAX * 8, self._false());
-        }
+        let signatures: Vec<EDDSASignatureTarget<Ed25519>> =
+            validators.as_vec().iter().map(|v| v.signature).collect();
+        let pubkeys: Vec<EDDSAPublicKeyVariable<Ed25519>> =
+            validators.as_vec().iter().map(|v| v.pubkey).collect();
 
-        let messages: Vec<ValidatorMessageTarget> = messages
-            .iter()
-            .map(|v| ValidatorMessageTarget(v.clone().try_into().unwrap()))
-            .collect();
-
-        let message_bit_lengths: Vec<Target> =
-            validators.iter().map(|v| v.message_bit_length).collect();
-
-        let signatures: Vec<&EDDSASignatureTarget<Ed25519>> =
-            validators.iter().map(|v| &v.signature).collect();
-        let pubkeys: Vec<&EDDSAPublicKeyVariable<Ed25519>> =
-            validators.iter().map(|v| &v.pubkey).collect();
+        // Verifies signatures of the validators
+        self.verify_signatures(
+            &validators_signed,
+            messages,
+            message_bit_lengths,
+            signatures,
+            pubkeys,
+        );
 
         // Compute the validators hash
         let validators_hash_target =
@@ -342,45 +329,34 @@ impl<
         const HASH_START_BYTE: usize = 2;
         // Assert that computed validator hash matches expected validator hash
         let extracted_hash = self
-            .extract_hash_from_protobuf::<HASH_START_BYTE, PROTOBUF_HASH_SIZE_BITS>(
-                &validator_hash_proof.enc_leaf.0,
+            .extract_hash_from_protobuf::<HASH_START_BYTE, PROTOBUF_HASH_SIZE_BYTES>(
+                &validator_hash_proof.enc_leaf,
             );
-        for i in 0..HASH_SIZE_BITS {
-            self.connect(
-                validators_hash_target.0[i].target,
-                extracted_hash.0[i].target,
-            );
-        }
+        self.assert_is_equal(extracted_hash, validators_hash_target);
 
         // Assert the accumulated voting power is greater than the threshold
         let threshold_numerator = self.constant::<U32Variable>(2u32);
         let threshold_denominator = self.constant::<U32Variable>(3u32);
         self.assert_voting_check(
-            validators,
+            *validators,
             &threshold_numerator,
             &threshold_denominator,
             validators_signed,
         );
 
-        // TODO(ratan): waiting on him
-        // // Verifies signatures of the validators
-        // self.verify_signatures::<E, Config>(
-        //     &validators_signed,
-        //     messages,
-        //     message_bit_lengths,
-        //     signatures,
-        //     pubkeys,
-        // );
-
         // // Verify that the header is included in each message signed by an enabled validator
-        // for i in 0..VALIDATOR_SET_SIZE_MAX {
-        //     // Verify that the header is in the message in the correct location
-        //     let hash_in_message =
-        //         self.verify_hash_in_message(&validators[i].message, header, round_present);
+        for i in 0..VALIDATOR_SET_SIZE_MAX {
+            // Verify that the header is in the message in the correct location
+            let hash_in_message =
+                self.verify_hash_in_message(&validators[i].message, *header, *round_present);
 
-        //     // If the validator is enabled, then the hash should be in the message
-        //     self.connect(hash_in_message.target, validators_signed[i].target);
-        // }
+            // If the validator is enabled, then the hash should be in the message
+            // TODO: this might be overconstrained because of the edge case where the validator did not sign
+            // but hash is still in message
+            // This is likely not a problem since DUMMY_MESSAGE is hardcoded in the circuit
+            // But worth nothing
+            self.assert_is_equal(hash_in_message, validators_signed[i]);
+        }
 
         // Note: Hardcode the path for each of the leaf proofs (otherwise you can prove arbitrary data in the header)
         let data_hash_path = vec![false_t, true_t, true_t, false_t];
@@ -394,9 +370,9 @@ impl<
             self.get_root_from_merkle_proof(&next_validators_hash_proof);
 
         // Confirm that the header from the proof of {validator_hash, next_validators_hash, data_hash, last_block_id} all match the header
-        self.assert_is_equal(header, &header_from_data_root_proof);
-        self.assert_is_equal(header, &header_from_validator_root_proof);
-        self.assert_is_equal(header, &header_from_next_validators_root_proof);
+        self.assert_is_equal(*header, header_from_data_root_proof);
+        self.assert_is_equal(*header, header_from_validator_root_proof);
+        self.assert_is_equal(*header, header_from_next_validators_root_proof);
     }
 
     fn verify_prev_header_in_header(
@@ -412,14 +388,14 @@ impl<
         let header_from_last_block_id_proof =
             self.get_root_from_merkle_proof::<HEADER_PROOF_DEPTH>(last_block_id_proof);
         // TODO: add back a comment here I think
-        self.assert_is_equal(header_from_last_block_id_proof, header);
+        self.assert_is_equal(header_from_last_block_id_proof, *header);
 
         // Extract prev header hash from the encoded leaf (starts at second byte)
         let extracted_prev_header_hash = self
-            .extract_hash_from_protobuf::<HASH_START_BYTE, PROTOBUF_BLOCK_ID_SIZE_BITS>(
-                &last_block_id_proof.enc_leaf.0,
+            .extract_hash_from_protobuf::<HASH_START_BYTE, PROTOBUF_BLOCK_ID_SIZE_BYTES>(
+                &last_block_id_proof.enc_leaf,
             );
-        self.assert_is_equal(prev_header, extracted_prev_header_hash);
+        self.assert_is_equal(*prev_header, extracted_prev_header_hash);
     }
 
     fn verify_prev_header_next_validators_hash(
@@ -434,18 +410,18 @@ impl<
                 &prev_header_next_validators_hash_proof,
             );
         // Confirm that the prev_header computed from the proof of {next_validators_hash} matches the prev_header
-        self.assert_is_equal(header_from_next_validators_root_proof, prev_header);
+        self.assert_is_equal(header_from_next_validators_root_proof, *prev_header);
 
         /// Start of the hash in protobuf in next_validators_hash
         const HASH_START_BYTE: usize = 2;
 
         // Extract prev header hash from the encoded leaf (starts at second byte)
         let extracted_next_validators_hash = self
-            .extract_hash_from_protobuf::<HASH_START_BYTE, PROTOBUF_HASH_SIZE_BITS>(
-                &prev_header_next_validators_hash_proof.enc_leaf.0,
+            .extract_hash_from_protobuf::<HASH_START_BYTE, PROTOBUF_HASH_SIZE_BYTES>(
+                &prev_header_next_validators_hash_proof.enc_leaf,
             );
         // Confirm that the current validatorsHash matches the nextValidatorsHash of the prev_header
-        self.assert_is_equal(validators_hash, extracted_next_validators_hash);
+        self.assert_is_equal(*validators_hash, extracted_next_validators_hash);
     }
 
     fn skip(
@@ -463,8 +439,6 @@ impl<
             VALIDATOR_SET_SIZE_MAX,
         >,
     ) {
-        let zero = self.zero();
-
         self.verify_trusted_validators(
             validators,
             trusted_header,
@@ -504,20 +478,23 @@ impl<
             self.get_root_from_merkle_proof(&trusted_validator_hash_proof);
 
         // Confirm the validator hash proof matches the trusted header
-        self.assert_is_equal(header_from_validator_root_proof, trusted_header);
+        self.assert_is_equal(header_from_validator_root_proof, *trusted_header);
 
         let marshalled_trusted_validators: Vec<MarshalledValidatorVariable> =
             trusted_validator_hash_fields
+                .as_vec()
                 .iter()
                 .map(|v| self.marshal_tendermint_validator(&v.pubkey.0, &v.voting_power))
                 .collect();
 
         let trusted_validators_enabled: Vec<BoolVariable> = trusted_validator_hash_fields
+            .as_vec()
             .iter()
             .map(|v| v.enabled)
             .collect();
 
         let trusted_byte_lengths: Vec<Variable> = trusted_validator_hash_fields
+            .as_vec()
             .iter()
             .map(|v| v.validator_byte_length)
             .collect();
@@ -532,8 +509,8 @@ impl<
         const HASH_START_BYTE: usize = 2;
         // Assert the computed validator hash matches the expected validator hash
         let extracted_hash = self
-            .extract_hash_from_protobuf::<HASH_START_BYTE, PROTOBUF_HASH_SIZE_BITS>(
-                &trusted_validator_hash_proof.enc_leaf.0,
+            .extract_hash_from_protobuf::<HASH_START_BYTE, PROTOBUF_HASH_SIZE_BYTES>(
+                &trusted_validator_hash_proof.enc_leaf,
             );
         self.assert_is_equal(validators_hash_target, extracted_hash);
 
@@ -545,21 +522,17 @@ impl<
                 validators[i].present_on_trusted_header,
                 validators[i].signed,
             );
-
             // If you are present, then you should have signed
-            self.connect(
-                validators[i].present_on_trusted_header.target,
-                present_and_signed.target,
-            );
+            self.assert_is_equal(validators[i].present_on_trusted_header, present_and_signed);
         }
 
         // If a validator is present, then its pubkey should be present in the trusted validators
         for i in 0..VALIDATOR_SET_SIZE_MAX {
             let mut pubkey_match = self._false();
             for j in 0..VALIDATOR_SET_SIZE_MAX {
-                let pubkey_match_idx = self.is_equal_affine_point(
-                    &validators[i].pubkey.0,
-                    &trusted_validator_hash_fields[j].pubkey.0,
+                let pubkey_match_idx = self.is_equal(
+                    validators[i].pubkey,
+                    trusted_validator_hash_fields[j].pubkey,
                 );
                 pubkey_match = self.or(pubkey_match, pubkey_match_idx);
             }
@@ -567,13 +540,11 @@ impl<
             let match_and_present = self.and(pubkey_match, validators[i].present_on_trusted_header);
 
             // If you are present, then you should have a matching pubkey
-            self.connect(
-                validators[i].present_on_trusted_header.target,
-                match_and_present.target,
-            );
+            self.assert_is_equal(validators[i].present_on_trusted_header, match_and_present);
         }
 
         let present_on_trusted_header: Vec<BoolVariable> = validators
+            .as_vec()
             .iter()
             .map(|v| v.present_on_trusted_header)
             .collect();
@@ -583,7 +554,7 @@ impl<
         let threshold_numerator = self.constant::<U32Variable>(1);
         let threshold_denominator = self.constant::<U32Variable>(3);
         self.assert_voting_check(
-            validators,
+            *validators,
             &threshold_numerator,
             &threshold_denominator,
             present_on_trusted_header,

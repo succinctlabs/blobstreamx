@@ -4,7 +4,7 @@ use plonky2::iop::target::BoolTarget;
 use plonky2x::frontend::ecc::ed25519::curve::curve_types::Curve;
 use plonky2x::frontend::ecc::ed25519::gadgets::curve::{AffinePointTarget, CircuitBuilderCurve};
 use plonky2x::frontend::num::u32::gadgets::arithmetic_u32::U32Target;
-use plonky2x::prelude::{Bytes32Variable, BytesVariable};
+use plonky2x::prelude::{BoolVariable, Bytes32Variable, BytesVariable};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::cell::RefCell;

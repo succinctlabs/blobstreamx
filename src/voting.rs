@@ -145,8 +145,8 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVoting for CircuitBuilder<
             .map(|v| u64_variable_to_i64_target_legacy(v))
             .collect::<Vec<_>>();
 
-        let mut voting_power_low = U32Target(self.zero());
-        let mut voting_power_high = U32Target(self.zero());
+        let mut voting_power_low = U32Target(self.api.zero());
+        let mut voting_power_high = U32Target(self.api.zero());
 
         // Note: We can only put a max of 80 targets into add_many_u32 (max num_routed_wires), which is why we need to split the sum into 2 chunks.
         for i in 0..2 {
