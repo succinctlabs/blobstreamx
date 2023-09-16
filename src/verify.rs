@@ -7,42 +7,17 @@
 //! encoded using protobuf's default integer encoding, which consist of 7 bit payloads. You can
 //! read more about them here: https://protobuf.dev/programming-guides/encoding/#varints.
 
-use curta::{
-    chip::hash::sha::sha256::builder_gadget::{CurtaBytes, SHA256Builder, SHA256BuilderGadget},
-    math::extension::cubic::parameters::CubicParameters,
-    plonky2::stark::config::CurtaConfig,
-};
-use plonky2::{
-    field::{extension::Extendable, types::Field},
-    hash::hash_types::RichField,
-    iop::{
-        target::{BoolTarget, Target},
-        witness::WitnessWrite,
-    },
-    plonk::config::{AlgebraicHasher, GenericConfig},
-};
+use plonky2::iop::target::{BoolTarget, Target};
 
 use plonky2x::{
     frontend::ecc::ed25519::{
-        curve::{
-            curve_types::{AffinePoint, Curve},
-            ed25519::Ed25519,
-        },
-        field::ed25519_scalar::Ed25519Scalar,
+        curve::{curve_types::Curve, ed25519::Ed25519},
         gadgets::{
-            curve::{CircuitBuilderCurve, WitnessAffinePoint},
+            curve::CircuitBuilderCurve,
             eddsa::{EDDSAPublicKeyTarget, EDDSASignatureTarget},
         },
     },
-    frontend::num::{
-        biguint::WitnessBigUint,
-        nonnative::nonnative::CircuitBuilderNonNative,
-        u32::{
-            gadgets::arithmetic_u32::{CircuitBuilderU32, U32Target},
-            witness::WitnessU32,
-        },
-    },
-    prelude::PartialWitness,
+    frontend::num::u32::gadgets::arithmetic_u32::{CircuitBuilderU32, U32Target},
 };
 use plonky2x::{
     frontend::vars::U32Variable,
