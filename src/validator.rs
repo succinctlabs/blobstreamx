@@ -102,7 +102,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for Circui
         // Calculates the index of the last non-zero septet.
         let mut last_seen_non_zero_septet_idx = self.zero();
         for i in 0..VOTING_POWER_BYTES_LENGTH_MAX {
-            // Ok to cast as BoolVraiable sinec is_zero_septets[i] is 0 or 1 so result is either 0 or 1
+            // Ok to cast as BoolVariable since is_zero_septets[i] is 0 or 1 so result is either 0 or 1
             let is_nonzero_septet = BoolVariable(self.sub(one, is_zero_septets[i].0));
             let idx = self.constant::<Variable>(L::Field::from_canonical_usize(i));
             last_seen_non_zero_septet_idx =
@@ -140,6 +140,9 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for Circui
             // non-zero septet index.
             buffer[7] = is_lt_last_non_zero_septet_idx;
 
+            // Reverse the buffer to BE since ByteVariable interprets variables as BE
+            buffer.reverse();
+
             res[i] = ByteVariable::from_variables_unsafe(
                 &buffer.iter().map(|x| x.0).collect::<Vec<Variable>>(),
             );
@@ -162,7 +165,9 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for Circui
         let compressed_point = self.api.compress_point(pubkey);
 
         // TODO: in the future compressed_point should probably return a Bytes32Variable
-        for i in 0..32 {
+        // We iterate in reverse order because the marshalling expects little-endian
+        // and the bytes are returned as big-endian.
+        for i in (0..32).rev() {
             let byte_variable = ByteVariable::from_variables_unsafe(
                 &compressed_point.bit_targets[i * 8..(i + 1) * 8]
                     .iter()
@@ -195,7 +200,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for Circui
         let enc_validator_byte_length = self.add(one, validator_byte_length);
         // TODO: note this is a bit unsafe, so perhaps we should change `curta_sha256_variable` to take in a Variable
         // instead of a U32Variable
-        let input_byte_length = U32Variable(validator_byte_length);
+        let input_byte_length = U32Variable(enc_validator_byte_length);
 
         let zero = self.zero::<U32Variable>();
 
@@ -261,39 +266,17 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for Circui
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use curta::chip::hash::sha::sha256::SHA256Gadget;
-    use curta::math::goldilocks::cubic::GoldilocksCubicParameters;
-    use curta::plonky2::stark::config::CurtaPoseidonGoldilocksConfig;
-    use plonky2::field::types::Field;
-    use plonky2::plonk::prover::prove;
-    use plonky2::timed;
-    use plonky2::util::timing::TimingTree;
-    use plonky2::{
-        iop::witness::{PartialWitness, WitnessWrite},
-        plonk::{
-            circuit_builder::CircuitBuilder,
-            circuit_data::CircuitConfig,
-            config::{GenericConfig, PoseidonGoldilocksConfig},
-        },
-    };
+    use crate::validator::TendermintValidator;
+    use ethers::utils::hex;
+    use plonky2::field::types::PrimeField;
     use plonky2x::frontend::ecc::ed25519::curve::curve_types::AffinePoint;
     use plonky2x::prelude::DefaultBuilder;
-    use subtle_encoding::hex;
 
-    use crate::{
-        utils::{f_bits_to_bytes, to_be_bits},
-        validator::TendermintValidator,
-    };
-
-    type C = PoseidonGoldilocksConfig;
-    type SC = CurtaPoseidonGoldilocksConfig;
-    type E = GoldilocksCubicParameters;
-    type F = <C as GenericConfig<D>>::F;
     type Curve = Ed25519;
-    const D: usize = 2;
 
     #[test]
     fn test_marshal_int64_varint() {
+        env_logger::try_init().unwrap();
         // These are test cases generated from `celestia-core`.
         //
         // allZerosPubkey := make(ed25519.PubKey, ed25519.PubKeySize)
@@ -330,7 +313,7 @@ pub(crate) mod tests {
         for test_case in test_cases {
             let mut input = circuit.input();
             input.write::<U64Variable>((test_case.0 as u64).into());
-            let (proof, mut output) = circuit.prove(&input);
+            let (_, mut output) = circuit.prove(&input);
 
             let expected_bytes = test_case.1;
 
@@ -346,11 +329,16 @@ pub(crate) mod tests {
 
     #[test]
     fn test_marshal_tendermint_validator() {
+        // env::set_var("RUST_LOG", "debug");
+        env_logger::try_init().unwrap_or_default();
+
         // This is a test cases generated from a validator in block 11000 of the mocha-3 testnet.
         let voting_power_i64 = 100010 as i64;
         let pubkey = "de25aec935b10f657b43fa97e5a8d4e523bdb0f9972605f0b064eff7b17048ba";
-        let expected_marshal =
-            "0a220a20de25aec935b10f657b43fa97e5a8d4e523bdb0f9972605f0b064eff7b17048ba10aa8d06";
+        let expected_marshal = hex::decode(
+            "0a220a20de25aec935b10f657b43fa97e5a8d4e523bdb0f9972605f0b064eff7b17048ba10aa8d06",
+        )
+        .unwrap();
 
         // Define the circuit
         let mut builder = DefaultBuilder::new();
@@ -365,14 +353,33 @@ pub(crate) mod tests {
         let pub_key_uncompressed: AffinePoint<Curve> =
             AffinePoint::new_from_compressed_point(&hex::decode(pubkey).unwrap());
         input.write::<AffinePointTarget<Curve>>(pub_key_uncompressed);
-        let (proof, mut output) = circuit.prove(&input);
+        let (_, mut output) = circuit.prove(&input);
         let output_bytes = output.read::<BytesVariable<VALIDATOR_BYTE_LENGTH_MAX>>();
 
+        // Debug print output
+        println!("pub_key_uncompressed: {:?}", pub_key_uncompressed);
+        println!(
+            "pub_key.x: {:?}",
+            pub_key_uncompressed
+                .x
+                .to_canonical_biguint()
+                .to_u32_digits()
+        );
+        println!(
+            "pub_key.y: {:?}",
+            pub_key_uncompressed
+                .y
+                .to_canonical_biguint()
+                .to_u32_digits()
+        );
         let pub_key = pub_key_uncompressed.compress_point();
-        // Convert pub_key to bytes from biguint
+        println!("pub_key_compressed: {:?}", pub_key.to_u32_digits());
         let pub_key_bytes = pub_key.to_bytes_le();
+        println!("pub_key_bytes: {:?}", pub_key_bytes);
+
         for i in 0..46 {
-            assert_eq!(output_bytes[i], pub_key_bytes[i]);
+            let expected_value = *expected_marshal.get(i).unwrap_or(&0);
+            assert_eq!(output_bytes[i], expected_value);
         }
     }
 

@@ -232,19 +232,12 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintSignature<L, D> for Circui
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use curta::math::goldilocks::cubic::GoldilocksCubicParameters;
-    use curta::plonky2::stark::config::CurtaPoseidonGoldilocksConfig;
     use num::BigUint;
-    use plonky2::field::goldilocks_field::GoldilocksField;
     use plonky2::field::types::Field;
-    use plonky2::{
-        iop::witness::{PartialWitness, WitnessWrite},
-        plonk::{circuit_data::CircuitConfig, config::PoseidonGoldilocksConfig},
-    };
     use plonky2x::frontend::ecc::ed25519::curve::eddsa::{
         verify_message, EDDSAPublicKey, EDDSASignature,
     };
-    use plonky2x::prelude::{bytes, CircuitBuilder, DefaultParameters};
+    use plonky2x::prelude::{CircuitBuilder, DefaultParameters};
     use subtle_encoding::hex;
 
     use plonky2x::frontend::num::biguint::CircuitBuilderBiguint;
@@ -254,7 +247,7 @@ pub(crate) mod tests {
     use tendermint::crypto::ed25519::SigningKey;
     use tendermint::private_key;
 
-    use crate::utils::{to_be_bits, to_le_bits};
+    use crate::utils::to_be_bits;
 
     #[test]
     fn test_generate_signature() {
@@ -279,10 +272,8 @@ pub(crate) mod tests {
 
     fn verify_eddsa_signature(msg_bytes: Vec<u8>, pub_key_bytes: Vec<u8>, sig_bytes: Vec<u8>) {
         type L = DefaultParameters;
-        type F = <L as PlonkParameters<D>>::Field;
         type Curve = Ed25519;
-        type C = PoseidonGoldilocksConfig;
-        type E = GoldilocksCubicParameters;
+
         const D: usize = 2;
 
         let mut builder = CircuitBuilder::<L, D>::new();
@@ -301,8 +292,7 @@ pub(crate) mod tests {
         let pub_key_uncompressed: AffinePoint<Curve> =
             AffinePoint::new_from_compressed_point(&pub_key_bytes);
 
-        let eddsa_pub_key_target =
-            EDDSAPublicKeyTarget(builder.api.constant_affine_point(pub_key_uncompressed));
+        let eddsa_pub_key_target = builder.api.constant_affine_point(pub_key_uncompressed);
 
         let sig_r = AffinePoint::new_from_compressed_point(&sig_bytes[0..32]);
         assert!(sig_r.is_valid());
@@ -334,7 +324,7 @@ pub(crate) mod tests {
             vec![msg_bytes_variable],
             vec![msg_bit_length_t],
             vec![eddsa_sig_target],
-            vec![eddsa_pub_key_target.0],
+            vec![eddsa_pub_key_target],
         );
 
         let circuit = builder.build();

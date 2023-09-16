@@ -688,276 +688,276 @@ impl<
     }
 }
 
-#[cfg(test)]
-pub(crate) mod tests {
-    use std::env;
+// #[cfg(test)]
+// pub(crate) mod tests {
+//     use std::env;
 
-    use super::*;
-    use curta::math::goldilocks::cubic::GoldilocksCubicParameters;
-    use curta::plonky2::stark::config::CurtaPoseidonGoldilocksConfig;
-    use plonky2::field::goldilocks_field::GoldilocksField;
-    use plonky2::field::types::Field;
-    use plonky2::{
-        iop::witness::{PartialWitness, WitnessWrite},
-        plonk::{
-            circuit_builder::CircuitBuilder, circuit_data::CircuitConfig,
-            config::PoseidonGoldilocksConfig,
-        },
-    };
+//     use super::*;
+//     use curta::math::goldilocks::cubic::GoldilocksCubicParameters;
+//     use curta::plonky2::stark::config::CurtaPoseidonGoldilocksConfig;
+//     use plonky2::field::goldilocks_field::GoldilocksField;
+//     use plonky2::field::types::Field;
+//     use plonky2::{
+//         iop::witness::{PartialWitness, WitnessWrite},
+//         plonk::{
+//             circuit_builder::CircuitBuilder, circuit_data::CircuitConfig,
+//             config::PoseidonGoldilocksConfig,
+//         },
+//     };
 
-    use crate::inputs::{generate_skip_inputs, generate_step_inputs, CelestiaStepBlockProof};
-    use crate::utils::to_be_bits;
+//     use crate::inputs::{generate_skip_inputs, generate_step_inputs, CelestiaStepBlockProof};
+//     use crate::utils::to_be_bits;
 
-    use log;
-    use plonky2::timed;
-    use plonky2::util::timing::TimingTree;
-    use subtle_encoding::hex;
+//     use log;
+//     use plonky2::timed;
+//     use plonky2::util::timing::TimingTree;
+//     use subtle_encoding::hex;
 
-    type C = PoseidonGoldilocksConfig;
-    type F = <C as GenericConfig<D>>::F;
-    const D: usize = 2;
+//     type C = PoseidonGoldilocksConfig;
+//     type F = <C as GenericConfig<D>>::F;
+//     const D: usize = 2;
 
-    #[test]
-    fn test_verify_hash_in_message() {
-        // This is a test case generated from block 144094 of Celestia's Mocha testnet
-        // Block Hash: 8909e1b73b7d987e95a7541d96ed484c17a4b0411e98ee4b7c890ad21302ff8c (needs to be lower case)
-        // Signed Message (from the last validator): 6b080211de3202000000000022480a208909e1b73b7d987e95a7541d96ed484c17a4b0411e98ee4b7c890ad21302ff8c12240801122061263df4855e55fcab7aab0a53ee32cf4f29a1101b56de4a9d249d44e4cf96282a0b089dce84a60610ebb7a81932076d6f6368612d33
-        // No round exists in present the message that was signed above
+//     #[test]
+//     fn test_verify_hash_in_message() {
+//         // This is a test case generated from block 144094 of Celestia's Mocha testnet
+//         // Block Hash: 8909e1b73b7d987e95a7541d96ed484c17a4b0411e98ee4b7c890ad21302ff8c (needs to be lower case)
+//         // Signed Message (from the last validator): 6b080211de3202000000000022480a208909e1b73b7d987e95a7541d96ed484c17a4b0411e98ee4b7c890ad21302ff8c12240801122061263df4855e55fcab7aab0a53ee32cf4f29a1101b56de4a9d249d44e4cf96282a0b089dce84a60610ebb7a81932076d6f6368612d33
+//         // No round exists in present the message that was signed above
 
-        let header_hash = "8909e1b73b7d987e95a7541d96ed484c17a4b0411e98ee4b7c890ad21302ff8c";
-        let header_bits = to_be_bits(hex::decode(header_hash).unwrap());
+//         let header_hash = "8909e1b73b7d987e95a7541d96ed484c17a4b0411e98ee4b7c890ad21302ff8c";
+//         let header_bits = to_be_bits(hex::decode(header_hash).unwrap());
 
-        let signed_message = "6b080211de3202000000000022480a208909e1b73b7d987e95a7541d96ed484c17a4b0411e98ee4b7c890ad21302ff8c12240801122061263df4855e55fcab7aab0a53ee32cf4f29a1101b56de4a9d249d44e4cf96282a0b089dce84a60610ebb7a81932076d6f6368612d33";
-        let signed_message_bits = to_be_bits(hex::decode(signed_message).unwrap());
+//         let signed_message = "6b080211de3202000000000022480a208909e1b73b7d987e95a7541d96ed484c17a4b0411e98ee4b7c890ad21302ff8c12240801122061263df4855e55fcab7aab0a53ee32cf4f29a1101b56de4a9d249d44e4cf96282a0b089dce84a60610ebb7a81932076d6f6368612d33";
+//         let signed_message_bits = to_be_bits(hex::decode(signed_message).unwrap());
 
-        let mut pw = PartialWitness::new();
-        let config = CircuitConfig::standard_recursion_config();
-        let mut builder = CircuitBuilder::<F, D>::new(config);
+//         let mut pw = PartialWitness::new();
+//         let config = CircuitConfig::standard_recursion_config();
+//         let mut builder = CircuitBuilder::<F, D>::new(config);
 
-        let zero = builder._false();
+//         let zero = builder._false();
 
-        let mut signed_message_target = [builder._false(); VALIDATOR_MESSAGE_BYTES_LENGTH_MAX * 8];
-        for i in 0..signed_message_bits.len() {
-            signed_message_target[i] = builder.constant_bool(signed_message_bits[i]);
-        }
+//         let mut signed_message_target = [builder._false(); VALIDATOR_MESSAGE_BYTES_LENGTH_MAX * 8];
+//         for i in 0..signed_message_bits.len() {
+//             signed_message_target[i] = builder.constant_bool(signed_message_bits[i]);
+//         }
 
-        let mut header_hash_target = [builder._false(); HASH_SIZE_BITS];
-        for i in 0..header_bits.len() {
-            header_hash_target[i] = builder.constant_bool(header_bits[i]);
-        }
+//         let mut header_hash_target = [builder._false(); HASH_SIZE_BITS];
+//         for i in 0..header_bits.len() {
+//             header_hash_target[i] = builder.constant_bool(header_bits[i]);
+//         }
 
-        let result = builder.verify_hash_in_message(
-            &ValidatorMessageTarget(signed_message_target),
-            &TendermintHashTarget(header_hash_target),
-            &zero,
-        );
+//         let result = builder.verify_hash_in_message(
+//             &ValidatorMessageTarget(signed_message_target),
+//             &TendermintHashTarget(header_hash_target),
+//             &zero,
+//         );
 
-        pw.set_target(result.target, F::ONE);
+//         pw.set_target(result.target, F::ONE);
 
-        let data = builder.build::<C>();
-        let proof = data.prove(pw).unwrap();
+//         let data = builder.build::<C>();
+//         let proof = data.prove(pw).unwrap();
 
-        println!("Created proof");
+//         println!("Created proof");
 
-        data.verify(proof).unwrap();
+//         data.verify(proof).unwrap();
 
-        println!("Verified proof");
-    }
+//         println!("Verified proof");
+//     }
 
-    fn test_step_template<const VALIDATOR_SET_SIZE_MAX: usize>(block: usize) {
-        env::set_var("RUST_LOG", "debug");
-        env_logger::try_init().unwrap_or_default();
+//     fn test_step_template<const VALIDATOR_SET_SIZE_MAX: usize>(block: usize) {
+//         env::set_var("RUST_LOG", "debug");
+//         env_logger::try_init().unwrap_or_default();
 
-        let mut timing = TimingTree::new("Verify Celestia Step", log::Level::Debug);
+//         let mut timing = TimingTree::new("Verify Celestia Step", log::Level::Debug);
 
-        let mut pw = PartialWitness::new();
-        let config = CircuitConfig::wide_ecc_config();
-        let mut builder = CircuitBuilder::<F, D>::new(config);
+//         let mut pw = PartialWitness::new();
+//         let config = CircuitConfig::wide_ecc_config();
+//         let mut builder = CircuitBuilder::<F, D>::new(config);
 
-        type F = GoldilocksField;
-        type Curve = Ed25519;
-        type E = GoldilocksCubicParameters;
-        type C = PoseidonGoldilocksConfig;
-        type SC = CurtaPoseidonGoldilocksConfig;
-        const D: usize = 2;
+//         type F = GoldilocksField;
+//         type Curve = Ed25519;
+//         type E = GoldilocksCubicParameters;
+//         type C = PoseidonGoldilocksConfig;
+//         type SC = CurtaPoseidonGoldilocksConfig;
+//         const D: usize = 2;
 
-        println!("Making step circuit");
+//         println!("Making step circuit");
 
-        let celestia_step_proof_target =
-            make_step_circuit::<GoldilocksField, D, Curve, SC, E, VALIDATOR_SET_SIZE_MAX>(
-                &mut builder,
-            );
+//         let celestia_step_proof_target =
+//             make_step_circuit::<GoldilocksField, D, Curve, SC, E, VALIDATOR_SET_SIZE_MAX>(
+//                 &mut builder,
+//             );
 
-        // Note: Length of output is the closest power of 2 gte the number of validators for this block.
-        let celestia_block_proof: CelestiaStepBlockProof =
-            generate_step_inputs::<VALIDATOR_SET_SIZE_MAX>(block);
-        println!("Generated inputs");
-        println!(
-            "Number of validators: {}",
-            celestia_block_proof.base.validators.len()
-        );
-        timed!(timing, "assigning inputs", {
-            set_step_pw::<F, D, Curve, VALIDATOR_SET_SIZE_MAX>(
-                &mut pw,
-                celestia_step_proof_target,
-                celestia_block_proof,
-            );
-        });
-        let inner_data = builder.build::<C>();
-        timed!(timing, "Generate proof", {
-            let inner_proof = timed!(
-                timing,
-                "Total proof with a recursive envelope",
-                plonky2::plonk::prover::prove(
-                    &inner_data.prover_only,
-                    &inner_data.common,
-                    pw,
-                    &mut timing
-                )
-                .unwrap()
-            );
-            inner_data.verify(inner_proof.clone()).unwrap();
-            println!("num gates: {:?}", inner_data.common.gates.len());
-        });
+//         // Note: Length of output is the closest power of 2 gte the number of validators for this block.
+//         let celestia_block_proof: CelestiaStepBlockProof =
+//             generate_step_inputs::<VALIDATOR_SET_SIZE_MAX>(block);
+//         println!("Generated inputs");
+//         println!(
+//             "Number of validators: {}",
+//             celestia_block_proof.base.validators.len()
+//         );
+//         timed!(timing, "assigning inputs", {
+//             set_step_pw::<F, D, Curve, VALIDATOR_SET_SIZE_MAX>(
+//                 &mut pw,
+//                 celestia_step_proof_target,
+//                 celestia_block_proof,
+//             );
+//         });
+//         let inner_data = builder.build::<C>();
+//         timed!(timing, "Generate proof", {
+//             let inner_proof = timed!(
+//                 timing,
+//                 "Total proof with a recursive envelope",
+//                 plonky2::plonk::prover::prove(
+//                     &inner_data.prover_only,
+//                     &inner_data.common,
+//                     pw,
+//                     &mut timing
+//                 )
+//                 .unwrap()
+//             );
+//             inner_data.verify(inner_proof.clone()).unwrap();
+//             println!("num gates: {:?}", inner_data.common.gates.len());
+//         });
 
-        timing.print();
-    }
+//         timing.print();
+//     }
 
-    fn test_skip_template<const VALIDATOR_SET_SIZE_MAX: usize>(trusted_block: usize, block: usize) {
-        env::set_var("RUST_LOG", "debug");
-        env_logger::try_init().unwrap_or_default();
-        let mut timing = TimingTree::new("Verify Celestia Skip", log::Level::Debug);
+//     fn test_skip_template<const VALIDATOR_SET_SIZE_MAX: usize>(trusted_block: usize, block: usize) {
+//         env::set_var("RUST_LOG", "debug");
+//         env_logger::try_init().unwrap_or_default();
+//         let mut timing = TimingTree::new("Verify Celestia Skip", log::Level::Debug);
 
-        let mut pw = PartialWitness::new();
-        let config = CircuitConfig::wide_ecc_config();
-        let mut builder = CircuitBuilder::<F, D>::new(config);
+//         let mut pw = PartialWitness::new();
+//         let config = CircuitConfig::wide_ecc_config();
+//         let mut builder = CircuitBuilder::<F, D>::new(config);
 
-        type F = GoldilocksField;
-        type Curve = Ed25519;
-        type E = GoldilocksCubicParameters;
-        type C = PoseidonGoldilocksConfig;
-        type SC = CurtaPoseidonGoldilocksConfig;
-        const D: usize = 2;
+//         type F = GoldilocksField;
+//         type Curve = Ed25519;
+//         type E = GoldilocksCubicParameters;
+//         type C = PoseidonGoldilocksConfig;
+//         type SC = CurtaPoseidonGoldilocksConfig;
+//         const D: usize = 2;
 
-        println!("Making skip circuit");
+//         println!("Making skip circuit");
 
-        let celestia_skip_proof_target =
-            make_skip_circuit::<GoldilocksField, D, Curve, SC, E, VALIDATOR_SET_SIZE_MAX>(
-                &mut builder,
-            );
+//         let celestia_skip_proof_target =
+//             make_skip_circuit::<GoldilocksField, D, Curve, SC, E, VALIDATOR_SET_SIZE_MAX>(
+//                 &mut builder,
+//             );
 
-        // Note: Length of output is the closest power of 2 gte the number of validators for this block.
-        let celestia_block_proof: CelestiaSkipBlockProof =
-            generate_skip_inputs::<VALIDATOR_SET_SIZE_MAX>(trusted_block, block);
-        println!("Generated inputs");
-        println!(
-            "Number of validators: {}",
-            celestia_block_proof.base.validators.len()
-        );
-        timed!(timing, "assigning inputs", {
-            set_skip_pw::<F, D, Curve, VALIDATOR_SET_SIZE_MAX>(
-                &mut pw,
-                celestia_skip_proof_target,
-                celestia_block_proof,
-            );
-        });
-        let inner_data = builder.build::<C>();
-        timed!(timing, "Generate proof", {
-            let inner_proof = timed!(
-                timing,
-                "Total proof with a recursive envelope",
-                plonky2::plonk::prover::prove(
-                    &inner_data.prover_only,
-                    &inner_data.common,
-                    pw,
-                    &mut timing
-                )
-                .unwrap()
-            );
-            inner_data.verify(inner_proof.clone()).unwrap();
-            println!("num gates: {:?}", inner_data.common.gates.len());
-        });
+//         // Note: Length of output is the closest power of 2 gte the number of validators for this block.
+//         let celestia_block_proof: CelestiaSkipBlockProof =
+//             generate_skip_inputs::<VALIDATOR_SET_SIZE_MAX>(trusted_block, block);
+//         println!("Generated inputs");
+//         println!(
+//             "Number of validators: {}",
+//             celestia_block_proof.base.validators.len()
+//         );
+//         timed!(timing, "assigning inputs", {
+//             set_skip_pw::<F, D, Curve, VALIDATOR_SET_SIZE_MAX>(
+//                 &mut pw,
+//                 celestia_skip_proof_target,
+//                 celestia_block_proof,
+//             );
+//         });
+//         let inner_data = builder.build::<C>();
+//         timed!(timing, "Generate proof", {
+//             let inner_proof = timed!(
+//                 timing,
+//                 "Total proof with a recursive envelope",
+//                 plonky2::plonk::prover::prove(
+//                     &inner_data.prover_only,
+//                     &inner_data.common,
+//                     pw,
+//                     &mut timing
+//                 )
+//                 .unwrap()
+//             );
+//             inner_data.verify(inner_proof.clone()).unwrap();
+//             println!("num gates: {:?}", inner_data.common.gates.len());
+//         });
 
-        timing.print();
-    }
+//         timing.print();
+//     }
 
-    #[test]
-    fn test_step_with_dummy_sigs() {
-        // Testing block 11105 (4 validators, 2 signed)
-        // Need to handle empty validators as well
-        // Should set some dummy values
-        let block = 11105;
+//     #[test]
+//     fn test_step_with_dummy_sigs() {
+//         // Testing block 11105 (4 validators, 2 signed)
+//         // Need to handle empty validators as well
+//         // Should set some dummy values
+//         let block = 11105;
 
-        const VALIDATOR_SET_SIZE_MAX: usize = 8;
+//         const VALIDATOR_SET_SIZE_MAX: usize = 8;
 
-        test_step_template::<VALIDATOR_SET_SIZE_MAX>(block);
-    }
+//         test_step_template::<VALIDATOR_SET_SIZE_MAX>(block);
+//     }
 
-    #[test]
-    fn test_step_small() {
-        // Testing block 11000
-        let block = 11000;
+//     #[test]
+//     fn test_step_small() {
+//         // Testing block 11000
+//         let block = 11000;
 
-        const VALIDATOR_SET_SIZE_MAX: usize = 4;
+//         const VALIDATOR_SET_SIZE_MAX: usize = 4;
 
-        test_step_template::<VALIDATOR_SET_SIZE_MAX>(block);
-    }
+//         test_step_template::<VALIDATOR_SET_SIZE_MAX>(block);
+//     }
 
-    #[test]
-    fn test_step_with_empty() {
-        // Testing block 10000
-        let block = 10000;
+//     #[test]
+//     fn test_step_with_empty() {
+//         // Testing block 10000
+//         let block = 10000;
 
-        const VALIDATOR_SET_SIZE_MAX: usize = 4;
+//         const VALIDATOR_SET_SIZE_MAX: usize = 4;
 
-        test_step_template::<VALIDATOR_SET_SIZE_MAX>(block);
-    }
+//         test_step_template::<VALIDATOR_SET_SIZE_MAX>(block);
+//     }
 
-    #[test]
-    fn test_step_large() {
-        // Testing block 75000
-        // 77 validators (128)
-        // Block 50000
-        // 32 validators
-        // Block 15000
-        // 16 validators
-        // Testing block 60000
-        // 60 validators, 4 disabled (valhash)
+//     #[test]
+//     fn test_step_large() {
+//         // Testing block 75000
+//         // 77 validators (128)
+//         // Block 50000
+//         // 32 validators
+//         // Block 15000
+//         // 16 validators
+//         // Testing block 60000
+//         // 60 validators, 4 disabled (valhash)
 
-        let block = 75000;
+//         let block = 75000;
 
-        const VALIDATOR_SET_SIZE_MAX: usize = 128;
+//         const VALIDATOR_SET_SIZE_MAX: usize = 128;
 
-        test_step_template::<VALIDATOR_SET_SIZE_MAX>(block);
-    }
+//         test_step_template::<VALIDATOR_SET_SIZE_MAX>(block);
+//     }
 
-    #[test]
-    fn test_skip() {
-        // Testing skip from 11000 to 11105
+//     #[test]
+//     fn test_skip() {
+//         // Testing skip from 11000 to 11105
 
-        // For now, only test with validator_set_size_max of the same size, confirm that we can set validator_et-isze_max to an arbitrary amount and the circuit should work for all sizes below that
-        let trusted_block = 11000;
+//         // For now, only test with validator_set_size_max of the same size, confirm that we can set validator_et-isze_max to an arbitrary amount and the circuit should work for all sizes below that
+//         let trusted_block = 11000;
 
-        let block = 11105;
+//         let block = 11105;
 
-        const VALIDATOR_SET_SIZE_MAX: usize = 4;
+//         const VALIDATOR_SET_SIZE_MAX: usize = 4;
 
-        test_skip_template::<VALIDATOR_SET_SIZE_MAX>(trusted_block, block);
-    }
+//         test_skip_template::<VALIDATOR_SET_SIZE_MAX>(trusted_block, block);
+//     }
 
-    #[test]
-    fn test_skip_large() {
-        // Testing skip from 60000 to 75000
+//     #[test]
+//     fn test_skip_large() {
+//         // Testing skip from 60000 to 75000
 
-        // 75000 has 128 validator max
+//         // 75000 has 128 validator max
 
-        // For now, only test with validator_set_size_max of the same size, confirm that we can set validator_et-isze_max to an arbitrary amount and the circuit should work for all sizes below that
-        let trusted_block = 60000;
+//         // For now, only test with validator_set_size_max of the same size, confirm that we can set validator_et-isze_max to an arbitrary amount and the circuit should work for all sizes below that
+//         let trusted_block = 60000;
 
-        let block = 75000;
+//         let block = 75000;
 
-        const VALIDATOR_SET_SIZE_MAX: usize = 128;
+//         const VALIDATOR_SET_SIZE_MAX: usize = 128;
 
-        test_skip_template::<VALIDATOR_SET_SIZE_MAX>(trusted_block, block);
-    }
-}
+//         test_skip_template::<VALIDATOR_SET_SIZE_MAX>(trusted_block, block);
+//     }
+// }

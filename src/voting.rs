@@ -278,7 +278,6 @@ pub(crate) mod tests {
     use super::*;
     use plonky2x::prelude::DefaultBuilder;
 
-    const D: usize = 2;
     const VALIDATOR_SET_SIZE_MAX: usize = 4;
 
     #[test]
@@ -297,20 +296,25 @@ pub(crate) mod tests {
                 [1, 1, 0, 0],
                 true,
             ),
+            (
+                vec![4294967296000i64, 4294967296000i64, 4294967296000i64, 0i64],
+                [0, 0, 0, 0],
+                false,
+            ),
         ];
 
         // Define the circuit
         let mut builder = DefaultBuilder::new();
         let mut validator_voting_power_vec = Vec::new();
         let mut validator_enabled_vec = Vec::new();
-        for i in 0..VALIDATOR_SET_SIZE_MAX {
+        for _ in 0..VALIDATOR_SET_SIZE_MAX {
             validator_voting_power_vec.push(builder.read::<U64Variable>());
             validator_enabled_vec.push(builder.read::<BoolVariable>());
         }
         let total_voting_power = builder.read::<U64Variable>();
         let threshold_numerator = builder.read::<U32Variable>();
         let threshold_denominator = builder.read::<U32Variable>();
-        let result = builder.check_voting_power(
+        let result = builder.check_voting_power::<VALIDATOR_SET_SIZE_MAX>(
             &validator_voting_power_vec,
             &validator_enabled_vec,
             &total_voting_power,
@@ -336,8 +340,8 @@ pub(crate) mod tests {
             input.write::<U32Variable>(2u32.into());
             input.write::<U32Variable>(3u32.into());
 
-            let (proof, mut output) = circuit.prove(&input);
-            assert!(output.read::<BoolVariable>());
+            let (_, mut output) = circuit.prove(&input);
+            assert_eq!(output.read::<BoolVariable>(), test_case.2);
         }
     }
 }
