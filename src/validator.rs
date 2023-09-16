@@ -204,6 +204,8 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for Circui
 
         let zero = self.zero::<U32Variable>();
 
+        prepended_validator_bytes.resize(64, self.zero::<ByteVariable>());
+
         // VALIDATOR_BYTE_LENGTH_MAX = 46 so we only need 1 chunk
         self.curta_sha256_variable::<1>(&prepended_validator_bytes, zero, input_byte_length)
     }
@@ -266,11 +268,15 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for Circui
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
+    use crate::utils::{hash_all_leaves, ValidatorMessageVariable};
     use crate::validator::TendermintValidator;
+    use ethers::types::H256;
     use ethers::utils::hex;
+    use itertools::Itertools;
     use plonky2::field::types::PrimeField;
     use plonky2x::frontend::ecc::ed25519::curve::curve_types::AffinePoint;
-    use plonky2x::prelude::DefaultBuilder;
+    use plonky2x::prelude::{ArrayVariable, Bytes32Variable, DefaultBuilder, GoldilocksField};
+    use sha2::Sha256;
 
     type Curve = Ed25519;
 
@@ -385,81 +391,63 @@ pub(crate) mod tests {
 
     // TODO: Add these tests back once the interface for using Curta's SHA gadget is straightforward. Currently, we'd need to compute the total number of SHA's done in each of these tests, and fill out the rest of the SHA's similar to how it's done in test_skip & test_step.
 
-    // #[test]
-    // fn test_hash_validator_leaves() {
-    //     let mut pw = PartialWitness::new();
-    //     let config = CircuitConfig::standard_recursion_config();
-    //     let mut builder = CircuitBuilder::<F, D>::new(config);
+    #[test]
+    fn test_hash_validator_leaves() {
+        const VALIDATOR_SET_SIZE_MAX: usize = 4;
 
-    //     let mut gadget: SHA256BuilderGadget<F, E, D> = builder.init_sha256();
+        env_logger::try_init().unwrap_or_default();
 
-    //     let validators: Vec<&str> = vec!["6694200ba0e084f7184255abedc39af04463a4ff11e0e0c1326b1b82ea1de50c6b35cf6efa8f7ed3", "739d312e54353379a852b43de497ca4ec52bb49f59b7294a4d6cf19dd648e16cb530b7a7a1e35875d4ab4d90", "4277f2f871f3e041bcd4643c0cf18e5a931c2bfe121ce8983329a289a2b0d2161745a2ddf99bade9a1"];
+        // Define the circuit
+        let mut builder = DefaultBuilder::new();
+        let messages =
+            builder.read::<ArrayVariable<MarshalledValidatorVariable, VALIDATOR_SET_SIZE_MAX>>();
+        let messages = messages.as_vec();
+        let val_byte_lengths = builder.read::<ArrayVariable<Variable, VALIDATOR_SET_SIZE_MAX>>();
+        let val_byte_lengths = val_byte_lengths.as_vec();
+        let hashed_leaves =
+            builder.hash_validator_leaves::<VALIDATOR_SET_SIZE_MAX>(&messages, &val_byte_lengths);
+        let hashed_leaves: ArrayVariable<TendermintHashVariable, VALIDATOR_SET_SIZE_MAX> =
+            hashed_leaves.into();
+        builder.write(hashed_leaves);
+        let circuit = builder.build();
 
-    //     // Convert validators[0] to CurtaBytes.
+        let validators: Vec<&str> = vec!["6694200ba0e084f7184255abedc39af04463a4ff11e0e0c1326b1b82ea1de50c6b35cf6efa8f7ed3", "739d312e54353379a852b43de497ca4ec52bb49f59b7294a4d6cf19dd648e16cb530b7a7a1e35875d4ab4d90", "4277f2f871f3e041bcd4643c0cf18e5a931c2bfe121ce8983329a289a2b0d2161745a2ddf99bade9a1", "4277f2f871f3e041bcd4643c0cf18e5a931c2bfe121ce8983329a289a2b0d2161745a2ddf99bade9a1"];
+        let validators_bytes = validators
+            .iter()
+            .map(|x| hex::decode(x).unwrap())
+            .collect::<Vec<_>>();
 
-    //     // let validators = validators
-    //     //     .iter()
-    //     //     .map(|x| String::from(*x))
-    //     //     .collect::<Vec<_>>();
+        let validator_byte_lengths = validators_bytes
+            .iter()
+            .map(|x| GoldilocksField::from_canonical_usize(x.len()))
+            .collect::<Vec<_>>();
 
-    //     // let validators_bytes: Vec<Vec<u8>> = validators
-    //     //     .iter()
-    //     //     .map(|x| hex::decode(x).unwrap())
-    //     //     .collect::<Vec<_>>();
+        let expected_digests_bytes = hash_all_leaves::<Sha256>(&validators_bytes);
+        let expected_digests_bytes = expected_digests_bytes
+            .iter()
+            .map(|x| H256::from_slice(x))
+            .collect::<Vec<_>>();
 
-    //     // let expected_digests_bytes = hash_all_leaves::<Sha256>(&validators_bytes);
+        // Pad validator bytes to VALIDATOR_BYTE_LENGTH_MAX
+        let padded_validators_bytes: Vec<[u8; VALIDATOR_BYTE_LENGTH_MAX]> = validators_bytes
+            .iter()
+            .map(|x| {
+                let mut validator_bytes = x.clone();
+                validator_bytes.resize(VALIDATOR_BYTE_LENGTH_MAX, 0u8);
+                validator_bytes.try_into().unwrap()
+            })
+            .collect::<Vec<_>>();
 
-    //     // // Convert the expected hashes to hex strings.
-    //     // let expected_digests: Vec<String> = expected_digests_bytes
-    //     //     .iter()
-    //     //     .map(|x| String::from_utf8(hex::encode(x)).expect("Invalid UTF-8"))
-    //     //     .collect::<Vec<_>>();
+        let mut input = circuit.input();
+        input.write::<ArrayVariable<MarshalledValidatorVariable, VALIDATOR_SET_SIZE_MAX>>(
+            padded_validators_bytes,
+        );
+        input.write::<ArrayVariable<Variable, VALIDATOR_SET_SIZE_MAX>>(validator_byte_lengths);
+        let (_, mut output) = circuit.prove(&input);
+        let output_leaves = output.read::<ArrayVariable<Bytes32Variable, VALIDATOR_SET_SIZE_MAX>>();
 
-    //     // // Convert the expected hashes bytes to bits.
-    //     // let digests_bits: Vec<Vec<bool>> = expected_digests
-    //     //     .iter()
-    //     //     .map(|x| to_be_bits(hex::decode(x).unwrap()))
-    //     //     .collect();
-
-    //     // let (validators_target, validator_byte_length, _) =
-    //     //     generate_inputs::<VALIDATOR_SET_SIZE_MAX>(&mut builder, &validators);
-
-    //     // let mut gadget: SHA256BuilderGadget<F, E, D> = builder.init_sha256();
-
-    //     // let result = builder.hash_validator_leaves::<E, VALIDATOR_SET_SIZE_MAX>(
-    //     //     &mut gadget,
-    //     //     &validators_target,
-    //     //     &validator_byte_length,
-    //     // );
-
-    //     // let zero = builder.zero();
-    //     // for _ in 0..(1024 - VALIDATOR_SET_SIZE_MAX) {
-    //     //     let bytes = CurtaBytes(builder.add_virtual_target_arr::<64>());
-    //     //     for i in 0..64 {
-    //     //         builder.connect(bytes.0[i], zero);
-    //     //     }
-
-    //     //     builder.sha256(&bytes, &mut gadget);
-    //     // }
-
-    //     // println!("Got all leaf hashes: {}", result.len());
-    //     // for i in 0..validators.len() {
-    //     //     for j in 0..HASH_SIZE_BITS {
-    //     //         if digests_bits[i][j] {
-    //     //             pw.set_target(result[i].0[j].target, F::ONE);
-    //     //         } else {
-    //     //             pw.set_target(result[i].0[j].target, F::ZERO);
-    //     //         }
-    //     //     }
-    //     // }
-
-    //     // let data = builder.build::<C>();
-    //     // let proof = data.prove(pw).unwrap();
-
-    //     // data.verify(proof).unwrap();
-
-    //     // println!("Verified proof");
-    // }
+        assert_eq!(output_leaves, expected_digests_bytes);
+    }
 
     // #[test]
     // fn test_generate_val_hash() {
@@ -530,53 +518,6 @@ pub(crate) mod tests {
 
     //         println!("Verified proof");
     //     }
-    // }
-
-    // #[test]
-    // fn test_hash_header_leaf() {
-    //     let block = tendermint::Block::from(
-    //         serde_json::from_str::<tendermint::block::Block>(include_str!(
-    //             "./fixtures/celestia_block.json"
-    //         ))
-    //         .unwrap(),
-    //     );
-
-    //     let encoded_validators_hash_bits = to_be_bits(block.header.validators_hash.encode_vec());
-    //     // Note: Make sure to encode_vec()
-    //     let validators_leaf_hash =
-    //         leaf_hash::<Sha256>(&block.header.validators_hash.encode_vec()).to_vec();
-
-    //     let validators_hash_bits = to_be_bits(validators_leaf_hash);
-
-    //     let mut pw = PartialWitness::new();
-    //     let config = CircuitConfig::standard_recursion_config();
-    //     let mut builder = CircuitBuilder::<F, D>::new(config);
-
-    //     let mut validators_hash_bits_target = [builder._false(); PROTOBUF_HASH_SIZE_BITS];
-    //     for i in 0..encoded_validators_hash_bits.len() {
-    //         if encoded_validators_hash_bits[i] {
-    //             validators_hash_bits_target[i] = builder._true();
-    //         }
-    //     }
-
-    //     let result = builder.leaf_hash::<E, PROTOBUF_HASH_SIZE_BITS>(&validators_hash_bits_target);
-
-    //     for i in 0..HASH_SIZE_BITS {
-    //         if validators_hash_bits[i] {
-    //             pw.set_target(result.0[i].target, F::ONE);
-    //         } else {
-    //             pw.set_target(result.0[i].target, F::ZERO);
-    //         }
-    //     }
-
-    //     let data = builder.build::<C>();
-    //     let proof = data.prove(pw).unwrap();
-
-    //     println!("Created proof");
-
-    //     data.verify(proof).unwrap();
-
-    //     println!("Verified proof");
     // }
 
     // #[test]
@@ -660,50 +601,6 @@ pub(crate) mod tests {
     //     let proof = data.prove(pw).unwrap();
 
     //     println!("Created proof");
-
-    //     data.verify(proof).unwrap();
-
-    //     println!("Verified proof");
-    // }
-
-    // #[test]
-    // fn test_get_leaf_hash() {
-    //     let mut pw = PartialWitness::new();
-    //     let config = CircuitConfig::standard_recursion_config();
-    //     let mut builder = CircuitBuilder::<F, D>::new(config);
-
-    //     // Computed the leaf hashes corresponding to the first validator bytes. SHA256(0x00 || validatorBytes)
-    //     let expected_digest = "84f633a570a987326947aafd434ae37f151e98d5e6d429137a4cc378d4a7988e";
-    //     let digest_bits = to_be_bits(hex::decode(expected_digest).unwrap());
-
-    //     let validators: Vec<String> = vec![
-    //         String::from(
-    //             "de6ad0941095ada2a7996e6a888581928203b8b69e07ee254d289f5b9c9caea193c2ab01902d",
-    //         ),
-    //         String::from(
-    //             "92fbe0c52937d80c5ea643c7832620b84bfdf154ec7129b8b471a63a763f2fe955af1ac65fd3",
-    //         ),
-    //         String::from(
-    //             "e902f88b2371ff6243bf4b0ebe8f46205e00749dd4dad07b2ea34350a1f9ceedb7620ab913c2",
-    //         ),
-    //     ];
-
-    //     let (validators_target, validator_byte_length, _) =
-    //         generate_inputs::<VALIDATOR_SET_SIZE_MAX>(&mut builder, &validators);
-
-    //     let result = builder.hash_validator_leaf(&validators_target[0], validator_byte_length[0]);
-
-    //     // Set the target bits to the expected digest bits.
-    //     for i in 0..HASH_SIZE_BITS {
-    //         if digest_bits[i] {
-    //             pw.set_target(result.0[i].target, F::ONE);
-    //         } else {
-    //             pw.set_target(result.0[i].target, F::ZERO);
-    //         }
-    //     }
-
-    //     let data = builder.build::<C>();
-    //     let proof = data.prove(pw).unwrap();
 
     //     data.verify(proof).unwrap();
 
