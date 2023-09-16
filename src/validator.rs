@@ -271,8 +271,9 @@ pub(crate) mod tests {
     use crate::fixture::get_signed_block_from_rpc;
     use crate::inputs::{convert_to_h256, get_path_indices, get_signed_block_from_fixture};
     use crate::utils::{
-        generate_proofs_from_header, hash_all_leaves, ValidatorMessageVariable, HEADER_PROOF_DEPTH,
-        PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES,
+        generate_proofs_from_header, hash_all_leaves, proofs_from_byte_slices,
+        ValidatorMessageVariable, HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES,
+        PROTOBUF_HASH_SIZE_BYTES,
     };
     use crate::validator::TendermintValidator;
     use ethers::types::H256;
@@ -409,11 +410,11 @@ pub(crate) mod tests {
         let mut builder = DefaultBuilder::new();
         let messages =
             builder.read::<ArrayVariable<MarshalledValidatorVariable, VALIDATOR_SET_SIZE_MAX>>();
-        let messages = messages.as_vec();
         let val_byte_lengths = builder.read::<ArrayVariable<Variable, VALIDATOR_SET_SIZE_MAX>>();
-        let val_byte_lengths = val_byte_lengths.as_vec();
-        let hashed_leaves =
-            builder.hash_validator_leaves::<VALIDATOR_SET_SIZE_MAX>(&messages, &val_byte_lengths);
+        let hashed_leaves = builder.hash_validator_leaves::<VALIDATOR_SET_SIZE_MAX>(
+            &messages.as_vec(),
+            &val_byte_lengths.as_vec(),
+        );
         let hashed_leaves: ArrayVariable<TendermintHashVariable, VALIDATOR_SET_SIZE_MAX> =
             hashed_leaves.into();
         builder.write(hashed_leaves);
@@ -457,82 +458,88 @@ pub(crate) mod tests {
         assert_eq!(output_leaves, expected_digests_bytes);
     }
 
-    // #[test]
-    // fn test_generate_val_hash() {
-    //     struct TestCase {
-    //         validators: Vec<String>,
-    //         expected_digest: String,
-    //     }
+    #[test]
+    fn test_generate_validators_hash() {
+        const VALIDATOR_SET_SIZE_MAX: usize = 4;
 
-    //     // Validators from block 11000 on Celestia mocha-3 testnet encoded as bytes.
-    //     let validators_arr: Vec<Vec<&str>> = vec![vec![
-    //         "0a220a20de25aec935b10f657b43fa97e5a8d4e523bdb0f9972605f0b064eff7b17048ba10aa8d06",
-    //         "0a220a208de6ad1a569a223e7bb0dade194abb9487221210e1fa8154bf654a10fe6158a610aa8d06",
-    //         "0a220a20e9b7638ca1c42da37d728970632fda77ec61dcc520395ab5d3a645b9c2b8e8b1100a",
-    //         "0a220a20bd60452e7f056b22248105e7fd298961371da0d9332ef65fa81691bf51b2e5051001",
-    //     ], vec!["364db94241a02b701d0dc85ac016fab2366fba326178e6f11d8294931969072b7441fd6b0ff5129d6867", "6fa0cef8f328eb8e2aef2084599662b1ee0595d842058966166029e96bd263e5367185f19af67b099645ec08aa"]];
+        env_logger::try_init().unwrap_or_default();
 
-    //     let digest_arr: Vec<&str> = vec![
-    //         "BB5B8B1239565451DCD5AB52B47C26032016CDF1EF2D2115FF104DC9DDE3988C",
-    //         "be110ff9abb6bdeaebf48ac8e179a76fda1f6eaef0150ca6159587f489722204",
-    //     ];
+        // Define the circuit
+        let mut builder = DefaultBuilder::new();
+        let messages =
+            builder.read::<ArrayVariable<MarshalledValidatorVariable, VALIDATOR_SET_SIZE_MAX>>();
+        let val_byte_lengths = builder.read::<ArrayVariable<Variable, VALIDATOR_SET_SIZE_MAX>>();
+        let val_enabled = builder.read::<ArrayVariable<BoolVariable, VALIDATOR_SET_SIZE_MAX>>();
+        let root = builder.hash_validator_set::<VALIDATOR_SET_SIZE_MAX>(
+            &messages.as_vec(),
+            &val_byte_lengths.as_vec(),
+            &val_enabled.as_vec(),
+        );
+        builder.write(root);
+        let circuit = builder.build();
 
-    //     let test_cases: Vec<TestCase> = validators_arr
-    //         .iter()
-    //         .zip(digest_arr.iter())
-    //         .map(|(validators, expected_digest)| TestCase {
-    //             validators: validators
-    //                 .iter()
-    //                 .map(|x| String::from(*x).to_lowercase())
-    //                 .collect(),
-    //             expected_digest: String::from(*expected_digest).to_lowercase(),
-    //         })
-    //         .collect();
+        // Validators from block 11000 on Celestia mocha-3 testnet encoded as bytes.
+        let validators_arr: Vec<Vec<&str>> = vec![vec![
+            "0a220a20de25aec935b10f657b43fa97e5a8d4e523bdb0f9972605f0b064eff7b17048ba10aa8d06",
+            "0a220a208de6ad1a569a223e7bb0dade194abb9487221210e1fa8154bf654a10fe6158a610aa8d06",
+            "0a220a20e9b7638ca1c42da37d728970632fda77ec61dcc520395ab5d3a645b9c2b8e8b1100a",
+            "0a220a20bd60452e7f056b22248105e7fd298961371da0d9332ef65fa81691bf51b2e5051001",
+        ], vec!["364db94241a02b701d0dc85ac016fab2366fba326178e6f11d8294931969072b7441fd6b0ff5129d6867", "6fa0cef8f328eb8e2aef2084599662b1ee0595d842058966166029e96bd263e5367185f19af67b099645ec08aa"]];
 
-    //     for test_case in test_cases {
-    //         let mut pw = PartialWitness::new();
-    //         let config = CircuitConfig::standard_recursion_config();
-    //         let mut builder = CircuitBuilder::<F, D>::new(config);
+        let validators: Vec<Vec<Vec<u8>>> = validators_arr
+            .iter()
+            .map(|x| {
+                x.iter()
+                    .map(|y| {
+                        hex::decode(y).unwrap()
+                        // val_bytes.resize(VALIDATOR_BYTE_LENGTH_MAX, 0u8);
+                        // val_bytes.try_into().unwrap()
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+        let validators_byte_lengths = validators
+            .iter()
+            .map(|x| {
+                x.iter()
+                    .map(|y| GoldilocksField::from_canonical_usize(y.len()))
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+        let validators_enabled = vec![vec![true, true, true, true], vec![true, true, true, true]];
 
-    //         let (validators_target, validator_byte_length, validator_enabled) =
-    //             generate_inputs::<VALIDATOR_SET_SIZE_MAX>(&mut builder, &test_case.validators);
+        let roots: Vec<H256> = validators
+            .iter()
+            .map(|x| H256::from(proofs_from_byte_slices(x.to_vec()).0))
+            .collect::<Vec<_>>();
 
-    //         let digest_bits =
-    //             to_be_bits(hex::decode(test_case.expected_digest.as_bytes()).unwrap());
+        for i in 0..validators.len() {
+            let mut input = circuit.input();
+            input.write::<ArrayVariable<MarshalledValidatorVariable, VALIDATOR_SET_SIZE_MAX>>(
+                validators[i]
+                    .iter()
+                    .map(|x| {
+                        let mut validator_bytes = x.clone();
+                        validator_bytes.resize(VALIDATOR_BYTE_LENGTH_MAX, 0u8);
+                        validator_bytes.try_into().unwrap()
+                    })
+                    .collect_vec(),
+            );
+            input.write::<ArrayVariable<Variable, VALIDATOR_SET_SIZE_MAX>>(
+                validators_byte_lengths[i].clone(),
+            );
+            input.write::<ArrayVariable<BoolVariable, VALIDATOR_SET_SIZE_MAX>>(
+                validators_enabled[i].clone(),
+            );
+            let (_, mut output) = circuit.prove(&input);
+            let computed_root = output.read::<Bytes32Variable>();
 
-    //         println!(
-    //             "Expected Val Hash: {:?}",
-    //             String::from_utf8(hex::encode(
-    //                 hex::decode(test_case.expected_digest.as_bytes()).unwrap()
-    //             ))
-    //         );
-
-    //         let result = builder.hash_validator_set::<E, VALIDATOR_SET_SIZE_MAX>(
-    //             &validators_target,
-    //             &validator_byte_length,
-    //             &validator_enabled,
-    //         );
-
-    //         for i in 0..HASH_SIZE_BITS {
-    //             pw.set_bool_target(result.0[i], digest_bits[i]);
-    //         }
-
-    //         let data = builder.build::<C>();
-    //         let proof = data.prove(pw).unwrap();
-
-    //         println!("Created proof");
-
-    //         data.verify(proof).unwrap();
-
-    //         println!("Verified proof");
-    //     }
-    // }
+            assert_eq!(roots[i], computed_root);
+        }
+    }
 
     #[test]
     fn test_get_root_from_merkle_proof() {
-        // Generate test cases from Celestia block:
-        let block = get_signed_block_from_fixture(10000);
-
         env_logger::try_init().unwrap_or_default();
 
         // Define the circuit
@@ -544,7 +551,9 @@ pub(crate) mod tests {
         builder.write(root);
         let circuit = builder.build();
 
-        // let header_hash = block.header.hash().to_string();
+        // Generate test cases from Celestia block:
+        let block = get_signed_block_from_fixture(10000);
+
         let (root, proofs) = generate_proofs_from_header(&block.header);
 
         // Can test with leaf_index 6, 7 or 8 (data_hash, validators_hash, next_validators_hash)
