@@ -7,18 +7,20 @@
 //! encoded using protobuf's default integer encoding, which consist of 7 bit payloads. You can
 //! read more about them here: https://protobuf.dev/programming-guides/encoding/#varints.
 
+use ethers::types::U64;
 use plonky2::iop::target::{BoolTarget, Target};
 
-use plonky2x::{
-    frontend::ecc::ed25519::{
-        curve::{curve_types::Curve, ed25519::Ed25519},
-        gadgets::{curve::CircuitBuilderCurve, eddsa::EDDSASignatureTarget},
-    },
-    frontend::num::u32::gadgets::arithmetic_u32::{CircuitBuilderU32, U32Target},
+use plonky2x::frontend::ecc::ed25519::{
+    curve::{curve_types::Curve, ed25519::Ed25519},
+    gadgets::{curve::CircuitBuilderCurve, eddsa::EDDSASignatureTarget},
 };
 use plonky2x::{
+    frontend::num::u32::gadgets::arithmetic_u32::{CircuitBuilderU32, U32Target},
     frontend::vars::U32Variable,
-    prelude::{ArrayVariable, BoolVariable, CircuitBuilder, PlonkParameters, Variable},
+    prelude::{
+        ArrayVariable, BoolVariable, CircuitBuilder, CircuitVariable, PlonkParameters, RichField,
+        Variable, Witness, WitnessWrite,
+    },
 };
 
 use crate::utils::{
@@ -40,7 +42,7 @@ use crate::{
 };
 use num::BigUint;
 use plonky2x::frontend::uint::uint64::U64Variable;
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, CircuitVariable)]
 pub struct ValidatorVariable<C: Curve> {
     pubkey: EDDSAPublicKeyVariable<C>,
     signature: EDDSASignatureTarget<C>,
@@ -54,7 +56,7 @@ pub struct ValidatorVariable<C: Curve> {
     present_on_trusted_header: BoolVariable,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, CircuitVariable)]
 pub struct ValidatorHashFieldVariable<C: Curve> {
     pubkey: EDDSAPublicKeyVariable<C>,
     voting_power: U64Variable,
@@ -63,7 +65,7 @@ pub struct ValidatorHashFieldVariable<C: Curve> {
 }
 
 /// The protobuf-encoded leaf (a hash), and it's corresponding proof and path indices against the header.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, CircuitVariable)]
 pub struct HashInclusionProofVariable<const HEADER_PROOF_DEPTH: usize> {
     enc_leaf: EncTendermintHashVariable,
     // Path and proof should have a fixed length of HEADER_PROOF_DEPTH.
@@ -72,7 +74,7 @@ pub struct HashInclusionProofVariable<const HEADER_PROOF_DEPTH: usize> {
 }
 
 /// The protobuf-encoded leaf (a tendermint block ID), and it's corresponding proof and path indices against the header.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, CircuitVariable)]
 pub struct BlockIDInclusionProofVariable<const HEADER_PROOF_DEPTH: usize> {
     enc_leaf: EncBlockIDVariable,
     // Path and proof should have a fixed length of HEADER_PROOF_DEPTH.
@@ -80,7 +82,7 @@ pub struct BlockIDInclusionProofVariable<const HEADER_PROOF_DEPTH: usize> {
     proof: ArrayVariable<TendermintHashVariable, HEADER_PROOF_DEPTH>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, CircuitVariable)]
 pub struct StepProofTarget<
     C: Curve,
     const HEADER_PROOF_DEPTH: usize,
@@ -92,19 +94,19 @@ pub struct StepProofTarget<
     base: BaseBlockProofVariable<C, HEADER_PROOF_DEPTH, VALIDATOR_SET_SIZE_MAX>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, CircuitVariable)]
 pub struct SkipProofTarget<
     C: Curve,
     const HEADER_PROOF_DEPTH: usize,
     const VALIDATOR_SET_SIZE_MAX: usize,
 > {
-    trusted_header: TendermintHashTarget,
+    trusted_header: TendermintHashVariable,
     trusted_validator_hash_proof: HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
     trusted_validator_hash_fields: Vec<ValidatorHashFieldVariable<C>>,
     base: BaseBlockProofVariable<C, HEADER_PROOF_DEPTH, VALIDATOR_SET_SIZE_MAX>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, CircuitVariable)]
 pub struct BaseBlockProofVariable<
     C: Curve,
     const HEADER_PROOF_DEPTH: usize,
@@ -216,18 +218,9 @@ impl<
         threshold_denominator: &U32Variable,
         include_in_check: Vec<BoolVariable>,
     ) {
-        assert_eq!(validators.to_vec().len() == include_in_check.len());
-        let include_in_check_u32: Vec<U32Target> = include_in_check
-            .iter()
-            .map(|v| {
-                let zero = self.zero_u32();
-                let one = self.one_u32();
-                U32Target(self.select(*v, one.0, zero.0))
-            })
-            .collect();
-
+        assert_eq!(validators.as_vec().len() == include_in_check.len());
         let validator_voting_power: Vec<U64Variable> =
-            validators.iter().map(|v| v.voting_power).collect();
+            validators.as_vec().iter().map(|v| v.voting_power).collect();
 
         let total_voting_power =
             self.get_total_voting_power::<VALIDATOR_SET_SIZE_MAX>(&validator_voting_power);
@@ -236,12 +229,12 @@ impl<
         let check_voting_power_bool = self.check_voting_power::<VALIDATOR_SET_SIZE_MAX>(
             &validator_voting_power,
             // Check if the signed validators are greater than the threshold
-            &include_in_check_u32,
+            &include_in_check,
             &total_voting_power,
             &threshold_numerator,
             &threshold_denominator,
         );
-        self.connect(check_voting_power_bool, self._true());
+        self.assert_is_equal(check_voting_power_bool, self._true());
     }
 
     fn step(
@@ -301,20 +294,29 @@ impl<
         let true_t = self._true();
         // Verify each of the validators marshal correctly
         // Assumes the validators are sorted in the correct order
-        let byte_lengths: Vec<Variable> =
-            validators.iter().map(|v| v.validator_byte_length).collect();
+        let byte_lengths: Vec<Variable> = validators
+            .as_vec()
+            .iter()
+            .map(|v| v.validator_byte_length)
+            .collect();
         let marshalled_validators: Vec<MarshalledValidatorVariable> = validators
+            .as_vec()
             .iter()
             .map(|v| self.marshal_tendermint_validator(&v.pubkey.0, &v.voting_power))
             .collect();
-        let validators_signed: Vec<BoolVariable> = validators.iter().map(|v| v.signed).collect();
-        let validators_enabled: Vec<BoolVariable> = validators.iter().map(|v| v.enabled).collect();
+        let validators_signed: Vec<BoolVariable> =
+            validators.as_vec().iter().map(|v| v.signed).collect();
+        let validators_enabled: Vec<BoolVariable> =
+            validators.as_vec().iter().map(|v| v.enabled).collect();
 
-        let validator_voting_power: Vec<I64Target> =
-            validators.iter().map(|v| v.voting_power).collect();
+        let validator_voting_power: Vec<U64Variable> =
+            validators.as_vec().iter().map(|v| v.voting_power).collect();
 
-        let mut messages: Vec<Vec<BoolTarget>> =
-            validators.iter().map(|v| v.message.0.to_vec()).collect();
+        let mut messages: Vec<Vec<BoolVariable>> = validators
+            .as_vec()
+            .iter()
+            .map(|v| v.message.0.to_vec())
+            .collect();
         for i in 0..messages.len() {
             messages[i].resize(VALIDATOR_MESSAGE_BYTES_LENGTH_MAX * 8, self._false());
         }

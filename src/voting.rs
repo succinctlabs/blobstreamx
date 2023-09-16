@@ -8,16 +8,15 @@
 //! read more about them here: https://protobuf.dev/programming-guides/encoding/#varints.
 use crate::utils::I64Target;
 use plonky2::field::extension::Extendable;
+use plonky2::hash::hash_types::RichField;
 use plonky2::iop::target::BoolTarget;
-use plonky2::{hash::hash_types::RichField}
 use plonky2::plonk::circuit_builder::CircuitBuilder as BaseBuilder;
 use plonky2x::frontend::ecc::ed25519::curve::curve_types::Curve;
 use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
 use plonky2x::frontend::num::u32::gadgets::arithmetic_u32::{CircuitBuilderU32, U32Target};
 use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::frontend::vars::U32Variable;
-use plonky2x::prelude::{BoolVariable, Variable, CircuitBuilder, PlonkParameters};
-
+use plonky2x::prelude::{BoolVariable, CircuitBuilder, PlonkParameters, Variable};
 
 // TODO: remove all of this, it's all legacy
 
@@ -40,7 +39,11 @@ fn i64_target_to_u64_variable_legacy(a: &I64Target) -> U64Variable {
     }
 }
 
-fn mul_i64_by_u32<F: RichField + Extendable<D>, const D: usize>(api: &mut BaseBuilder<F, D>, a: &I64Target, b: U32Target) -> I64Target {
+fn mul_i64_by_u32<F: RichField + Extendable<D>, const D: usize>(
+    api: &mut BaseBuilder<F, D>,
+    a: &I64Target,
+    b: U32Target,
+) -> I64Target {
     // Multiply the lower 32 bits of the accumulated voting power by b
     let (lower_product, lower_carry) = api.mul_u32(a.0[0], b);
 
@@ -60,7 +63,11 @@ fn mul_i64_by_u32<F: RichField + Extendable<D>, const D: usize>(api: &mut BaseBu
 }
 
 // Returns a >= b
-fn is_i64_gte<F: RichField + Extendable<D>, const D: usize>(api: &mut BaseBuilder<F, D>, a: &I64Target, b: &I64Target) -> BoolTarget {
+fn is_i64_gte<F: RichField + Extendable<D>, const D: usize>(
+    api: &mut BaseBuilder<F, D>,
+    a: &I64Target,
+    b: &I64Target,
+) -> BoolTarget {
     // Check that the a >= b
     // 1) a_high > b_high => TRUE
     // 2) a_high == b_high
@@ -124,8 +131,6 @@ pub trait TendermintVoting {
     ) -> BoolVariable;
 }
 
-
-
 impl<L: PlonkParameters<D>, const D: usize> TendermintVoting for CircuitBuilder<L, D> {
     type Curve = Ed25519;
 
@@ -151,14 +156,14 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVoting for CircuitBuilder<
             }
 
             let (sum_lower_low, sum_lower_high) =
-            api.add_many_u32(&mut validator_voting_power_first);
+                api.add_many_u32(&mut validator_voting_power_first);
 
             let mut validator_voting_power_second = Vec::new();
             for j in (VALIDATOR_SET_SIZE_MAX / 2) * i..(VALIDATOR_SET_SIZE_MAX / 2) * (i + 1) {
                 validator_voting_power_second.push(validator_voting_power[j].0[1]);
             }
             let (sum_upper_low, sum_upper_high) =
-            api.add_many_u32(&mut validator_voting_power_second);
+                api.add_many_u32(&mut validator_voting_power_second);
 
             api.assert_zero_u32(sum_upper_high);
 
@@ -195,17 +200,25 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVoting for CircuitBuilder<
         let mut api = self.api;
         let accumalated_power_convert = u64_variable_to_i64_target_legacy(accumulated_power);
         let total_voting_power_convert = u64_variable_to_i64_target_legacy(total_voting_power);
-        let threshold_numerator_convert = U32Target(threshold_numerator.0.0.clone());
-        let threshold_denominator_convert = U32Target(threshold_denominator.0.0.clone());
+        let threshold_numerator_convert = U32Target(threshold_numerator.0 .0.clone());
+        let threshold_denominator_convert = U32Target(threshold_denominator.0 .0.clone());
         // Threshold is numerator/denominator * total_voting_power
 
-        // Compute accumulated_voting_power * m 
-        let scaled_accumulated_vp = mul_i64_by_u32(&mut api, &accumalated_power_convert, threshold_denominator_convert);
+        // Compute accumulated_voting_power * m
+        let scaled_accumulated_vp = mul_i64_by_u32(
+            &mut api,
+            &accumalated_power_convert,
+            threshold_denominator_convert,
+        );
 
         // Compute total_vp * n
-        let scaled_total_vp = mul_i64_by_u32(&mut api, &total_voting_power_convert, threshold_numerator_convert);
+        let scaled_total_vp = mul_i64_by_u32(
+            &mut api,
+            &total_voting_power_convert,
+            threshold_numerator_convert,
+        );
 
-        let res = is_i64_gte(&mut api,&scaled_accumulated_vp, &scaled_total_vp);
+        let res = is_i64_gte(&mut api, &scaled_accumulated_vp, &scaled_total_vp);
         BoolVariable(Variable(res.target))
     }
 
@@ -224,14 +237,14 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVoting for CircuitBuilder<
         for i in 0..VALIDATOR_SET_SIZE_MAX {
             let voting_power_split = validator_voting_power[i];
             let voting_power = [
-                U32Target(voting_power_split.limbs[0].0.0),
-                U32Target(voting_power_split.limbs[1].0.0)
+                U32Target(voting_power_split.limbs[0].0 .0),
+                U32Target(voting_power_split.limbs[1].0 .0),
             ];
-            let enabled = U32Target(validator_enabled[i].0.0);
+            let enabled = U32Target(validator_enabled[i].0 .0);
 
             // Note: Tendermint validators max voting power is 2^63 - 1. (Should below 2^32)
             let (sum_lower_low, sum_lower_high) =
-            api.mul_add_u32(voting_power[0], enabled, accumulated_voting_power.0[0]);
+                api.mul_add_u32(voting_power[0], enabled, accumulated_voting_power.0[0]);
 
             let (carry_sum_low, carry_sum_high) = api.add_u32(sum_lower_high, voting_power[1]);
 
@@ -240,7 +253,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVoting for CircuitBuilder<
 
             // This should not overflow
             let (sum_upper_low, sum_upper_high) =
-            api.mul_add_u32(carry_sum_low, enabled, accumulated_voting_power.0[1]);
+                api.mul_add_u32(carry_sum_low, enabled, accumulated_voting_power.0[1]);
 
             // Check that the upper 32 bits of the upper sum are zero.
             api.assert_zero_u32(sum_upper_high);
@@ -297,11 +310,11 @@ pub(crate) mod tests {
         let threshold_numerator = builder.read::<U32Variable>();
         let threshold_denominator = builder.read::<U32Variable>();
         let result = builder.check_voting_power(
-            &validator_voting_power_vec, 
+            &validator_voting_power_vec,
             &validator_enabled_vec,
-            &total_voting_power, 
-            &threshold_numerator, 
-            &threshold_denominator
+            &total_voting_power,
+            &threshold_numerator,
+            &threshold_denominator,
         );
         builder.write(result);
 
