@@ -2,6 +2,7 @@ use plonky2::hash::hash_types::RichField;
 
 use plonky2::iop::target::BoolTarget;
 use plonky2x::frontend::num::u32::gadgets::arithmetic_u32::U32Target;
+use plonky2x::prelude::{BoolVariable, BytesVariable};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::cell::RefCell;
@@ -101,6 +102,8 @@ pub struct I64Target(pub [U32Target; 2]);
 /// The message signed by the validator as a target.
 #[derive(Debug, Clone, Copy)]
 pub struct ValidatorMessageTarget(pub [BoolTarget; VALIDATOR_MESSAGE_BYTES_LENGTH_MAX * 8]);
+
+pub type ValidatorMessageVariable = BytesVariable<VALIDATOR_MESSAGE_BYTES_LENGTH_MAX>;
 
 // Convert from [BoolTarget; HASH_SIZE_BITS] to [BoolTarget; PROTOBUF_HASH_SIZE_BITS]
 pub fn bits_to_bytes(bits: &[bool]) -> Vec<u8> {
