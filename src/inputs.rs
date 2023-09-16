@@ -92,7 +92,7 @@ pub fn get_path_indices(index: u64, total: u64) -> Vec<bool> {
     path_indices
 }
 
-fn get_signed_block_from_fixture(block: usize) -> Box<SignedBlock> {
+pub fn get_signed_block_from_fixture(block: usize) -> Box<SignedBlock> {
     let mut file = String::new();
     file.push_str("./src/fixtures/mocha-3/");
     file.push_str(&block.to_string());
@@ -598,6 +598,13 @@ pub fn generate_skip_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
+
+    #[test]
+    fn test_get_header_hash() {
+        let block = get_signed_block_from_fixture(10000);
+        let header_hash = block.header.hash();
+        println!("header hash: {}", header_hash);
+    }
 
     #[test]
     fn get_shared_voting_power() {

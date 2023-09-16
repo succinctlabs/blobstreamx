@@ -268,15 +268,23 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for Circui
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::utils::{hash_all_leaves, ValidatorMessageVariable};
+    use crate::fixture::get_signed_block_from_rpc;
+    use crate::inputs::{convert_to_h256, get_path_indices, get_signed_block_from_fixture};
+    use crate::utils::{
+        generate_proofs_from_header, hash_all_leaves, ValidatorMessageVariable, HEADER_PROOF_DEPTH,
+        PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES,
+    };
     use crate::validator::TendermintValidator;
     use ethers::types::H256;
     use ethers::utils::hex;
     use itertools::Itertools;
     use plonky2::field::types::PrimeField;
     use plonky2x::frontend::ecc::ed25519::curve::curve_types::AffinePoint;
+    use plonky2x::frontend::merkle::tree::{InclusionProof, MerkleInclusionProofVariable};
     use plonky2x::prelude::{ArrayVariable, Bytes32Variable, DefaultBuilder, GoldilocksField};
     use sha2::Sha256;
+    use tendermint_proto::types::BlockId as RawBlockId;
+    use tendermint_proto::Protobuf;
 
     type Curve = Ed25519;
 
@@ -520,90 +528,48 @@ pub(crate) mod tests {
     //     }
     // }
 
-    // #[test]
-    // fn test_get_root_from_merkle_proof() {
-    //     // Generate test cases from Celestia block:
-    //     let block = tendermint::Block::from(
-    //         serde_json::from_str::<tendermint::block::Block>(include_str!(
-    //             "./fixtures/celestia_block.json"
-    //         ))
-    //         .unwrap(),
-    //     );
+    #[test]
+    fn test_get_root_from_merkle_proof() {
+        // Generate test cases from Celestia block:
+        let block = get_signed_block_from_fixture(10000);
 
-    //     let header_hash = block.header.hash().to_string();
-    //     let header_bits = to_be_bits(hex::decode(header_hash.to_lowercase()).unwrap());
+        env_logger::try_init().unwrap_or_default();
 
-    //     let mut pw = PartialWitness::new();
-    //     let config = CircuitConfig::standard_recursion_config();
-    //     let mut builder = CircuitBuilder::<F, D>::new(config);
+        // Define the circuit
+        let mut builder = DefaultBuilder::new();
+        let proof = builder
+            .read::<MerkleInclusionProofVariable<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES>>(
+            );
+        let root = builder.get_root_from_merkle_proof(&proof);
+        builder.write(root);
+        let circuit = builder.build();
 
-    //     let (_, proofs) = generate_proofs_from_header(&block.header);
+        // let header_hash = block.header.hash().to_string();
+        let (root, proofs) = generate_proofs_from_header(&block.header);
 
-    //     // Can test with leaf_index 6, 7 or 8 (data_hash, validators_hash, next_validators_hash)
-    //     let leaf_index = 4;
+        // Can test with leaf_index 6, 7 or 8 (data_hash, validators_hash, next_validators_hash)
+        let leaf_index = 4;
 
-    //     // Note: Make sure to encode_vec()
-    //     // let leaf = block.header.data_hash.expect("data hash present").encode_vec();
-    //     // let leaf = block.header.validators_hash.encode_vec();
-    //     // let leaf = block.header.next_validators_hash.encode_vec();
-    //     let leaf =
-    //         Protobuf::<RawBlockId>::encode_vec(block.header.last_block_id.unwrap_or_default());
+        // Note: Make sure to encode_vec()
+        // let validator_hash = block.header.validators_hash.encode_vec();
+        let leaf =
+            Protobuf::<RawBlockId>::encode_vec(block.header.last_block_id.unwrap_or_default());
 
-    //     let leaf_bits = to_be_bits(leaf);
+        let path_indices = get_path_indices(leaf_index as u64, proofs[0].total);
 
-    //     let path_indices = get_path_indices(leaf_index as u64, proofs[0].total);
+        let proof = InclusionProof {
+            aunts: convert_to_h256(proofs[leaf_index].clone().aunts),
+            path_indices: path_indices,
+            leaf: leaf.try_into().unwrap(),
+        };
 
-    //     let path_indices = path_indices
-    //         .iter()
-    //         .map(|x| builder.constant_bool(*x))
-    //         .collect::<Vec<_>>();
+        let mut input = circuit.input();
+        input.write::<MerkleInclusionProofVariable<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES>>(
+            proof,
+        );
+        let (_, mut output) = circuit.prove(&input);
+        let computed_root = output.read::<Bytes32Variable>();
 
-    //     let mut leaf_target = [builder._false(); PROTOBUF_BLOCK_ID_SIZE_BITS];
-    //     for i in 0..PROTOBUF_BLOCK_ID_SIZE_BITS {
-    //         leaf_target[i] = if leaf_bits[i] {
-    //             builder._true()
-    //         } else {
-    //             builder._false()
-    //         };
-    //     }
-
-    //     let mut aunts_target =
-    //         vec![TendermintHashTarget([builder._false(); HASH_SIZE_BITS]); HEADER_PROOF_DEPTH];
-    //     for i in 0..HEADER_PROOF_DEPTH {
-    //         let bool_vector = to_be_bits(proofs[leaf_index].aunts[i].to_vec());
-
-    //         for j in 0..HASH_SIZE_BITS {
-    //             aunts_target[i].0[j] = if bool_vector[j] {
-    //                 builder._true()
-    //             } else {
-    //                 builder._false()
-    //             };
-    //         }
-    //     }
-
-    //     let leaf_hash = builder.leaf_hash::<E, PROTOBUF_BLOCK_ID_SIZE_BITS>(&leaf_target);
-
-    //     let result = builder.get_root_from_merkle_proof::<E, HEADER_PROOF_DEPTH>(
-    //         &aunts_target.try_into().unwrap(),
-    //         &path_indices.try_into().unwrap(),
-    //         &leaf_hash,
-    //     );
-
-    //     for i in 0..HASH_SIZE_BITS {
-    //         if header_bits[i] {
-    //             pw.set_target(result.0[i].target, F::ONE);
-    //         } else {
-    //             pw.set_target(result.0[i].target, F::ZERO);
-    //         }
-    //     }
-
-    //     let data = builder.build::<C>();
-    //     let proof = data.prove(pw).unwrap();
-
-    //     println!("Created proof");
-
-    //     data.verify(proof).unwrap();
-
-    //     println!("Verified proof");
-    // }
+        assert_eq!(H256::from(root), computed_root);
+    }
 }
