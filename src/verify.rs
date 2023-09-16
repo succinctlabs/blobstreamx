@@ -12,10 +12,7 @@ use plonky2::iop::target::{BoolTarget, Target};
 use plonky2x::{
     frontend::ecc::ed25519::{
         curve::{curve_types::Curve, ed25519::Ed25519},
-        gadgets::{
-            curve::CircuitBuilderCurve,
-            eddsa::{EDDSAPublicKeyTarget, EDDSASignatureTarget},
-        },
+        gadgets::{curve::CircuitBuilderCurve, eddsa::EDDSASignatureTarget},
     },
     frontend::num::u32::gadgets::arithmetic_u32::{CircuitBuilderU32, U32Target},
 };
@@ -25,7 +22,8 @@ use plonky2x::{
 };
 
 use crate::utils::{
-    EncBlockIDVariable, EncTendermintHashVariable, TendermintHashVariable, ValidatorMessageVariable,
+    EDDSAPublicKeyVariable, EncBlockIDVariable, EncTendermintHashVariable, TendermintHashVariable,
+    ValidatorMessageVariable,
 };
 use crate::{
     inputs::{CelestiaBaseBlockProof, CelestiaSkipBlockProof, CelestiaStepBlockProof},
@@ -44,7 +42,7 @@ use num::BigUint;
 use plonky2x::frontend::uint::uint64::U64Variable;
 #[derive(Debug, Clone)]
 pub struct ValidatorVariable<C: Curve> {
-    pubkey: EDDSAPublicKeyTarget<C>,
+    pubkey: EDDSAPublicKeyVariable<C>,
     signature: EDDSASignatureTarget<C>,
     message: ValidatorMessageVariable,
     message_bit_length: Variable,
@@ -58,7 +56,7 @@ pub struct ValidatorVariable<C: Curve> {
 
 #[derive(Debug, Clone)]
 pub struct ValidatorHashFieldVariable<C: Curve> {
-    pubkey: EDDSAPublicKeyTarget<C>,
+    pubkey: EDDSAPublicKeyVariable<C>,
     voting_power: U64Variable,
     validator_byte_length: Variable,
     enabled: BoolVariable,
@@ -331,7 +329,7 @@ impl<
 
         let signatures: Vec<&EDDSASignatureTarget<Ed25519>> =
             validators.iter().map(|v| &v.signature).collect();
-        let pubkeys: Vec<&EDDSAPublicKeyTarget<Ed25519>> =
+        let pubkeys: Vec<&EDDSAPublicKeyVariable<Ed25519>> =
             validators.iter().map(|v| &v.pubkey).collect();
 
         // Compute the validators hash
