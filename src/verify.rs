@@ -341,7 +341,7 @@ impl<
         // Fields used for verifying signatures
         let validators_signed: Vec<BoolVariable> =
             validators.as_vec().iter().map(|v| v.signed).collect();
-        let mut messages: Vec<ValidatorMessageVariable> =
+        let messages: Vec<ValidatorMessageVariable> =
             validators.as_vec().iter().map(|v| v.message).collect();
         let message_bit_lengths: Vec<U32Variable> = validators
             .as_vec()
@@ -688,276 +688,258 @@ impl<
     }
 }
 
-// #[cfg(test)]
-// pub(crate) mod tests {
-//     use std::env;
+#[cfg(test)]
+pub(crate) mod tests {
+    use super::*;
+    use ethers::types::H256;
+    use ethers::utils::hex;
+    use log;
+    use plonky2::timed;
+    use plonky2::util::timing::TimingTree;
+    use plonky2x::prelude::DefaultBuilder;
+    use std::env;
 
-//     use super::*;
-//     use curta::math::goldilocks::cubic::GoldilocksCubicParameters;
-//     use curta::plonky2::stark::config::CurtaPoseidonGoldilocksConfig;
-//     use plonky2::field::goldilocks_field::GoldilocksField;
-//     use plonky2::field::types::Field;
-//     use plonky2::{
-//         iop::witness::{PartialWitness, WitnessWrite},
-//         plonk::{
-//             circuit_builder::CircuitBuilder, circuit_data::CircuitConfig,
-//             config::PoseidonGoldilocksConfig,
-//         },
-//     };
+    use crate::inputs::{
+        generate_skip_inputs, generate_step_inputs, CelestiaSkipBlockProof, CelestiaStepBlockProof,
+    };
 
-//     use crate::inputs::{generate_skip_inputs, generate_step_inputs, CelestiaStepBlockProof};
-//     use crate::utils::to_be_bits;
+    // TODO: this test should be moved to the `signature` file
+    #[test]
+    fn test_verify_hash_in_message() {
+        // This is a test case generated from block 144094 of Celestia's Mocha testnet
+        // Block Hash: 8909e1b73b7d987e95a7541d96ed484c17a4b0411e98ee4b7c890ad21302ff8c (needs to be lower case)
+        // Signed Message (from the last validator): 6b080211de3202000000000022480a208909e1b73b7d987e95a7541d96ed484c17a4b0411e98ee4b7c890ad21302ff8c12240801122061263df4855e55fcab7aab0a53ee32cf4f29a1101b56de4a9d249d44e4cf96282a0b089dce84a60610ebb7a81932076d6f6368612d33
+        // No round exists in present the message that was signed above
 
-//     use log;
-//     use plonky2::timed;
-//     use plonky2::util::timing::TimingTree;
-//     use subtle_encoding::hex;
+        env_logger::try_init().unwrap_or_default();
 
-//     type C = PoseidonGoldilocksConfig;
-//     type F = <C as GenericConfig<D>>::F;
-//     const D: usize = 2;
+        // Define the circuit
+        let mut builder = DefaultBuilder::new();
+        let message = builder.read::<ValidatorMessageVariable>();
+        let header_hash = builder.read::<TendermintHashVariable>();
+        let round_present_in_message = builder.read::<BoolVariable>();
+        let verified =
+            builder.verify_hash_in_message(&message, header_hash, round_present_in_message);
+        builder.write(verified);
+        let circuit = builder.build();
 
-//     #[test]
-//     fn test_verify_hash_in_message() {
-//         // This is a test case generated from block 144094 of Celestia's Mocha testnet
-//         // Block Hash: 8909e1b73b7d987e95a7541d96ed484c17a4b0411e98ee4b7c890ad21302ff8c (needs to be lower case)
-//         // Signed Message (from the last validator): 6b080211de3202000000000022480a208909e1b73b7d987e95a7541d96ed484c17a4b0411e98ee4b7c890ad21302ff8c12240801122061263df4855e55fcab7aab0a53ee32cf4f29a1101b56de4a9d249d44e4cf96282a0b089dce84a60610ebb7a81932076d6f6368612d33
-//         // No round exists in present the message that was signed above
+        let header_hash =
+            hex::decode("8909e1b73b7d987e95a7541d96ed484c17a4b0411e98ee4b7c890ad21302ff8c")
+                .unwrap();
+        let header_hash_h256 = H256::from_slice(&header_hash);
+        let signed_message = hex::decode("6b080211de3202000000000022480a208909e1b73b7d987e95a7541d96ed484c17a4b0411e98ee4b7c890ad21302ff8c12240801122061263df4855e55fcab7aab0a53ee32cf4f29a1101b56de4a9d249d44e4cf96282a0b089dce84a60610ebb7a81932076d6f6368612d33").unwrap();
+        let mut input = circuit.input();
+        input.write::<ValidatorMessageVariable>(signed_message.try_into().unwrap());
+        input.write::<TendermintHashVariable>(header_hash_h256);
+        input.write::<BoolVariable>(false);
+        let (_, mut output) = circuit.prove(&input);
+        let verified = output.read::<BoolVariable>();
+        assert!(!verified);
+    }
 
-//         let header_hash = "8909e1b73b7d987e95a7541d96ed484c17a4b0411e98ee4b7c890ad21302ff8c";
-//         let header_bits = to_be_bits(hex::decode(header_hash).unwrap());
+    fn test_step_template<const VALIDATOR_SET_SIZE_MAX: usize>(block: usize) {
+        env::set_var("RUST_LOG", "debug");
+        env_logger::try_init().unwrap_or_default();
 
-//         let signed_message = "6b080211de3202000000000022480a208909e1b73b7d987e95a7541d96ed484c17a4b0411e98ee4b7c890ad21302ff8c12240801122061263df4855e55fcab7aab0a53ee32cf4f29a1101b56de4a9d249d44e4cf96282a0b089dce84a60610ebb7a81932076d6f6368612d33";
-//         let signed_message_bits = to_be_bits(hex::decode(signed_message).unwrap());
+        type Curve = Ed25519;
+        const HEADER_PROOF_DEPTH: usize = 4;
 
-//         let mut pw = PartialWitness::new();
-//         let config = CircuitConfig::standard_recursion_config();
-//         let mut builder = CircuitBuilder::<F, D>::new(config);
+        let mut timing = TimingTree::new("Verify Celestia Step", log::Level::Debug);
 
-//         let zero = builder._false();
+        println!("Making step circuit");
+        let mut builder = DefaultBuilder::new();
+        let validators =
+            builder.read::<ArrayVariable<ValidatorVariable<Curve>, VALIDATOR_SET_SIZE_MAX>>();
+        let header = builder.read::<TendermintHashVariable>();
+        let prev_header = builder.read::<TendermintHashVariable>();
+        let data_hash_proof = builder.read::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>();
+        let validator_hash_proof = builder.read::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>();
+        let next_validators_hash_proof =
+            builder.read::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>();
+        let prev_header_next_validators_hash_proof =
+            builder.read::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>();
+        let last_block_id_proof =
+            builder.read::<BlockIDInclusionProofVariable<HEADER_PROOF_DEPTH>>();
+        let round_present = builder.read::<BoolVariable>();
 
-//         let mut signed_message_target = [builder._false(); VALIDATOR_MESSAGE_BYTES_LENGTH_MAX * 8];
-//         for i in 0..signed_message_bits.len() {
-//             signed_message_target[i] = builder.constant_bool(signed_message_bits[i]);
-//         }
+        builder.step(
+            &validators,
+            &header,
+            &prev_header,
+            &data_hash_proof,
+            &validator_hash_proof,
+            &next_validators_hash_proof,
+            &prev_header_next_validators_hash_proof,
+            &last_block_id_proof,
+            &round_present,
+        );
 
-//         let mut header_hash_target = [builder._false(); HASH_SIZE_BITS];
-//         for i in 0..header_bits.len() {
-//             header_hash_target[i] = builder.constant_bool(header_bits[i]);
-//         }
+        println!("Building circuit");
+        let circuit = builder.build();
+        println!("num gates: {:?}", circuit.data.common.gates.len());
 
-//         let result = builder.verify_hash_in_message(
-//             &ValidatorMessageTarget(signed_message_target),
-//             &TendermintHashTarget(header_hash_target),
-//             &zero,
-//         );
+        println!("Generating inputs");
+        // Note: Length of output is the closest power of 2 gte the number of validators for this block.
+        let celestia_block_proof: CelestiaStepBlockProof =
+            generate_step_inputs::<VALIDATOR_SET_SIZE_MAX>(block);
 
-//         pw.set_target(result.target, F::ONE);
+        println!(
+            "Number of validators: {}",
+            celestia_block_proof.base.validators.len()
+        );
 
-//         let data = builder.build::<C>();
-//         let proof = data.prove(pw).unwrap();
+        let input = circuit.input();
+        // TODO: now do all the input writes
+        // input.write::<ArrayVariable<ValidatorVariable<Curve>, VALIDATOR_SET_SIZE_MAX>>(
+        //     celestia_block_proof.base.validators.try_into().unwrap(),
+        // );
 
-//         println!("Created proof");
+        let (proof, output) = timed!(timing, "Step proof time", circuit.prove(&input));
+        circuit.verify(&proof, &input, &output);
 
-//         data.verify(proof).unwrap();
+        timing.print();
+    }
 
-//         println!("Verified proof");
-//     }
+    fn test_skip_template<const VALIDATOR_SET_SIZE_MAX: usize>(trusted_block: usize, block: usize) {
+        env::set_var("RUST_LOG", "debug");
+        env_logger::try_init().unwrap_or_default();
 
-//     fn test_step_template<const VALIDATOR_SET_SIZE_MAX: usize>(block: usize) {
-//         env::set_var("RUST_LOG", "debug");
-//         env_logger::try_init().unwrap_or_default();
+        type Curve = Ed25519;
+        const HEADER_PROOF_DEPTH: usize = 4;
 
-//         let mut timing = TimingTree::new("Verify Celestia Step", log::Level::Debug);
+        let mut timing = TimingTree::new("Verify Celestia skip", log::Level::Debug);
 
-//         let mut pw = PartialWitness::new();
-//         let config = CircuitConfig::wide_ecc_config();
-//         let mut builder = CircuitBuilder::<F, D>::new(config);
+        println!("Making skip circuit");
+        let mut builder = DefaultBuilder::new();
+        let validators =
+            builder.read::<ArrayVariable<ValidatorVariable<Curve>, VALIDATOR_SET_SIZE_MAX>>();
+        let header = builder.read::<TendermintHashVariable>();
+        let data_hash_proof = builder.read::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>();
+        let validator_hash_proof = builder.read::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>();
+        let next_validators_hash_proof =
+            builder.read::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>();
+        let round_present = builder.read::<BoolVariable>();
+        let trusted_header = builder.read::<TendermintHashVariable>();
+        let trusted_validators_hash_proof =
+            builder.read::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>();
+        let trusted_validators_hash_fields = builder
+            .read::<ArrayVariable<ValidatorHashFieldVariable<Curve>, VALIDATOR_SET_SIZE_MAX>>();
 
-//         type F = GoldilocksField;
-//         type Curve = Ed25519;
-//         type E = GoldilocksCubicParameters;
-//         type C = PoseidonGoldilocksConfig;
-//         type SC = CurtaPoseidonGoldilocksConfig;
-//         const D: usize = 2;
+        builder.skip(
+            &validators,
+            &header,
+            &data_hash_proof,
+            &validator_hash_proof,
+            &next_validators_hash_proof,
+            &round_present,
+            &trusted_header,
+            &trusted_validators_hash_proof,
+            &trusted_validators_hash_fields,
+        );
 
-//         println!("Making step circuit");
+        println!("Building circuit");
+        let circuit = builder.build();
+        println!("num gates: {:?}", circuit.data.common.gates.len());
 
-//         let celestia_step_proof_target =
-//             make_step_circuit::<GoldilocksField, D, Curve, SC, E, VALIDATOR_SET_SIZE_MAX>(
-//                 &mut builder,
-//             );
+        println!("Generating inputs");
+        // Note: Length of output is the closest power of 2 gte the number of validators for this block.
+        let celestia_skip_block_proof: CelestiaSkipBlockProof =
+            generate_skip_inputs::<VALIDATOR_SET_SIZE_MAX>(trusted_block, block);
 
-//         // Note: Length of output is the closest power of 2 gte the number of validators for this block.
-//         let celestia_block_proof: CelestiaStepBlockProof =
-//             generate_step_inputs::<VALIDATOR_SET_SIZE_MAX>(block);
-//         println!("Generated inputs");
-//         println!(
-//             "Number of validators: {}",
-//             celestia_block_proof.base.validators.len()
-//         );
-//         timed!(timing, "assigning inputs", {
-//             set_step_pw::<F, D, Curve, VALIDATOR_SET_SIZE_MAX>(
-//                 &mut pw,
-//                 celestia_step_proof_target,
-//                 celestia_block_proof,
-//             );
-//         });
-//         let inner_data = builder.build::<C>();
-//         timed!(timing, "Generate proof", {
-//             let inner_proof = timed!(
-//                 timing,
-//                 "Total proof with a recursive envelope",
-//                 plonky2::plonk::prover::prove(
-//                     &inner_data.prover_only,
-//                     &inner_data.common,
-//                     pw,
-//                     &mut timing
-//                 )
-//                 .unwrap()
-//             );
-//             inner_data.verify(inner_proof.clone()).unwrap();
-//             println!("num gates: {:?}", inner_data.common.gates.len());
-//         });
+        println!(
+            "Number of validators: {}",
+            celestia_skip_block_proof.base.validators.len()
+        );
 
-//         timing.print();
-//     }
+        let input = circuit.input();
+        // TODO: now do all the input writes
+        // input.write::<ArrayVariable<ValidatorVariable<Curve>, VALIDATOR_SET_SIZE_MAX>>(
+        //     celestia_block_proof.base.validators.try_into().unwrap(),
+        // );
 
-//     fn test_skip_template<const VALIDATOR_SET_SIZE_MAX: usize>(trusted_block: usize, block: usize) {
-//         env::set_var("RUST_LOG", "debug");
-//         env_logger::try_init().unwrap_or_default();
-//         let mut timing = TimingTree::new("Verify Celestia Skip", log::Level::Debug);
+        let (proof, output) = timed!(timing, "Skip proof time", circuit.prove(&input));
+        circuit.verify(&proof, &input, &output);
 
-//         let mut pw = PartialWitness::new();
-//         let config = CircuitConfig::wide_ecc_config();
-//         let mut builder = CircuitBuilder::<F, D>::new(config);
+        timing.print();
+    }
 
-//         type F = GoldilocksField;
-//         type Curve = Ed25519;
-//         type E = GoldilocksCubicParameters;
-//         type C = PoseidonGoldilocksConfig;
-//         type SC = CurtaPoseidonGoldilocksConfig;
-//         const D: usize = 2;
+    #[test]
+    fn test_step_with_dummy_sigs() {
+        // Testing block 11105 (4 validators, 2 signed)
+        // Need to handle empty validators as well
+        // Should set some dummy values
+        let block = 11105;
 
-//         println!("Making skip circuit");
+        const VALIDATOR_SET_SIZE_MAX: usize = 8;
 
-//         let celestia_skip_proof_target =
-//             make_skip_circuit::<GoldilocksField, D, Curve, SC, E, VALIDATOR_SET_SIZE_MAX>(
-//                 &mut builder,
-//             );
+        test_step_template::<VALIDATOR_SET_SIZE_MAX>(block);
+    }
 
-//         // Note: Length of output is the closest power of 2 gte the number of validators for this block.
-//         let celestia_block_proof: CelestiaSkipBlockProof =
-//             generate_skip_inputs::<VALIDATOR_SET_SIZE_MAX>(trusted_block, block);
-//         println!("Generated inputs");
-//         println!(
-//             "Number of validators: {}",
-//             celestia_block_proof.base.validators.len()
-//         );
-//         timed!(timing, "assigning inputs", {
-//             set_skip_pw::<F, D, Curve, VALIDATOR_SET_SIZE_MAX>(
-//                 &mut pw,
-//                 celestia_skip_proof_target,
-//                 celestia_block_proof,
-//             );
-//         });
-//         let inner_data = builder.build::<C>();
-//         timed!(timing, "Generate proof", {
-//             let inner_proof = timed!(
-//                 timing,
-//                 "Total proof with a recursive envelope",
-//                 plonky2::plonk::prover::prove(
-//                     &inner_data.prover_only,
-//                     &inner_data.common,
-//                     pw,
-//                     &mut timing
-//                 )
-//                 .unwrap()
-//             );
-//             inner_data.verify(inner_proof.clone()).unwrap();
-//             println!("num gates: {:?}", inner_data.common.gates.len());
-//         });
+    #[test]
+    fn test_step_small() {
+        // Testing block 11000
+        let block = 11000;
 
-//         timing.print();
-//     }
+        const VALIDATOR_SET_SIZE_MAX: usize = 4;
 
-//     #[test]
-//     fn test_step_with_dummy_sigs() {
-//         // Testing block 11105 (4 validators, 2 signed)
-//         // Need to handle empty validators as well
-//         // Should set some dummy values
-//         let block = 11105;
+        test_step_template::<VALIDATOR_SET_SIZE_MAX>(block);
+    }
 
-//         const VALIDATOR_SET_SIZE_MAX: usize = 8;
+    #[test]
+    fn test_step_with_empty() {
+        // Testing block 10000
+        let block = 10000;
 
-//         test_step_template::<VALIDATOR_SET_SIZE_MAX>(block);
-//     }
+        const VALIDATOR_SET_SIZE_MAX: usize = 4;
 
-//     #[test]
-//     fn test_step_small() {
-//         // Testing block 11000
-//         let block = 11000;
+        test_step_template::<VALIDATOR_SET_SIZE_MAX>(block);
+    }
 
-//         const VALIDATOR_SET_SIZE_MAX: usize = 4;
+    #[test]
+    fn test_step_large() {
+        // Testing block 75000
+        // 77 validators (128)
+        // Block 50000
+        // 32 validators
+        // Block 15000
+        // 16 validators
+        // Testing block 60000
+        // 60 validators, 4 disabled (valhash)
 
-//         test_step_template::<VALIDATOR_SET_SIZE_MAX>(block);
-//     }
+        let block = 75000;
 
-//     #[test]
-//     fn test_step_with_empty() {
-//         // Testing block 10000
-//         let block = 10000;
+        const VALIDATOR_SET_SIZE_MAX: usize = 128;
 
-//         const VALIDATOR_SET_SIZE_MAX: usize = 4;
+        test_step_template::<VALIDATOR_SET_SIZE_MAX>(block);
+    }
 
-//         test_step_template::<VALIDATOR_SET_SIZE_MAX>(block);
-//     }
+    #[test]
+    fn test_skip() {
+        // Testing skip from 11000 to 11105
 
-//     #[test]
-//     fn test_step_large() {
-//         // Testing block 75000
-//         // 77 validators (128)
-//         // Block 50000
-//         // 32 validators
-//         // Block 15000
-//         // 16 validators
-//         // Testing block 60000
-//         // 60 validators, 4 disabled (valhash)
+        // For now, only test with validator_set_size_max of the same size, confirm that we can set validator_et-isze_max to an arbitrary amount and the circuit should work for all sizes below that
+        let trusted_block = 11000;
 
-//         let block = 75000;
+        let block = 11105;
 
-//         const VALIDATOR_SET_SIZE_MAX: usize = 128;
+        const VALIDATOR_SET_SIZE_MAX: usize = 4;
 
-//         test_step_template::<VALIDATOR_SET_SIZE_MAX>(block);
-//     }
+        test_skip_template::<VALIDATOR_SET_SIZE_MAX>(trusted_block, block);
+    }
 
-//     #[test]
-//     fn test_skip() {
-//         // Testing skip from 11000 to 11105
+    #[test]
+    fn test_skip_large() {
+        // Testing skip from 60000 to 75000
 
-//         // For now, only test with validator_set_size_max of the same size, confirm that we can set validator_et-isze_max to an arbitrary amount and the circuit should work for all sizes below that
-//         let trusted_block = 11000;
+        // 75000 has 128 validator max
 
-//         let block = 11105;
+        // For now, only test with validator_set_size_max of the same size, confirm that we can set validator_et-isze_max to an arbitrary amount and the circuit should work for all sizes below that
+        let trusted_block = 60000;
 
-//         const VALIDATOR_SET_SIZE_MAX: usize = 4;
+        let block = 75000;
 
-//         test_skip_template::<VALIDATOR_SET_SIZE_MAX>(trusted_block, block);
-//     }
+        const VALIDATOR_SET_SIZE_MAX: usize = 128;
 
-//     #[test]
-//     fn test_skip_large() {
-//         // Testing skip from 60000 to 75000
-
-//         // 75000 has 128 validator max
-
-//         // For now, only test with validator_set_size_max of the same size, confirm that we can set validator_et-isze_max to an arbitrary amount and the circuit should work for all sizes below that
-//         let trusted_block = 60000;
-
-//         let block = 75000;
-
-//         const VALIDATOR_SET_SIZE_MAX: usize = 128;
-
-//         test_skip_template::<VALIDATOR_SET_SIZE_MAX>(trusted_block, block);
-//     }
-// }
+        test_skip_template::<VALIDATOR_SET_SIZE_MAX>(trusted_block, block);
+    }
+}
