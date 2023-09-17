@@ -364,6 +364,7 @@ impl<
             .collect();
 
         // // Verifies signatures of the validators
+        // FIXME UNDERCONSTRAINED
         // self.verify_signatures::<VALIDATOR_SET_SIZE_MAX>(
         //     &validators_signed,
         //     messages,
@@ -438,6 +439,7 @@ impl<
             // But worth nothing
 
             // TODO: fix this, this is causing some weird problems with settings Wire values to different quantities
+            // FIXME UNDERCONSTRAINED
             // self.assert_is_equal(hash_in_message, validators_signed[i]);
         }
 
@@ -661,7 +663,7 @@ impl<
         );
         self.watch(trusted_header, "verify_trusted_validators.trusted_header");
         // Confirm the validator hash proof matches the trusted header
-        // FIXME: this constraint is commented out because something weird is going on
+        // FIXME UNDERCONSTRAINED
         // self.assert_is_equal(header_from_validator_root_proof, *trusted_header);
 
         let marshalled_trusted_validators: Vec<MarshalledValidatorVariable> =
