@@ -25,6 +25,7 @@ use plonky2x::frontend::ecc::{
 };
 use plonky2x::prelude::Field;
 
+use crate::signature::DUMMY_SIGNATURE;
 use crate::verify::{Validator, ValidatorHashField};
 use plonky2x::frontend::ecc::ed25519::gadgets::eddsa::EDDSASignatureTarget;
 use plonky2x::frontend::merkle::tree::InclusionProof;
@@ -37,7 +38,6 @@ use tendermint::{private_key, Signature};
 use tendermint::{validator::Set as ValidatorSet, vote::SignedVote, vote::ValidatorIndex};
 use tendermint_proto::types::BlockId as RawBlockId;
 use tendermint_proto::Protobuf;
-
 type F = GoldilocksField;
 type C = Ed25519;
 
@@ -116,7 +116,10 @@ fn signature_to_value_type(signature: &Signature) -> SignatureValueType<F> {
     let sig_bytes = signature.as_bytes();
     let sig_r = AffinePoint::new_from_compressed_point(&sig_bytes[0..32]);
     assert!(sig_r.is_valid());
-    let sig_s_biguint = BigUint::from_bytes_le(&sig_bytes[32..64]);
+    let mut sig_s_biguint = BigUint::from_bytes_le(&sig_bytes[32..64]);
+    if sig_s_biguint.to_u32_digits().len() == 0 {
+        panic!("sig_s_biguint has 0 limbs which will cause problems down the line")
+    }
     let sig_s = Ed25519Scalar::from_noncanonical_biguint(sig_s_biguint.clone());
     SignatureValueType::<F> { r: sig_r, s: sig_s }
 }
@@ -381,7 +384,7 @@ fn generate_base_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
             validators.push(Validator {
                 pubkey: pubkey_to_affine_point(&validator.pub_key.ed25519().unwrap()),
                 signature: signature_to_value_type(
-                    &Signature::try_from(vec![0u8; 64]).expect("missing signature"),
+                    &Signature::try_from(DUMMY_SIGNATURE.to_vec()).expect("missing signature"),
                 ),
                 // TODO: Replace these with correct outputs
                 message: [0u8; VALIDATOR_MESSAGE_BYTES_LENGTH_MAX],
@@ -411,7 +414,7 @@ fn generate_base_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
                     .expect("failed to create verification key"),
             ),
             signature: signature_to_value_type(
-                &Signature::try_from(vec![0u8; 64]).expect("missing signature"),
+                &Signature::try_from(DUMMY_SIGNATURE.to_vec()).expect("missing signature"),
             ),
             // TODO: Replace these with correct outputs
             message: [0u8; VALIDATOR_MESSAGE_BYTES_LENGTH_MAX],
