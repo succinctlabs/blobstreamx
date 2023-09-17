@@ -203,7 +203,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for Circui
         let input_byte_length = U32Variable(enc_validator_byte_length);
 
         let zero = self.zero::<U32Variable>();
-
+        prepended_validator_bytes.resize(64, self.zero::<ByteVariable>());
         // VALIDATOR_BYTE_LENGTH_MAX = 46 so we only need 1 chunk
         self.curta_sha256_variable::<1>(&prepended_validator_bytes, zero, input_byte_length)
     }

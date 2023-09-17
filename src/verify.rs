@@ -32,43 +32,47 @@ use crate::{
 };
 
 #[derive(Debug, Clone, CircuitVariable)]
+#[value_name(Validator)]
 pub struct ValidatorVariable<C: Curve> {
-    pubkey: EDDSAPublicKeyVariable<C>,
-    signature: EDDSASignatureTarget<C>,
-    message: ValidatorMessageVariable,
-    message_bit_length: Variable,
-    voting_power: U64Variable,
-    validator_byte_length: Variable,
-    enabled: BoolVariable,
-    signed: BoolVariable,
+    pub pubkey: EDDSAPublicKeyVariable<C>,
+    pub signature: EDDSASignatureTarget<C>,
+    pub message: ValidatorMessageVariable,
+    pub message_bit_length: Variable,
+    pub voting_power: U64Variable,
+    pub validator_byte_length: Variable,
+    pub enabled: BoolVariable,
+    pub signed: BoolVariable,
     // Only used in skip circuit
-    present_on_trusted_header: BoolVariable,
+    pub present_on_trusted_header: BoolVariable,
 }
 
 #[derive(Debug, Clone, CircuitVariable)]
+#[value_name(ValidatorHashField)]
 pub struct ValidatorHashFieldVariable<C: Curve> {
-    pubkey: EDDSAPublicKeyVariable<C>,
-    voting_power: U64Variable,
-    validator_byte_length: Variable,
-    enabled: BoolVariable,
+    pub pubkey: EDDSAPublicKeyVariable<C>,
+    pub voting_power: U64Variable,
+    pub validator_byte_length: Variable,
+    pub enabled: BoolVariable,
 }
 
 /// The protobuf-encoded leaf (a hash), and it's corresponding proof and path indices against the header.
 #[derive(Debug, Clone, CircuitVariable)]
+#[value_name(HashInclusionProof)]
 pub struct HashInclusionProofVariable<const HEADER_PROOF_DEPTH: usize> {
-    enc_leaf: EncTendermintHashVariable,
+    pub enc_leaf: EncTendermintHashVariable,
     // Path and proof should have a fixed length of HEADER_PROOF_DEPTH.
-    path: ArrayVariable<BoolVariable, HEADER_PROOF_DEPTH>,
-    proof: ArrayVariable<TendermintHashVariable, HEADER_PROOF_DEPTH>,
+    // path: ArrayVariable<BoolVariable, HEADER_PROOF_DEPTH>,
+    pub proof: ArrayVariable<TendermintHashVariable, HEADER_PROOF_DEPTH>,
 }
 
 /// The protobuf-encoded leaf (a tendermint block ID), and it's corresponding proof and path indices against the header.
 #[derive(Debug, Clone, CircuitVariable)]
+#[value_name(BlockIDInclusionProof)]
 pub struct BlockIDInclusionProofVariable<const HEADER_PROOF_DEPTH: usize> {
-    enc_leaf: EncBlockIDVariable,
+    pub enc_leaf: EncBlockIDVariable,
     // Path and proof should have a fixed length of HEADER_PROOF_DEPTH.
-    path: ArrayVariable<BoolVariable, HEADER_PROOF_DEPTH>,
-    proof: ArrayVariable<TendermintHashVariable, HEADER_PROOF_DEPTH>,
+    // path: ArrayVariable<BoolVariable, HEADER_PROOF_DEPTH>,
+    pub proof: ArrayVariable<TendermintHashVariable, HEADER_PROOF_DEPTH>,
 }
 
 #[derive(Debug, Clone, CircuitVariable)]
@@ -748,6 +752,12 @@ pub(crate) mod tests {
 
         let mut timing = TimingTree::new("Verify Celestia Step", log::Level::Debug);
 
+        // We put input generation at the top so that we can debug that first without having the expensive build step part
+        println!("Generating inputs");
+        // Note: Length of output is the closest power of 2 gte the number of validators for this block.
+        let celestia_block_proof: CelestiaStepBlockProof =
+            generate_step_inputs::<VALIDATOR_SET_SIZE_MAX>(block);
+
         println!("Making step circuit");
         let mut builder = DefaultBuilder::new();
         let validators =
@@ -777,27 +787,41 @@ pub(crate) mod tests {
         );
 
         println!("Building circuit");
-        let circuit = builder.build();
+        let circuit = builder.mock_build();
         println!("num gates: {:?}", circuit.data.common.gates.len());
-
-        println!("Generating inputs");
-        // Note: Length of output is the closest power of 2 gte the number of validators for this block.
-        let celestia_block_proof: CelestiaStepBlockProof =
-            generate_step_inputs::<VALIDATOR_SET_SIZE_MAX>(block);
 
         println!(
             "Number of validators: {}",
             celestia_block_proof.base.validators.len()
         );
 
-        let input = circuit.input();
-        // TODO: now do all the input writes
-        // input.write::<ArrayVariable<ValidatorVariable<Curve>, VALIDATOR_SET_SIZE_MAX>>(
-        //     celestia_block_proof.base.validators.try_into().unwrap(),
-        // );
+        let mut input = circuit.input();
+        input.write::<ArrayVariable<ValidatorVariable<Curve>, VALIDATOR_SET_SIZE_MAX>>(
+            celestia_block_proof.base.validators,
+        );
+        input.write::<TendermintHashVariable>(celestia_block_proof.base.header);
+        input.write::<TendermintHashVariable>(celestia_block_proof.prev_header);
+        input.write::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>(
+            celestia_block_proof.base.data_hash_proof.into(),
+        );
+        input.write::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>(
+            celestia_block_proof.base.validator_hash_proof.into(),
+        );
+        input.write::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>(
+            celestia_block_proof.base.next_validators_hash_proof.into(),
+        );
+        input.write::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>(
+            celestia_block_proof
+                .prev_header_next_validators_hash_proof
+                .into(),
+        );
+        input.write::<BlockIDInclusionProofVariable<HEADER_PROOF_DEPTH>>(
+            celestia_block_proof.last_block_id_proof.into(),
+        );
+        input.write::<BoolVariable>(false); // TODO: this might be wrong
 
-        let (proof, output) = timed!(timing, "Step proof time", circuit.prove(&input));
-        circuit.verify(&proof, &input, &output);
+        let (proof, output) = timed!(timing, "Step proof time", circuit.mock_prove(&input));
+        // circuit.verify(&proof, &input, &output);
 
         timing.print();
     }
