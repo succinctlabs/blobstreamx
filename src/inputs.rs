@@ -23,6 +23,7 @@ use plonky2x::frontend::ecc::{
     ed25519::curve::ed25519::Ed25519, ed25519::field::ed25519_scalar::Ed25519Scalar,
 };
 use plonky2x::prelude::Field;
+use subtle_encoding::hex;
 
 use crate::signature::DUMMY_SIGNATURE;
 use crate::verify::{Validator, ValidatorHashField};
@@ -669,7 +670,7 @@ pub fn generate_skip_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
     // Mutates the base object (which has present_on_trusted_header default set to none)
     update_present_on_trusted_header(&mut base, &block, &trusted_block);
 
-    let hash: Vec<u8> = block.header.hash().into();
+    let hash: Vec<u8> = trusted_block.header.hash().into();
     CelestiaSkipBlockProof {
         trusted_header: H256::from_slice(&hash),
         trusted_validator_hash_proof: validators_hash_proof,
@@ -683,11 +684,11 @@ pub(crate) mod tests {
     use super::*;
 
     #[test]
-    fn test_generate_step_inputs() {
+    fn test_generate_skip_inputs() {
         let block = get_signed_block_from_fixture(11000);
 
-        let inputs = generate_base_inputs::<4>(&block);
-        println!("inputs: {:?}", inputs);
+        let inputs = generate_skip_inputs::<4>(11000, 11105);
+        // println!("inputs: {:?}", inputs);
     }
 
     #[test]

@@ -147,18 +147,13 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintSignature<L, D> for Circui
         //      If the round is missing, then the hash starts at index 16.
         //      If the round is present, then the hash starts at index 25.
 
-        // self.watch(&header_hash, "header_hash");
-        self.watch(&round_present_in_message, "round_present_in_message");
-
         const MISSING_ROUND_START_IDX: usize = 16;
 
         const INCLUDING_ROUND_START_IDX: usize = 25;
 
         let round_missing_header = self.extract_hash_from_protobuf::<MISSING_ROUND_START_IDX, VALIDATOR_MESSAGE_BYTES_LENGTH_MAX>(message);
-        self.watch(&round_missing_header, "round_missing_header");
 
         let round_present_header = self.extract_hash_from_protobuf::<INCLUDING_ROUND_START_IDX, VALIDATOR_MESSAGE_BYTES_LENGTH_MAX>(message);
-        self.watch(&round_present_header, "round_present_header");
 
         let computed_header = self.select(
             round_present_in_message,
