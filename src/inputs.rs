@@ -683,6 +683,14 @@ pub(crate) mod tests {
     use super::*;
 
     #[test]
+    fn test_generate_step_inputs() {
+        let block = get_signed_block_from_fixture(11000);
+
+        let inputs = generate_base_inputs::<4>(&block);
+        println!("inputs: {:?}", inputs);
+    }
+
+    #[test]
     fn test_get_header_hash() {
         let block = get_signed_block_from_fixture(10000);
         let header_hash = block.header.hash();

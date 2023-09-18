@@ -427,11 +427,8 @@ impl<
             // TODO: this might be overconstrained because of the edge case where the validator did not sign
             // but hash is still in message
             // This is likely not a problem since DUMMY_MESSAGE is hardcoded in the circuit
-            // But worth nothing
-
-            // TODO: fix this, this is causing some weird problems with settings Wire values to different quantities
-            // FIXME UNDERCONSTRAINED
-            // self.assert_is_equal(hash_in_message, validators_signed[i]);
+            // But worth noting
+            self.assert_is_equal(hash_in_message, validators_signed[i]);
         }
 
         // Note: Hardcode the path for each of the leaf proofs (otherwise you can prove arbitrary data in the header)
@@ -904,7 +901,7 @@ pub(crate) mod tests {
         input.write::<BlockIDInclusionProofVariable<HEADER_PROOF_DEPTH>>(
             celestia_block_proof.last_block_id_proof.into(),
         );
-        input.write::<BoolVariable>(true); // TODO: WHAT IS THIS, WHAT DOES IT MEAN
+        input.write::<BoolVariable>(celestia_block_proof.base.round_present); // TODO: WHAT IS THIS, WHAT DOES IT MEAN
 
         let (proof, output) = timed!(timing, "Step proof time", circuit.prove(&input));
         // circuit.verify(&proof, &input, &output);
