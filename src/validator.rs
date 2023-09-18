@@ -493,7 +493,7 @@ pub(crate) mod tests {
             .collect::<Vec<_>>();
 
         // TODO: Due to issues with Curta serialization across multiple runOnce calls: https://github.com/succinctlabs/curta/issues/78, we can only call
-        // runOnce once per test. Thus, we need to build a new circuit for each batch of validators.
+        // runOnce once per test. Thus, to run multiple test cases, we need to build the circuit each time.
         let mut input = circuit.input();
         input.write::<ArrayVariable<MarshalledValidatorVariable, VALIDATOR_SET_SIZE_MAX>>(
             validators[0]
