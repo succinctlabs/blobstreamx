@@ -47,15 +47,15 @@ pub trait TendermintValidator<L: PlonkParameters<D>, const D: usize> {
     /// Hashes multiple validators to get their leaves according to the Tendermint spec using hash_validator_leaf.
     fn hash_validator_leaves<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
-        validators: &Vec<MarshalledValidatorVariable>,
-        validator_byte_lengths: &Vec<Variable>,
+        validators: &[MarshalledValidatorVariable],
+        validator_byte_lengths: &[Variable],
     ) -> Vec<TendermintHashVariable>;
 
     /// Compute the expected validator hash from the validator set.
     fn hash_validator_set<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
-        validators: &Vec<MarshalledValidatorVariable>,
-        validator_byte_lengths: &Vec<Variable>,
+        validators: &[MarshalledValidatorVariable],
+        validator_byte_lengths: &[Variable],
         validator_enabled: Vec<BoolVariable>,
     ) -> TendermintHashVariable;
 }
@@ -209,13 +209,13 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for Circui
 
     fn hash_validator_leaves<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
-        validators: &Vec<MarshalledValidatorVariable>,
-        validator_byte_lengths: &Vec<Variable>,
+        validators: &[MarshalledValidatorVariable],
+        validator_byte_lengths: &[Variable],
     ) -> Vec<TendermintHashVariable> {
         assert_eq!(validators.len(), VALIDATOR_SET_SIZE_MAX);
         assert_eq!(validator_byte_lengths.len(), VALIDATOR_SET_SIZE_MAX);
 
-        // Hash each of the validators into a leaf hash.
+        // Hash each of the validators to get their corresponding leaf hash.
         let mut validators_leaf_hashes = Vec::new();
         for i in 0..VALIDATOR_SET_SIZE_MAX {
             validators_leaf_hashes
@@ -226,8 +226,8 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for Circui
 
     fn hash_validator_set<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
-        validators: &Vec<MarshalledValidatorVariable>,
-        validator_byte_lengths: &Vec<Variable>,
+        validators: &[MarshalledValidatorVariable],
+        validator_byte_lengths: &[Variable],
         validator_enabled: Vec<BoolVariable>,
     ) -> TendermintHashVariable {
         assert_eq!(validators.len(), VALIDATOR_SET_SIZE_MAX);
