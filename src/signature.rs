@@ -46,7 +46,7 @@ const DUMMY_MSG: [u8; 32] = [0u8; 32];
 const DUMMY_MSG_LENGTH_BYTES: u32 = 32;
 const DUMMY_MSG_LENGTH_BITS: u32 = 256;
 // dummy_msg signed by the dummy private key
-const DUMMY_SIGNATURE: [u8; 64] = [
+pub const DUMMY_SIGNATURE: [u8; 64] = [
     61, 161, 235, 223, 169, 110, 221, 24, 29, 190, 54, 89, 209, 192, 81, 196, 49, 240, 86, 165,
     173, 106, 151, 166, 13, 92, 202, 16, 70, 4, 56, 120, 53, 70, 70, 30, 49, 40, 95, 197, 159, 145,
     199, 7, 38, 66, 116, 80, 97, 226, 69, 29, 95, 243, 59, 204, 216, 195, 199, 77, 171, 202, 246,

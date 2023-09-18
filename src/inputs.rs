@@ -9,10 +9,28 @@ use crate::utils::{
     compute_hash_from_aunts, generate_proofs_from_header, leaf_hash, non_absent_vote, SignedBlock,
     TempSignedBlock, VARINT_SIZE_BYTES,
 };
+use crate::utils::{
+    HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES,
+    VALIDATOR_MESSAGE_BYTES_LENGTH_MAX,
+};
+use crate::verify::BlockIDInclusionProofVariable;
+use crate::verify::HashInclusionProofVariable;
 use ed25519_consensus::SigningKey;
-use ethers::types::H256;
+use ethers::types::{H256, U64};
+use num::BigUint;
+use plonky2x::frontend::ecc::ed25519::curve::curve_types::AffinePoint;
+use plonky2x::frontend::ecc::ed25519::curve::curve_types::Curve;
+use plonky2x::frontend::ecc::{
+    ed25519::curve::ed25519::Ed25519, ed25519::field::ed25519_scalar::Ed25519Scalar,
+};
+use plonky2x::prelude::Field;
+
+use crate::signature::DUMMY_SIGNATURE;
+use crate::verify::{Validator, ValidatorHashField};
+use plonky2x::frontend::ecc::ed25519::gadgets::eddsa::EDDSASignatureTarget;
 use plonky2x::frontend::merkle::tree::InclusionProof;
 use plonky2x::prelude::RichField;
+use plonky2x::prelude::{CircuitVariable, GoldilocksField};
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 use tendermint::crypto::ed25519::VerificationKey;
@@ -20,27 +38,21 @@ use tendermint::{private_key, Signature};
 use tendermint::{validator::Set as ValidatorSet, vote::SignedVote, vote::ValidatorIndex};
 use tendermint_proto::types::BlockId as RawBlockId;
 use tendermint_proto::Protobuf;
+type F = GoldilocksField;
+type C = Ed25519;
 
-#[derive(Debug, Clone)]
-pub struct Validator {
-    pub pubkey: VerificationKey,
-    pub signature: Signature,
-    pub message: Vec<u8>,
-    pub message_bit_length: usize,
-    pub voting_power: u64,
-    pub validator_byte_length: usize,
-    pub enabled: bool,
-    pub signed: bool,
-    pub present_on_trusted_header: Option<bool>,
-}
-
-#[derive(Debug, Clone)]
-pub struct ValidatorHashField {
-    pub pubkey: VerificationKey,
-    pub voting_power: u64,
-    pub validator_byte_length: usize,
-    pub enabled: bool,
-}
+// #[derive(Debug, Clone)]
+// pub struct Validator {
+//     pub pubkey: AffinePoint<C>,
+//     pub signature: <EDDSASignatureTarget<C> as CircuitVariable>::ValueType<F>,
+//     pub message: [u8; VALIDATOR_MESSAGE_BYTES_LENGTH_MAX],
+//     pub message_bit_length: F,
+//     pub voting_power: U64,
+//     pub validator_byte_length: F,
+//     pub enabled: bool,
+//     pub signed: bool,
+//     pub present_on_trusted_header: bool,
+// }
 
 /// The protobuf-encoded leaf (a hash), and it's corresponding proof and path indices against the header.
 /// TODO: Remove this once we port step & skip circuits to use CircuitVariable
@@ -52,10 +64,70 @@ pub struct TempMerkleInclusionProof {
     pub proof: Vec<H256>,
 }
 
+impl From<TempMerkleInclusionProof>
+    for <HashInclusionProofVariable<HEADER_PROOF_DEPTH> as CircuitVariable>::ValueType<
+        GoldilocksField,
+    >
+{
+    fn from(proof: TempMerkleInclusionProof) -> Self {
+        if proof.proof.len() != HEADER_PROOF_DEPTH {
+            panic!("path length does not match");
+        }
+        if proof.enc_leaf.len() != PROTOBUF_HASH_SIZE_BYTES {
+            panic!("enc_leaf length does not match");
+        }
+        let leaf_as_fixed: [u8; PROTOBUF_HASH_SIZE_BYTES] = proof.enc_leaf[..].try_into().unwrap();
+        Self {
+            enc_leaf: leaf_as_fixed,
+            proof: proof.proof,
+        }
+    }
+}
+
+impl From<TempMerkleInclusionProof>
+    for <BlockIDInclusionProofVariable<HEADER_PROOF_DEPTH> as CircuitVariable>::ValueType<
+        GoldilocksField,
+    >
+{
+    fn from(proof: TempMerkleInclusionProof) -> Self {
+        if proof.proof.len() != HEADER_PROOF_DEPTH {
+            panic!("path length does not match");
+        }
+        if proof.enc_leaf.len() != PROTOBUF_BLOCK_ID_SIZE_BYTES {
+            panic!("enc_leaf length does not match");
+        }
+        let leaf_as_fixed: [u8; PROTOBUF_BLOCK_ID_SIZE_BYTES] =
+            proof.enc_leaf[..].try_into().unwrap();
+        Self {
+            enc_leaf: leaf_as_fixed,
+            proof: proof.proof,
+        }
+    }
+}
+
+fn pubkey_to_affine_point(pubkey: &VerificationKey) -> AffinePoint<C> {
+    let pubkey_bytes = pubkey.as_bytes();
+    AffinePoint::new_from_compressed_point(pubkey_bytes)
+}
+
+type SignatureValueType<F> = <EDDSASignatureTarget<Ed25519> as CircuitVariable>::ValueType<F>;
+
+fn signature_to_value_type(signature: &Signature) -> SignatureValueType<F> {
+    let sig_bytes = signature.as_bytes();
+    let sig_r = AffinePoint::new_from_compressed_point(&sig_bytes[0..32]);
+    assert!(sig_r.is_valid());
+    let mut sig_s_biguint = BigUint::from_bytes_le(&sig_bytes[32..64]);
+    if sig_s_biguint.to_u32_digits().len() == 0 {
+        panic!("sig_s_biguint has 0 limbs which will cause problems down the line")
+    }
+    let sig_s = Ed25519Scalar::from_noncanonical_biguint(sig_s_biguint.clone());
+    SignatureValueType::<F> { r: sig_r, s: sig_s }
+}
+
 #[derive(Debug, Clone)]
 pub struct CelestiaBaseBlockProof {
-    pub validators: Vec<Validator>,
-    pub header: Vec<u8>,
+    pub validators: Vec<Validator<C, F>>,
+    pub header: H256,
     pub data_hash_proof: TempMerkleInclusionProof,
     pub validator_hash_proof: TempMerkleInclusionProof,
     pub next_validators_hash_proof: TempMerkleInclusionProof,
@@ -65,16 +137,16 @@ pub struct CelestiaBaseBlockProof {
 #[derive(Debug, Clone)]
 pub struct CelestiaStepBlockProof {
     pub prev_header_next_validators_hash_proof: TempMerkleInclusionProof,
-    pub prev_header: Vec<u8>,
+    pub prev_header: H256,
     pub last_block_id_proof: TempMerkleInclusionProof,
     pub base: CelestiaBaseBlockProof,
 }
 
 #[derive(Debug, Clone)]
 pub struct CelestiaSkipBlockProof {
-    pub trusted_header: Vec<u8>,
+    pub trusted_header: H256,
     pub trusted_validator_hash_proof: TempMerkleInclusionProof,
-    pub trusted_validator_fields: Vec<ValidatorHashField>,
+    pub trusted_validator_fields: Vec<ValidatorHashField<C, F>>,
     pub base: CelestiaBaseBlockProof,
 }
 
@@ -291,32 +363,37 @@ fn generate_base_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
                 SignedVote::from_vote(vote.clone(), block.header.chain_id.clone())
                     .expect("missing signature"),
             );
+            let mut message_padded = signed_vote.sign_bytes();
+            message_padded.resize(VALIDATOR_MESSAGE_BYTES_LENGTH_MAX, 0u8);
+
             let sig = signed_vote.signature();
 
             validators.push(Validator {
-                pubkey: validator.pub_key.ed25519().unwrap(),
-                signature: sig.clone(),
-                message: signed_vote.sign_bytes(),
-                message_bit_length: signed_vote.sign_bytes().len() * 8,
-                voting_power: validator.power(),
-                validator_byte_length: val_bytes.len(),
+                pubkey: pubkey_to_affine_point(&validator.pub_key.ed25519().unwrap()),
+                signature: signature_to_value_type(&sig.clone()),
+                message: message_padded.try_into().unwrap(),
+                message_bit_length: F::from_canonical_usize(signed_vote.sign_bytes().len() * 8),
+                voting_power: validator.power().into(),
+                validator_byte_length: F::from_canonical_usize(val_bytes.len()),
                 enabled: true,
                 signed: true,
-                present_on_trusted_header: None,
+                present_on_trusted_header: false, // This field is ignored in this case
             });
         } else {
             // These are dummy signatures (included in val hash, did not vote)
             validators.push(Validator {
-                pubkey: validator.pub_key.ed25519().unwrap(),
-                signature: Signature::try_from(vec![0u8; 64]).expect("missing signature"),
+                pubkey: pubkey_to_affine_point(&validator.pub_key.ed25519().unwrap()),
+                signature: signature_to_value_type(
+                    &Signature::try_from(DUMMY_SIGNATURE.to_vec()).expect("missing signature"),
+                ),
                 // TODO: Replace these with correct outputs
-                message: vec![0u8; 32],
-                message_bit_length: 256,
-                voting_power: validator.power(),
-                validator_byte_length: val_bytes.len(),
+                message: [0u8; VALIDATOR_MESSAGE_BYTES_LENGTH_MAX],
+                message_bit_length: F::from_canonical_usize(256),
+                voting_power: validator.power().into(),
+                validator_byte_length: F::from_canonical_usize(val_bytes.len()),
                 enabled: true,
                 signed: false,
-                present_on_trusted_header: None,
+                present_on_trusted_header: false, // This field is ignored in this case
             });
         }
     }
@@ -332,17 +409,21 @@ fn generate_base_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
         let verification_key = signing_key.verification_key();
         // TODO: Fix empty signatures
         validators.push(Validator {
-            pubkey: VerificationKey::try_from(verification_key.as_bytes().as_ref())
-                .expect("failed to create verification key"),
-            signature: Signature::try_from(vec![0u8; 64]).expect("missing signature"),
+            pubkey: pubkey_to_affine_point(
+                &VerificationKey::try_from(verification_key.as_bytes().as_ref())
+                    .expect("failed to create verification key"),
+            ),
+            signature: signature_to_value_type(
+                &Signature::try_from(DUMMY_SIGNATURE.to_vec()).expect("missing signature"),
+            ),
             // TODO: Replace these with correct outputs
-            message: vec![0u8; 32],
-            message_bit_length: 256,
-            voting_power: 0,
-            validator_byte_length: 38,
+            message: [0u8; VALIDATOR_MESSAGE_BYTES_LENGTH_MAX],
+            message_bit_length: F::from_canonical_usize(256),
+            voting_power: 0u64.into(),
+            validator_byte_length: F::from_canonical_usize(38),
             enabled: false,
             signed: false,
-            present_on_trusted_header: None,
+            present_on_trusted_header: false, // This field ignored for this case
         });
     }
 
@@ -385,7 +466,7 @@ fn generate_base_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
 
     let celestia_block_proof = CelestiaBaseBlockProof {
         validators,
-        header: header_hash.as_bytes().to_vec(),
+        header: H256::from_slice(header_hash.as_bytes()),
         data_hash_proof,
         validator_hash_proof: validators_hash_proof,
         next_validators_hash_proof,
@@ -461,7 +542,7 @@ pub fn generate_step_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
 
     CelestiaStepBlockProof {
         prev_header_next_validators_hash_proof,
-        prev_header: prev_header_hash.as_bytes().to_vec(),
+        prev_header: H256::from_slice(prev_header_hash.as_bytes()),
         last_block_id_proof,
         base,
     }
@@ -499,7 +580,7 @@ fn update_present_on_trusted_header(
                         // Add the shared voting power to the validator
                         shared_voting_power += block_2_validator.power();
                         // Set the present_on_trusted_header field to true
-                        base.validators[idx].present_on_trusted_header = Some(true);
+                        base.validators[idx].present_on_trusted_header = true;
                         println!("added validator: {}", idx);
                     }
                 }
@@ -546,9 +627,9 @@ pub fn generate_skip_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
         );
         let val_bytes = validator.hash_bytes();
         trusted_validator_fields.push(ValidatorHashField {
-            pubkey: validator.pub_key.ed25519().unwrap(),
-            voting_power: validator.power(),
-            validator_byte_length: val_bytes.len(),
+            pubkey: pubkey_to_affine_point(&validator.pub_key.ed25519().unwrap()),
+            voting_power: validator.power().into(),
+            validator_byte_length: F::from_canonical_usize(val_bytes.len()),
             enabled: true,
         });
     }
@@ -563,10 +644,12 @@ pub fn generate_skip_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
         let verification_key = signing_key.verification_key();
         // TODO: Fix empty signatures
         trusted_validator_fields.push(ValidatorHashField {
-            pubkey: VerificationKey::try_from(verification_key.as_bytes().as_ref())
-                .expect("failed to create verification key"),
-            voting_power: 0,
-            validator_byte_length: 38,
+            pubkey: pubkey_to_affine_point(
+                &VerificationKey::try_from(verification_key.as_bytes().as_ref())
+                    .expect("failed to create verification key"),
+            ),
+            voting_power: 0u64.into(),
+            validator_byte_length: F::from_canonical_usize(38),
             enabled: false,
         });
     }
@@ -587,8 +670,9 @@ pub fn generate_skip_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
     // Mutates the base object (which has present_on_trusted_header default set to none)
     update_present_on_trusted_header(&mut base, &block, &trusted_block);
 
+    let hash: Vec<u8> = block.header.hash().into();
     CelestiaSkipBlockProof {
-        trusted_header: trusted_block.header.hash().into(),
+        trusted_header: H256::from_slice(&hash),
         trusted_validator_hash_proof: validators_hash_proof,
         trusted_validator_fields,
         base,

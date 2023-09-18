@@ -203,7 +203,6 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for Circui
         let input_byte_length = U32Variable(enc_validator_byte_length);
 
         let zero = self.zero::<U32Variable>();
-
         prepended_validator_bytes.resize(64, self.zero::<ByteVariable>());
 
         // VALIDATOR_BYTE_LENGTH_MAX = 46 so we only need 1 chunk
@@ -257,6 +256,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for Circui
                 current_validator_enabled,
                 merkle_layer_size,
             );
+            self.watch(&current_validator_hashes[0], "current_validator_hashes[0]");
             merkle_layer_size /= 2;
         }
 
@@ -271,7 +271,7 @@ pub(crate) mod tests {
     use crate::fixture::get_signed_block_from_rpc;
     use crate::inputs::{convert_to_h256, get_path_indices, get_signed_block_from_fixture};
     use crate::utils::{
-        generate_proofs_from_header, hash_all_leaves, proofs_from_byte_slices,
+        generate_proofs_from_header, hash_all_leaves, inner_hash, proofs_from_byte_slices,
         ValidatorMessageVariable, HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES,
         PROTOBUF_HASH_SIZE_BYTES,
     };
@@ -510,7 +510,7 @@ pub(crate) mod tests {
 
         let roots: Vec<H256> = validators
             .iter()
-            .map(|x| H256::from(proofs_from_byte_slices(x.to_vec()).0))
+            .map(|batch| H256::from(proofs_from_byte_slices(batch.to_vec()).0))
             .collect::<Vec<_>>();
 
         for i in 0..validators.len() {
@@ -536,6 +536,46 @@ pub(crate) mod tests {
 
             assert_eq!(roots[i], computed_root);
         }
+    }
+
+    #[test]
+    fn expected_hash_validator_set_output() {
+        let validators_arr: Vec<Vec<&str>> = vec![vec![
+            "0a220a20de25aec935b10f657b43fa97e5a8d4e523bdb0f9972605f0b064eff7b17048ba10aa8d06",
+            "0a220a208de6ad1a569a223e7bb0dade194abb9487221210e1fa8154bf654a10fe6158a610aa8d06",
+            "0a220a20e9b7638ca1c42da37d728970632fda77ec61dcc520395ab5d3a645b9c2b8e8b1100a",
+            "0a220a20bd60452e7f056b22248105e7fd298961371da0d9332ef65fa81691bf51b2e5051001",
+        ], vec!["364db94241a02b701d0dc85ac016fab2366fba326178e6f11d8294931969072b7441fd6b0ff5129d6867", "6fa0cef8f328eb8e2aef2084599662b1ee0595d842058966166029e96bd263e5367185f19af67b099645ec08aa", "0a220a20bd60452e7f056b22248105e7fd298961371da0d9332ef65fa81691bf51b2e5051001", "0a220a20bd60452e7f056b22248105e7fd298961371da0d9332ef65fa81691bf51b2e5051001"]];
+
+        let validators: Vec<Vec<Vec<u8>>> = validators_arr
+            .iter()
+            .map(|x| {
+                x.iter()
+                    .map(|y| {
+                        hex::decode(y).unwrap()
+                        // val_bytes.resize(VALIDATOR_BYTE_LENGTH_MAX, 0u8);
+                        // val_bytes.try_into().unwrap()
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+
+        let roots = validators
+            .iter()
+            .map(|batch| {
+                let hashed_leaves = hash_all_leaves::<Sha256>(batch);
+                let inner_1 = inner_hash::<Sha256>(hashed_leaves[0], hashed_leaves[1]);
+                println!("Inner 1: {:?}", hex::encode(inner_1));
+                let inner_2 = inner_hash::<Sha256>(hashed_leaves[2], hashed_leaves[3]);
+                println!("Inner 2: {:?}", hex::encode(inner_2));
+
+                inner_hash::<Sha256>(inner_1, inner_2)
+            })
+            .collect::<Vec<_>>();
+        println!(
+            "Roots: {:?}",
+            roots.iter().map(|x| hex::encode(x)).collect::<Vec<_>>()
+        );
     }
 
     #[test]

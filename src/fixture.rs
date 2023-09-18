@@ -1,6 +1,9 @@
 use crate::{
     inputs::{convert_to_h256, get_path_indices, TempMerkleInclusionProof},
-    utils::{generate_proofs_from_header, leaf_hash, SignedBlock, TempSignedBlock},
+    utils::{
+        generate_proofs_from_header, leaf_hash, SignedBlock, TempSignedBlock,
+        PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES,
+    },
 };
 use ethers::abi::AbiEncode;
 use rand::Rng;
@@ -17,7 +20,6 @@ use subtle_encoding::hex;
 use tendermint::{merkle::simple_hash_from_byte_vectors, validator::Set as ValidatorSet, Hash};
 use tendermint_proto::types::BlockId as RawBlockId;
 use tendermint_proto::Protobuf;
-
 #[derive(Debug, Deserialize)]
 struct SignedBlockResponse {
     result: TempSignedBlock,
