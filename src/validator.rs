@@ -245,6 +245,8 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for Circui
             validator_enabled,
         );
 
+        self.watch(&computed_root, "computed_root");
+
         // Return the root hash.
         computed_root
     }
@@ -391,6 +393,7 @@ pub(crate) mod tests {
     fn test_hash_validator_leaves() {
         const VALIDATOR_SET_SIZE_MAX: usize = 4;
 
+        env::set_var("RUST_LOG", "debug");
         env_logger::try_init().unwrap_or_default();
 
         // Define the circuit
@@ -465,11 +468,9 @@ pub(crate) mod tests {
             &val_byte_lengths.as_vec(),
             &val_enabled.as_vec(),
         );
-        // builder.watch(&root, "computed_root");
         builder.write(root);
         let circuit = builder.build();
 
-        // Validators from block 11000 on Celestia mocha-3 testnet encoded as bytes.
         let validators_arr: Vec<Vec<&str>> = vec![vec![
             "0a220a20de25aec935b10f657b43fa97e5a8d4e523bdb0f9972605f0b064eff7b17048ba10aa8d06",
             "0a220a208de6ad1a569a223e7bb0dade194abb9487221210e1fa8154bf654a10fe6158a610aa8d06",
@@ -504,30 +505,29 @@ pub(crate) mod tests {
             .map(|batch| H256::from(proofs_from_byte_slices(batch.to_vec()).0))
             .collect::<Vec<_>>();
 
-        for i in 0..validators.len() {
-            let mut input = circuit.input();
-            input.write::<ArrayVariable<MarshalledValidatorVariable, VALIDATOR_SET_SIZE_MAX>>(
-                validators[i]
-                    .iter()
-                    .map(|x| {
-                        let mut validator_bytes = x.clone();
-                        validator_bytes.resize(VALIDATOR_BYTE_LENGTH_MAX, 0u8);
-                        let arr: [u8; VALIDATOR_BYTE_LENGTH_MAX] =
-                            validator_bytes.try_into().unwrap();
-                        arr
-                    })
-                    .collect_vec(),
-            );
-            input.write::<ArrayVariable<Variable, VALIDATOR_SET_SIZE_MAX>>(
-                validators_byte_lengths[i].clone(),
-            );
-            input.write::<ArrayVariable<BoolVariable, VALIDATOR_SET_SIZE_MAX>>(
-                validators_enabled[i].clone(),
-            );
-            let (_, mut output) = circuit.prove(&input);
-            let computed_root = output.read::<Bytes32Variable>();
-            // assert_eq!(roots[i], computed_root);
-        }
+        // Note: Due to issues with Curta serialization across multiple runOnce calls: https://github.com/succinctlabs/curta/issues/78, we can only call
+        // runOnce once per test. Thus, we need to run the circuit for each batch of validators.
+        let mut input = circuit.input();
+        input.write::<ArrayVariable<MarshalledValidatorVariable, VALIDATOR_SET_SIZE_MAX>>(
+            validators[0]
+                .iter()
+                .map(|x| {
+                    let mut validator_bytes = x.clone();
+                    validator_bytes.resize(VALIDATOR_BYTE_LENGTH_MAX, 0u8);
+                    let arr: [u8; VALIDATOR_BYTE_LENGTH_MAX] = validator_bytes.try_into().unwrap();
+                    arr
+                })
+                .collect_vec(),
+        );
+        input.write::<ArrayVariable<Variable, VALIDATOR_SET_SIZE_MAX>>(
+            validators_byte_lengths[0].clone(),
+        );
+        input.write::<ArrayVariable<BoolVariable, VALIDATOR_SET_SIZE_MAX>>(
+            validators_enabled[0].clone(),
+        );
+        let (_, mut output) = circuit.prove(&input);
+        let computed_root = output.read::<Bytes32Variable>();
+        assert_eq!(roots[0], computed_root);
     }
 
     #[test]
