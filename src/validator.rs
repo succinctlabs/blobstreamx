@@ -243,8 +243,6 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for Circui
             validator_enabled,
         );
 
-        self.watch(&computed_root, "computed_root");
-
         // Return the root hash.
         computed_root
     }
