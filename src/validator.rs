@@ -327,7 +327,6 @@ pub(crate) mod tests {
 
     #[test]
     fn test_marshal_tendermint_validator() {
-        // env::set_var("RUST_LOG", "debug");
         env_logger::try_init().unwrap_or_default();
 
         // This is a test cases generated from a validator in block 11000 of the mocha-3 testnet.
@@ -473,11 +472,7 @@ pub(crate) mod tests {
             .iter()
             .map(|x| {
                 x.iter()
-                    .map(|y| {
-                        hex::decode(y).unwrap()
-                        // val_bytes.resize(VALIDATOR_BYTE_LENGTH_MAX, 0u8);
-                        // val_bytes.try_into().unwrap()
-                    })
+                    .map(|y| hex::decode(y).unwrap())
                     .collect::<Vec<_>>()
             })
             .collect::<Vec<_>>();
@@ -491,7 +486,8 @@ pub(crate) mod tests {
             .collect::<Vec<_>>();
         let validators_enabled = vec![vec![true, true, true, true], vec![true, true, true, true]];
 
-        let roots: Vec<H256> = validators
+        // Compute the expected hash_validator_set roots.
+        let expected_roots: Vec<H256> = validators
             .iter()
             .map(|batch| H256::from(proofs_from_byte_slices(batch.to_vec()).0))
             .collect::<Vec<_>>();
@@ -518,7 +514,7 @@ pub(crate) mod tests {
         );
         let (_, mut output) = circuit.prove(&input);
         let computed_root = output.read::<Bytes32Variable>();
-        assert_eq!(roots[0], computed_root);
+        assert_eq!(expected_roots[0], computed_root);
     }
 
     #[test]
