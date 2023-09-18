@@ -16,10 +16,9 @@ use crate::utils::{
 use crate::verify::BlockIDInclusionProofVariable;
 use crate::verify::HashInclusionProofVariable;
 use ed25519_consensus::SigningKey;
-use ethers::types::{H256, U64};
+use ethers::types::H256;
 use num::BigUint;
 use plonky2x::frontend::ecc::ed25519::curve::curve_types::AffinePoint;
-use plonky2x::frontend::ecc::ed25519::curve::curve_types::Curve;
 use plonky2x::frontend::ecc::{
     ed25519::curve::ed25519::Ed25519, ed25519::field::ed25519_scalar::Ed25519Scalar,
 };
@@ -116,7 +115,7 @@ fn signature_to_value_type(signature: &Signature) -> SignatureValueType<F> {
     let sig_bytes = signature.as_bytes();
     let sig_r = AffinePoint::new_from_compressed_point(&sig_bytes[0..32]);
     assert!(sig_r.is_valid());
-    let mut sig_s_biguint = BigUint::from_bytes_le(&sig_bytes[32..64]);
+    let sig_s_biguint = BigUint::from_bytes_le(&sig_bytes[32..64]);
     if sig_s_biguint.to_u32_digits().len() == 0 {
         panic!("sig_s_biguint has 0 limbs which will cause problems down the line")
     }

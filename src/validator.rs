@@ -257,12 +257,10 @@ pub(crate) mod tests {
     use std::env;
 
     use super::*;
-    use crate::fixture::get_signed_block_from_rpc;
     use crate::inputs::{convert_to_h256, get_path_indices, get_signed_block_from_fixture};
     use crate::utils::{
-        generate_proofs_from_header, hash_all_leaves, inner_hash, proofs_from_byte_slices,
-        ValidatorMessageVariable, HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES,
-        PROTOBUF_HASH_SIZE_BYTES,
+        generate_proofs_from_header, hash_all_leaves, proofs_from_byte_slices, HEADER_PROOF_DEPTH,
+        PROTOBUF_BLOCK_ID_SIZE_BYTES,
     };
     use crate::validator::TendermintValidator;
     use ethers::types::H256;
