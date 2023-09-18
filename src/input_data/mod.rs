@@ -2,6 +2,7 @@ pub mod tendermint_utils;
 pub mod types;
 pub mod utils;
 
+use std::path::Path;
 use std::{collections::HashMap, fs};
 
 use self::tendermint_utils::{
@@ -9,12 +10,12 @@ use self::tendermint_utils::{
 };
 use self::types::{update_present_on_trusted_header, TempMerkleInclusionProof};
 use self::utils::{convert_to_h256, get_path_indices};
-use crate::input_data::types::get_validators_as_input;
+use crate::input_data::types::{get_validators_as_input, get_validators_fields_as_input};
 use crate::utils::{
     BLOCK_HEIGHT_INDEX, LAST_BLOCK_ID_INDEX, NEXT_VALIDATORS_HASH_INDEX, TOTAL_HEADER_FIELDS,
     VALIDATORS_HASH_INDEX,
 };
-use crate::verify::Validator;
+use crate::verify::{Validator, ValidatorHashField};
 use ethers::types::H256;
 use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
 use plonky2x::prelude::RichField;
@@ -30,6 +31,7 @@ pub enum InputDataMode {
 pub struct InputDataFetcher {
     mode: InputDataMode,
     proof_cache: HashMap<Hash, Vec<Proof>>,
+    save: bool,
 }
 
 impl InputDataFetcher {
@@ -37,7 +39,12 @@ impl InputDataFetcher {
         Self {
             mode,
             proof_cache: HashMap::new(),
+            save: false,
         }
+    }
+
+    pub fn set_save(&mut self, save: bool) {
+        self.save = save;
     }
 
     pub async fn get_block_from_number(&self, block_number: u64) -> Box<TempSignedBlock> {
@@ -48,15 +55,29 @@ impl InputDataFetcher {
                     url,
                     block_number.to_string().as_str()
                 );
-                let res = reqwest::get(url).await.unwrap().text().await.unwrap();
+                let res = reqwest::get(query_url).await.unwrap().text().await.unwrap();
+                if self.save {
+                    println!("hi");
+                    let file_name = format!(
+                        "./src/fixtures/updated/{}/signed_block.json",
+                        block_number.to_string().as_str()
+                    );
+                    // Ensure the directory exists
+                    if let Some(parent) = Path::new(&file_name).parent() {
+                        fs::create_dir_all(parent).unwrap();
+                    }
+                    fs::write(file_name.as_str(), res.as_bytes()).expect("Unable to write file");
+                }
                 res
             }
             InputDataMode::Fixture => {
                 let file_name = format!(
-                    "./src/fixtures/mocha-3/{}/signed_block.json",
+                    "./src/fixtures/updated/{}/signed_block.json",
                     block_number.to_string().as_str()
                 );
+                println!("{:?}", file_name);
                 let file_content = fs::read_to_string(file_name.as_str());
+                println!("Getting fixture");
                 file_content.unwrap()
             }
         };
@@ -97,21 +118,33 @@ impl InputDataFetcher {
         prev_header_hash: H256,
     ) -> (
         [u8; 32],
+        bool,
         Vec<Validator<Ed25519, F>>,
         TempMerkleInclusionProof,
         TempMerkleInclusionProof,
         TempMerkleInclusionProof,
     ) {
+        println!("Getting step inputs");
         let prev_block = self.get_block_from_number(prev_block_number).await;
         let computed_prev_header_hash = prev_block.header.hash();
         assert_eq!(
             computed_prev_header_hash.as_bytes(),
             prev_header_hash.as_bytes()
         );
+        println!("prev_block_hash {:?}", computed_prev_header_hash);
         let next_block = self.get_block_from_number(prev_block_number + 1).await;
+        let round_present = next_block.commit.round != 0;
+
         let next_block_header = next_block.header.hash();
+        println!("prev_block_hash {:?}", next_block_header);
+
         let next_block_validators =
             get_validators_as_input::<VALIDATOR_SET_SIZE_MAX, F>(&next_block);
+        assert_eq!(
+            next_block_validators.len(),
+            VALIDATOR_SET_SIZE_MAX,
+            "validator set size needs to be the provided validator_set_size_max"
+        );
 
         let next_block_validators_hash_proof = self.get_merkle_proof(
             &next_block.header,
@@ -122,6 +155,7 @@ impl InputDataFetcher {
         let last_block_id_hash = next_block.header.last_block_id.unwrap().hash;
         let encoded_last_block_id =
             Protobuf::<RawBlockId>::encode_vec(next_block.header.last_block_id.unwrap_or_default());
+        println!("encoded_last_block_id {:?}", encoded_last_block_id);
         assert_eq!(
             last_block_id_hash.as_bytes(),
             &encoded_last_block_id[2..34],
@@ -140,6 +174,7 @@ impl InputDataFetcher {
         );
         (
             next_block_header.as_bytes().try_into().unwrap(),
+            round_present,
             next_block_validators,
             next_block_validators_hash_proof,
             next_block_last_block_id_proof,
@@ -152,15 +187,24 @@ impl InputDataFetcher {
         trusted_block_number: u64,
         trusted_block_hash: H256,
         target_block_number: u64,
-    ) -> Vec<u8> {
+    ) -> (
+        Vec<Validator<Ed25519, F>>,          // validators
+        [u8; 32],                            // target_header
+        bool,                                // round_present
+        TempMerkleInclusionProof,            // target_header_validators_hash_proof,
+        [u8; 32],                            // trusted_header
+        TempMerkleInclusionProof,            // trusted_validators_hash_proof
+        Vec<ValidatorHashField<Ed25519, F>>, // trusted_validators_hash_fields
+    ) {
         let trusted_block = self.get_block_from_number(trusted_block_number).await;
         let computed_trusted_header_hash = trusted_block.header.hash();
         assert_eq!(
             computed_trusted_header_hash.as_bytes(),
             trusted_block_hash.as_bytes()
         );
-        let target_block = self.get_block_from_number(target_block_number + 1).await;
+        let target_block = self.get_block_from_number(target_block_number).await;
         let target_block_header = target_block.header.hash();
+        let round_present = target_block.commit.round != 0;
         let mut target_block_validators =
             get_validators_as_input::<VALIDATOR_SET_SIZE_MAX, F>(&target_block);
         update_present_on_trusted_header(
@@ -176,7 +220,7 @@ impl InputDataFetcher {
         );
 
         let trusted_block_validator_fields =
-            get_validators_as_input::<VALIDATOR_SET_SIZE_MAX, F>(&trusted_block);
+            get_validators_fields_as_input::<VALIDATOR_SET_SIZE_MAX, F>(&trusted_block);
         let trusted_block_validator_hash_proof = self.get_merkle_proof(
             &trusted_block.header,
             VALIDATORS_HASH_INDEX as u64,
@@ -185,7 +229,29 @@ impl InputDataFetcher {
 
         // TODO: need 1 more merkle proof for the block height of the target block
         // to ensure that it matches the provided target_block_number
+        (
+            target_block_validators,
+            target_block_header.as_bytes().try_into().unwrap(),
+            round_present,
+            target_block_validators_hash_proof,
+            trusted_block_hash.as_bytes().try_into().unwrap(),
+            trusted_block_validator_hash_proof,
+            trusted_block_validator_fields,
+        )
+    }
+}
 
-        todo!()
+mod test {
+    use super::*;
+
+    // Run with cargo test --lib input_data::test::test_fixture_generation_asdf -- --nocapture
+    #[tokio::test]
+    async fn test_fixture_generation_asdf() {
+        let block_height = 11105u64;
+        let mut fetcher = InputDataFetcher::new(InputDataMode::Rpc(
+            "http://rpc.testnet.celestia.citizencosmos.space".to_string(),
+        ));
+        fetcher.set_save(true);
+        let block = fetcher.get_block_from_number(block_height).await;
     }
 }
