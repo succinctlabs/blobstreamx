@@ -268,8 +268,13 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
             leaves.push(self.encode_data_root_tuple(&data_hashes[i], &block_height));
         }
 
-        let leaves = ArrayVariable::<BytesVariable<64>, WINDOW_RANGE>::new(leaves);
-        let root = self.compute_root_from_leaves::<WINDOW_RANGE, NB_LEAVES, 64>(&leaves);
+        leaves.resize(NB_LEAVES, self.constant::<BytesVariable<64>>([0u8; 64]));
+
+        let mut leaves_enabled = Vec::new();
+        leaves_enabled.resize(WINDOW_RANGE, self.constant::<BoolVariable>(true));
+        leaves_enabled.resize(NB_LEAVES, self.constant::<BoolVariable>(false));
+
+        let root = self.compute_root_from_leaves::<NB_LEAVES, 64>(&leaves, &leaves_enabled);
 
         // Return the root hash.
         root
