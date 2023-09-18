@@ -6,7 +6,7 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.71"
 clap = { version = "4.3.18", features = ["derive"] }
-curta = { git = "https://github.com/succinctlabs/curta.git", branch = "tamir/serialization" }
+curta = { git = "https://github.com/succinctlabs/curta.git" }
 digest = "0.10.7"
 dotenv = "0.15.0"
 ed25519-consensus = "2.1.0"
@@ -16,7 +16,7 @@ itertools = "0.11.0"
 log = "0.4.19"
 num = "0.4.1"
 plonky2 = { git = "https://github.com/mir-protocol/plonky2.git" }
-plonky2x = { git = "ssh://git@github.com/succinctlabs/succinctx.git"}
+plonky2x = { git = "ssh://git@github.com/succinctlabs/succinctx.git" }
 rand = "0.8.5"
 reqwest = "0.11.18"
 serde = "1.0.175"
