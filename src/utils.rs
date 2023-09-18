@@ -25,6 +25,13 @@ use tendermint_proto::{
 };
 
 // TODO: all these numbers below and variables should be moved to a `consts.rs`
+
+pub const TOTAL_HEADER_FIELDS: usize = 14;
+pub const BLOCK_HEIGHT_INDEX: usize = 2; // u64
+pub const LAST_BLOCK_ID_INDEX: usize = 4;
+pub const VALIDATORS_HASH_INDEX: usize = 7;
+pub const NEXT_VALIDATORS_HASH_INDEX: usize = 8;
+
 /// The number of bits in a SHA256 hash.
 pub const HASH_SIZE_BITS: usize = HASH_SIZE * 8;
 

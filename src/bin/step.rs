@@ -19,28 +19,12 @@ use plonky2x::frontend::vars::{ByteVariable, ValueStream};
 use plonky2x::prelude::{Bytes32Variable, CircuitBuilder, PlonkParameters};
 use serde::{Deserialize, Serialize};
 
+// use crate::input_data::InputDataFetcher;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct StepOffchainInputs {
     amount: u8,
 }
-
-// prev_block = get_block_from_number(prev_block_number: u64)
-// assert_eq!(prev_block.header == prev_block_header) that is supplied, this is not a circuit check
-// it's just to check the provided `prev_block_number` hint
-// next_block = get_block_from_number(prev_block.number + 1)
-// step(prev_block, next_block)
-// - next_block.validator_hash_proof
-// - next_block.last_block_id_proof
-// - next_block.validators (that signed the header)
-// - prev_block.next_validators_hash_proof
-
-// trusted_block = get_block_from_number(trusted_header)
-// target_block = get_block_from_number(target_number)
-// skip(trusted_block, target_block)
-//  - trusted_block.validator_hash
-//  - trusted_block.validator_hash_fields
-//  - target_block.validators
-//  - target_block.validator_hash_proof
 
 impl<L: PlonkParameters<D>, const D: usize> Hint<L, D> for StepOffchainInputs {
     fn hint(&self, input_stream: &mut ValueStream<L, D>, output_stream: &mut ValueStream<L, D>) {
