@@ -499,6 +499,7 @@ pub(crate) mod tests {
             validators[0]
                 .iter()
                 .map(|x| {
+                    // Resize the input bytes to VALIDATOR_BYTE_LENGTH_MAX.
                     let mut validator_bytes = x.clone();
                     validator_bytes.resize(VALIDATOR_BYTE_LENGTH_MAX, 0u8);
                     let arr: [u8; VALIDATOR_BYTE_LENGTH_MAX] = validator_bytes.try_into().unwrap();
