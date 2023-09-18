@@ -505,8 +505,8 @@ pub(crate) mod tests {
             .map(|batch| H256::from(proofs_from_byte_slices(batch.to_vec()).0))
             .collect::<Vec<_>>();
 
-        // Note: Due to issues with Curta serialization across multiple runOnce calls: https://github.com/succinctlabs/curta/issues/78, we can only call
-        // runOnce once per test. Thus, we need to run the circuit for each batch of validators.
+        // TODO: Due to issues with Curta serialization across multiple runOnce calls: https://github.com/succinctlabs/curta/issues/78, we can only call
+        // runOnce once per test. Thus, we need to build a new circuit for each batch of validators.
         let mut input = circuit.input();
         input.write::<ArrayVariable<MarshalledValidatorVariable, VALIDATOR_SET_SIZE_MAX>>(
             validators[0]
