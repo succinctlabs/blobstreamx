@@ -274,7 +274,7 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
         leaves_enabled.resize(WINDOW_RANGE, self.constant::<BoolVariable>(true));
         leaves_enabled.resize(NB_LEAVES, self.constant::<BoolVariable>(false));
 
-        let root = self.compute_root_from_leaves::<NB_LEAVES, 64>(&leaves, &leaves_enabled);
+        let root = self.compute_root_from_leaves::<NB_LEAVES, 64>(leaves, leaves_enabled);
 
         // Return the root hash.
         root

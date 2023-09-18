@@ -377,7 +377,7 @@ impl<
         let validators_hash_target = self.hash_validator_set::<VALIDATOR_SET_SIZE_MAX>(
             &marshalled_validators,
             &byte_lengths,
-            &validators_enabled,
+            validators_enabled,
         );
 
         /// Start of the hash in protobuf encoded validator hash & last block id
@@ -689,7 +689,7 @@ impl<
         let validators_hash_target = self.hash_validator_set::<VALIDATOR_SET_SIZE_MAX>(
             &marshalled_trusted_validators,
             &trusted_byte_lengths,
-            &trusted_validators_enabled,
+            trusted_validators_enabled,
         );
 
         const HASH_START_BYTE: usize = 2;

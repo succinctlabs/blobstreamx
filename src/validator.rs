@@ -58,7 +58,7 @@ pub trait TendermintValidator<L: PlonkParameters<D>, const D: usize> {
         &mut self,
         validators: &Vec<MarshalledValidatorVariable>,
         validator_byte_lengths: &Vec<Variable>,
-        validator_enabled: &Vec<BoolVariable>,
+        validator_enabled: Vec<BoolVariable>,
     ) -> TendermintHashVariable;
 }
 
@@ -230,7 +230,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for Circui
         &mut self,
         validators: &Vec<MarshalledValidatorVariable>,
         validator_byte_lengths: &Vec<Variable>,
-        validator_enabled: &Vec<BoolVariable>,
+        validator_enabled: Vec<BoolVariable>,
     ) -> TendermintHashVariable {
         assert_eq!(validators.len(), VALIDATOR_SET_SIZE_MAX);
         assert_eq!(validator_byte_lengths.len(), VALIDATOR_SET_SIZE_MAX);
@@ -241,7 +241,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for Circui
             .hash_validator_leaves::<VALIDATOR_SET_SIZE_MAX>(validators, validator_byte_lengths);
 
         let computed_root = self.get_root_from_hashed_leaves::<VALIDATOR_SET_SIZE_MAX>(
-            &current_validator_hashes,
+            current_validator_hashes,
             validator_enabled,
         );
 
@@ -385,8 +385,6 @@ pub(crate) mod tests {
         }
     }
 
-    // TODO: Add these tests back once the interface for using Curta's SHA gadget is straightforward. Currently, we'd need to compute the total number of SHA's done in each of these tests, and fill out the rest of the SHA's similar to how it's done in test_skip & test_step.
-
     #[test]
     fn test_hash_validator_leaves() {
         const VALIDATOR_SET_SIZE_MAX: usize = 4;
@@ -457,14 +455,13 @@ pub(crate) mod tests {
         let mut builder = DefaultBuilder::new();
         let messages =
             builder.read::<ArrayVariable<MarshalledValidatorVariable, VALIDATOR_SET_SIZE_MAX>>();
-        // builder.watch(&messages, "messages");
         let val_byte_lengths = builder.read::<ArrayVariable<Variable, VALIDATOR_SET_SIZE_MAX>>();
-        // builder.watch(&val_byte_lengths, "val_bytes");
         let val_enabled = builder.read::<ArrayVariable<BoolVariable, VALIDATOR_SET_SIZE_MAX>>();
+
         let root = builder.hash_validator_set::<VALIDATOR_SET_SIZE_MAX>(
             &messages.as_vec(),
             &val_byte_lengths.as_vec(),
-            &val_enabled.as_vec(),
+            val_enabled.as_vec(),
         );
         builder.write(root);
         let circuit = builder.build();
@@ -546,11 +543,11 @@ pub(crate) mod tests {
 
         let (root, proofs) = generate_proofs_from_header(&block.header);
 
-        // Can test with leaf_index 6, 7 or 8 (data_hash, validators_hash, next_validators_hash)
+        // Can test with leaf_index 4, 6, 7 or 8 (last_block_id_hash, data_hash, validators_hash, next_validators_hash)
+        // TODO: Once Curta runOnce is fixed, we can test all leaf indices in separate test cases
         let leaf_index = 4;
 
-        // Note: Make sure to encode_vec()
-        // let validator_hash = block.header.validators_hash.encode_vec();
+        // Note: Must convert to protobuf encoding (get_proofs_from_header is a good reference)
         let leaf =
             Protobuf::<RawBlockId>::encode_vec(block.header.last_block_id.unwrap_or_default());
 
