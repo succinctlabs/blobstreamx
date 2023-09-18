@@ -1,12 +1,3 @@
-//! The protobuf encoding of a Tendermint validator is a deterministic function of the validator's
-//! public key (32 bytes) and voting power (int64). The encoding is as follows in bytes:
-//
-//!     10 34 10 32 <pubkey> 16 <varint>
-//
-//! The `pubkey` is encoded as the raw list of bytes used in the public key. The `varint` is
-//! encoded using protobuf's default integer encoding, which consist of 7 bit payloads. You can
-//! read more about them here: https://protobuf.dev/programming-guides/encoding/#varints.
-
 use plonky2x::{
     frontend::ecc::ed25519::{
         curve::{curve_types::Curve, ed25519::Ed25519},
