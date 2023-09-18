@@ -4,18 +4,20 @@ pub mod utils;
 
 use std::{collections::HashMap, fs};
 
-use crate::input_data::types::get_validators_as_input;
-
 use self::tendermint_utils::{
     generate_proofs_from_header, Hash, Header, Proof, SignedBlockResponse, TempSignedBlock,
 };
 use self::types::{update_present_on_trusted_header, TempMerkleInclusionProof};
 use self::utils::{convert_to_h256, get_path_indices};
+use crate::input_data::types::get_validators_as_input;
 use crate::utils::{
     BLOCK_HEIGHT_INDEX, LAST_BLOCK_ID_INDEX, NEXT_VALIDATORS_HASH_INDEX, TOTAL_HEADER_FIELDS,
     VALIDATORS_HASH_INDEX,
 };
+use crate::verify::Validator;
 use ethers::types::H256;
+use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
+use plonky2x::prelude::RichField;
 use tendermint::{validator::Set as ValidatorSet, vote::SignedVote, vote::ValidatorIndex};
 use tendermint_proto::types::BlockId as RawBlockId;
 use tendermint_proto::Protobuf;
@@ -89,11 +91,17 @@ impl InputDataFetcher {
         }
     }
 
-    pub async fn get_step_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
+    pub async fn get_step_inputs<const VALIDATOR_SET_SIZE_MAX: usize, F: RichField>(
         &mut self,
         prev_block_number: u64,
         prev_header_hash: H256,
-    ) -> Vec<u8> {
+    ) -> (
+        [u8; 32],
+        Vec<Validator<Ed25519, F>>,
+        TempMerkleInclusionProof,
+        TempMerkleInclusionProof,
+        TempMerkleInclusionProof,
+    ) {
         let prev_block = self.get_block_from_number(prev_block_number).await;
         let computed_prev_header_hash = prev_block.header.hash();
         assert_eq!(
@@ -102,7 +110,8 @@ impl InputDataFetcher {
         );
         let next_block = self.get_block_from_number(prev_block_number + 1).await;
         let next_block_header = next_block.header.hash();
-        let next_block_validators = get_validators_as_input::<VALIDATOR_SET_SIZE_MAX>(&next_block);
+        let next_block_validators =
+            get_validators_as_input::<VALIDATOR_SET_SIZE_MAX, F>(&next_block);
 
         let next_block_validators_hash_proof = self.get_merkle_proof(
             &next_block.header,
@@ -129,10 +138,16 @@ impl InputDataFetcher {
             NEXT_VALIDATORS_HASH_INDEX as u64,
             prev_block.header.next_validators_hash.encode_vec(),
         );
-        todo!()
+        (
+            next_block_header.as_bytes().try_into().unwrap(),
+            next_block_validators,
+            next_block_validators_hash_proof,
+            next_block_last_block_id_proof,
+            prev_block_next_validators_hash_proof,
+        )
     }
 
-    pub async fn get_skip_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
+    pub async fn get_skip_inputs<const VALIDATOR_SET_SIZE_MAX: usize, F: RichField>(
         &mut self,
         trusted_block_number: u64,
         trusted_block_hash: H256,
@@ -147,7 +162,7 @@ impl InputDataFetcher {
         let target_block = self.get_block_from_number(target_block_number + 1).await;
         let target_block_header = target_block.header.hash();
         let mut target_block_validators =
-            get_validators_as_input::<VALIDATOR_SET_SIZE_MAX>(&target_block);
+            get_validators_as_input::<VALIDATOR_SET_SIZE_MAX, F>(&target_block);
         update_present_on_trusted_header(
             &mut target_block_validators,
             &target_block,
@@ -161,7 +176,7 @@ impl InputDataFetcher {
         );
 
         let trusted_block_validator_fields =
-            get_validators_as_input::<VALIDATOR_SET_SIZE_MAX>(&trusted_block);
+            get_validators_as_input::<VALIDATOR_SET_SIZE_MAX, F>(&trusted_block);
         let trusted_block_validator_hash_proof = self.get_merkle_proof(
             &trusted_block.header,
             VALIDATORS_HASH_INDEX as u64,

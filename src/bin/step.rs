@@ -11,42 +11,97 @@
 //!    `./target/release/circuit_function_evm prove --input-json src/bin/circuit_function_evm_input.json`
 //!
 //! Note that this circuit will not work with field-based io.
+//!
+//!
+//!
+use tokio::runtime::Runtime;
 
 use plonky2x::backend::circuit::Circuit;
 use plonky2x::backend::function::VerifiableFunction;
 use plonky2x::frontend::generator::hint::Hint;
+use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::frontend::vars::{ByteVariable, ValueStream};
-use plonky2x::prelude::{Bytes32Variable, CircuitBuilder, PlonkParameters};
+use plonky2x::prelude::{
+    ArrayVariable, Bytes32Variable, CircuitBuilder, GoldilocksField, PlonkParameters,
+};
 use serde::{Deserialize, Serialize};
 
-// use crate::input_data::InputDataFetcher;
-
+use celestia::input_data::{InputDataFetcher, InputDataMode};
+use celestia::utils::HEADER_PROOF_DEPTH;
+use celestia::verify::{HashInclusionProofVariable, ValidatorVariable};
+use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
+use plonky2x::frontend::vars::VariableStream; // TODO: re-export this instead of this path
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct StepOffchainInputs {
+struct StepOffchainInputs<const MAX_VALIDATOR_SET_SIZE: usize> {
     amount: u8,
 }
 
-impl<L: PlonkParameters<D>, const D: usize> Hint<L, D> for StepOffchainInputs {
+impl<const MAX_VALIDATOR_SET_SIZE: usize, L: PlonkParameters<D>, const D: usize> Hint<L, D>
+    for StepOffchainInputs<MAX_VALIDATOR_SET_SIZE>
+{
     fn hint(&self, input_stream: &mut ValueStream<L, D>, output_stream: &mut ValueStream<L, D>) {
-        let prev_header = input_stream.read_value::<Bytes32Variable>();
-        // Use the RPC to get the next_header from the previous header and all the merkle proofs
+        let prev_header_hash = input_stream.read_value::<Bytes32Variable>();
+        let prev_block_number = input_stream.read_value::<U64Variable>();
+        let mut data_fetcher = InputDataFetcher::new(InputDataMode::Rpc("".to_string()));
 
-        // output_stream.write_value::<Bytes32Variable>(header);
+        let rt = Runtime::new().expect("failed to create tokio runtime");
+        let result = rt.block_on(async {
+            data_fetcher
+                .get_step_inputs::<MAX_VALIDATOR_SET_SIZE, L::Field>(
+                    prev_block_number.as_u64(),
+                    prev_header_hash,
+                )
+                .await
+        });
+
+        output_stream.write_value::<Bytes32Variable>(result.0.into()); // next_header
+        output_stream
+            .write_value::<ArrayVariable<ValidatorVariable<Ed25519>, MAX_VALIDATOR_SET_SIZE>>(
+                result.1,
+            );
+        // output_stream
+        //     .write_value::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>(result.2.into());
+        // output_stream.write_value::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>(result.2);
+        // output_stream.write_value::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>(result.2);
     }
 }
 
-struct StepCircuit {}
+struct StepCircuit<const MAX_VALIDATOR_SET_SIZE: usize> {}
 
-impl Circuit for StepCircuit {
+impl<const MAX_VALIDATOR_SET_SIZE: usize> Circuit for StepCircuit<MAX_VALIDATOR_SET_SIZE> {
     fn define<L: PlonkParameters<D>, const D: usize>(builder: &mut CircuitBuilder<L, D>) {
-        let prev_header = builder.evm_read::<Bytes32Variable>();
-        let header = builder.init::<Bytes32Variable>();
-        builder.evm_write(header);
+        let prev_header_hash = builder.evm_read::<Bytes32Variable>();
+        let prev_block_number = builder.evm_read::<U64Variable>();
+        let mut input_stream = VariableStream::new();
+        input_stream.write(&prev_header_hash);
+        input_stream.write(&prev_block_number);
+        let output_stream = builder.hint(
+            input_stream,
+            StepOffchainInputs::<MAX_VALIDATOR_SET_SIZE> { amount: 1u8 },
+        );
+        let next_header = output_stream.read::<Bytes32Variable>(builder);
+        let validators = output_stream
+            .read::<ArrayVariable<ValidatorVariable<Ed25519>, MAX_VALIDATOR_SET_SIZE>>(builder);
+        let header_proof =
+            output_stream.read::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>(builder);
+        let header_proof =
+            output_stream.read::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>(builder);
+        let header_proof =
+            output_stream.read::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>(builder);
+        // builder.step(
+        //     next_header,
+        //     validators,
+        //     header_proof,
+        //     header_proof,
+        //     header_proof,
+        // );
+        builder.evm_write(next_header);
     }
 }
 
 fn main() {
-    VerifiableFunction::<StepCircuit>::entrypoint();
+    const MAX_VALIDATOR_SET_SIZE: usize = 128;
+    VerifiableFunction::<StepCircuit<MAX_VALIDATOR_SET_SIZE>>::entrypoint();
 }
 
 #[cfg(test)]

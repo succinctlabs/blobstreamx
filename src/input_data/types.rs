@@ -15,13 +15,12 @@ use plonky2x::frontend::ecc::ed25519::gadgets::eddsa::EDDSASignatureTarget;
 use plonky2x::frontend::ecc::{
     ed25519::curve::ed25519::Ed25519, ed25519::field::ed25519_scalar::Ed25519Scalar,
 };
-use plonky2x::prelude::{CircuitVariable, Field, GoldilocksField};
+use plonky2x::prelude::{CircuitVariable, Field, GoldilocksField, RichField};
 use serde::{Deserialize, Serialize};
 use tendermint::crypto::ed25519::VerificationKey;
 use tendermint::{private_key, Signature};
 use tendermint::{validator::Set as ValidatorSet, vote::SignedVote, vote::ValidatorIndex};
 
-type F = GoldilocksField;
 type C = Ed25519;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -80,7 +79,7 @@ fn pubkey_to_affine_point(pubkey: &VerificationKey) -> AffinePoint<C> {
 
 type SignatureValueType<F> = <EDDSASignatureTarget<Ed25519> as CircuitVariable>::ValueType<F>;
 
-fn signature_to_value_type(signature: &Signature) -> SignatureValueType<F> {
+fn signature_to_value_type<F: RichField>(signature: &Signature) -> SignatureValueType<F> {
     let sig_bytes = signature.as_bytes();
     let sig_r = AffinePoint::new_from_compressed_point(&sig_bytes[0..32]);
     assert!(sig_r.is_valid());
@@ -92,7 +91,7 @@ fn signature_to_value_type(signature: &Signature) -> SignatureValueType<F> {
     SignatureValueType::<F> { r: sig_r, s: sig_s }
 }
 
-pub fn get_validators_as_input<const VALIDATOR_SET_SIZE_MAX: usize>(
+pub fn get_validators_as_input<const VALIDATOR_SET_SIZE_MAX: usize, F: RichField>(
     block: &TempSignedBlock,
 ) -> Vec<Validator<C, F>> {
     let mut validators = Vec::new();
@@ -187,7 +186,7 @@ pub fn get_validators_as_input<const VALIDATOR_SET_SIZE_MAX: usize>(
     validators
 }
 
-pub fn get_validators_fields_as_input<const VALIDATOR_SET_SIZE_MAX: usize>(
+pub fn get_validators_fields_as_input<const VALIDATOR_SET_SIZE_MAX: usize, F: RichField>(
     trusted_block: &TempSignedBlock,
 ) -> Vec<ValidatorHashField<C, F>> {
     let mut trusted_validator_fields = Vec::new();
@@ -235,7 +234,7 @@ pub fn get_validators_fields_as_input<const VALIDATOR_SET_SIZE_MAX: usize>(
     trusted_validator_fields
 }
 
-pub fn update_present_on_trusted_header(
+pub fn update_present_on_trusted_header<F: RichField>(
     validators: &mut Vec<Validator<C, F>>,
     target_block: &Box<TempSignedBlock>,
     trusted_block: &Box<TempSignedBlock>,
