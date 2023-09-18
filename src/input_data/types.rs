@@ -5,7 +5,8 @@ use crate::utils::{
     VALIDATOR_MESSAGE_BYTES_LENGTH_MAX,
 };
 use crate::verify::{
-    BlockIDInclusionProofVariable, HashInclusionProofVariable, Validator, ValidatorHashField,
+    BlockIDInclusionProof, BlockIDInclusionProofVariable, HashInclusionProof,
+    HashInclusionProofVariable, Validator, ValidatorHashField,
 };
 use ed25519_consensus::SigningKey;
 use ethers::types::H256;
@@ -17,6 +18,7 @@ use plonky2x::frontend::ecc::{
 };
 use plonky2x::prelude::{CircuitVariable, Field, GoldilocksField, RichField};
 use serde::{Deserialize, Serialize};
+use tendermint::block::Header;
 use tendermint::crypto::ed25519::VerificationKey;
 use tendermint::{private_key, Signature};
 use tendermint::{validator::Set as ValidatorSet, vote::SignedVote, vote::ValidatorIndex};
@@ -29,6 +31,39 @@ pub struct TempMerkleInclusionProof {
     // Path and proof should have a fixed length of HEADER_PROOF_DEPTH.
     pub path: Vec<bool>,
     pub proof: Vec<H256>,
+}
+
+impl TempMerkleInclusionProof {
+    pub fn to_hash_value_type<F: RichField>(&self) -> HashInclusionProof<HEADER_PROOF_DEPTH, F> {
+        if self.proof.len() != HEADER_PROOF_DEPTH {
+            panic!("path length does not match");
+        }
+        if self.enc_leaf.len() != PROTOBUF_HASH_SIZE_BYTES {
+            panic!("enc_leaf length does not match");
+        }
+        let leaf_as_fixed: [u8; PROTOBUF_HASH_SIZE_BYTES] = self.enc_leaf[..].try_into().unwrap();
+        HashInclusionProof {
+            enc_leaf: leaf_as_fixed,
+            proof: self.proof.clone(),
+        }
+    }
+
+    pub fn to_block_id_value_type<F: RichField>(
+        &self,
+    ) -> BlockIDInclusionProof<HEADER_PROOF_DEPTH, F> {
+        if self.proof.len() != HEADER_PROOF_DEPTH {
+            panic!("path length does not match");
+        }
+        if self.enc_leaf.len() != PROTOBUF_BLOCK_ID_SIZE_BYTES {
+            panic!("enc_leaf length does not match");
+        }
+        let leaf_as_fixed: [u8; PROTOBUF_BLOCK_ID_SIZE_BYTES] =
+            self.enc_leaf[..].try_into().unwrap();
+        BlockIDInclusionProof {
+            enc_leaf: leaf_as_fixed,
+            proof: self.proof.clone(),
+        }
+    }
 }
 
 impl From<TempMerkleInclusionProof>

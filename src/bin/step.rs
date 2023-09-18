@@ -28,7 +28,9 @@ use serde::{Deserialize, Serialize};
 
 use celestia::input_data::{InputDataFetcher, InputDataMode};
 use celestia::utils::HEADER_PROOF_DEPTH;
-use celestia::verify::{HashInclusionProofVariable, ValidatorVariable};
+use celestia::verify::{
+    BlockIDInclusionProofVariable, HashInclusionProofVariable, TendermintVerify, ValidatorVariable,
+};
 use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
 use plonky2x::frontend::vars::VariableStream; // TODO: re-export this instead of this path
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -59,10 +61,15 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize, L: PlonkParameters<D>, const D: usize>
             .write_value::<ArrayVariable<ValidatorVariable<Ed25519>, MAX_VALIDATOR_SET_SIZE>>(
                 result.1,
             );
-        // output_stream
-        //     .write_value::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>(result.2.into());
-        // output_stream.write_value::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>(result.2);
-        // output_stream.write_value::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>(result.2);
+        output_stream.write_value::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>(
+            result.2.to_hash_value_type(),
+        );
+        output_stream.write_value::<BlockIDInclusionProofVariable<HEADER_PROOF_DEPTH>>(
+            result.3.to_block_id_value_type(),
+        );
+        output_stream.write_value::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>(
+            result.4.to_hash_value_type(),
+        );
     }
 }
 
@@ -80,21 +87,25 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize> Circuit for StepCircuit<MAX_VALIDATOR_
             StepOffchainInputs::<MAX_VALIDATOR_SET_SIZE> { amount: 1u8 },
         );
         let next_header = output_stream.read::<Bytes32Variable>(builder);
-        let validators = output_stream
+        let next_block_validators = output_stream
             .read::<ArrayVariable<ValidatorVariable<Ed25519>, MAX_VALIDATOR_SET_SIZE>>(builder);
-        let header_proof =
+        let next_block_validators_hash_proof =
             output_stream.read::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>(builder);
-        let header_proof =
+        let next_block_last_block_id_proof =
+            output_stream.read::<BlockIDInclusionProofVariable<HEADER_PROOF_DEPTH>>(builder);
+        let prev_block_next_validators_hash_proof =
             output_stream.read::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>(builder);
-        let header_proof =
-            output_stream.read::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>(builder);
-        // builder.step(
-        //     next_header,
-        //     validators,
-        //     header_proof,
-        //     header_proof,
-        //     header_proof,
-        // );
+
+        let round_present = builder._true();
+        builder.step(
+            &next_block_validators,
+            &next_header,
+            &prev_header_hash,
+            &next_block_validators_hash_proof,
+            &prev_block_next_validators_hash_proof,
+            &next_block_last_block_id_proof,
+            &round_present,
+        );
         builder.evm_write(next_header);
     }
 }
@@ -116,8 +127,9 @@ mod tests {
 
     #[test]
     fn test_circuit_function_evm() {
+        const MAX_VALIDATOR_SET_SIZE: usize = 128;
         let mut builder = DefaultBuilder::new();
-        StepCircuit::define(&mut builder);
+        StepCircuit::<MAX_VALIDATOR_SET_SIZE>::define(&mut builder);
         let circuit = builder.build();
         let mut input = circuit.input();
         input.evm_write::<ByteVariable>(0u8);
