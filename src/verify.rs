@@ -674,24 +674,21 @@ impl<
     }
 }
 
+// To run tests with logs (i.e. to see proof generation time), set the environment variable `RUST_LOG=debug` before the test command.
+// Alternatively, add env::set_var("RUST_LOG", "debug") to the top of the test.
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use ethers::types::H256;
-    use ethers::utils::hex;
     use log;
     use plonky2::timed;
     use plonky2::util::timing::TimingTree;
     use plonky2x::prelude::DefaultBuilder;
-    use std::env;
 
     use crate::inputs::{
         generate_skip_inputs, generate_step_inputs, CelestiaSkipBlockProof, CelestiaStepBlockProof,
     };
-    use crate::utils::VALIDATOR_MESSAGE_BYTES_LENGTH_MAX;
 
     fn test_step_template<const VALIDATOR_SET_SIZE_MAX: usize>(block: usize) {
-        // env::set_var("RUST_LOG", "debug");
         env_logger::try_init().unwrap_or_default();
 
         type Curve = Ed25519;
@@ -773,13 +770,11 @@ pub(crate) mod tests {
         input.write::<BoolVariable>(celestia_block_proof.base.round_present);
 
         let (proof, output) = timed!(timing, "Step proof time", circuit.prove(&input));
-        // circuit.verify(&proof, &input, &output);
-
+        circuit.verify(&proof, &input, &output);
         timing.print();
     }
 
     fn test_skip_template<const VALIDATOR_SET_SIZE_MAX: usize>(trusted_block: usize, block: usize) {
-        // env::set_var("RUST_LOG", "debug");
         env_logger::try_init().unwrap_or_default();
 
         type Curve = Ed25519;

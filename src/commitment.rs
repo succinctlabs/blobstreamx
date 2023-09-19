@@ -376,10 +376,10 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
     }
 }
 
+// To run tests with logs (i.e. to see proof generation time), set the environment variable `RUST_LOG=debug` before the test command.
+// Alternatively, add env::set_var("RUST_LOG", "debug") to the top of the test.
 #[cfg(test)]
 pub(crate) mod tests {
-    use std::env;
-
     use super::*;
     use curta::math::goldilocks::cubic::GoldilocksCubicParameters;
     use plonky2::plonk::config::PoseidonGoldilocksConfig;
@@ -398,7 +398,6 @@ pub(crate) mod tests {
 
     #[test]
     fn test_prove_data_commitment() {
-        // env::set_var("RUST_LOG", "debug");
         env_logger::try_init().unwrap_or_default();
 
         let mut builder = CircuitBuilder::<L, D>::new();
@@ -438,7 +437,6 @@ pub(crate) mod tests {
 
     #[test]
     fn test_data_commitment() {
-        // env::set_var("RUST_LOG", "debug");
         env_logger::try_init().unwrap_or_default();
 
         let mut builder = CircuitBuilder::<L, D>::new();
@@ -473,7 +471,6 @@ pub(crate) mod tests {
 
     #[test]
     fn test_prove_header_chain() {
-        // env::set_var("RUST_LOG", "debug");
         env_logger::try_init().unwrap_or_default();
 
         let mut builder = CircuitBuilder::<L, D>::new();
@@ -499,7 +496,6 @@ pub(crate) mod tests {
 
     #[test]
     fn test_encode_varint() {
-        // env::set_var("RUST_LOG", "debug");
         env_logger::try_init().unwrap_or_default();
 
         let mut builder = CircuitBuilder::<L, D>::new();
@@ -521,7 +517,6 @@ pub(crate) mod tests {
 
     #[test]
     fn test_encode_data_root_tuple() {
-        // env::set_var("RUST_LOG", "debug");
         env_logger::try_init().unwrap_or_default();
 
         let mut builder = CircuitBuilder::<L, D>::new();

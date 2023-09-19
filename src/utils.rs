@@ -571,13 +571,13 @@ pub fn non_absent_vote(
     })
 }
 
+// To run tests with logs (i.e. to see proof generation time), set the environment variable `RUST_LOG=debug` before the test command.
+// Alternatively, add env::set_var("RUST_LOG", "debug") to the top of the test.
 #[cfg(test)]
 pub(crate) mod tests {
     use sha2::Sha256;
     use subtle_encoding::hex;
     use tendermint_proto::{types::SimpleValidator as RawSimpleValidator, Protobuf};
-
-    use crate::fixture::get_signed_block_from_rpc;
 
     use super::{generate_proofs_from_header, TempSignedBlock};
     use tendermint::{

@@ -248,10 +248,10 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for Circui
     }
 }
 
+// To run tests with logs (i.e. to see proof generation time), set the environment variable `RUST_LOG=debug` before the test command.
+// Alternatively, add env::set_var("RUST_LOG", "debug") to the top of the test.
 #[cfg(test)]
 pub(crate) mod tests {
-    use std::env;
-
     use super::*;
     use crate::inputs::{convert_to_h256, get_path_indices, get_signed_block_from_fixture};
     use crate::utils::{
@@ -384,7 +384,6 @@ pub(crate) mod tests {
     fn test_hash_validator_leaves() {
         const VALIDATOR_SET_SIZE_MAX: usize = 4;
 
-        // env::set_var("RUST_LOG", "debug");
         env_logger::try_init().unwrap_or_default();
 
         // Define the circuit
@@ -443,7 +442,6 @@ pub(crate) mod tests {
     fn test_generate_validators_hash() {
         const VALIDATOR_SET_SIZE_MAX: usize = 4;
 
-        // env::set_var("RUST_LOG", "debug");
         env_logger::try_init().unwrap_or_default();
 
         // Define the circuit
