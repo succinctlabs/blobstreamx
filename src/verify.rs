@@ -286,7 +286,6 @@ impl<
 
         // Verify the next validators hash in the previous block matches the current validators hash
         // FIXME: why is Rust compiler being weird
-
         <plonky2x::prelude::CircuitBuilder<L, D> as TendermintVerify<
             L,
             D,
@@ -398,19 +397,16 @@ impl<
             let enabled_and_signed = self.and(validators[i].enabled, validators[i].signed);
             self.assert_is_equal(validators[i].signed, enabled_and_signed);
 
-            // Verify that the header is in the message in the correct location
+            // Verify that the header is in the message in the correct location.
+            // If a validator is signed, then the header should be in its signed message.
             let hash_in_message =
                 self.verify_hash_in_message(&validators[i].message, *header, *round_present);
-
-            // If the validator is enabled, then the hash should be in the message
-            // TODO: this might be overconstrained because of the edge case where the validator did not sign
-            // but hash is still in message
-            // This is likely not a problem since DUMMY_MESSAGE is hardcoded in the circuit
-            // But worth noting
-            self.assert_is_equal(hash_in_message, validators_signed[i]);
+            let hash_in_message_and_signed = self.and(hash_in_message, validators[i].signed);
+            self.assert_is_equal(hash_in_message_and_signed, validators_signed[i]);
         }
 
         // Note: Hardcode the path for each of the leaf proofs (otherwise you can prove arbitrary data in the header)
+        // TODO: Remove proofs for data_hash and next_validators_hash. They are not needed.
         let data_hash_path = vec![false_t, true_t, true_t, false_t];
         let val_hash_path = vec![true_t, true_t, true_t, false_t];
         let next_val_hash_path = vec![false_t, false_t, false_t, true_t];
@@ -453,6 +449,7 @@ impl<
             );
 
         // Confirms the header from the proof of {validator_hash, next_validators_hash, data_hash, last_block_id} all match the header
+        // TODO: Remove proofs for data_hash and next_validators_hash. They are not needed.
         self.assert_is_equal(*header, header_from_data_root_proof);
         self.assert_is_equal(*header, header_from_validator_root_proof);
         self.assert_is_equal(*header, header_from_next_validators_root_proof);
