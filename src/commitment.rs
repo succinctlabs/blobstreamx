@@ -8,17 +8,15 @@ use plonky2x::backend::circuit::PlonkParameters;
 use plonky2x::frontend::ecc::ed25519::curve::curve_types::Curve;
 use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
 
-use itertools::Itertools;
-
 use plonky2x::frontend::merkle::tree::MerkleInclusionProofVariable;
-use plonky2x::frontend::num::u32::gadgets::arithmetic_u32::{CircuitBuilderU32, U32Target};
+use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::frontend::vars::{ArrayVariable, Bytes32Variable, EvmVariable, U32Variable};
 use plonky2x::prelude::{
     BoolVariable, ByteVariable, BytesVariable, CircuitBuilder, CircuitVariable, Variable,
 };
 
 use crate::utils::{
-    I64Target, HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES,
+    HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES,
     PROTOBUF_VARINT_SIZE_BYTES, VARINT_SIZE_BYTES,
 };
 use crate::validator::TendermintValidator;
@@ -147,22 +145,14 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
     type Curve = Ed25519;
 
     fn marshal_u32_as_varint(&mut self, num: &U32Variable) -> BytesVariable<9> {
-        let zero_u32 = self.api.constant_u32(0);
         // Lower bytes, then the upper bytes
-        let voting_power = I64Target([U32Target(num.targets()[0]), zero_u32]);
-        let marshalled_bits = self.api.marshal_int64_varint(&voting_power);
+        let voting_power_limbs = [*num, self.constant::<U32Variable>(0)];
+        let voting_power = U64Variable {
+            limbs: voting_power_limbs,
+            _marker: std::marker::PhantomData,
+        };
 
-        // Convert marshalled_bits to BytesVariable<9>.
-        let marshalled_bytes = marshalled_bits
-            .chunks(8)
-            .map(|chunk| {
-                // Reverse bit order in each byte (f_bits_to_bytes).
-                let targets = chunk.iter().rev().map(|b| b.target).collect_vec();
-                ByteVariable::from_targets(&targets)
-            })
-            .collect_vec();
-
-        BytesVariable(marshalled_bytes.try_into().unwrap())
+        BytesVariable(self.marshal_int64_varint(&voting_power))
     }
 
     fn encode_marshalled_varint(
@@ -278,8 +268,13 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
             leaves.push(self.encode_data_root_tuple(&data_hashes[i], &block_height));
         }
 
-        let leaves = ArrayVariable::<BytesVariable<64>, WINDOW_RANGE>::new(leaves);
-        let root = self.compute_root_from_leaves::<WINDOW_RANGE, NB_LEAVES, 64>(&leaves);
+        leaves.resize(NB_LEAVES, self.constant::<BytesVariable<64>>([0u8; 64]));
+
+        let mut leaves_enabled = Vec::new();
+        leaves_enabled.resize(WINDOW_RANGE, self.constant::<BoolVariable>(true));
+        leaves_enabled.resize(NB_LEAVES, self.constant::<BoolVariable>(false));
+
+        let root = self.compute_root_from_leaves::<NB_LEAVES, 64>(leaves, leaves_enabled);
 
         // Return the root hash.
         root
@@ -381,10 +376,10 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
     }
 }
 
+// To run tests with logs (i.e. to see proof generation time), set the environment variable `RUST_LOG=debug` before the test command.
+// Alternatively, add env::set_var("RUST_LOG", "debug") to the top of the test.
 #[cfg(test)]
 pub(crate) mod tests {
-    use std::env;
-
     use super::*;
     use curta::math::goldilocks::cubic::GoldilocksCubicParameters;
     use plonky2::plonk::config::PoseidonGoldilocksConfig;
@@ -403,7 +398,6 @@ pub(crate) mod tests {
 
     #[test]
     fn test_prove_data_commitment() {
-        env::set_var("RUST_LOG", "debug");
         env_logger::try_init().unwrap_or_default();
 
         let mut builder = CircuitBuilder::<L, D>::new();
@@ -443,7 +437,6 @@ pub(crate) mod tests {
 
     #[test]
     fn test_data_commitment() {
-        env::set_var("RUST_LOG", "debug");
         env_logger::try_init().unwrap_or_default();
 
         let mut builder = CircuitBuilder::<L, D>::new();
@@ -478,7 +471,6 @@ pub(crate) mod tests {
 
     #[test]
     fn test_prove_header_chain() {
-        env::set_var("RUST_LOG", "debug");
         env_logger::try_init().unwrap_or_default();
 
         let mut builder = CircuitBuilder::<L, D>::new();
@@ -504,7 +496,6 @@ pub(crate) mod tests {
 
     #[test]
     fn test_encode_varint() {
-        env::set_var("RUST_LOG", "debug");
         env_logger::try_init().unwrap_or_default();
 
         let mut builder = CircuitBuilder::<L, D>::new();
@@ -526,7 +517,6 @@ pub(crate) mod tests {
 
     #[test]
     fn test_encode_data_root_tuple() {
-        env::set_var("RUST_LOG", "debug");
         env_logger::try_init().unwrap_or_default();
 
         let mut builder = CircuitBuilder::<L, D>::new();

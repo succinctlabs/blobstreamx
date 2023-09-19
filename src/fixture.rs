@@ -17,7 +17,6 @@ use subtle_encoding::hex;
 use tendermint::{merkle::simple_hash_from_byte_vectors, validator::Set as ValidatorSet, Hash};
 use tendermint_proto::types::BlockId as RawBlockId;
 use tendermint_proto::Protobuf;
-
 #[derive(Debug, Deserialize)]
 struct SignedBlockResponse {
     result: TempSignedBlock,
@@ -442,12 +441,6 @@ pub(crate) mod tests {
 
     use super::*;
     use sha2::Sha256;
-
-    #[tokio::test]
-    async fn calculate_data_commitment() {
-        // End exclusive range: https://github.com/celestiaorg/celestia-core/blob/main/rpc/core/blocks.go#L537-L538
-        generate_data_commitment(3800, 3804).await
-    }
 
     #[test]
     fn test_encoding() {

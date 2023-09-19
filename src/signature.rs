@@ -6,15 +6,9 @@
 //! The `pubkey` is encoded as the raw list of bytes used in the public key. The `varint` is
 //! encoded using protobuf's default integer encoding, which consist of 7 bit payloads. You can
 //! read more about them here: https://protobuf.dev/programming-guides/encoding/#varints.
-use curta::math::extension::cubic::parameters::CubicParameters;
 use curta::math::field::Field;
-use curta::plonky2::stark::config::CurtaConfig;
 use num::BigUint;
-use plonky2::field::extension::Extendable;
 use plonky2::field::types::PrimeField;
-use plonky2::hash::hash_types::RichField;
-use plonky2::iop::target::BoolTarget;
-use plonky2::iop::target::Target;
 use plonky2x::frontend::ecc::ed25519::curve::curve_types::AffinePoint;
 use plonky2x::frontend::ecc::ed25519::curve::curve_types::Curve;
 use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
@@ -22,10 +16,7 @@ use plonky2x::frontend::ecc::ed25519::field::ed25519_scalar::Ed25519Scalar;
 use plonky2x::frontend::ecc::ed25519::gadgets::curve::AffinePointTarget;
 use plonky2x::frontend::ecc::ed25519::gadgets::curve::CircuitBuilderCurve;
 use plonky2x::frontend::ecc::ed25519::gadgets::eddsa::verify_variable_signatures_circuit;
-use plonky2x::frontend::ecc::ed25519::gadgets::eddsa::EDDSAVariableTargets;
-use plonky2x::frontend::ecc::ed25519::gadgets::eddsa::{
-    verify_signatures_circuit, EDDSAPublicKeyTarget, EDDSASignatureTarget,
-};
+use plonky2x::frontend::ecc::ed25519::gadgets::eddsa::EDDSASignatureTarget;
 use plonky2x::frontend::num::nonnative::nonnative::CircuitBuilderNonNative;
 use plonky2x::frontend::num::nonnative::nonnative::NonNativeTarget;
 use plonky2x::frontend::vars::U32Variable;
@@ -34,14 +25,9 @@ use plonky2x::prelude::Bytes32Variable;
 use plonky2x::prelude::BytesVariable;
 use plonky2x::prelude::CircuitBuilder;
 use plonky2x::prelude::PlonkParameters;
-use plonky2x::prelude::Variable;
 
-use crate::utils::to_be_bits;
 use crate::utils::ValidatorMessageVariable;
-use crate::utils::{
-    TendermintHashTarget, ValidatorMessageTarget, HASH_SIZE_BITS,
-    VALIDATOR_MESSAGE_BYTES_LENGTH_MAX,
-};
+use crate::utils::VALIDATOR_MESSAGE_BYTES_LENGTH_MAX;
 
 pub struct DummySignatureTarget<C: Curve> {
     // TODO: Change back to EDDSAPublicKeyTarget after type alias on EDDSAPublicKeyTarget
@@ -52,15 +38,15 @@ pub struct DummySignatureTarget<C: Curve> {
 }
 
 // Private key is [0u8; 32]
-const DUMMY_PUBLIC_KEY: [u8; 32] = [
+pub const DUMMY_PUBLIC_KEY: [u8; 32] = [
     59, 106, 39, 188, 206, 182, 164, 45, 98, 163, 168, 208, 42, 111, 13, 115, 101, 50, 21, 119, 29,
     226, 67, 166, 58, 192, 72, 161, 139, 89, 218, 41,
 ];
-const DUMMY_MSG: [u8; 32] = [0u8; 32];
-const DUMMY_MSG_LENGTH_BYTES: u32 = 32;
-const DUMMY_MSG_LENGTH_BITS: u32 = 256;
+pub const DUMMY_MSG: [u8; 32] = [0u8; 32];
+pub const DUMMY_MSG_LENGTH_BYTES: u32 = 32;
+pub const DUMMY_MSG_LENGTH_BITS: u32 = 256;
 // dummy_msg signed by the dummy private key
-const DUMMY_SIGNATURE: [u8; 64] = [
+pub const DUMMY_SIGNATURE: [u8; 64] = [
     61, 161, 235, 223, 169, 110, 221, 24, 29, 190, 54, 89, 209, 192, 81, 196, 49, 240, 86, 165,
     173, 106, 151, 166, 13, 92, 202, 16, 70, 4, 56, 120, 53, 70, 70, 30, 49, 40, 95, 197, 159, 145,
     199, 7, 38, 66, 116, 80, 97, 226, 69, 29, 95, 243, 59, 204, 216, 195, 199, 77, 171, 202, 246,
@@ -126,7 +112,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintSignature<L, D> for Circui
 
         let message = self.zero::<BytesVariable<VALIDATOR_MESSAGE_BYTES_LENGTH_MAX>>();
 
-        // TODO: Change to DUMMY_MSG_LENGTH_BYTES once we switch verify_variable_signatures.
+        // TODO: Change to DUMMY_MSG_LENGTH_BYTES once verify_variable_signatures uses CircuitVariable.
         let dummy_msg_length = self.constant::<U32Variable>(DUMMY_MSG_LENGTH_BITS);
 
         DummySignatureTarget {
@@ -165,8 +151,9 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintSignature<L, D> for Circui
 
         const INCLUDING_ROUND_START_IDX: usize = 25;
 
-        let round_missing_header = self.extract_hash_from_protobuf::<MISSING_ROUND_START_IDX, VALIDATOR_MESSAGE_BYTES_LENGTH_MAX>(&message);
-        let round_present_header = self.extract_hash_from_protobuf::<INCLUDING_ROUND_START_IDX, VALIDATOR_MESSAGE_BYTES_LENGTH_MAX>(&message);
+        let round_missing_header = self.extract_hash_from_protobuf::<MISSING_ROUND_START_IDX, VALIDATOR_MESSAGE_BYTES_LENGTH_MAX>(message);
+
+        let round_present_header = self.extract_hash_from_protobuf::<INCLUDING_ROUND_START_IDX, VALIDATOR_MESSAGE_BYTES_LENGTH_MAX>(message);
 
         let computed_header = self.select(
             round_present_in_message,
@@ -224,7 +211,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintSignature<L, D> for Circui
 
             // TODO: REMOVE THESE CONSTRAINTS AFTER VERIFY_VARIABLE_SIGNATURES_CIRCUIT is ported
             // TODO: Check the endianness of msg if this fails
-            let msg_bool_targets = self.to_le_bits(msg);
+            let msg_bool_targets = self.to_be_bits(msg);
             for j in 0..VALIDATOR_MESSAGE_BITS_LENGTH_MAX {
                 self.api
                     .connect(eddsa_target.msgs[i][j].target, msg_bool_targets[j].0 .0);
@@ -246,29 +233,22 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintSignature<L, D> for Circui
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use curta::math::goldilocks::cubic::GoldilocksCubicParameters;
-    use curta::plonky2::stark::config::CurtaPoseidonGoldilocksConfig;
+    use ethers::types::H256;
     use num::BigUint;
-    use plonky2::field::goldilocks_field::GoldilocksField;
     use plonky2::field::types::Field;
-    use plonky2::{
-        iop::witness::{PartialWitness, WitnessWrite},
-        plonk::{circuit_data::CircuitConfig, config::PoseidonGoldilocksConfig},
-    };
     use plonky2x::frontend::ecc::ed25519::curve::eddsa::{
         verify_message, EDDSAPublicKey, EDDSASignature,
     };
-    use plonky2x::prelude::{bytes, CircuitBuilder, DefaultParameters};
+    use plonky2x::frontend::ecc::ed25519::gadgets::eddsa::EDDSASignatureTargetValue;
+    use plonky2x::prelude::{ArrayVariable, DefaultBuilder};
     use subtle_encoding::hex;
-
-    use plonky2x::frontend::num::biguint::CircuitBuilderBiguint;
 
     use plonky2x::frontend::ecc::ed25519::curve::curve_types::AffinePoint;
     use plonky2x::frontend::ecc::ed25519::field::ed25519_scalar::Ed25519Scalar;
     use tendermint::crypto::ed25519::SigningKey;
     use tendermint::private_key;
 
-    use crate::utils::{to_be_bits, to_le_bits};
+    use crate::utils::{to_be_bits, TendermintHashVariable};
 
     #[test]
     fn test_generate_signature() {
@@ -292,31 +272,34 @@ pub(crate) mod tests {
     }
 
     fn verify_eddsa_signature(msg_bytes: Vec<u8>, pub_key_bytes: Vec<u8>, sig_bytes: Vec<u8>) {
-        type L = DefaultParameters;
-        type F = <L as PlonkParameters<D>>::Field;
         type Curve = Ed25519;
-        type C = PoseidonGoldilocksConfig;
-        type E = GoldilocksCubicParameters;
-        const D: usize = 2;
 
-        let mut builder = CircuitBuilder::<L, D>::new();
+        let mut builder = DefaultBuilder::new();
+
+        let validator_active = builder.read::<ArrayVariable<BoolVariable, 1>>();
+        let msg_bytes_variable = builder.read::<ArrayVariable<BytesVariable<124>, 1>>();
+        let msg_bit_length_t = builder.read::<ArrayVariable<U32Variable, 1>>();
+        let eddsa_sig_target = builder.read::<ArrayVariable<EDDSASignatureTarget<Curve>, 1>>();
+        let eddsa_pub_key_target = builder.read::<ArrayVariable<AffinePointTarget<Curve>, 1>>();
+
+        builder.verify_signatures::<1>(
+            &validator_active.as_vec(),
+            msg_bytes_variable.as_vec(),
+            msg_bit_length_t.as_vec(),
+            eddsa_sig_target.as_vec(),
+            eddsa_pub_key_target.as_vec(),
+        );
+
+        let circuit = builder.build();
 
         let mut new_msg_bytes = msg_bytes.clone();
 
         new_msg_bytes.resize(VALIDATOR_MESSAGE_BYTES_LENGTH_MAX, 0u8);
 
-        let msg_bytes_variable = builder
-            .constant::<BytesVariable<VALIDATOR_MESSAGE_BYTES_LENGTH_MAX>>(
-                new_msg_bytes.clone().try_into().unwrap(),
-            );
-
-        let msg_bit_length_t = builder.constant::<U32Variable>(msg_bytes.len() as u32 * 8);
+        let msg_bit_length_t = msg_bytes.len() as u32 * 8;
 
         let pub_key_uncompressed: AffinePoint<Curve> =
             AffinePoint::new_from_compressed_point(&pub_key_bytes);
-
-        let eddsa_pub_key_target =
-            EDDSAPublicKeyTarget(builder.api.constant_affine_point(pub_key_uncompressed));
 
         let sig_r = AffinePoint::new_from_compressed_point(&sig_bytes[0..32]);
         assert!(sig_r.is_valid());
@@ -332,28 +315,15 @@ pub(crate) mod tests {
         ));
         println!("verified signature");
 
-        let sig_r_target = builder.api.constant_affine_point(sig_r);
-        let sig_s_biguint_target = builder.api.constant_biguint(&sig_s_biguint);
-        let sig_s_target = builder.api.biguint_to_nonnative(&sig_s_biguint_target);
-
-        let eddsa_sig_target = EDDSASignatureTarget {
-            r: sig_r_target,
-            s: sig_s_target,
-        };
-
-        let validator_active = vec![builder._false()];
-
-        builder.verify_signatures::<1>(
-            &validator_active,
-            vec![msg_bytes_variable],
-            vec![msg_bit_length_t],
-            vec![eddsa_sig_target],
-            vec![eddsa_pub_key_target.0],
-        );
-
-        let circuit = builder.build();
-
-        let input = circuit.input();
+        let mut input = circuit.input();
+        input.write::<ArrayVariable<BoolVariable, 1>>(vec![true]);
+        input
+            .write::<ArrayVariable<BytesVariable<124>, 1>>(vec![new_msg_bytes.try_into().unwrap()]);
+        input.write::<ArrayVariable<U32Variable, 1>>(vec![msg_bit_length_t]);
+        input.write::<ArrayVariable<EDDSASignatureTarget<Curve>, 1>>(vec![
+            EDDSASignatureTargetValue { r: sig_r, s: sig_s },
+        ]);
+        input.write::<ArrayVariable<AffinePointTarget<Curve>, 1>>(vec![pub_key_uncompressed]);
         let (proof, output) = circuit.prove(&input);
         circuit.verify(&proof, &input, &output);
     }
@@ -387,5 +357,39 @@ pub(crate) mod tests {
             DUMMY_PUBLIC_KEY.to_vec(),
             DUMMY_SIGNATURE.to_vec(),
         )
+    }
+
+    #[test]
+    fn test_verify_hash_in_message() {
+        // This is a test case generated from block 144094 of Celestia's Mocha 3 testnet
+        // Block Hash: 8909e1b73b7d987e95a7541d96ed484c17a4b0411e98ee4b7c890ad21302ff8c (needs to be lower case)
+        // Signed Message (from the last validator): 6b080211de3202000000000022480a208909e1b73b7d987e95a7541d96ed484c17a4b0411e98ee4b7c890ad21302ff8c12240801122061263df4855e55fcab7aab0a53ee32cf4f29a1101b56de4a9d249d44e4cf96282a0b089dce84a60610ebb7a81932076d6f6368612d33
+        // No round exists in present the message that was signed above
+
+        env_logger::try_init().unwrap_or_default();
+
+        // Define the circuit
+        let mut builder = DefaultBuilder::new();
+        let message = builder.read::<ValidatorMessageVariable>();
+        let header_hash = builder.read::<TendermintHashVariable>();
+        let round_present_in_message = builder.read::<BoolVariable>();
+        let verified =
+            builder.verify_hash_in_message(&message, header_hash, round_present_in_message);
+        builder.write(verified);
+        let circuit = builder.build();
+
+        let header_hash =
+            hex::decode("8909e1b73b7d987e95a7541d96ed484c17a4b0411e98ee4b7c890ad21302ff8c")
+                .unwrap();
+        let header_hash_h256 = H256::from_slice(&header_hash);
+        let mut signed_message = hex::decode("6b080211de3202000000000022480a208909e1b73b7d987e95a7541d96ed484c17a4b0411e98ee4b7c890ad21302ff8c12240801122061263df4855e55fcab7aab0a53ee32cf4f29a1101b56de4a9d249d44e4cf96282a0b089dce84a60610ebb7a81932076d6f6368612d33").unwrap();
+        signed_message.resize(VALIDATOR_MESSAGE_BYTES_LENGTH_MAX, 0u8);
+        let mut input = circuit.input();
+        input.write::<ValidatorMessageVariable>(signed_message.try_into().unwrap());
+        input.write::<TendermintHashVariable>(header_hash_h256);
+        input.write::<BoolVariable>(false);
+        let (_, mut output) = circuit.prove(&input);
+        let verified = output.read::<BoolVariable>();
+        assert!(verified);
     }
 }
