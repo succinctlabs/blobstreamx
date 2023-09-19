@@ -15,6 +15,7 @@ use plonky2x::prelude::{
     BoolVariable, ByteVariable, BytesVariable, CircuitBuilder, CircuitVariable, Variable,
 };
 
+use crate::header::TendermintHeader;
 use crate::utils::{
     HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES,
     PROTOBUF_VARINT_SIZE_BYTES, VARINT_SIZE_BYTES,
@@ -81,7 +82,6 @@ pub trait CelestiaCommitment<L: PlonkParameters<D>, const D: usize> {
         &mut self,
         header: Bytes32Variable,
         proof: &ArrayVariable<Bytes32Variable, HEADER_PROOF_DEPTH>,
-        path: &ArrayVariable<BoolVariable, HEADER_PROOF_DEPTH>,
         height: &U32Variable,
         encoded_height_byte_length: U32Variable,
     );
@@ -198,10 +198,13 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
         &mut self,
         header: Bytes32Variable,
         proof: &ArrayVariable<Bytes32Variable, HEADER_PROOF_DEPTH>,
-        path: &ArrayVariable<BoolVariable, HEADER_PROOF_DEPTH>,
         height: &U32Variable,
         encoded_height_byte_length: U32Variable,
     ) {
+        let false_t = self._false();
+        let true_t = self._true();
+        let block_height_path = vec![false_t, true_t, false_t, false_t];
+
         // Verify the current header height proof against the current header.
         let encoded_height = self.marshal_u32_as_varint(&height);
         let encoded_height = self.encode_marshalled_varint(&encoded_height);
@@ -230,8 +233,11 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
             encoded_height_byte_length,
         );
 
-        let computed_root = self
-            .get_root_from_merkle_proof_hashed_leaf::<HEADER_PROOF_DEPTH>(&proof, &path, leaf_hash);
+        let computed_root = self.get_root_from_merkle_proof_hashed_leaf::<HEADER_PROOF_DEPTH>(
+            &proof,
+            &block_height_path.try_into().unwrap(),
+            leaf_hash,
+        );
 
         self.assert_is_equal(computed_root, header);
     }
@@ -301,7 +307,6 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
         self.verify_block_height(
             input.current_header.header,
             &input.current_header.header_height_proof.aunts,
-            &input.current_header.header_height_proof.path_indices,
             &input.current_header.height,
             input.current_header.height_byte_length,
         );
@@ -310,7 +315,6 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
         self.verify_block_height(
             input.trusted_header.header,
             &input.trusted_header.header_height_proof.aunts,
-            &input.trusted_header.header_height_proof.path_indices,
             &input.trusted_header.height,
             input.trusted_header.height_byte_length,
         );

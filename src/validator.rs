@@ -1,6 +1,7 @@
+use crate::header::TendermintHeader;
 use crate::utils::TendermintHashVariable;
 use crate::utils::{
-    MarshalledValidatorVariable, VALIDATOR_BYTE_LENGTH_MAX, VOTING_POWER_BYTES_LENGTH_MAX,
+    MarshalledValidatorVariable, VALIDATOR_BYTE_LENGTH_MAX, VARINT_BYTES_LENGTH_MAX,
 };
 use plonky2x::frontend::ecc::ed25519::curve::curve_types::Curve;
 use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
@@ -16,12 +17,6 @@ use plonky2x::prelude::{
 
 pub trait TendermintValidator<L: PlonkParameters<D>, const D: usize> {
     type Curve: Curve;
-
-    /// Serializes an int64 as a protobuf varint.
-    fn marshal_int64_varint(
-        &mut self,
-        num: &U64Variable,
-    ) -> [ByteVariable; VOTING_POWER_BYTES_LENGTH_MAX];
 
     /// Serializes the validator public key and voting power to bytes.
     /// The protobuf encoding of a Tendermint validator is a deterministic function of the validator's
@@ -62,92 +57,6 @@ pub trait TendermintValidator<L: PlonkParameters<D>, const D: usize> {
 
 impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for CircuitBuilder<L, D> {
     type Curve = Ed25519;
-
-    fn marshal_int64_varint(
-        &mut self,
-        voting_power: &U64Variable,
-    ) -> [ByteVariable; VOTING_POWER_BYTES_LENGTH_MAX] {
-        let zero = self.zero::<Variable>();
-        let one = self.one::<Variable>();
-
-        // The remaining bytes of the serialized validator are the voting power as a "varint".
-        // Note: need to be careful regarding U64 and I64 differences.
-        let voting_power_bits = self.to_le_bits(*voting_power);
-
-        // Check that the MSB of the voting power is zero.
-        self.api
-            .assert_zero(voting_power_bits[voting_power_bits.len() - 1].0 .0);
-
-        // The septet (7 bit) payloads  of the "varint".
-        let septets = (0..VOTING_POWER_BYTES_LENGTH_MAX)
-            .map(|i| {
-                let mut base = L::Field::ONE;
-                let mut septet = self.zero::<Variable>();
-                for j in 0..7 {
-                    let bit = voting_power_bits[i * 7 + j];
-                    septet = Variable(self.api.mul_const_add(base, bit.0 .0, septet.0));
-                    base *= L::Field::TWO;
-                }
-                septet
-            })
-            .collect::<Vec<_>>();
-
-        // Calculates whether the septet is not zero.
-        let is_zero_septets = (0..VOTING_POWER_BYTES_LENGTH_MAX)
-            .map(|i| self.is_equal(septets[i], zero))
-            .collect::<Vec<_>>();
-
-        // Calculates the index of the last non-zero septet.
-        let mut last_seen_non_zero_septet_idx = self.zero();
-        for i in 0..VOTING_POWER_BYTES_LENGTH_MAX {
-            // Ok to cast as BoolVariable since is_zero_septets[i] is 0 or 1 so result is either 0 or 1
-            let is_nonzero_septet = BoolVariable(self.sub(one, is_zero_septets[i].0));
-            let idx = self.constant::<Variable>(L::Field::from_canonical_usize(i));
-            last_seen_non_zero_septet_idx =
-                self.select(is_nonzero_septet, idx, last_seen_non_zero_septet_idx);
-        }
-
-        let mut res = [self.zero(); VOTING_POWER_BYTES_LENGTH_MAX];
-
-        // If the index of a septet is elss than the last non-zero septet, set the most significant
-        // bit of the byte to 1 and copy the septet bits into the lower 7 bits. Otherwise, still
-        // copy the bit but the set the most significant bit to zero.
-        for i in 0..VOTING_POWER_BYTES_LENGTH_MAX {
-            // If the index is less than the last non-zero septet index, `diff` will be in
-            // [0, VOTING_POWER_BYTES_LENGTH_MAX).
-            let idx = self.constant(L::Field::from_canonical_usize(i + 1));
-            let diff = self.sub(last_seen_non_zero_septet_idx, idx);
-
-            // Calculates whether we've seen at least one `diff` in [0, VOTING_POWER_BYTES_LENGTH_MAX).
-            let mut is_lt_last_non_zero_septet_idx = self._false();
-            for j in 0..VOTING_POWER_BYTES_LENGTH_MAX {
-                let candidate_idx = self.constant(L::Field::from_canonical_usize(j));
-                let is_candidate = self.is_equal(diff, candidate_idx);
-                is_lt_last_non_zero_septet_idx =
-                    self.or(is_lt_last_non_zero_septet_idx, is_candidate);
-            }
-
-            let mut buffer = [self._false(); 8];
-            // Copy septet bits into the buffer.
-            for j in 0..7 {
-                let bit = voting_power_bits[i * 7 + j];
-                buffer[j] = bit;
-            }
-
-            // Set the most significant bit of the byte to 1 if the index is less than the last
-            // non-zero septet index.
-            buffer[7] = is_lt_last_non_zero_septet_idx;
-
-            // Reverse the buffer to BE since ByteVariable interprets variables as BE
-            buffer.reverse();
-
-            res[i] = ByteVariable::from_variables_unsafe(
-                &buffer.iter().map(|x| x.0).collect::<Vec<Variable>>(),
-            );
-        }
-
-        return res;
-    }
 
     fn marshal_tendermint_validator(
         &mut self,
