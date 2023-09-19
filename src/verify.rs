@@ -17,7 +17,10 @@ use crate::utils::{
 };
 use crate::{
     signature::TendermintSignature,
-    utils::{MarshalledValidatorVariable, PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES},
+    utils::{
+        MarshalledValidatorVariable, HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES,
+        PROTOBUF_HASH_SIZE_BYTES,
+    },
     validator::TendermintValidator,
     voting::TendermintVoting,
 };
@@ -107,7 +110,6 @@ pub struct BaseBlockProofVariable<
 pub trait TendermintVerify<
     L: PlonkParameters<D>,
     const D: usize,
-    const HEADER_PROOF_DEPTH: usize,
     const VALIDATOR_SET_SIZE_MAX: usize,
 >
 {
@@ -200,12 +202,8 @@ pub trait TendermintVerify<
     );
 }
 
-impl<
-        L: PlonkParameters<D>,
-        const D: usize,
-        const HEADER_PROOF_DEPTH: usize,
-        const VALIDATOR_SET_SIZE_MAX: usize,
-    > TendermintVerify<L, D, HEADER_PROOF_DEPTH, VALIDATOR_SET_SIZE_MAX> for CircuitBuilder<L, D>
+impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
+    TendermintVerify<L, D, VALIDATOR_SET_SIZE_MAX> for CircuitBuilder<L, D>
 {
     type Curve = Ed25519;
 
@@ -278,7 +276,6 @@ impl<
         <plonky2x::prelude::CircuitBuilder<L, D> as TendermintVerify<
             L,
             D,
-            HEADER_PROOF_DEPTH,
             VALIDATOR_SET_SIZE_MAX,
         >>::verify_prev_header_in_header(self, header, prev_header, last_block_id_proof);
 
@@ -294,7 +291,6 @@ impl<
         <plonky2x::prelude::CircuitBuilder<L, D> as TendermintVerify<
             L,
             D,
-            HEADER_PROOF_DEPTH,
             VALIDATOR_SET_SIZE_MAX,
         >>::verify_prev_header_next_validators_hash(
             self,
@@ -385,7 +381,6 @@ impl<
         <plonky2x::prelude::CircuitBuilder<L, D> as TendermintVerify<
             L,
             D,
-            HEADER_PROOF_DEPTH,
             VALIDATOR_SET_SIZE_MAX,
         >>::assert_voting_check(
             self,
@@ -420,7 +415,6 @@ impl<
             <plonky2x::prelude::CircuitBuilder<L, D> as TendermintVerify<
                 L,
                 D,
-                HEADER_PROOF_DEPTH,
                 VALIDATOR_SET_SIZE_MAX,
             >>::get_root::<34>(
                 self,
@@ -432,7 +426,6 @@ impl<
             <plonky2x::prelude::CircuitBuilder<L, D> as TendermintVerify<
                 L,
                 D,
-                HEADER_PROOF_DEPTH,
                 VALIDATOR_SET_SIZE_MAX,
             >>::get_root::<34>(
                 self,
@@ -444,7 +437,6 @@ impl<
             <plonky2x::prelude::CircuitBuilder<L, D> as TendermintVerify<
                 L,
                 D,
-                HEADER_PROOF_DEPTH,
                 VALIDATOR_SET_SIZE_MAX,
             >>::get_root::<34>(
                 self,
@@ -474,7 +466,6 @@ impl<
             <plonky2x::prelude::CircuitBuilder<L, D> as TendermintVerify<
                 L,
                 D,
-                HEADER_PROOF_DEPTH,
                 VALIDATOR_SET_SIZE_MAX,
             >>::get_root::<72>(
                 self,
@@ -504,7 +495,6 @@ impl<
             <plonky2x::prelude::CircuitBuilder<L, D> as TendermintVerify<
                 L,
                 D,
-                HEADER_PROOF_DEPTH,
                 VALIDATOR_SET_SIZE_MAX,
             >>::get_root::<34>(
                 self,
@@ -579,7 +569,6 @@ impl<
             <plonky2x::prelude::CircuitBuilder<L, D> as TendermintVerify<
                 L,
                 D,
-                HEADER_PROOF_DEPTH,
                 VALIDATOR_SET_SIZE_MAX,
             >>::get_root::<PROTOBUF_HASH_SIZE_BYTES>(
                 self,
@@ -667,7 +656,6 @@ impl<
         <plonky2x::prelude::CircuitBuilder<L, D> as TendermintVerify<
             L,
             D,
-            HEADER_PROOF_DEPTH,
             VALIDATOR_SET_SIZE_MAX,
         >>::assert_voting_check(
             self,

@@ -52,7 +52,7 @@ pub struct CelestiaHeaderChainProofInputVariable<const WINDOW_RANGE: usize> {
 pub trait CelestiaCommitment<L: PlonkParameters<D>, const D: usize> {
     type Curve: Curve;
 
-    /// Encodes the marshalled varint into a BytesVariable<10>.
+    /// Encodes the marshalled varint into a BytesVariable<11>.
     /// Prepends a 0x00 byte for the leaf prefix and a 0x08 byte to the marshalled varint.
     fn encode_marshalled_varint(
         &mut self,
@@ -164,19 +164,22 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
 
         // Extend encoded_height to 64 bytes for curta_sha256_variable.
         let mut encoded_height_extended = [ByteVariable::init(self); 64];
-        for i in 0..PROTOBUF_VARINT_SIZE_BYTES {
+        for i in 0..PROTOBUF_VARINT_SIZE_BYTES + 1 {
             encoded_height_extended[i] = encoded_height.0[i];
         }
-        for i in PROTOBUF_VARINT_SIZE_BYTES..64 {
+        for i in PROTOBUF_VARINT_SIZE_BYTES + 1..64 {
             encoded_height_extended[i] = self.constant::<ByteVariable>(0u8);
         }
         let encoded_height = BytesVariable::<64>(encoded_height_extended);
+
+        self.watch(&encoded_height, "encoded_height");
 
         let last_chunk = self.constant::<U32Variable>(0);
 
         // Add 1 to the encoded height byte length to account for the 0x00 byte.
         let one_u32 = self.constant::<U32Variable>(1);
         let encoded_height_byte_length = self.add(encoded_height_byte_length, one_u32);
+        self.watch(&encoded_height_byte_length, "encoded_height_byte_length");
 
         // Only one chunk is needed for the encoded height.
         const MAX_NUM_CHUNKS: usize = 1;

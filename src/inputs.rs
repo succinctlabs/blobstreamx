@@ -685,6 +685,17 @@ pub(crate) mod tests {
     use super::*;
 
     #[test]
+    fn test_get_block_height() {
+        let block = get_signed_block_from_fixture(11000);
+        let encoded_block_height = block.header.height.encode_vec();
+        println!("encoded block height: {:?}", encoded_block_height);
+
+        let block = get_signed_block_from_fixture(11001);
+        let encoded_block_height = block.header.height.encode_vec();
+        println!("encoded block height: {:?}", encoded_block_height);
+    }
+
+    #[test]
     fn test_get_header_hash() {
         let block = get_signed_block_from_fixture(10000);
         let header_hash = block.header.hash();
