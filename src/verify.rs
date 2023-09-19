@@ -355,7 +355,6 @@ impl<
             .collect();
 
         // Verifies signatures of the validators
-        // FIXME UNDERCONSTRAINED
         self.verify_signatures::<1>(
             &validators_signed[0..1].to_vec(),
             messages[0..1].to_vec(),
