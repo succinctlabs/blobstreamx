@@ -355,12 +355,12 @@ impl<
             .collect();
 
         // Verifies signatures of the validators
-        self.verify_signatures::<1>(
-            &validators_signed[0..1].to_vec(),
-            messages[0..1].to_vec(),
-            message_bit_lengths[0..1].to_vec(),
-            signatures[0..1].to_vec(),
-            pubkeys[0..1].to_vec(),
+        self.verify_signatures::<VALIDATOR_SET_SIZE_MAX>(
+            &validators_signed,
+            messages,
+            message_bit_lengths,
+            signatures,
+            pubkeys,
         );
 
         // Compute the validators hash
