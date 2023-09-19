@@ -220,7 +220,7 @@ pub fn generate_data_commitment_inputs<const WINDOW_SIZE: usize, F: RichField>(
         data_hashes.push(H256::from_slice(
             fixture.data_hashes[i - start_block].as_bytes(),
         ));
-        block_heights.push(i as u32);
+        block_heights.push(i.into());
     }
 
     CelestiaDataCommitmentProofInput {
@@ -303,7 +303,7 @@ pub fn generate_header_chain_inputs<const WINDOW_SIZE: usize, F: RichField>(
                     .try_into()
                     .unwrap(),
             },
-            height: fixture.current_block,
+            height: fixture.current_block.into(),
             height_byte_length: fixture.encoded_current_height_byte_length,
         },
         trusted_header: HeaderVariableInput {
@@ -319,7 +319,7 @@ pub fn generate_header_chain_inputs<const WINDOW_SIZE: usize, F: RichField>(
                     .try_into()
                     .unwrap(),
             },
-            height: fixture.trusted_block,
+            height: fixture.trusted_block.into(),
             height_byte_length: fixture.encoded_trusted_height_byte_length,
         },
         prev_header_proofs,

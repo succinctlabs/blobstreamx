@@ -1,17 +1,11 @@
-use crate::utils::TendermintHashVariable;
-use crate::utils::{
-    MarshalledValidatorVariable, VALIDATOR_BYTE_LENGTH_MAX, VARINT_BYTES_LENGTH_MAX,
-};
+use crate::utils::VARINT_BYTES_LENGTH_MAX;
 use plonky2x::frontend::ecc::ed25519::curve::curve_types::Curve;
 use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
-use plonky2x::frontend::ecc::ed25519::gadgets::curve::{AffinePointTarget, CircuitBuilderCurve};
 use plonky2x::frontend::uint::uint64::U64Variable;
-use plonky2x::frontend::vars::U32Variable;
 use plonky2x::prelude::Field;
 
 use plonky2x::prelude::{
-    BoolVariable, ByteVariable, BytesVariable, CircuitBuilder, CircuitVariable, PlonkParameters,
-    Variable,
+    BoolVariable, ByteVariable, CircuitBuilder, CircuitVariable, PlonkParameters, Variable,
 };
 
 pub trait TendermintHeader<L: PlonkParameters<D>, const D: usize> {
@@ -119,24 +113,8 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintHeader<L, D> for CircuitBu
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::inputs::{convert_to_h256, get_path_indices, get_signed_block_from_fixture};
-    use crate::utils::{
-        generate_proofs_from_header, hash_all_leaves, proofs_from_byte_slices, HEADER_PROOF_DEPTH,
-        PROTOBUF_BLOCK_ID_SIZE_BYTES,
-    };
-    use crate::validator::TendermintValidator;
-    use ethers::types::H256;
-    use ethers::utils::hex;
-    use itertools::Itertools;
-    use plonky2::field::types::PrimeField;
-    use plonky2x::frontend::ecc::ed25519::curve::curve_types::AffinePoint;
-    use plonky2x::frontend::merkle::tree::{InclusionProof, MerkleInclusionProofVariable};
-    use plonky2x::prelude::{ArrayVariable, Bytes32Variable, DefaultBuilder, GoldilocksField};
-    use sha2::Sha256;
-    use tendermint_proto::types::BlockId as RawBlockId;
-    use tendermint_proto::Protobuf;
 
-    type Curve = Ed25519;
+    use plonky2x::prelude::DefaultBuilder;
 
     #[test]
     fn test_marshal_int64_varint() {
