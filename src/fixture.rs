@@ -1,9 +1,6 @@
 use crate::{
     inputs::{convert_to_h256, get_path_indices, TempMerkleInclusionProof},
-    utils::{
-        generate_proofs_from_header, leaf_hash, SignedBlock, TempSignedBlock,
-        PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES,
-    },
+    utils::{generate_proofs_from_header, leaf_hash, SignedBlock, TempSignedBlock},
 };
 use ethers::abi::AbiEncode;
 use rand::Rng;
@@ -444,12 +441,6 @@ pub(crate) mod tests {
 
     use super::*;
     use sha2::Sha256;
-
-    #[tokio::test]
-    async fn calculate_data_commitment() {
-        // End exclusive range: https://github.com/celestiaorg/celestia-core/blob/main/rpc/core/blocks.go#L537-L538
-        generate_data_commitment(3800, 3804).await
-    }
 
     #[test]
     fn test_encoding() {

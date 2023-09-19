@@ -16,10 +16,9 @@ use crate::utils::{
 use crate::verify::BlockIDInclusionProofVariable;
 use crate::verify::HashInclusionProofVariable;
 use ed25519_consensus::SigningKey;
-use ethers::types::{H256, U64};
+use ethers::types::H256;
 use num::BigUint;
 use plonky2x::frontend::ecc::ed25519::curve::curve_types::AffinePoint;
-use plonky2x::frontend::ecc::ed25519::curve::curve_types::Curve;
 use plonky2x::frontend::ecc::{
     ed25519::curve::ed25519::Ed25519, ed25519::field::ed25519_scalar::Ed25519Scalar,
 };
@@ -116,7 +115,7 @@ fn signature_to_value_type(signature: &Signature) -> SignatureValueType<F> {
     let sig_bytes = signature.as_bytes();
     let sig_r = AffinePoint::new_from_compressed_point(&sig_bytes[0..32]);
     assert!(sig_r.is_valid());
-    let mut sig_s_biguint = BigUint::from_bytes_le(&sig_bytes[32..64]);
+    let sig_s_biguint = BigUint::from_bytes_le(&sig_bytes[32..64]);
     if sig_s_biguint.to_u32_digits().len() == 0 {
         panic!("sig_s_biguint has 0 limbs which will cause problems down the line")
     }
@@ -164,7 +163,7 @@ pub fn get_path_indices(index: u64, total: u64) -> Vec<bool> {
     path_indices
 }
 
-fn get_signed_block_from_fixture(block: usize) -> Box<SignedBlock> {
+pub fn get_signed_block_from_fixture(block: usize) -> Box<SignedBlock> {
     let mut file = String::new();
     file.push_str("./src/fixtures/mocha-3/");
     file.push_str(&block.to_string());
@@ -670,7 +669,7 @@ pub fn generate_skip_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
     // Mutates the base object (which has present_on_trusted_header default set to none)
     update_present_on_trusted_header(&mut base, &block, &trusted_block);
 
-    let hash: Vec<u8> = block.header.hash().into();
+    let hash: Vec<u8> = trusted_block.header.hash().into();
     CelestiaSkipBlockProof {
         trusted_header: H256::from_slice(&hash),
         trusted_validator_hash_proof: validators_hash_proof,
@@ -679,9 +678,18 @@ pub fn generate_skip_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
     }
 }
 
+// To run tests with logs (i.e. to see proof generation time), set the environment variable `RUST_LOG=debug` before the test command.
+// Alternatively, add env::set_var("RUST_LOG", "debug") to the top of the test.
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
+
+    #[test]
+    fn test_get_header_hash() {
+        let block = get_signed_block_from_fixture(10000);
+        let header_hash = block.header.hash();
+        println!("header hash: {}", header_hash);
+    }
 
     #[test]
     fn get_shared_voting_power() {
