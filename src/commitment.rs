@@ -20,7 +20,6 @@ use crate::utils::{
     HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES,
     PROTOBUF_VARINT_SIZE_BYTES, VARINT_SIZE_BYTES,
 };
-use crate::validator::TendermintValidator;
 
 #[derive(Clone, Debug, CircuitVariable)]
 #[value_name(CelestiaDataCommitmentProofInput)]

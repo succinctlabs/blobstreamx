@@ -1,14 +1,11 @@
 use crate::header::TendermintHeader;
 use crate::utils::TendermintHashVariable;
-use crate::utils::{
-    MarshalledValidatorVariable, VALIDATOR_BYTE_LENGTH_MAX, VARINT_BYTES_LENGTH_MAX,
-};
+use crate::utils::{MarshalledValidatorVariable, VALIDATOR_BYTE_LENGTH_MAX};
 use plonky2x::frontend::ecc::ed25519::curve::curve_types::Curve;
 use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
 use plonky2x::frontend::ecc::ed25519::gadgets::curve::{AffinePointTarget, CircuitBuilderCurve};
 use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::frontend::vars::U32Variable;
-use plonky2x::prelude::Field;
 
 use plonky2x::prelude::{
     BoolVariable, ByteVariable, BytesVariable, CircuitBuilder, CircuitVariable, PlonkParameters,
@@ -174,6 +171,7 @@ pub(crate) mod tests {
     use plonky2::field::types::PrimeField;
     use plonky2x::frontend::ecc::ed25519::curve::curve_types::AffinePoint;
     use plonky2x::frontend::merkle::tree::{InclusionProof, MerkleInclusionProofVariable};
+    use plonky2x::prelude::Field;
     use plonky2x::prelude::{ArrayVariable, Bytes32Variable, DefaultBuilder, GoldilocksField};
     use sha2::Sha256;
     use tendermint_proto::types::BlockId as RawBlockId;
