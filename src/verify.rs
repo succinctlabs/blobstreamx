@@ -4,7 +4,7 @@ use plonky2x::{
         gadgets::eddsa::EDDSASignatureTarget,
     },
     frontend::uint::uint64::U64Variable,
-    frontend::vars::U32Variable,
+    frontend::{merkle::tree::MerkleInclusionProofVariable, vars::U32Variable},
     prelude::{
         ArrayVariable, BoolVariable, Bytes32Variable, BytesVariable, CircuitBuilder,
         CircuitVariable, PlonkParameters, RichField, Variable, Witness, WitnessWrite,
@@ -215,8 +215,13 @@ impl<
         path: &ArrayVariable<BoolVariable, HEADER_PROOF_DEPTH>,
         proof: &ArrayVariable<TendermintHashVariable, HEADER_PROOF_DEPTH>,
     ) -> Bytes32Variable {
-        let hashed_leaf = self.leaf_hash(&leaf.0);
-        self.get_root_from_merkle_proof_hashed_leaf(proof, path, hashed_leaf)
+        self.get_root_from_merkle_proof::<HEADER_PROOF_DEPTH, LEAF_SIZE_BYTES>(
+            &MerkleInclusionProofVariable {
+                leaf: leaf.clone(),
+                path_indices: path.clone(),
+                aunts: proof.clone(),
+            },
+        )
     }
 
     fn assert_voting_check(

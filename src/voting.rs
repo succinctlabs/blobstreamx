@@ -203,8 +203,8 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVoting for CircuitBuilder<
         let total_voting_power_convert = u64_variable_to_i64_target_legacy(total_voting_power);
         let threshold_numerator_convert = U32Target(threshold_numerator.0 .0.clone());
         let threshold_denominator_convert = U32Target(threshold_denominator.0 .0.clone());
-        // Threshold is numerator/denominator * total_voting_power
 
+        // Threshold is numerator/denominator * total_voting_power
         // Compute accumulated_voting_power * m
         let scaled_accumulated_vp = mul_i64_by_u32(
             api,
