@@ -23,7 +23,6 @@ use plonky2x::frontend::ecc::{
     ed25519::curve::ed25519::Ed25519, ed25519::field::ed25519_scalar::Ed25519Scalar,
 };
 use plonky2x::prelude::Field;
-use subtle_encoding::hex;
 
 use crate::signature::DUMMY_SIGNATURE;
 use crate::verify::{Validator, ValidatorHashField};
@@ -679,17 +678,11 @@ pub fn generate_skip_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
     }
 }
 
+// To run tests with logs (i.e. to see proof generation time), set the environment variable `RUST_LOG=debug` before the test command.
+// Alternatively, add env::set_var("RUST_LOG", "debug") to the top of the test.
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-
-    #[test]
-    fn test_generate_skip_inputs() {
-        let block = get_signed_block_from_fixture(11000);
-
-        let inputs = generate_skip_inputs::<4>(11000, 11105);
-        // println!("inputs: {:?}", inputs);
-    }
 
     #[test]
     fn test_get_header_hash() {
