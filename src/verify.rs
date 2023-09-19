@@ -693,41 +693,6 @@ pub(crate) mod tests {
     };
     use crate::utils::VALIDATOR_MESSAGE_BYTES_LENGTH_MAX;
 
-    // TODO: this test should be moved to the `signature` file
-    #[test]
-    fn test_verify_hash_in_message() {
-        // This is a test case generated from block 144094 of Celestia's Mocha testnet
-        // Block Hash: 8909e1b73b7d987e95a7541d96ed484c17a4b0411e98ee4b7c890ad21302ff8c (needs to be lower case)
-        // Signed Message (from the last validator): 6b080211de3202000000000022480a208909e1b73b7d987e95a7541d96ed484c17a4b0411e98ee4b7c890ad21302ff8c12240801122061263df4855e55fcab7aab0a53ee32cf4f29a1101b56de4a9d249d44e4cf96282a0b089dce84a60610ebb7a81932076d6f6368612d33
-        // No round exists in present the message that was signed above
-
-        env_logger::try_init().unwrap_or_default();
-
-        // Define the circuit
-        let mut builder = DefaultBuilder::new();
-        let message = builder.read::<ValidatorMessageVariable>();
-        let header_hash = builder.read::<TendermintHashVariable>();
-        let round_present_in_message = builder.read::<BoolVariable>();
-        let verified =
-            builder.verify_hash_in_message(&message, header_hash, round_present_in_message);
-        builder.write(verified);
-        let circuit = builder.build();
-
-        let header_hash =
-            hex::decode("8909e1b73b7d987e95a7541d96ed484c17a4b0411e98ee4b7c890ad21302ff8c")
-                .unwrap();
-        let header_hash_h256 = H256::from_slice(&header_hash);
-        let mut signed_message = hex::decode("6b080211de3202000000000022480a208909e1b73b7d987e95a7541d96ed484c17a4b0411e98ee4b7c890ad21302ff8c12240801122061263df4855e55fcab7aab0a53ee32cf4f29a1101b56de4a9d249d44e4cf96282a0b089dce84a60610ebb7a81932076d6f6368612d33").unwrap();
-        signed_message.resize(VALIDATOR_MESSAGE_BYTES_LENGTH_MAX, 0u8);
-        let mut input = circuit.input();
-        input.write::<ValidatorMessageVariable>(signed_message.try_into().unwrap());
-        input.write::<TendermintHashVariable>(header_hash_h256);
-        input.write::<BoolVariable>(false);
-        let (_, mut output) = circuit.prove(&input);
-        let verified = output.read::<BoolVariable>();
-        assert!(verified);
-    }
-
     fn test_step_template<const VALIDATOR_SET_SIZE_MAX: usize>(block: usize) {
         // env::set_var("RUST_LOG", "debug");
         env_logger::try_init().unwrap_or_default();
@@ -953,8 +918,6 @@ pub(crate) mod tests {
     #[test]
     fn test_skip_small() {
         // Testing skip from 11000 to 11105
-
-        // For now, only test with validator_set_size_max of the same size, Confirms we can set validator_et-isze_max to an arbitrary amount and the circuit should work for all sizes below that
         let trusted_block = 11000;
 
         let block = 11105;
@@ -969,8 +932,6 @@ pub(crate) mod tests {
         // Testing skip from 60000 to 75000
 
         // 75000 has 128 validator max
-
-        // For now, only test with validator_set_size_max of the same size, Confirms we can set validator_et-isze_max to an arbitrary amount and the circuit should work for all sizes below that
         let trusted_block = 60000;
 
         let block = 75000;
