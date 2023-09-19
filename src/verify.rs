@@ -1,12 +1,3 @@
-//! The protobuf encoding of a Tendermint validator is a deterministic function of the validator's
-//! public key (32 bytes) and voting power (int64). The encoding is as follows in bytes:
-//
-//!     10 34 10 32 <pubkey> 16 <varint>
-//
-//! The `pubkey` is encoded as the raw list of bytes used in the public key. The `varint` is
-//! encoded using protobuf's default integer encoding, which consist of 7 bit payloads. You can
-//! read more about them here: https://protobuf.dev/programming-guides/encoding/#varints.
-
 use plonky2x::{
     frontend::ecc::ed25519::{
         curve::{curve_types::Curve, ed25519::Ed25519},
@@ -174,7 +165,7 @@ pub trait TendermintVerify<
     fn verify_trusted_validators(
         &mut self,
         validators: &ArrayVariable<ValidatorVariable<Self::Curve>, VALIDATOR_SET_SIZE_MAX>,
-        trusted_header: &TendermintHashVariable,
+        trusted_header: TendermintHashVariable,
         trusted_validator_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
         trusted_validator_hash_fields: &ArrayVariable<
             ValidatorHashFieldVariable<Self::Curve>,
@@ -191,7 +182,7 @@ pub trait TendermintVerify<
         validator_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
         next_validators_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
         round_present: &BoolVariable,
-        trusted_header: &TendermintHashVariable,
+        trusted_header: TendermintHashVariable,
         trusted_validator_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
         trusted_validator_hash_fields: &ArrayVariable<
             ValidatorHashFieldVariable<Self::Curve>,
@@ -363,15 +354,14 @@ impl<
             .map(|v| v.pubkey.clone())
             .collect();
 
-        // // Verifies signatures of the validators
-        // FIXME UNDERCONSTRAINED
-        // self.verify_signatures::<VALIDATOR_SET_SIZE_MAX>(
-        //     &validators_signed,
-        //     messages,
-        //     message_bit_lengths,
-        //     signatures,
-        //     pubkeys,
-        // );
+        // Verifies signatures of the validators
+        self.verify_signatures::<1>(
+            &validators_signed[0..1].to_vec(),
+            messages[0..1].to_vec(),
+            message_bit_lengths[0..1].to_vec(),
+            signatures[0..1].to_vec(),
+            pubkeys[0..1].to_vec(),
+        );
 
         // Compute the validators hash
         let validators_hash_target = self.hash_validator_set::<VALIDATOR_SET_SIZE_MAX>(
@@ -418,29 +408,18 @@ impl<
             validators_signed.clone(),
         );
 
-        // // Verify that the header is included in each message signed by an enabled validator
+        // Verify that the header is included in each message signed by an enabled validator
         for i in 0..VALIDATOR_SET_SIZE_MAX {
             // Verify that the header is in the message in the correct location
             let hash_in_message =
                 self.verify_hash_in_message(&validators[i].message, *header, *round_present);
-            self.watch(
-                &hash_in_message,
-                format!("verify_header.hash_in_message {}", i).as_str(),
-            );
-            self.watch(
-                &validators_signed[i],
-                format!("verify_header.validators_signed[{}]", i).as_str(),
-            );
 
             // If the validator is enabled, then the hash should be in the message
             // TODO: this might be overconstrained because of the edge case where the validator did not sign
             // but hash is still in message
             // This is likely not a problem since DUMMY_MESSAGE is hardcoded in the circuit
-            // But worth nothing
-
-            // TODO: fix this, this is causing some weird problems with settings Wire values to different quantities
-            // FIXME UNDERCONSTRAINED
-            // self.assert_is_equal(hash_in_message, validators_signed[i]);
+            // But worth noting
+            self.assert_is_equal(hash_in_message, validators_signed[i]);
         }
 
         // Note: Hardcode the path for each of the leaf proofs (otherwise you can prove arbitrary data in the header)
@@ -485,20 +464,6 @@ impl<
                 &next_validators_hash_proof.proof,
             );
 
-        self.watch(
-            &header_from_data_root_proof,
-            "verify_header.header_from_data_root_proof",
-        );
-        self.watch(
-            &header_from_validator_root_proof,
-            "verify_header.header_from_validator_root_proof",
-        );
-        self.watch(
-            &header_from_next_validators_root_proof,
-            "verify_header.header_from_next_validators_root_proof",
-        );
-        self.watch(header, "verify_header.header");
-
         // Confirm that the header from the proof of {validator_hash, next_validators_hash, data_hash, last_block_id} all match the header
         self.assert_is_equal(*header, header_from_data_root_proof);
         self.assert_is_equal(*header, header_from_validator_root_proof);
@@ -529,22 +494,13 @@ impl<
             );
         // TODO: add back a comment here I think
         self.assert_is_equal(header_from_last_block_id_proof, *header);
-        self.watch(
-            &header_from_last_block_id_proof,
-            "verify_prev_header_in_header.header_from_last_block_id_proof",
-        );
-        self.watch(header, "verify_prev_header_in_header.header");
+
         // Extract prev header hash from the encoded leaf (starts at second byte)
         let extracted_prev_header_hash = self
             .extract_hash_from_protobuf::<HASH_START_BYTE, PROTOBUF_BLOCK_ID_SIZE_BYTES>(
                 &last_block_id_proof.enc_leaf,
             );
         self.assert_is_equal(*prev_header, extracted_prev_header_hash);
-        self.watch(
-            &extracted_prev_header_hash,
-            "verify_prev_header_in_header.extracted_prev_header_hash",
-        );
-        self.watch(prev_header, "verify_prev_header_in_header.prev_header");
     }
 
     fn verify_prev_header_next_validators_hash(
@@ -605,7 +561,7 @@ impl<
         validator_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
         next_validators_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
         round_present: &BoolVariable,
-        trusted_header: &TendermintHashVariable,
+        trusted_header: TendermintHashVariable,
         trusted_validator_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
         trusted_validator_hash_fields: &ArrayVariable<
             ValidatorHashFieldVariable<Self::Curve>,
@@ -632,7 +588,7 @@ impl<
     fn verify_trusted_validators(
         &mut self,
         validators: &ArrayVariable<ValidatorVariable<Self::Curve>, VALIDATOR_SET_SIZE_MAX>,
-        trusted_header: &TendermintHashVariable,
+        trusted_header: TendermintHashVariable,
         trusted_validator_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
         trusted_validator_hash_fields: &ArrayVariable<
             ValidatorHashFieldVariable<Self::Curve>,
@@ -651,20 +607,14 @@ impl<
                 D,
                 HEADER_PROOF_DEPTH,
                 VALIDATOR_SET_SIZE_MAX,
-            >>::get_root::<34>(
+            >>::get_root::<PROTOBUF_HASH_SIZE_BYTES>(
                 self,
                 &trusted_validator_hash_proof.enc_leaf,
                 &val_hash_path.try_into().unwrap(),
                 &trusted_validator_hash_proof.proof,
             );
-        self.watch(
-            &header_from_validator_root_proof,
-            "verify_trusted_validators.header_from_validator_root_proof",
-        );
-        self.watch(trusted_header, "verify_trusted_validators.trusted_header");
         // Confirm the validator hash proof matches the trusted header
-        // FIXME UNDERCONSTRAINED
-        // self.assert_is_equal(header_from_validator_root_proof, *trusted_header);
+        self.assert_is_equal(header_from_validator_root_proof, trusted_header);
 
         let marshalled_trusted_validators: Vec<MarshalledValidatorVariable> =
             trusted_validator_hash_fields
@@ -913,7 +863,7 @@ pub(crate) mod tests {
         input.write::<BlockIDInclusionProofVariable<HEADER_PROOF_DEPTH>>(
             celestia_block_proof.last_block_id_proof.into(),
         );
-        input.write::<BoolVariable>(true); // TODO: WHAT IS THIS, WHAT DOES IT MEAN
+        input.write::<BoolVariable>(celestia_block_proof.base.round_present);
 
         let (proof, output) = timed!(timing, "Step proof time", circuit.prove(&input));
         // circuit.verify(&proof, &input, &output);
@@ -962,7 +912,7 @@ pub(crate) mod tests {
             &validator_hash_proof,
             &next_validators_hash_proof,
             &round_present,
-            &trusted_header,
+            trusted_header,
             &trusted_validators_hash_proof,
             &trusted_validators_hash_fields,
         );
@@ -988,7 +938,7 @@ pub(crate) mod tests {
                 .next_validators_hash_proof
                 .into(),
         );
-        input.write::<BoolVariable>(true); // TODO: WHAT IS THIS, WHAT DOES IT MEAN
+        input.write::<BoolVariable>(celestia_skip_block_proof.base.round_present);
         input.write::<TendermintHashVariable>(celestia_skip_block_proof.trusted_header);
         input.write::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>(
             celestia_skip_block_proof
