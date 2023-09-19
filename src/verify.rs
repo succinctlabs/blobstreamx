@@ -354,15 +354,15 @@ impl<
             .map(|v| v.pubkey.clone())
             .collect();
 
-        // // Verifies signatures of the validators
+        // Verifies signatures of the validators
         // FIXME UNDERCONSTRAINED
-        // self.verify_signatures::<VALIDATOR_SET_SIZE_MAX>(
-        //     &validators_signed,
-        //     messages,
-        //     message_bit_lengths,
-        //     signatures,
-        //     pubkeys,
-        // );
+        self.verify_signatures::<1>(
+            &validators_signed[0..1].to_vec(),
+            messages[0..1].to_vec(),
+            message_bit_lengths[0..1].to_vec(),
+            signatures[0..1].to_vec(),
+            pubkeys[0..1].to_vec(),
+        );
 
         // Compute the validators hash
         let validators_hash_target = self.hash_validator_set::<VALIDATOR_SET_SIZE_MAX>(
@@ -409,7 +409,7 @@ impl<
             validators_signed.clone(),
         );
 
-        // // Verify that the header is included in each message signed by an enabled validator
+        // Verify that the header is included in each message signed by an enabled validator
         for i in 0..VALIDATOR_SET_SIZE_MAX {
             // Verify that the header is in the message in the correct location
             let hash_in_message =

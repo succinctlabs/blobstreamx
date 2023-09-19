@@ -211,7 +211,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintSignature<L, D> for Circui
 
             // TODO: REMOVE THESE CONSTRAINTS AFTER VERIFY_VARIABLE_SIGNATURES_CIRCUIT is ported
             // TODO: Check the endianness of msg if this fails
-            let msg_bool_targets = self.to_le_bits(msg);
+            let msg_bool_targets = self.to_be_bits(msg);
             for j in 0..VALIDATOR_MESSAGE_BITS_LENGTH_MAX {
                 self.api
                     .connect(eddsa_target.msgs[i][j].target, msg_bool_targets[j].0 .0);
@@ -318,7 +318,7 @@ pub(crate) mod tests {
             s: sig_s_target,
         };
 
-        let validator_active = vec![builder._false()];
+        let validator_active = vec![builder._true()];
 
         builder.verify_signatures::<1>(
             &validator_active,
