@@ -394,9 +394,9 @@ impl<
         // Verify that the header is included in each message from a signed validator.
         // Verify that each validator marked as signed is enabled.
         for i in 0..VALIDATOR_SET_SIZE_MAX {
-            // If the validator is enabled, then they should have signed
+            // If the validator is signed, assert it is enabled.
             let enabled_and_signed = self.and(validators[i].enabled, validators[i].signed);
-            self.assert_is_equal(enabled_and_signed, validators[i].signed);
+            self.assert_is_equal(validators[i].signed, enabled_and_signed);
 
             // Verify that the header is in the message in the correct location
             let hash_in_message =
