@@ -120,7 +120,7 @@ pub trait TendermintVerify<
         proof: &ArrayVariable<TendermintHashVariable, HEADER_PROOF_DEPTH>,
     ) -> Bytes32Variable;
 
-    /// Verifies that the previous header hash in the block matches the previous header hash in the last block ID.
+    /// Verify the header hash of the previous block matches the current block's parent hash.
     fn verify_prev_header_in_header(
         &mut self,
         header: &TendermintHashVariable,
@@ -128,7 +128,7 @@ pub trait TendermintVerify<
         last_block_id_proof: &BlockIDInclusionProofVariable<HEADER_PROOF_DEPTH>,
     );
 
-    /// Verifies that the previous header hash in the block matches the previous header hash in the last block ID.
+    /// Verify the next validators hash in the previous block matches the current block's validators hash.
     fn verify_prev_header_next_validators_hash(
         &mut self,
         validators_hash: &TendermintHashVariable,
@@ -136,7 +136,7 @@ pub trait TendermintVerify<
         prev_header_next_validators_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
     );
 
-    /// Verifies a Tendermint consensus block.
+    /// Verify a Tendermint consensus block.
     fn verify_header(
         &mut self,
         validators: &ArrayVariable<ValidatorVariable<Self::Curve>, VALIDATOR_SET_SIZE_MAX>,
@@ -147,7 +147,7 @@ pub trait TendermintVerify<
         round_present: &BoolVariable,
     );
 
-    /// Sequentially verifies a Tendermint consensus block.
+    /// Sequentially verify a Tendermint consensus block.
     fn step(
         &mut self,
         validators: &ArrayVariable<ValidatorVariable<Self::Curve>, VALIDATOR_SET_SIZE_MAX>,
@@ -161,7 +161,7 @@ pub trait TendermintVerify<
         round_present: &BoolVariable,
     );
 
-    /// Verifies that the trusted validators have signed the current header.
+    /// Verify the trusted validators have signed the trusted header.
     fn verify_trusted_validators(
         &mut self,
         validators: &ArrayVariable<ValidatorVariable<Self::Curve>, VALIDATOR_SET_SIZE_MAX>,
@@ -173,7 +173,7 @@ pub trait TendermintVerify<
         >,
     );
 
-    /// Verifies a Tendermint block that is non-sequential with the trusted block.
+    /// Verify Tendermint block that is non-sequential with the trusted block.
     fn skip(
         &mut self,
         validators: &ArrayVariable<ValidatorVariable<Self::Curve>, VALIDATOR_SET_SIZE_MAX>,
@@ -190,6 +190,7 @@ pub trait TendermintVerify<
         >,
     );
 
+    // Assert the voting power of the signed validators is greater than the threshold.
     fn assert_voting_check(
         &mut self,
         validators: ArrayVariable<ValidatorVariable<Self::Curve>, VALIDATOR_SET_SIZE_MAX>,
@@ -257,7 +258,7 @@ impl<
         last_block_id_proof: &BlockIDInclusionProofVariable<HEADER_PROOF_DEPTH>,
         round_present: &BoolVariable,
     ) {
-        // Verifies that 2/3 of the validators signed the headers
+        // Verify 2/3 of the validators signed the headers
         self.verify_header(
             validators,
             header,
@@ -267,8 +268,7 @@ impl<
             round_present,
         );
 
-        // Verifies that the previous header hash in the block matches the previous header hash in the last block ID.
-        // self.verify_prev_header_in_header(header, prev_header, last_block_id_proof);
+        // Verify the previous header hash in the block matches the previous header hash in the last block ID.
         // FIXME: why is Rust compiler being weird
         <plonky2x::prelude::CircuitBuilder<L, D> as TendermintVerify<
             L,
@@ -284,12 +284,7 @@ impl<
                 &validator_hash_proof.enc_leaf,
             );
 
-        // Verifies that the next validators hash in the previous block matches the current validators hash
-        // self.verify_prev_header_next_validators_hash(
-        //     &validators_hash,
-        //     prev_header,
-        //     prev_header_next_validators_hash_proof,
-        // );
+        // Verify the next validators hash in the previous block matches the current validators hash
         // FIXME: why is Rust compiler being weird
 
         <plonky2x::prelude::CircuitBuilder<L, D> as TendermintVerify<
@@ -316,24 +311,9 @@ impl<
     ) {
         let false_t = self._false();
         let true_t = self._true();
-        // Verify each of the validators marshal correctly
-        // Assumes the validators are sorted in the correct order
 
         // TODO: clean up below, it's a bit horrendous
-        let byte_lengths: Vec<Variable> = validators
-            .as_vec()
-            .iter()
-            .map(|v| v.validator_byte_length)
-            .collect();
-        let marshalled_validators: Vec<MarshalledValidatorVariable> = validators
-            .as_vec()
-            .iter()
-            .map(|v| self.marshal_tendermint_validator(&v.pubkey, &v.voting_power))
-            .collect();
-        let validators_enabled: Vec<BoolVariable> =
-            validators.as_vec().iter().map(|v| v.enabled).collect();
-
-        // // Fields used for verifying signatures
+        // Fields used for verifying signatures
         let validators_signed: Vec<BoolVariable> =
             validators.as_vec().iter().map(|v| v.signed).collect();
         let messages: Vec<ValidatorMessageVariable> =
@@ -363,6 +343,20 @@ impl<
             pubkeys,
         );
 
+        // Verify each of the validators marshal correctly
+        // Assumes the validators are sorted in the correct order
+        let byte_lengths: Vec<Variable> = validators
+            .as_vec()
+            .iter()
+            .map(|v| v.validator_byte_length)
+            .collect();
+        let marshalled_validators: Vec<MarshalledValidatorVariable> = validators
+            .as_vec()
+            .iter()
+            .map(|v| self.marshal_tendermint_validator(&v.pubkey, &v.voting_power))
+            .collect();
+        let validators_enabled: Vec<BoolVariable> =
+            validators.as_vec().iter().map(|v| v.enabled).collect();
         // Compute the validators hash
         let validators_hash_target = self.hash_validator_set::<VALIDATOR_SET_SIZE_MAX>(
             &marshalled_validators,
@@ -379,22 +373,11 @@ impl<
             );
 
         self.assert_is_equal(extracted_hash, validators_hash_target);
-        self.watch(&extracted_hash, "verify_header.extracted_hash");
-        self.watch(
-            &validators_hash_target,
-            "verify_header.validators_hash_target",
-        );
 
         // Assert the accumulated voting power is greater than the threshold
         let threshold_numerator = self.constant::<U32Variable>(2u32);
         let threshold_denominator = self.constant::<U32Variable>(3u32);
         // TODO: why is rust compiler being so weird
-        // self.assert_voting_check(
-        //     *validators,
-        //     &threshold_numerator,
-        //     &threshold_denominator,
-        //     validators_signed,
-        // );
         <plonky2x::prelude::CircuitBuilder<L, D> as TendermintVerify<
             L,
             D,
@@ -408,8 +391,13 @@ impl<
             validators_signed.clone(),
         );
 
-        // Verify that the header is included in each message signed by an enabled validator
+        // Verify that the header is included in each message from a signed validator.
+        // Verify that each validator marked as signed is enabled.
         for i in 0..VALIDATOR_SET_SIZE_MAX {
+            // If the validator is enabled, then they should have signed
+            let enabled_and_signed = self.and(validators[i].enabled, validators[i].signed);
+            self.assert_is_equal(enabled_and_signed, validators[i].signed);
+
             // Verify that the header is in the message in the correct location
             let hash_in_message =
                 self.verify_hash_in_message(&validators[i].message, *header, *round_present);
@@ -464,7 +452,7 @@ impl<
                 &next_validators_hash_proof.proof,
             );
 
-        // Confirm that the header from the proof of {validator_hash, next_validators_hash, data_hash, last_block_id} all match the header
+        // Confirms the header from the proof of {validator_hash, next_validators_hash, data_hash, last_block_id} all match the header
         self.assert_is_equal(*header, header_from_data_root_proof);
         self.assert_is_equal(*header, header_from_validator_root_proof);
         self.assert_is_equal(*header, header_from_next_validators_root_proof);
@@ -522,16 +510,8 @@ impl<
                 &next_val_hash_path.try_into().unwrap(),
                 &prev_header_next_validators_hash_proof.proof,
             );
-        // Confirm that the prev_header computed from the proof of {next_validators_hash} matches the prev_header
+        // Confirms the prev_header computed from the proof of {next_validators_hash} matches the prev_header
         self.assert_is_equal(header_from_next_validators_root_proof, *prev_header);
-        self.watch(
-            &header_from_next_validators_root_proof,
-            "verify_prev_header_next_validators_hash.header_from_next_validators_root_proof",
-        );
-        self.watch(
-            prev_header,
-            "verify_prev_header_next_validators_hash.prev_header",
-        );
 
         /// Start of the hash in protobuf in next_validators_hash
         const HASH_START_BYTE: usize = 2;
@@ -541,16 +521,8 @@ impl<
             .extract_hash_from_protobuf::<HASH_START_BYTE, PROTOBUF_HASH_SIZE_BYTES>(
                 &prev_header_next_validators_hash_proof.enc_leaf,
             );
-        // Confirm that the current validatorsHash matches the nextValidatorsHash of the prev_header
+        // Confirms the current validatorsHash matches the nextValidatorsHash of the prev_header
         self.assert_is_equal(*validators_hash, extracted_next_validators_hash);
-        self.watch(
-            &extracted_next_validators_hash,
-            "verify_prev_header_next_validators_hash.extracted_next_validators_hash",
-        );
-        self.watch(
-            validators_hash,
-            "verify_prev_header_next_validators_hash.validators_hash",
-        );
     }
 
     fn skip(
@@ -648,11 +620,7 @@ impl<
             .extract_hash_from_protobuf::<HASH_START_BYTE, PROTOBUF_HASH_SIZE_BYTES>(
                 &trusted_validator_hash_proof.enc_leaf,
             );
-        self.watch(
-            &validators_hash_target,
-            "verify_trusted_validators.validators_hash_target",
-        );
-        self.watch(&extracted_hash, "verify_trusted_validators.extracted_hash");
+
         self.assert_is_equal(validators_hash_target, extracted_hash);
 
         // If a validator is present_on_trusted_header, then they should have signed.
@@ -663,23 +631,12 @@ impl<
                 validators[i].present_on_trusted_header,
                 validators[i].signed,
             );
-            self.watch(
-                &validators[i].present_on_trusted_header,
-                format!(
-                    "verify_header.validators[i].present_on_trusted_header {}",
-                    i
-                )
-                .as_str(),
-            );
-            self.watch(
-                &present_and_signed,
-                format!("verify_trusted_validators.present_and_signed[{}]", i).as_str(),
-            );
+
             // If you are present, then you should have signed
             self.assert_is_equal(validators[i].present_on_trusted_header, present_and_signed);
         }
 
-        // If a validator is present, then its pubkey should be present in the trusted validators
+        // If a validator on the new header is present, then its pubkey should be present in the validator set from the trusted header.
         for i in 0..VALIDATOR_SET_SIZE_MAX {
             let mut pubkey_match = self._false();
             for j in 0..VALIDATOR_SET_SIZE_MAX {
@@ -689,21 +646,10 @@ impl<
                 );
                 pubkey_match = self.or(pubkey_match, pubkey_match_idx);
             }
-            // It is possible for a validator to be present on the trusted header, but not have signed this header.
+            // It is possible for a current validator to be present on the trusted header, but not have signed the current header.
             let match_and_present = self.and(pubkey_match, validators[i].present_on_trusted_header);
-            self.watch(
-                &validators[i].present_on_trusted_header,
-                format!(
-                    "verify_header.validators[i].present_on_trusted_header {}",
-                    i
-                )
-                .as_str(),
-            );
-            self.watch(
-                &match_and_present,
-                format!("verify_trusted_validators.match_and_present[{}]", i).as_str(),
-            );
-            // If you are present, then you should have a matching pubkey
+
+            // If a validator is marked as present on the trusted header, then it should be present on the trusted header.
             self.assert_is_equal(validators[i].present_on_trusted_header, match_and_present);
         }
 
@@ -713,8 +659,7 @@ impl<
             .map(|v| v.present_on_trusted_header)
             .collect();
 
-        // The trusted validators must comprise at least 1/3 of the total voting power
-        // Assert the voting power from the trusted validators is greater than the threshold
+        // Assert validators from the trusted block comprise at least 1/3 of the total voting power.
         let threshold_numerator = self.constant::<U32Variable>(1);
         let threshold_denominator = self.constant::<U32Variable>(3);
         <plonky2x::prelude::CircuitBuilder<L, D> as TendermintVerify<
@@ -1009,7 +954,7 @@ pub(crate) mod tests {
     fn test_skip_small() {
         // Testing skip from 11000 to 11105
 
-        // For now, only test with validator_set_size_max of the same size, confirm that we can set validator_et-isze_max to an arbitrary amount and the circuit should work for all sizes below that
+        // For now, only test with validator_set_size_max of the same size, Confirms we can set validator_et-isze_max to an arbitrary amount and the circuit should work for all sizes below that
         let trusted_block = 11000;
 
         let block = 11105;
@@ -1025,7 +970,7 @@ pub(crate) mod tests {
 
         // 75000 has 128 validator max
 
-        // For now, only test with validator_set_size_max of the same size, confirm that we can set validator_et-isze_max to an arbitrary amount and the circuit should work for all sizes below that
+        // For now, only test with validator_set_size_max of the same size, Confirms we can set validator_et-isze_max to an arbitrary amount and the circuit should work for all sizes below that
         let trusted_block = 60000;
 
         let block = 75000;

@@ -112,7 +112,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintSignature<L, D> for Circui
 
         let message = self.zero::<BytesVariable<VALIDATOR_MESSAGE_BYTES_LENGTH_MAX>>();
 
-        // TODO: Change to DUMMY_MSG_LENGTH_BYTES once we switch verify_variable_signatures.
+        // TODO: Change to DUMMY_MSG_LENGTH_BYTES once verify_variable_signatures uses CircuitVariable.
         let dummy_msg_length = self.constant::<U32Variable>(DUMMY_MSG_LENGTH_BITS);
 
         DummySignatureTarget {
