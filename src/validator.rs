@@ -384,7 +384,7 @@ pub(crate) mod tests {
     fn test_hash_validator_leaves() {
         const VALIDATOR_SET_SIZE_MAX: usize = 4;
 
-        env::set_var("RUST_LOG", "debug");
+        // env::set_var("RUST_LOG", "debug");
         env_logger::try_init().unwrap_or_default();
 
         // Define the circuit
@@ -443,7 +443,7 @@ pub(crate) mod tests {
     fn test_generate_validators_hash() {
         const VALIDATOR_SET_SIZE_MAX: usize = 4;
 
-        env::set_var("RUST_LOG", "debug");
+        // env::set_var("RUST_LOG", "debug");
         env_logger::try_init().unwrap_or_default();
 
         // Define the circuit

@@ -784,7 +784,7 @@ pub(crate) mod tests {
     }
 
     fn test_step_template<const VALIDATOR_SET_SIZE_MAX: usize>(block: usize) {
-        env::set_var("RUST_LOG", "debug");
+        // env::set_var("RUST_LOG", "debug");
         env_logger::try_init().unwrap_or_default();
 
         type Curve = Ed25519;
@@ -872,7 +872,7 @@ pub(crate) mod tests {
     }
 
     fn test_skip_template<const VALIDATOR_SET_SIZE_MAX: usize>(trusted_block: usize, block: usize) {
-        env::set_var("RUST_LOG", "debug");
+        // env::set_var("RUST_LOG", "debug");
         env_logger::try_init().unwrap_or_default();
 
         type Curve = Ed25519;

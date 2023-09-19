@@ -442,12 +442,6 @@ pub(crate) mod tests {
     use super::*;
     use sha2::Sha256;
 
-    #[tokio::test]
-    async fn calculate_data_commitment() {
-        // End exclusive range: https://github.com/celestiaorg/celestia-core/blob/main/rpc/core/blocks.go#L537-L538
-        generate_data_commitment(3800, 3804).await
-    }
-
     #[test]
     fn test_encoding() {
         let block_height = 256;

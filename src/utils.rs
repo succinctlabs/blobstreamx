@@ -812,12 +812,4 @@ pub(crate) mod tests {
 
         assert_eq!(current_hash, root_hash);
     }
-
-    #[tokio::test]
-    async fn test_generate_proofs_from_header() {
-        // Generate test cases from Celestia block:
-        let block = get_signed_block_from_rpc(1500).await;
-
-        let (_root, _proofs) = generate_proofs_from_header(&block.header);
-    }
 }

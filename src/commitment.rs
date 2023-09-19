@@ -398,7 +398,7 @@ pub(crate) mod tests {
 
     #[test]
     fn test_prove_data_commitment() {
-        env::set_var("RUST_LOG", "debug");
+        // env::set_var("RUST_LOG", "debug");
         env_logger::try_init().unwrap_or_default();
 
         let mut builder = CircuitBuilder::<L, D>::new();
@@ -438,7 +438,7 @@ pub(crate) mod tests {
 
     #[test]
     fn test_data_commitment() {
-        env::set_var("RUST_LOG", "debug");
+        // env::set_var("RUST_LOG", "debug");
         env_logger::try_init().unwrap_or_default();
 
         let mut builder = CircuitBuilder::<L, D>::new();
@@ -473,7 +473,7 @@ pub(crate) mod tests {
 
     #[test]
     fn test_prove_header_chain() {
-        env::set_var("RUST_LOG", "debug");
+        // env::set_var("RUST_LOG", "debug");
         env_logger::try_init().unwrap_or_default();
 
         let mut builder = CircuitBuilder::<L, D>::new();
@@ -499,7 +499,7 @@ pub(crate) mod tests {
 
     #[test]
     fn test_encode_varint() {
-        env::set_var("RUST_LOG", "debug");
+        // env::set_var("RUST_LOG", "debug");
         env_logger::try_init().unwrap_or_default();
 
         let mut builder = CircuitBuilder::<L, D>::new();
@@ -521,7 +521,7 @@ pub(crate) mod tests {
 
     #[test]
     fn test_encode_data_root_tuple() {
-        env::set_var("RUST_LOG", "debug");
+        // env::set_var("RUST_LOG", "debug");
         env_logger::try_init().unwrap_or_default();
 
         let mut builder = CircuitBuilder::<L, D>::new();
