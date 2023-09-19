@@ -14,14 +14,13 @@
 //!
 //!
 //!
-use log::{debug, info, Log};
 use plonky2x::backend::circuit::Circuit;
 use plonky2x::backend::function::VerifiableFunction;
 use plonky2x::frontend::generator::hint::Hint;
 use plonky2x::frontend::uint::uint64::U64Variable;
-use plonky2x::frontend::vars::{ByteVariable, ValueStream};
+use plonky2x::frontend::vars::ValueStream;
 use plonky2x::prelude::{
-    ArrayVariable, BoolVariable, Bytes32Variable, CircuitBuilder, GoldilocksField, PlonkParameters,
+    ArrayVariable, BoolVariable, Bytes32Variable, CircuitBuilder, PlonkParameters,
 };
 use serde::{Deserialize, Serialize};
 use tokio::runtime::Runtime;
@@ -29,8 +28,7 @@ use tokio::runtime::Runtime;
 use celestia::input_data::{InputDataFetcher, InputDataMode};
 use celestia::utils::HEADER_PROOF_DEPTH;
 use celestia::verify::{
-    BlockIDInclusionProofVariable, HashInclusionProofVariable, TendermintVerify,
-    ValidatorHashFieldVariable, ValidatorVariable,
+    HashInclusionProofVariable, TendermintVerify, ValidatorHashFieldVariable, ValidatorVariable,
 };
 use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
 use plonky2x::frontend::vars::VariableStream; // TODO: re-export this instead of this path
@@ -62,7 +60,7 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize, L: PlonkParameters<D>, const D: usize>
                 result.0,
             );
         output_stream.write_value::<Bytes32Variable>(result.1.into()); // target_header
-        output_stream.write_value::<Bytes32Variable>(result.2); // round_present
+        output_stream.write_value::<BoolVariable>(result.2); // round_present
         output_stream.write_value::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>(
             result.3.to_hash_value_type(),
         );
@@ -77,7 +75,7 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize, L: PlonkParameters<D>, const D: usize>
 }
 
 struct StepCircuit<const MAX_VALIDATOR_SET_SIZE: usize> {
-    config: usize,
+    _config: usize,
 }
 
 impl<const MAX_VALIDATOR_SET_SIZE: usize> Circuit for StepCircuit<MAX_VALIDATOR_SET_SIZE> {
@@ -113,7 +111,7 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize> Circuit for StepCircuit<MAX_VALIDATOR_
             &target_header,
             &target_header_validators_hash_proof,
             &round_present,
-            &trusted_header,
+            trusted_header,
             &trusted_header_validators_hash_proof,
             &trusted_header_validators_hash_fields,
         );
@@ -131,13 +129,10 @@ fn main() {
 mod tests {
     use ethers::types::H256;
     use std::env;
-    use std::path::PathBuf;
 
-    use plonky2x::prelude::{DefaultBuilder, GoldilocksField, PoseidonGoldilocksConfig};
+    use plonky2x::prelude::DefaultBuilder;
 
     use super::*;
-
-    const D: usize = 2;
 
     #[test]
     fn test_circuit_function_skip() {

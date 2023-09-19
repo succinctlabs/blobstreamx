@@ -18,7 +18,6 @@ use plonky2x::frontend::ecc::{
 };
 use plonky2x::prelude::{CircuitVariable, Field, GoldilocksField, RichField};
 use serde::{Deserialize, Serialize};
-use tendermint::block::Header;
 use tendermint::crypto::ed25519::VerificationKey;
 use tendermint::{private_key, Signature};
 use tendermint::{validator::Set as ValidatorSet, vote::SignedVote, vote::ValidatorIndex};
@@ -118,7 +117,7 @@ fn signature_to_value_type<F: RichField>(signature: &Signature) -> SignatureValu
     let sig_bytes = signature.as_bytes();
     let sig_r = AffinePoint::new_from_compressed_point(&sig_bytes[0..32]);
     assert!(sig_r.is_valid());
-    let mut sig_s_biguint = BigUint::from_bytes_le(&sig_bytes[32..64]);
+    let sig_s_biguint = BigUint::from_bytes_le(&sig_bytes[32..64]);
     if sig_s_biguint.to_u32_digits().len() == 0 {
         panic!("sig_s_biguint has 0 limbs which will cause problems down the line")
     }

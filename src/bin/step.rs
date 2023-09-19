@@ -14,14 +14,13 @@
 //!
 //!
 //!
-use log::{debug, info, Log};
 use plonky2x::backend::circuit::Circuit;
 use plonky2x::backend::function::VerifiableFunction;
 use plonky2x::frontend::generator::hint::Hint;
 use plonky2x::frontend::uint::uint64::U64Variable;
-use plonky2x::frontend::vars::{ByteVariable, ValueStream};
+use plonky2x::frontend::vars::ValueStream;
 use plonky2x::prelude::{
-    ArrayVariable, BoolVariable, Bytes32Variable, CircuitBuilder, GoldilocksField, PlonkParameters,
+    ArrayVariable, BoolVariable, Bytes32Variable, CircuitBuilder, PlonkParameters,
 };
 use serde::{Deserialize, Serialize};
 use tokio::runtime::Runtime;
@@ -73,7 +72,7 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize, L: PlonkParameters<D>, const D: usize>
 }
 
 struct StepCircuit<const MAX_VALIDATOR_SET_SIZE: usize> {
-    config: usize,
+    _config: usize,
 }
 
 impl<const MAX_VALIDATOR_SET_SIZE: usize> Circuit for StepCircuit<MAX_VALIDATOR_SET_SIZE> {
@@ -121,13 +120,10 @@ fn main() {
 mod tests {
     use ethers::types::H256;
     use std::env;
-    use std::path::PathBuf;
 
-    use plonky2x::prelude::{DefaultBuilder, GoldilocksField, PoseidonGoldilocksConfig};
+    use plonky2x::prelude::DefaultBuilder;
 
     use super::*;
-
-    const D: usize = 2;
 
     #[test]
     fn test_circuit_function_evm() {

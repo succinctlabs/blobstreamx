@@ -9,7 +9,6 @@ use sha2::{Digest, Sha256};
 use std::cell::RefCell;
 use std::rc::Rc;
 use subtle_encoding::hex;
-use tendermint::merkle::HASH_SIZE;
 pub use tendermint::{block::Header, merkle::Hash};
 /// Source (tendermint-rs): https://github.com/informalsystems/tendermint-rs/blob/e930691a5639ef805c399743ac0ddbba0e9f53da/tendermint/src/merkle.rs#L32
 use tendermint::{

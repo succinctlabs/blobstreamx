@@ -11,15 +11,11 @@ use self::tendermint_utils::{
 use self::types::{update_present_on_trusted_header, TempMerkleInclusionProof};
 use self::utils::{convert_to_h256, get_path_indices};
 use crate::input_data::types::{get_validators_as_input, get_validators_fields_as_input};
-use crate::utils::{
-    BLOCK_HEIGHT_INDEX, LAST_BLOCK_ID_INDEX, NEXT_VALIDATORS_HASH_INDEX, TOTAL_HEADER_FIELDS,
-    VALIDATORS_HASH_INDEX,
-};
+use crate::utils::{LAST_BLOCK_ID_INDEX, NEXT_VALIDATORS_HASH_INDEX, VALIDATORS_HASH_INDEX};
 use crate::verify::{Validator, ValidatorHashField};
 use ethers::types::H256;
 use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
 use plonky2x::prelude::RichField;
-use tendermint::{validator::Set as ValidatorSet, vote::SignedVote, vote::ValidatorIndex};
 use tendermint_proto::types::BlockId as RawBlockId;
 use tendermint_proto::Protobuf;
 
@@ -133,7 +129,7 @@ impl InputDataFetcher {
         );
         println!("prev_block_hash {:?}", computed_prev_header_hash);
         let next_block = self.get_block_from_number(prev_block_number + 1).await;
-        let round_present = next_block.commit.round != 0;
+        let round_present = next_block.commit.round.value() != 0;
 
         let next_block_header = next_block.header.hash();
         println!("prev_block_hash {:?}", next_block_header);
@@ -204,7 +200,7 @@ impl InputDataFetcher {
         );
         let target_block = self.get_block_from_number(target_block_number).await;
         let target_block_header = target_block.header.hash();
-        let round_present = target_block.commit.round != 0;
+        let round_present = target_block.commit.round.value() != 0;
         let mut target_block_validators =
             get_validators_as_input::<VALIDATOR_SET_SIZE_MAX, F>(&target_block);
         update_present_on_trusted_header(
@@ -252,6 +248,6 @@ mod test {
             "http://rpc.testnet.celestia.citizencosmos.space".to_string(),
         ));
         fetcher.set_save(true);
-        let block = fetcher.get_block_from_number(block_height).await;
+        let _block = fetcher.get_block_from_number(block_height).await;
     }
 }
