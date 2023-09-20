@@ -49,14 +49,14 @@ pub struct DataCommitmentFixture {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct HeaderChainFixture {
-    pub current_block: u32,
-    pub current_block_height_proof: TempMerkleInclusionProof,
-    pub encoded_current_height_byte_length: u32,
-    pub trusted_block: u32,
-    pub trusted_block_height_proof: TempMerkleInclusionProof,
-    pub encoded_trusted_height_byte_length: u32,
-    pub curr_header: Hash,
-    pub trusted_header: Hash,
+    pub end_block: u32,
+    pub end_block_height_proof: TempMerkleInclusionProof,
+    pub encoded_end_height_byte_length: u32,
+    pub start_block: u32,
+    pub start_block_height_proof: TempMerkleInclusionProof,
+    pub encoded_start_height_byte_length: u32,
+    pub end_header: Hash,
+    pub start_header: Hash,
     pub data_hash_proofs: Vec<TempMerkleInclusionProof>,
     pub prev_header_proofs: Vec<TempMerkleInclusionProof>,
 }
@@ -176,22 +176,22 @@ pub async fn create_header_chain_fixture(
     current_block: usize,
 ) -> Result<(), Error> {
     let mut fixture: HeaderChainFixture = HeaderChainFixture {
-        current_block: current_block as u32,
-        trusted_block: trusted_block as u32,
-        curr_header: Hash::default(),
-        current_block_height_proof: TempMerkleInclusionProof {
+        end_block: current_block as u32,
+        start_block: trusted_block as u32,
+        end_header: Hash::default(),
+        end_block_height_proof: TempMerkleInclusionProof {
             enc_leaf: Vec::new(),
             path: Vec::new(),
             proof: Vec::new(),
         },
-        encoded_current_height_byte_length: 0,
-        trusted_header: Hash::default(),
-        trusted_block_height_proof: TempMerkleInclusionProof {
+        encoded_end_height_byte_length: 0,
+        start_header: Hash::default(),
+        start_block_height_proof: TempMerkleInclusionProof {
             enc_leaf: Vec::new(),
             path: Vec::new(),
             proof: Vec::new(),
         },
-        encoded_trusted_height_byte_length: 0,
+        encoded_start_height_byte_length: 0,
         data_hash_proofs: Vec::new(),
         prev_header_proofs: Vec::new(),
     };
@@ -199,16 +199,16 @@ pub async fn create_header_chain_fixture(
     // Get the header hash and block height proof of the current block
     let block = get_signed_block_from_rpc(current_block).await;
     let height_proof = get_header_and_height_proof(&block);
-    fixture.curr_header = block.header.hash();
-    fixture.current_block_height_proof = height_proof.clone();
-    fixture.encoded_current_height_byte_length = height_proof.enc_leaf.len() as u32;
+    fixture.end_header = block.header.hash();
+    fixture.end_block_height_proof = height_proof.clone();
+    fixture.encoded_end_height_byte_length = height_proof.enc_leaf.len() as u32;
 
     // Get the header hash and block height proof of the trusted block
     let block = get_signed_block_from_rpc(trusted_block).await;
     let height_proof = get_header_and_height_proof(&block);
-    fixture.trusted_header = block.header.hash();
-    fixture.trusted_block_height_proof = height_proof.clone();
-    fixture.encoded_trusted_height_byte_length = height_proof.enc_leaf.len() as u32;
+    fixture.start_header = block.header.hash();
+    fixture.start_block_height_proof = height_proof.clone();
+    fixture.encoded_start_height_byte_length = height_proof.enc_leaf.len() as u32;
 
     let mut data_hash_proofs = Vec::new();
     let mut prev_header_proofs = Vec::new();

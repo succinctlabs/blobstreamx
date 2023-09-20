@@ -506,7 +506,7 @@ impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
             *header,
             &header_height_proof.proof,
             &header_height_proof.height,
-            header_height_proof.height_byte_length,
+            header_height_proof.enc_height_byte_length,
         )
     }
 

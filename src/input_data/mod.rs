@@ -14,7 +14,7 @@ use crate::consts::{
     BLOCK_HEIGHT_INDEX, LAST_BLOCK_ID_INDEX, NEXT_VALIDATORS_HASH_INDEX, VALIDATORS_HASH_INDEX,
 };
 use crate::input_data::types::{get_validators_as_input, get_validators_fields_as_input};
-use crate::variables::HeightProofVariableInput;
+use crate::variables::HeightProofValueType;
 use crate::verify::{Validator, ValidatorHashField};
 use ethers::types::H256;
 use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
@@ -190,7 +190,7 @@ impl InputDataFetcher {
         Vec<Validator<Ed25519, F>>,          // validators
         [u8; 32],                            // target_header
         bool,                                // round_present
-        HeightProofVariableInput<F>,         // target_block_height_proof,
+        HeightProofValueType<F>,             // target_block_height_proof,
         TempMerkleInclusionProof,            // target_header_validators_hash_proof,
         [u8; 32],                            // trusted_header
         TempMerkleInclusionProof,            // trusted_validators_hash_proof
@@ -219,9 +219,9 @@ impl InputDataFetcher {
             target_block.header.height.encode_vec(),
         );
 
-        let target_block_height_proof = HeightProofVariableInput::<F> {
+        let target_block_height_proof = HeightProofValueType::<F> {
             height: target_block.header.height.value().into(),
-            height_byte_length: target_block.header.height.encode_vec().len() as u32,
+            enc_height_byte_length: target_block.header.height.encode_vec().len() as u32,
             proof: temp_target_block_height_proof.proof,
         };
 

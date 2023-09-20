@@ -13,7 +13,7 @@ use crate::input_data::tendermint_utils::{
 // TODO: Remove dependency on utils.
 use crate::utils::SignedBlock;
 use crate::variables::{
-    CelestiaDataCommitmentProofInput, CelestiaHeaderChainProofInput, HeightProofVariableInput,
+    DataCommitmentProofValueTypeType, HeaderChainProofValueType, HeightProofValueType,
 };
 use crate::verify::BlockIDInclusionProofVariable;
 use crate::verify::HashInclusionProofVariable;
@@ -135,7 +135,7 @@ pub struct CelestiaSkipBlockProof {
     pub trusted_header: H256,
     pub trusted_validator_hash_proof: TempMerkleInclusionProof,
     pub trusted_validator_fields: Vec<ValidatorHashField<C, F>>,
-    pub block_height_proof: HeightProofVariableInput<F>,
+    pub block_height_proof: HeightProofValueType<F>,
     pub base: CelestiaBaseBlockProof,
 }
 
@@ -196,11 +196,11 @@ fn get_data_commitment_fixture(start_block: usize, end_block: usize) -> DataComm
     )
 }
 
-/// Generate the inputs for a skip proof from a trusted_block to block.
+/// Generate the inputs for a skip proof from a start_block to end_block.
 pub fn generate_data_commitment_inputs<const WINDOW_SIZE: usize, F: RichField>(
     start_block: usize,
     end_block: usize,
-) -> CelestiaDataCommitmentProofInput<WINDOW_SIZE, F> {
+) -> DataCommitmentProofValueTypeType<WINDOW_SIZE, F> {
     // Generate test cases from data commitment fixture
     let fixture = get_data_commitment_fixture(start_block, end_block);
 
@@ -213,19 +213,19 @@ pub fn generate_data_commitment_inputs<const WINDOW_SIZE: usize, F: RichField>(
         block_heights.push(i.into());
     }
 
-    CelestiaDataCommitmentProofInput {
+    DataCommitmentProofValueTypeType {
         data_hashes,
         block_heights,
         data_commitment_root: H256::from_slice(fixture.data_commitment.as_bytes()),
     }
 }
 
-pub fn get_header_chain_fixture(trusted_block: usize, current_block: usize) -> HeaderChainFixture {
+pub fn get_header_chain_fixture(start_block: usize, end_block: usize) -> HeaderChainFixture {
     let mut file = String::new();
     file.push_str("./src/fixtures/mocha-4/");
-    file.push_str(&trusted_block.to_string());
+    file.push_str(&start_block.to_string());
     file.push_str("-");
-    file.push_str(&current_block.to_string());
+    file.push_str(&end_block.to_string());
     file.push_str("/header_chain.json");
 
     let file_content = fs::read_to_string(file.as_str());
@@ -236,17 +236,17 @@ pub fn get_header_chain_fixture(trusted_block: usize, current_block: usize) -> H
     )
 }
 
-/// Generate the inputs for a skip proof from a trusted_block to block.
+/// Generate the inputs for a skip proof from a start_block to end_block.
 pub fn generate_header_chain_inputs<const WINDOW_SIZE: usize, F: RichField>(
-    trusted_block: usize,
-    current_block: usize,
-) -> CelestiaHeaderChainProofInput<WINDOW_SIZE, F> {
+    start_block: usize,
+    end_block: usize,
+) -> HeaderChainProofValueType<WINDOW_SIZE, F> {
     assert!(
-        current_block - trusted_block == WINDOW_SIZE,
+        start_block - end_block == WINDOW_SIZE,
         "window size does not match"
     );
     // Generate test cases from header chain fixture
-    let fixture = get_header_chain_fixture(trusted_block, current_block);
+    let fixture = get_header_chain_fixture(start_block, end_block);
 
     let mut data_hash_proofs = Vec::new();
     let mut prev_header_proofs = Vec::new();
@@ -279,28 +279,28 @@ pub fn generate_header_chain_inputs<const WINDOW_SIZE: usize, F: RichField>(
         });
     }
 
-    CelestiaHeaderChainProofInput {
-        current_header: H256::from_slice(fixture.curr_header.as_bytes()),
-        current_header_height_proof: HeightProofVariableInput {
+    HeaderChainProofValueType {
+        end_header: H256::from_slice(fixture.end_header.as_bytes()),
+        end_header_height_proof: HeightProofValueType {
             proof: fixture
-                .current_block_height_proof
+                .end_block_height_proof
                 .proof
                 .clone()
                 .try_into()
                 .unwrap(),
-            height: fixture.current_block.into(),
-            height_byte_length: fixture.encoded_current_height_byte_length,
+            height: fixture.end_block.into(),
+            enc_height_byte_length: fixture.encoded_end_height_byte_length,
         },
-        trusted_header: H256::from_slice(fixture.trusted_header.as_bytes()),
-        trusted_header_height_proof: HeightProofVariableInput {
+        start_header: H256::from_slice(fixture.start_header.as_bytes()),
+        start_header_height_proof: HeightProofValueType {
             proof: fixture
-                .trusted_block_height_proof
+                .start_block_height_proof
                 .proof
                 .clone()
                 .try_into()
                 .unwrap(),
-            height: fixture.trusted_block.into(),
-            height_byte_length: fixture.encoded_trusted_height_byte_length,
+            height: fixture.start_block.into(),
+            enc_height_byte_length: fixture.encoded_start_height_byte_length,
         },
         prev_header_proofs,
         data_hash_proofs,
@@ -653,9 +653,9 @@ pub fn generate_skip_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
     let enc_height_leaf = block.header.height.encode_vec();
     let enc_height_proof = proofs[2].clone();
 
-    let height_proof = HeightProofVariableInput {
+    let height_proof = HeightProofValueType {
         proof: convert_to_h256(enc_height_proof.aunts),
-        height_byte_length: enc_height_leaf.len() as u32,
+        enc_height_byte_length: enc_height_leaf.len() as u32,
         height: block.header.height.value().into(),
     };
 

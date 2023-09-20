@@ -19,9 +19,9 @@ pub trait TendermintHeader<L: PlonkParameters<D>, const D: usize> {
         num: &U64Variable,
     ) -> [ByteVariable; VARINT_BYTES_LENGTH_MAX];
 
-    /// Encodes the marshalled height into a BytesVariable<11>.
+    /// Encodes the marshalled height into a BytesVariable<11> that can be hashed according to the Tendermint spec.
     /// Prepends a 0x00 byte for the leaf prefix and a 0x08 byte to the marshalled varint.
-    fn encode_marshalled_varint(
+    fn leaf_encode_marshalled_varint(
         &mut self,
         marshalled_varint: &BytesVariable<9>,
     ) -> BytesVariable<11>;
@@ -124,14 +124,13 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintHeader<L, D> for CircuitBu
         return res;
     }
 
-    fn encode_marshalled_varint(
+    fn leaf_encode_marshalled_varint(
         &mut self,
         marshalled_varint: &BytesVariable<9>,
     ) -> BytesVariable<11> {
-        // Prepend 0x00||0x08 byte to the marshalled varint.
-        let mut encoded_marshalled_varint = Vec::new();
-        encoded_marshalled_varint.push(self.constant::<ByteVariable>(0u8));
-        encoded_marshalled_varint.push(self.constant::<ByteVariable>(8u8));
+        // Prepends a 0x00 byte for the leaf prefix then a 0x08 byte for the protobuf varint encoding to the marshalled varint.
+        let mut encoded_marshalled_varint =
+            self.constant::<BytesVariable<2>>([0x00, 0x08]).0.to_vec();
         encoded_marshalled_varint.extend_from_slice(&marshalled_varint.0);
         BytesVariable(encoded_marshalled_varint.try_into().unwrap())
     }
@@ -150,7 +149,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintHeader<L, D> for CircuitBu
 
         // Verify the current header height proof against the current header.
         let encoded_height = self.marshal_int64_varint(&height);
-        let encoded_height = self.encode_marshalled_varint(&BytesVariable(encoded_height));
+        let encoded_height = self.leaf_encode_marshalled_varint(&BytesVariable(encoded_height));
 
         // Extend encoded_height to 64 bytes for curta_sha256_variable.
         let mut encoded_height_extended = Vec::new();
@@ -256,7 +255,7 @@ pub(crate) mod tests {
         let height = builder.constant::<U64Variable>(3804.into());
 
         let encoded_height = builder.marshal_int64_varint(&height);
-        let encoded_height = builder.encode_marshalled_varint(&BytesVariable(encoded_height));
+        let encoded_height = builder.leaf_encode_marshalled_varint(&BytesVariable(encoded_height));
         builder.watch(&encoded_height, "encoded_height");
 
         let circuit = builder.build();
