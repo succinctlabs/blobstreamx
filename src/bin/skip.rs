@@ -120,8 +120,8 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize> Circuit for StepCircuit<MAX_VALIDATOR_
 }
 
 fn main() {
-    const MAX_VALIDATOR_SET_SIZE: usize = 128;
-    // let step_circuit = StepCircuit::<MAX_VALIDATOR_SET_SIZE> { config: 0 };
+    // Will only work with blocks that have max 4 validators, this is useful for end-to-end testing on the platform quickly
+    const MAX_VALIDATOR_SET_SIZE: usize = 4;
     VerifiableFunction::<StepCircuit<MAX_VALIDATOR_SET_SIZE>>::entrypoint();
 }
 
@@ -133,6 +133,23 @@ mod tests {
     use plonky2x::prelude::DefaultBuilder;
 
     use super::*;
+
+    #[test]
+    fn test_serialization() {
+        env_logger::try_init().unwrap_or_default();
+
+        const MAX_VALIDATOR_SET_SIZE: usize = 2;
+        let mut builder = DefaultBuilder::new();
+
+        log::debug!("Defining circuit");
+        StepCircuit::<MAX_VALIDATOR_SET_SIZE>::define(&mut builder);
+
+        log::debug!("Building circuit");
+        let circuit = builder.build();
+        log::debug!("Done building circuit");
+
+        circuit.test_default_serializers();
+    }
 
     #[test]
     fn test_circuit_function_skip() {

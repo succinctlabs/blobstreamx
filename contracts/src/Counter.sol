@@ -36,6 +36,10 @@ contract ZKTendermint {
         functionNameToId[name] = _functionId;
     }
 
+    function setGenesisHeader(uint64 height, bytes32 header) external {
+        blockHeightToHeaderHash[height] = header;
+    }
+
     function requestHeaderSkip(
         uint64 _trustedBlock,
         uint64 _requestedBlock
