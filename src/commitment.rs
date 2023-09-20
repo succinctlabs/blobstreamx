@@ -203,7 +203,10 @@ pub(crate) mod tests {
 
     use crate::{
         commitment::DataCommitment,
-        inputs::{generate_data_commitment_inputs, generate_header_chain_inputs},
+        inputs::{
+            generate_data_commitment_inputs, generate_expected_data_commitment,
+            generate_header_chain_inputs,
+        },
         variables::{DataCommitmentProofVariable, HeaderChainProofVariable},
     };
 
@@ -226,11 +229,13 @@ pub(crate) mod tests {
 
         let header_chain_var = builder.read::<HeaderChainProofVariable<WINDOW_SIZE>>();
 
+        let expected_data_commitment = builder.read::<Bytes32Variable>();
+
         let root_hash_target = builder.prove_data_commitment::<WINDOW_SIZE, NUM_LEAVES>(
             header_chain_var,
             &data_commitment_var.data_hashes,
         );
-        builder.assert_is_equal(root_hash_target, data_commitment_var.data_commitment_root);
+        builder.assert_is_equal(root_hash_target, expected_data_commitment);
 
         let circuit = builder.build();
 
@@ -243,6 +248,10 @@ pub(crate) mod tests {
             WINDOW_SIZE,
             F,
         >(START_BLOCK, END_BLOCK));
+        input.write::<Bytes32Variable>(generate_expected_data_commitment::<WINDOW_SIZE, F>(
+            START_BLOCK,
+            END_BLOCK,
+        ));
         let (proof, output) = circuit.prove(&input);
         circuit.verify(&proof, &input, &output);
     }
@@ -260,12 +269,14 @@ pub(crate) mod tests {
 
         let data_commitment_var = builder.read::<DataCommitmentProofVariable<WINDOW_SIZE>>();
 
+        let expected_data_commitment = builder.read::<Bytes32Variable>();
+
         let start_block = builder.constant::<U64Variable>(START_BLOCK.into());
         let root_hash_target = builder.get_data_commitment::<WINDOW_SIZE, NUM_LEAVES>(
             &data_commitment_var.data_hashes,
             start_block,
         );
-        builder.assert_is_equal(root_hash_target, data_commitment_var.data_commitment_root);
+        builder.assert_is_equal(root_hash_target, expected_data_commitment);
 
         let circuit = builder.build();
 
@@ -274,6 +285,10 @@ pub(crate) mod tests {
             WINDOW_SIZE,
             F,
         >(START_BLOCK, END_BLOCK));
+        input.write::<Bytes32Variable>(generate_expected_data_commitment::<WINDOW_SIZE, F>(
+            START_BLOCK,
+            END_BLOCK,
+        ));
         let (proof, output) = circuit.prove(&input);
         circuit.verify(&proof, &input, &output);
     }

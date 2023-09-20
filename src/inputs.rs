@@ -13,7 +13,7 @@ use crate::input_data::tendermint_utils::{
 // TODO: Remove dependency on utils.
 use crate::utils::SignedBlock;
 use crate::variables::{
-    DataCommitmentProofValueTypeType, HeaderChainProofValueType, HeightProofValueType,
+    DataCommitmentProofValueType, HeaderChainProofValueType, HeightProofValueType,
 };
 use crate::verify::BlockIDInclusionProofVariable;
 use crate::verify::HashInclusionProofVariable;
@@ -35,7 +35,7 @@ use plonky2x::prelude::{CircuitVariable, GoldilocksField};
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 use tendermint::crypto::ed25519::VerificationKey;
-use tendermint::{private_key, Signature};
+use tendermint::{private_key, Hash, Signature};
 use tendermint::{validator::Set as ValidatorSet, vote::SignedVote, vote::ValidatorIndex};
 use tendermint_proto::types::BlockId as RawBlockId;
 use tendermint_proto::Protobuf;
@@ -197,10 +197,21 @@ fn get_data_commitment_fixture(start_block: usize, end_block: usize) -> DataComm
 }
 
 /// Generate the inputs for a skip proof from a start_block to end_block.
+pub fn generate_expected_data_commitment<const WINDOW_SIZE: usize, F: RichField>(
+    start_block: usize,
+    end_block: usize,
+) -> H256 {
+    // Generate test cases from data commitment fixture
+    let fixture = get_data_commitment_fixture(start_block, end_block);
+
+    H256::from_slice(fixture.data_commitment.as_bytes())
+}
+
+/// Generate the inputs for a skip proof from a start_block to end_block.
 pub fn generate_data_commitment_inputs<const WINDOW_SIZE: usize, F: RichField>(
     start_block: usize,
     end_block: usize,
-) -> DataCommitmentProofValueTypeType<WINDOW_SIZE, F> {
+) -> DataCommitmentProofValueType<WINDOW_SIZE, F> {
     // Generate test cases from data commitment fixture
     let fixture = get_data_commitment_fixture(start_block, end_block);
 
@@ -213,10 +224,9 @@ pub fn generate_data_commitment_inputs<const WINDOW_SIZE: usize, F: RichField>(
         block_heights.push(i.into());
     }
 
-    DataCommitmentProofValueTypeType {
+    DataCommitmentProofValueType {
         data_hashes,
         block_heights,
-        data_commitment_root: H256::from_slice(fixture.data_commitment.as_bytes()),
     }
 }
 

@@ -34,11 +34,10 @@ pub type ValidatorMessageVariable = BytesVariable<VALIDATOR_MESSAGE_BYTES_LENGTH
 
 // The data commitment inputs as a struct.
 #[derive(Clone, Debug, CircuitVariable)]
-#[value_name(DataCommitmentProofValueTypeType)]
+#[value_name(DataCommitmentProofValueType)]
 pub struct DataCommitmentProofVariable<const WINDOW_SIZE: usize> {
     pub data_hashes: ArrayVariable<Bytes32Variable, WINDOW_SIZE>,
     pub block_heights: ArrayVariable<U64Variable, WINDOW_SIZE>,
-    pub data_commitment_root: Bytes32Variable,
 }
 
 // A block height proof as a struct.
