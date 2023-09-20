@@ -33,9 +33,16 @@ pub const NUM_POSSIBLE_VALIDATOR_BYTE_LENGTHS: usize =
 // The number of bytes in a Tendermint validator's public key.
 const _PUBKEY_BYTES_LEN: usize = 32;
 
-// The maximum number of bytes in a Tendermint validator's voting power.
+// The maximum number of bytes in a protobuf-encoded varint.
 // https://docs.tendermint.com/v0.34/tendermint-core/using-tendermint.html#tendermint-networks
-pub const VOTING_POWER_BYTES_LENGTH_MAX: usize = 9;
+pub const VARINT_BYTES_LENGTH_MAX: usize = 9;
 
 // The maximum number of bytes in a validator message (CanonicalVote toSignBytes).
 pub const VALIDATOR_MESSAGE_BYTES_LENGTH_MAX: usize = 124;
+
+// Header indexes for the Merkle tree.
+pub const BLOCK_HEIGHT_INDEX: usize = 2;
+pub const LAST_BLOCK_ID_INDEX: usize = 4;
+pub const DATA_HASH_INDEX: usize = 6;
+pub const VALIDATORS_HASH_INDEX: usize = 7;
+pub const NEXT_VALIDATORS_HASH_INDEX: usize = 8;

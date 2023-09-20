@@ -4,7 +4,7 @@ use plonky2x::{
         gadgets::eddsa::EDDSASignatureTarget,
     },
     frontend::uint::uint64::U64Variable,
-    frontend::vars::U32Variable,
+    frontend::{merkle::tree::MerkleInclusionProofVariable, vars::U32Variable},
     prelude::{
         ArrayVariable, BoolVariable, Bytes32Variable, BytesVariable, CircuitBuilder,
         CircuitVariable, PlonkParameters, RichField, Variable, Witness, WitnessWrite,
@@ -16,7 +16,7 @@ use crate::variables::{
     MarshalledValidatorVariable, TendermintHashVariable, ValidatorMessageVariable,
 };
 use crate::{
-    consts::{PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES},
+    consts::{HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES},
     signature::TendermintSignature,
     validator::TendermintValidator,
     voting::TendermintVoting,
@@ -107,7 +107,6 @@ pub struct BaseBlockProofVariable<
 pub trait TendermintVerify<
     L: PlonkParameters<D>,
     const D: usize,
-    const HEADER_PROOF_DEPTH: usize,
     const VALIDATOR_SET_SIZE_MAX: usize,
 >
 {
@@ -141,9 +140,9 @@ pub trait TendermintVerify<
         &mut self,
         validators: &ArrayVariable<ValidatorVariable<Self::Curve>, VALIDATOR_SET_SIZE_MAX>,
         header: &TendermintHashVariable,
-        data_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
+        // data_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
         validator_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
-        next_validators_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
+        // next_validators_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
         round_present: &BoolVariable,
     );
 
@@ -153,9 +152,9 @@ pub trait TendermintVerify<
         validators: &ArrayVariable<ValidatorVariable<Self::Curve>, VALIDATOR_SET_SIZE_MAX>,
         header: &TendermintHashVariable,
         prev_header: &TendermintHashVariable,
-        data_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
+        // data_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
         validator_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
-        next_validators_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
+        // next_validators_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
         prev_header_next_validators_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
         last_block_id_proof: &BlockIDInclusionProofVariable<HEADER_PROOF_DEPTH>,
         round_present: &BoolVariable,
@@ -178,9 +177,9 @@ pub trait TendermintVerify<
         &mut self,
         validators: &ArrayVariable<ValidatorVariable<Self::Curve>, VALIDATOR_SET_SIZE_MAX>,
         header: &TendermintHashVariable,
-        data_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
+        // data_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
         validator_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
-        next_validators_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
+        // next_validators_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
         round_present: &BoolVariable,
         trusted_header: TendermintHashVariable,
         trusted_validator_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
@@ -200,12 +199,8 @@ pub trait TendermintVerify<
     );
 }
 
-impl<
-        L: PlonkParameters<D>,
-        const D: usize,
-        const HEADER_PROOF_DEPTH: usize,
-        const VALIDATOR_SET_SIZE_MAX: usize,
-    > TendermintVerify<L, D, HEADER_PROOF_DEPTH, VALIDATOR_SET_SIZE_MAX> for CircuitBuilder<L, D>
+impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
+    TendermintVerify<L, D, VALIDATOR_SET_SIZE_MAX> for CircuitBuilder<L, D>
 {
     type Curve = Ed25519;
 
@@ -215,8 +210,13 @@ impl<
         path: &ArrayVariable<BoolVariable, HEADER_PROOF_DEPTH>,
         proof: &ArrayVariable<TendermintHashVariable, HEADER_PROOF_DEPTH>,
     ) -> Bytes32Variable {
-        let hashed_leaf = self.leaf_hash(&leaf.0);
-        self.get_root_from_merkle_proof_hashed_leaf(proof, path, hashed_leaf)
+        self.get_root_from_merkle_proof::<HEADER_PROOF_DEPTH, LEAF_SIZE_BYTES>(
+            &MerkleInclusionProofVariable {
+                leaf: leaf.clone(),
+                path_indices: path.clone(),
+                aunts: proof.clone(),
+            },
+        )
     }
 
     fn assert_voting_check(
@@ -251,29 +251,19 @@ impl<
         validators: &ArrayVariable<ValidatorVariable<Self::Curve>, VALIDATOR_SET_SIZE_MAX>,
         header: &TendermintHashVariable,
         prev_header: &TendermintHashVariable,
-        data_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
         validator_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
-        next_validators_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
         prev_header_next_validators_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
         last_block_id_proof: &BlockIDInclusionProofVariable<HEADER_PROOF_DEPTH>,
         round_present: &BoolVariable,
     ) {
         // Verify 2/3 of the validators signed the headers
-        self.verify_header(
-            validators,
-            header,
-            data_hash_proof,
-            validator_hash_proof,
-            next_validators_hash_proof,
-            round_present,
-        );
+        self.verify_header(validators, header, validator_hash_proof, round_present);
 
         // Verify the previous header hash in the block matches the previous header hash in the last block ID.
         // FIXME: why is Rust compiler being weird
         <plonky2x::prelude::CircuitBuilder<L, D> as TendermintVerify<
             L,
             D,
-            HEADER_PROOF_DEPTH,
             VALIDATOR_SET_SIZE_MAX,
         >>::verify_prev_header_in_header(self, header, prev_header, last_block_id_proof);
 
@@ -289,7 +279,6 @@ impl<
         <plonky2x::prelude::CircuitBuilder<L, D> as TendermintVerify<
             L,
             D,
-            HEADER_PROOF_DEPTH,
             VALIDATOR_SET_SIZE_MAX,
         >>::verify_prev_header_next_validators_hash(
             self,
@@ -303,9 +292,7 @@ impl<
         &mut self,
         validators: &ArrayVariable<ValidatorVariable<Self::Curve>, VALIDATOR_SET_SIZE_MAX>,
         header: &TendermintHashVariable,
-        data_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
         validator_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
-        next_validators_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
         round_present: &BoolVariable,
     ) {
         let false_t = self._false();
@@ -380,7 +367,6 @@ impl<
         <plonky2x::prelude::CircuitBuilder<L, D> as TendermintVerify<
             L,
             D,
-            HEADER_PROOF_DEPTH,
             VALIDATOR_SET_SIZE_MAX,
         >>::assert_voting_check(
             self,
@@ -406,28 +392,12 @@ impl<
         }
 
         // Note: Hardcode the path for each of the leaf proofs (otherwise you can prove arbitrary data in the header)
-        // TODO: Remove proofs for data_hash and next_validators_hash. They are not needed.
-        let data_hash_path = vec![false_t, true_t, true_t, false_t];
         let val_hash_path = vec![true_t, true_t, true_t, false_t];
-        let next_val_hash_path = vec![false_t, false_t, false_t, true_t];
 
-        let header_from_data_root_proof =
-            <plonky2x::prelude::CircuitBuilder<L, D> as TendermintVerify<
-                L,
-                D,
-                HEADER_PROOF_DEPTH,
-                VALIDATOR_SET_SIZE_MAX,
-            >>::get_root::<34>(
-                self,
-                &data_hash_proof.enc_leaf,
-                &data_hash_path.try_into().unwrap(),
-                &data_hash_proof.proof,
-            );
         let header_from_validator_root_proof =
             <plonky2x::prelude::CircuitBuilder<L, D> as TendermintVerify<
                 L,
                 D,
-                HEADER_PROOF_DEPTH,
                 VALIDATOR_SET_SIZE_MAX,
             >>::get_root::<34>(
                 self,
@@ -435,24 +405,8 @@ impl<
                 &val_hash_path.try_into().unwrap(),
                 &validator_hash_proof.proof,
             );
-        let header_from_next_validators_root_proof =
-            <plonky2x::prelude::CircuitBuilder<L, D> as TendermintVerify<
-                L,
-                D,
-                HEADER_PROOF_DEPTH,
-                VALIDATOR_SET_SIZE_MAX,
-            >>::get_root::<34>(
-                self,
-                &next_validators_hash_proof.enc_leaf,
-                &next_val_hash_path.try_into().unwrap(),
-                &next_validators_hash_proof.proof,
-            );
 
-        // Confirms the header from the proof of {validator_hash, next_validators_hash, data_hash, last_block_id} all match the header
-        // TODO: Remove proofs for data_hash and next_validators_hash. They are not needed.
-        self.assert_is_equal(*header, header_from_data_root_proof);
         self.assert_is_equal(*header, header_from_validator_root_proof);
-        self.assert_is_equal(*header, header_from_next_validators_root_proof);
     }
 
     fn verify_prev_header_in_header(
@@ -469,7 +423,6 @@ impl<
             <plonky2x::prelude::CircuitBuilder<L, D> as TendermintVerify<
                 L,
                 D,
-                HEADER_PROOF_DEPTH,
                 VALIDATOR_SET_SIZE_MAX,
             >>::get_root::<72>(
                 self,
@@ -499,7 +452,6 @@ impl<
             <plonky2x::prelude::CircuitBuilder<L, D> as TendermintVerify<
                 L,
                 D,
-                HEADER_PROOF_DEPTH,
                 VALIDATOR_SET_SIZE_MAX,
             >>::get_root::<34>(
                 self,
@@ -526,9 +478,7 @@ impl<
         &mut self,
         validators: &ArrayVariable<ValidatorVariable<Self::Curve>, VALIDATOR_SET_SIZE_MAX>,
         header: &TendermintHashVariable,
-        data_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
         validator_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
-        next_validators_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
         round_present: &BoolVariable,
         trusted_header: TendermintHashVariable,
         trusted_validator_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
@@ -544,14 +494,7 @@ impl<
             trusted_validator_hash_fields,
         );
 
-        self.verify_header(
-            validators,
-            header,
-            data_hash_proof,
-            validator_hash_proof,
-            next_validators_hash_proof,
-            round_present,
-        );
+        self.verify_header(validators, header, validator_hash_proof, round_present);
     }
 
     fn verify_trusted_validators(
@@ -574,7 +517,6 @@ impl<
             <plonky2x::prelude::CircuitBuilder<L, D> as TendermintVerify<
                 L,
                 D,
-                HEADER_PROOF_DEPTH,
                 VALIDATOR_SET_SIZE_MAX,
             >>::get_root::<PROTOBUF_HASH_SIZE_BYTES>(
                 self,
@@ -662,7 +604,6 @@ impl<
         <plonky2x::prelude::CircuitBuilder<L, D> as TendermintVerify<
             L,
             D,
-            HEADER_PROOF_DEPTH,
             VALIDATOR_SET_SIZE_MAX,
         >>::assert_voting_check(
             self,
@@ -717,10 +658,9 @@ pub(crate) mod tests {
             );
         let header = builder.read::<TendermintHashVariable>();
         let prev_header = builder.read::<TendermintHashVariable>();
-        let data_hash_proof = builder.read::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>();
+
         let validator_hash_proof = builder.read::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>();
-        let next_validators_hash_proof =
-            builder.read::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>();
+
         let prev_header_next_validators_hash_proof =
             builder.read::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>();
         let last_block_id_proof =
@@ -731,9 +671,7 @@ pub(crate) mod tests {
             &validators,
             &header,
             &prev_header,
-            &data_hash_proof,
             &validator_hash_proof,
-            &next_validators_hash_proof,
             &prev_header_next_validators_hash_proof,
             &last_block_id_proof,
             &round_present,
@@ -751,13 +689,7 @@ pub(crate) mod tests {
         input.write::<TendermintHashVariable>(celestia_block_proof.base.header);
         input.write::<TendermintHashVariable>(celestia_block_proof.prev_header);
         input.write::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>(
-            celestia_block_proof.base.data_hash_proof.into(),
-        );
-        input.write::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>(
             celestia_block_proof.base.validator_hash_proof.into(),
-        );
-        input.write::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>(
-            celestia_block_proof.base.next_validators_hash_proof.into(),
         );
         input.write::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>(
             celestia_block_proof
@@ -796,10 +728,9 @@ pub(crate) mod tests {
         let validators =
             builder.read::<ArrayVariable<ValidatorVariable<Curve>, VALIDATOR_SET_SIZE_MAX>>();
         let header = builder.read::<TendermintHashVariable>();
-        let data_hash_proof = builder.read::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>();
+
         let validator_hash_proof = builder.read::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>();
-        let next_validators_hash_proof =
-            builder.read::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>();
+
         let round_present = builder.read::<BoolVariable>();
         let trusted_header = builder.read::<TendermintHashVariable>();
         let trusted_validators_hash_proof =
@@ -810,9 +741,7 @@ pub(crate) mod tests {
         builder.skip(
             &validators,
             &header,
-            &data_hash_proof,
             &validator_hash_proof,
-            &next_validators_hash_proof,
             &round_present,
             trusted_header,
             &trusted_validators_hash_proof,
@@ -828,18 +757,11 @@ pub(crate) mod tests {
             celestia_skip_block_proof.base.validators,
         );
         input.write::<TendermintHashVariable>(celestia_skip_block_proof.base.header);
-        input.write::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>(
-            celestia_skip_block_proof.base.data_hash_proof.into(),
-        );
+
         input.write::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>(
             celestia_skip_block_proof.base.validator_hash_proof.into(),
         );
-        input.write::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>(
-            celestia_skip_block_proof
-                .base
-                .next_validators_hash_proof
-                .into(),
-        );
+
         input.write::<BoolVariable>(celestia_skip_block_proof.base.round_present);
         input.write::<TendermintHashVariable>(celestia_skip_block_proof.trusted_header);
         input.write::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>(
