@@ -16,7 +16,7 @@ pub type EDDSAPublicKeyVariable<C> = AffinePointTarget<C>;
 /// A protobuf-encoded tendermint block ID as a 72 byte target.
 pub type EncBlockIDVariable = BytesVariable<PROTOBUF_BLOCK_ID_SIZE_BYTES>;
 
-// TODO: add a comment here
+// A protobuf-encoded tendermint hash as a 34 byte target.
 pub type EncTendermintHashVariable = BytesVariable<PROTOBUF_HASH_SIZE_BYTES>;
 
 /// The Tendermint hash as a 32 byte variable.

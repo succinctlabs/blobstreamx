@@ -164,7 +164,7 @@ pub(crate) mod tests {
         generate_proofs_from_header, hash_all_leaves, proofs_from_byte_slices,
     };
     use crate::input_data::utils::{convert_to_h256, get_path_indices};
-    // TODO: Remove dependency on get_signed_block_from_fixture.
+    // TODO: Remove dependency on inputs.
     use crate::inputs::get_signed_block_from_fixture;
     use crate::validator::TendermintValidator;
     use ethers::types::H256;

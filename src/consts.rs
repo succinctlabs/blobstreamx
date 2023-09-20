@@ -1,5 +1,4 @@
 use tendermint::merkle::HASH_SIZE;
-// TODO: all these numbers below and variables should be moved to a `consts.rs`
 /// The number of bits in a SHA256 hash.
 pub const HASH_SIZE_BITS: usize = HASH_SIZE * 8;
 
