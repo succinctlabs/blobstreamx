@@ -1,9 +1,5 @@
-use curta::math::extension::cubic::parameters::CubicParameters;
-use plonky2::field::extension::Extendable;
-
 use plonky2::hash::hash_types::RichField;
 use plonky2::iop::witness::{Witness, WitnessWrite};
-use plonky2::plonk::config::GenericConfig;
 use plonky2x::backend::circuit::PlonkParameters;
 use plonky2x::frontend::ecc::ed25519::curve::curve_types::Curve;
 use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
@@ -15,17 +11,17 @@ use plonky2x::prelude::{
     BoolVariable, ByteVariable, BytesVariable, CircuitBuilder, CircuitVariable, Variable,
 };
 
+use crate::shared::TendermintHeader;
 use crate::utils::{
     HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES,
     PROTOBUF_VARINT_SIZE_BYTES, VARINT_SIZE_BYTES,
 };
-use crate::validator::TendermintValidator;
 
 #[derive(Clone, Debug, CircuitVariable)]
 #[value_name(CelestiaDataCommitmentProofInput)]
 pub struct CelestiaDataCommitmentProofInputVariable<const WINDOW_SIZE: usize> {
     pub data_hashes: ArrayVariable<Bytes32Variable, WINDOW_SIZE>,
-    pub block_heights: ArrayVariable<U32Variable, WINDOW_SIZE>,
+    pub block_heights: ArrayVariable<U64Variable, WINDOW_SIZE>,
     pub data_commitment_root: Bytes32Variable,
 }
 
@@ -35,7 +31,7 @@ pub struct HeaderVariable {
     pub header: Bytes32Variable,
     pub header_height_proof: MerkleInclusionProofVariable<HEADER_PROOF_DEPTH, VARINT_SIZE_BYTES>,
     pub height_byte_length: U32Variable,
-    pub height: U32Variable,
+    pub height: U64Variable,
 }
 
 #[derive(Clone, Debug, CircuitVariable)]
@@ -56,12 +52,7 @@ pub struct CelestiaHeaderChainProofInputVariable<const WINDOW_RANGE: usize> {
 pub trait CelestiaCommitment<L: PlonkParameters<D>, const D: usize> {
     type Curve: Curve;
 
-    /// Serializes a u32 as a protobuf varint.
-    /// NOTE: Block height is a i64 (but always positive), but u32 is used for simplicity.
-    /// This caps the block height at 2^32 - 1.
-    fn marshal_u32_as_varint(&mut self, num: &U32Variable) -> BytesVariable<9>;
-
-    /// Encodes the marshalled varint into a BytesVariable<10>.
+    /// Encodes the marshalled varint into a BytesVariable<11>.
     /// Prepends a 0x00 byte for the leaf prefix and a 0x08 byte to the marshalled varint.
     fn encode_marshalled_varint(
         &mut self,
@@ -73,18 +64,8 @@ pub trait CelestiaCommitment<L: PlonkParameters<D>, const D: usize> {
     fn encode_data_root_tuple(
         &mut self,
         data_hash: &Bytes32Variable,
-        height: &U32Variable,
+        height: &U64Variable,
     ) -> BytesVariable<64>;
-
-    /// Verifies the block height against the header.
-    fn verify_block_height(
-        &mut self,
-        header: Bytes32Variable,
-        proof: &ArrayVariable<Bytes32Variable, HEADER_PROOF_DEPTH>,
-        path: &ArrayVariable<BoolVariable, HEADER_PROOF_DEPTH>,
-        height: &U32Variable,
-        encoded_height_byte_length: U32Variable,
-    );
 
     fn extract_hash_from_protobuf<const START_BYTE: usize, const PROTOBUF_LENGTH_BYTES: usize>(
         &mut self,
@@ -93,48 +74,22 @@ pub trait CelestiaCommitment<L: PlonkParameters<D>, const D: usize> {
 
     /// Compute the data commitment from the data hashes and block heights. WINDOW_RANGE is the number of blocks in the data commitment. NUM_LEAVES is the number of leaves in the tree for the data commitment.
     /// Assumes the data hashes are already proven.
-    fn get_data_commitment<
-        E: CubicParameters<L::Field>,
-        C: GenericConfig<
-                D,
-                F = L::Field,
-                FE = <<L as PlonkParameters<D>>::Field as Extendable<D>>::Extension,
-            > + 'static,
-        const WINDOW_RANGE: usize,
-        const NB_LEAVES: usize,
-    >(
+    fn get_data_commitment<const WINDOW_RANGE: usize, const NB_LEAVES: usize>(
         &mut self,
         data_hashes: &ArrayVariable<Bytes32Variable, WINDOW_RANGE>,
-        start_block: U32Variable,
+        start_block: U64Variable,
     ) -> Bytes32Variable;
 
     /// Prove header chain from current_header to trusted_header & the block heights for the current header and the trusted header.
     /// Merkle prove the last block id against the current header, and the data hash for each header except the current header.
     /// Note: data_hash_proofs and prev_header_proofs should be in order from current_header to trusted_header
-    fn prove_header_chain<
-        E: CubicParameters<L::Field>,
-        C: GenericConfig<
-                D,
-                F = L::Field,
-                FE = <<L as PlonkParameters<D>>::Field as Extendable<D>>::Extension,
-            > + 'static,
-        const WINDOW_RANGE: usize,
-    >(
+    fn prove_header_chain<const WINDOW_RANGE: usize>(
         &mut self,
         input: CelestiaHeaderChainProofInputVariable<WINDOW_RANGE>,
     );
 
     /// Prove the header chain from current_header to trusted_header & compute the data commitment.
-    fn prove_data_commitment<
-        E: CubicParameters<L::Field>,
-        C: GenericConfig<
-                D,
-                F = L::Field,
-                FE = <<L as PlonkParameters<D>>::Field as Extendable<D>>::Extension,
-            > + 'static,
-        const WINDOW_RANGE: usize,
-        const NB_LEAVES: usize,
-    >(
+    fn prove_data_commitment<const WINDOW_RANGE: usize, const NB_LEAVES: usize>(
         &mut self,
         input: CelestiaHeaderChainProofInputVariable<WINDOW_RANGE>,
         data_hashes: &ArrayVariable<Bytes32Variable, WINDOW_RANGE>,
@@ -143,17 +98,6 @@ pub trait CelestiaCommitment<L: PlonkParameters<D>, const D: usize> {
 
 impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for CircuitBuilder<L, D> {
     type Curve = Ed25519;
-
-    fn marshal_u32_as_varint(&mut self, num: &U32Variable) -> BytesVariable<9> {
-        // Lower bytes, then the upper bytes
-        let voting_power_limbs = [*num, self.constant::<U32Variable>(0)];
-        let voting_power = U64Variable {
-            limbs: voting_power_limbs,
-            _marker: std::marker::PhantomData,
-        };
-
-        BytesVariable(self.marshal_int64_varint(&voting_power))
-    }
 
     fn encode_marshalled_varint(
         &mut self,
@@ -170,16 +114,16 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
     fn encode_data_root_tuple(
         &mut self,
         data_hash: &Bytes32Variable,
-        height: &U32Variable,
+        height: &U64Variable,
     ) -> BytesVariable<64> {
         let mut encoded_tuple = Vec::new();
 
         // Encode the height.
         let encoded_height = height.encode(self);
 
-        // Pad the abi.encodePacked(height) to 32 bytes.
+        // Pad the abi.encodePacked(height) to 32 bytes. Height is 8 bytes, pad with 32 - 8 = 24 bytes.
         encoded_tuple.extend(
-            self.constant::<ArrayVariable<ByteVariable, 28>>(vec![0u8; 28])
+            self.constant::<ArrayVariable<ByteVariable, 24>>(vec![0u8; 24])
                 .as_vec(),
         );
 
@@ -193,49 +137,6 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
         BytesVariable::<64>(encoded_tuple.try_into().unwrap())
     }
 
-    /// Verifies the block height against the header.
-    fn verify_block_height(
-        &mut self,
-        header: Bytes32Variable,
-        proof: &ArrayVariable<Bytes32Variable, HEADER_PROOF_DEPTH>,
-        path: &ArrayVariable<BoolVariable, HEADER_PROOF_DEPTH>,
-        height: &U32Variable,
-        encoded_height_byte_length: U32Variable,
-    ) {
-        // Verify the current header height proof against the current header.
-        let encoded_height = self.marshal_u32_as_varint(&height);
-        let encoded_height = self.encode_marshalled_varint(&encoded_height);
-
-        // Extend encoded_height to 64 bytes for curta_sha256_variable.
-        let mut encoded_height_extended = [ByteVariable::init(self); 64];
-        for i in 0..PROTOBUF_VARINT_SIZE_BYTES {
-            encoded_height_extended[i] = encoded_height.0[i];
-        }
-        for i in PROTOBUF_VARINT_SIZE_BYTES..64 {
-            encoded_height_extended[i] = self.constant::<ByteVariable>(0u8);
-        }
-        let encoded_height = BytesVariable::<64>(encoded_height_extended);
-
-        let last_chunk = self.constant::<U32Variable>(0);
-
-        // Add 1 to the encoded height byte length to account for the 0x00 byte.
-        let one_u32 = self.constant::<U32Variable>(1);
-        let encoded_height_byte_length = self.add(encoded_height_byte_length, one_u32);
-
-        // Only one chunk is needed for the encoded height.
-        const MAX_NUM_CHUNKS: usize = 1;
-        let leaf_hash = self.curta_sha256_variable::<MAX_NUM_CHUNKS>(
-            &encoded_height.0,
-            last_chunk,
-            encoded_height_byte_length,
-        );
-
-        let computed_root = self
-            .get_root_from_merkle_proof_hashed_leaf::<HEADER_PROOF_DEPTH>(&proof, &path, leaf_hash);
-
-        self.assert_is_equal(computed_root, header);
-    }
-
     fn extract_hash_from_protobuf<const START_BYTE: usize, const PROTOBUF_LENGTH_BYTES: usize>(
         &mut self,
         bytes: &BytesVariable<PROTOBUF_LENGTH_BYTES>,
@@ -245,24 +146,15 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
         Bytes32Variable(BytesVariable(arr.as_slice().try_into().unwrap()))
     }
 
-    fn get_data_commitment<
-        E: CubicParameters<L::Field>,
-        C: GenericConfig<
-                D,
-                F = L::Field,
-                FE = <<L as PlonkParameters<D>>::Field as Extendable<D>>::Extension,
-            > + 'static,
-        const WINDOW_RANGE: usize,
-        const NB_LEAVES: usize,
-    >(
+    fn get_data_commitment<const WINDOW_RANGE: usize, const NB_LEAVES: usize>(
         &mut self,
         data_hashes: &ArrayVariable<Bytes32Variable, WINDOW_RANGE>,
-        start_block: U32Variable,
+        start_block: U64Variable,
     ) -> Bytes32Variable {
         let mut leaves = Vec::new();
 
         for i in 0..WINDOW_RANGE {
-            let curr_idx = self.constant::<U32Variable>(i as u32);
+            let curr_idx = self.constant::<U64Variable>(i.into());
             let block_height = self.add(start_block, curr_idx);
             // Encode the data hash and height into a tuple.
             leaves.push(self.encode_data_root_tuple(&data_hashes[i], &block_height));
@@ -280,28 +172,19 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
         root
     }
 
-    fn prove_header_chain<
-        E: CubicParameters<L::Field>,
-        C: GenericConfig<
-                D,
-                F = L::Field,
-                FE = <<L as PlonkParameters<D>>::Field as Extendable<D>>::Extension,
-            > + 'static,
-        const WINDOW_RANGE: usize,
-    >(
+    fn prove_header_chain<const WINDOW_RANGE: usize>(
         &mut self,
         input: CelestiaHeaderChainProofInputVariable<WINDOW_RANGE>,
     ) {
         // Verify current_block_height - trusted_block_height == WINDOW_RANGE
         let height_diff = self.sub(input.current_header.height, input.trusted_header.height);
-        let window_range_target = self.constant::<U32Variable>(WINDOW_RANGE as u32);
+        let window_range_target = self.constant::<U64Variable>(WINDOW_RANGE.into());
         self.assert_is_equal(height_diff, window_range_target);
 
         // Verify the current block's height
         self.verify_block_height(
             input.current_header.header,
             &input.current_header.header_height_proof.aunts,
-            &input.current_header.header_height_proof.path_indices,
             &input.current_header.height,
             input.current_header.height_byte_length,
         );
@@ -310,7 +193,6 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
         self.verify_block_height(
             input.trusted_header.header,
             &input.trusted_header.header_height_proof.aunts,
-            &input.trusted_header.header_height_proof.path_indices,
             &input.trusted_header.height,
             input.trusted_header.height_byte_length,
         );
@@ -349,27 +231,18 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
         self.assert_is_equal(curr_header_hash, input.trusted_header.header);
     }
 
-    fn prove_data_commitment<
-        E: CubicParameters<L::Field>,
-        C: GenericConfig<
-                D,
-                F = L::Field,
-                FE = <<L as PlonkParameters<D>>::Field as Extendable<D>>::Extension,
-            > + 'static,
-        const WINDOW_RANGE: usize,
-        const NB_LEAVES: usize,
-    >(
+    fn prove_data_commitment<const WINDOW_RANGE: usize, const NB_LEAVES: usize>(
         &mut self,
         input: CelestiaHeaderChainProofInputVariable<WINDOW_RANGE>,
         data_hashes: &ArrayVariable<Bytes32Variable, WINDOW_RANGE>,
     ) -> Bytes32Variable {
         // Compute the data commitment.
-        let data_commitment = self.get_data_commitment::<E, C, WINDOW_RANGE, NB_LEAVES>(
+        let data_commitment = self.get_data_commitment::<WINDOW_RANGE, NB_LEAVES>(
             data_hashes,
             input.trusted_header.height,
         );
         // Verify the header chain.
-        self.prove_header_chain::<E, C, WINDOW_RANGE>(input);
+        self.prove_header_chain::<WINDOW_RANGE>(input);
 
         // Return the data commitment.
         data_commitment
@@ -381,8 +254,6 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use curta::math::goldilocks::cubic::GoldilocksCubicParameters;
-    use plonky2::plonk::config::PoseidonGoldilocksConfig;
     use plonky2x::backend::circuit::DefaultParameters;
 
     use crate::{
@@ -392,8 +263,6 @@ pub(crate) mod tests {
 
     type L = DefaultParameters;
     type F = <L as PlonkParameters<D>>::Field;
-    type C = PoseidonGoldilocksConfig;
-    type E = GoldilocksCubicParameters;
     const D: usize = 2;
 
     #[test]
@@ -413,7 +282,7 @@ pub(crate) mod tests {
         let celestia_header_chain_var =
             builder.read::<CelestiaHeaderChainProofInputVariable<WINDOW_SIZE>>();
 
-        let root_hash_target = builder.prove_data_commitment::<E, C, WINDOW_SIZE, NUM_LEAVES>(
+        let root_hash_target = builder.prove_data_commitment::<WINDOW_SIZE, NUM_LEAVES>(
             celestia_header_chain_var,
             &celestia_data_commitment_var.data_hashes,
         );
@@ -449,8 +318,8 @@ pub(crate) mod tests {
         let celestia_data_commitment_var =
             builder.read::<CelestiaDataCommitmentProofInputVariable<WINDOW_SIZE>>();
 
-        let start_block = builder.constant::<U32Variable>(START_BLOCK as u32);
-        let root_hash_target = builder.get_data_commitment::<E, C, WINDOW_SIZE, NUM_LEAVES>(
+        let start_block = builder.constant::<U64Variable>(START_BLOCK.into());
+        let root_hash_target = builder.get_data_commitment::<WINDOW_SIZE, NUM_LEAVES>(
             &celestia_data_commitment_var.data_hashes,
             start_block,
         );
@@ -482,7 +351,7 @@ pub(crate) mod tests {
         let celestia_header_chain_var =
             builder.read::<CelestiaHeaderChainProofInputVariable<WINDOW_SIZE>>();
 
-        builder.prove_header_chain::<E, C, WINDOW_SIZE>(celestia_header_chain_var);
+        builder.prove_header_chain::<WINDOW_SIZE>(celestia_header_chain_var);
 
         let circuit = builder.build();
 
@@ -500,10 +369,10 @@ pub(crate) mod tests {
 
         let mut builder = CircuitBuilder::<L, D>::new();
 
-        let height = builder.constant::<U32Variable>(3804);
+        let height = builder.constant::<U64Variable>(3804.into());
 
-        let encoded_height = builder.marshal_u32_as_varint(&height);
-        let encoded_height = builder.encode_marshalled_varint(&encoded_height);
+        let encoded_height = builder.marshal_int64_varint(&height);
+        let encoded_height = builder.encode_marshalled_varint(&BytesVariable(encoded_height));
         builder.watch(&encoded_height, "encoded_height");
 
         let circuit = builder.build();
@@ -524,7 +393,7 @@ pub(crate) mod tests {
         let data_hash =
             builder.constant::<Bytes32Variable>(ethers::types::H256::from_slice(&[255u8; 32]));
         builder.watch(&data_hash, "data_hash");
-        let height = builder.constant::<U32Variable>(256);
+        let height = builder.constant::<U64Variable>(256.into());
         builder.watch(&height, "height");
         let data_root_tuple = builder.encode_data_root_tuple(&data_hash, &height);
         builder.watch(&data_root_tuple, "data_root_tuple");

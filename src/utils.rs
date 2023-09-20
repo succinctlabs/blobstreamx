@@ -66,7 +66,7 @@ const _PUBKEY_BYTES_LEN: usize = 32;
 
 // The maximum number of bytes in a Tendermint validator's voting power.
 // https://docs.tendermint.com/v0.34/tendermint-core/using-tendermint.html#tendermint-networks
-pub const VOTING_POWER_BYTES_LENGTH_MAX: usize = 9;
+pub const VARINT_BYTES_LENGTH_MAX: usize = 9;
 
 // // The maximum number of validators in a Tendermint validator set.
 // // Note: Must be a power of 2.
