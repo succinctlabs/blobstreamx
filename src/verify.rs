@@ -157,7 +157,7 @@ pub trait TendermintVerify<
     fn step(
         &mut self,
         validators: &ArrayVariable<ValidatorVariable<Self::Curve>, VALIDATOR_SET_SIZE_MAX>,
-        header: &TendermintHashVariable,
+        header: TendermintHashVariable,
         prev_header: &TendermintHashVariable,
         data_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
         validator_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
@@ -183,7 +183,7 @@ pub trait TendermintVerify<
     fn skip(
         &mut self,
         validators: &ArrayVariable<ValidatorVariable<Self::Curve>, VALIDATOR_SET_SIZE_MAX>,
-        header: &TendermintHashVariable,
+        header: TendermintHashVariable,
         header_height_proof: HeightProofVariable,
         data_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
         validator_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
@@ -257,7 +257,7 @@ impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
     fn step(
         &mut self,
         validators: &ArrayVariable<ValidatorVariable<Self::Curve>, VALIDATOR_SET_SIZE_MAX>,
-        header: &TendermintHashVariable,
+        header: TendermintHashVariable,
         prev_header: &TendermintHashVariable,
         data_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
         validator_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
@@ -269,7 +269,7 @@ impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
         // Verify 2/3 of the validators signed the headers
         self.verify_header(
             validators,
-            header,
+            &header,
             data_hash_proof,
             validator_hash_proof,
             next_validators_hash_proof,
@@ -282,7 +282,7 @@ impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
             L,
             D,
             VALIDATOR_SET_SIZE_MAX,
-        >>::verify_prev_header_in_header(self, header, prev_header, last_block_id_proof);
+        >>::verify_prev_header_in_header(self, &header, prev_header, last_block_id_proof);
 
         // Extract the validators hash from the validator hash proof
         const HASH_START_BYTE: usize = 2;
@@ -525,7 +525,7 @@ impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
     fn skip(
         &mut self,
         validators: &ArrayVariable<ValidatorVariable<Self::Curve>, VALIDATOR_SET_SIZE_MAX>,
-        header: &TendermintHashVariable,
+        header: TendermintHashVariable,
         header_height_proof: HeightProofVariable,
         data_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
         validator_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
@@ -547,7 +547,7 @@ impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
 
         self.verify_header(
             validators,
-            header,
+            &header,
             data_hash_proof,
             validator_hash_proof,
             next_validators_hash_proof,
@@ -555,8 +555,8 @@ impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
         );
 
         self.verify_block_height(
-            *header,
-            &header_height_proof.header_height_proof,
+            header,
+            &header_height_proof.proof,
             &header_height_proof.height,
             header_height_proof.height_byte_length,
         )
@@ -739,7 +739,7 @@ pub(crate) mod tests {
 
         builder.step(
             &validators,
-            &header,
+            header,
             &prev_header,
             &data_hash_proof,
             &validator_hash_proof,
@@ -820,7 +820,7 @@ pub(crate) mod tests {
 
         builder.skip(
             &validators,
-            &header,
+            header,
             header_height_proof,
             &data_hash_proof,
             &validator_hash_proof,

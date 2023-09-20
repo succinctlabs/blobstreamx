@@ -293,9 +293,9 @@ pub fn generate_header_chain_inputs<const WINDOW_SIZE: usize, F: RichField>(
     }
 
     CelestiaHeaderChainProofInput {
-        current_header: HeightProofVariableInput {
-            header: H256::from_slice(fixture.curr_header.as_bytes()),
-            header_height_proof: fixture
+        current_header: H256::from_slice(fixture.curr_header.as_bytes()),
+        current_header_height_proof: HeightProofVariableInput {
+            proof: fixture
                 .current_block_height_proof
                 .proof
                 .clone()
@@ -304,9 +304,9 @@ pub fn generate_header_chain_inputs<const WINDOW_SIZE: usize, F: RichField>(
             height: fixture.current_block.into(),
             height_byte_length: fixture.encoded_current_height_byte_length,
         },
-        trusted_header: HeightProofVariableInput {
-            header: H256::from_slice(fixture.trusted_header.as_bytes()),
-            header_height_proof: fixture
+        trusted_header: H256::from_slice(fixture.trusted_header.as_bytes()),
+        trusted_header_height_proof: HeightProofVariableInput {
+            proof: fixture
                 .trusted_block_height_proof
                 .proof
                 .clone()
@@ -667,8 +667,7 @@ pub fn generate_skip_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
     let enc_height_proof = proofs[2].clone();
 
     let height_proof = HeightProofVariableInput {
-        header: TxHash::from_slice(&block.header.hash().as_bytes()),
-        header_height_proof: convert_to_h256(enc_height_proof.aunts),
+        proof: convert_to_h256(enc_height_proof.aunts),
         height_byte_length: enc_height_leaf.len() as u32,
         height: block.header.height.value().into(),
     };

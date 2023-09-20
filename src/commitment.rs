@@ -10,6 +10,7 @@ use plonky2x::frontend::vars::{ArrayVariable, Bytes32Variable, EvmVariable, U32V
 use plonky2x::prelude::{
     BoolVariable, ByteVariable, BytesVariable, CircuitBuilder, CircuitVariable, Variable,
 };
+use tendermint::block::Height;
 
 use crate::shared::TendermintHeader;
 use crate::utils::{
@@ -28,8 +29,7 @@ pub struct CelestiaDataCommitmentProofInputVariable<const WINDOW_SIZE: usize> {
 #[derive(Clone, Debug, CircuitVariable)]
 #[value_name(HeightProofVariableInput)]
 pub struct HeightProofVariable {
-    pub header: Bytes32Variable,
-    pub header_height_proof: ArrayVariable<Bytes32Variable, HEADER_PROOF_DEPTH>,
+    pub proof: ArrayVariable<Bytes32Variable, HEADER_PROOF_DEPTH>,
     pub height_byte_length: U32Variable,
     pub height: U64Variable,
 }
@@ -37,8 +37,10 @@ pub struct HeightProofVariable {
 #[derive(Clone, Debug, CircuitVariable)]
 #[value_name(CelestiaHeaderChainProofInput)]
 pub struct CelestiaHeaderChainProofInputVariable<const WINDOW_RANGE: usize> {
-    pub current_header: HeightProofVariable,
-    pub trusted_header: HeightProofVariable,
+    pub current_header: Bytes32Variable,
+    pub current_header_height_proof: HeightProofVariable,
+    pub trusted_header: Bytes32Variable,
+    pub trusted_header_height_proof: HeightProofVariable,
     pub data_hash_proofs: ArrayVariable<
         MerkleInclusionProofVariable<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES>,
         WINDOW_RANGE,
@@ -158,28 +160,31 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
         input: CelestiaHeaderChainProofInputVariable<WINDOW_RANGE>,
     ) {
         // Verify current_block_height - trusted_block_height == WINDOW_RANGE
-        let height_diff = self.sub(input.current_header.height, input.trusted_header.height);
+        let height_diff = self.sub(
+            input.current_header_height_proof.height,
+            input.trusted_header_height_proof.height,
+        );
         let window_range_target = self.constant::<U64Variable>(WINDOW_RANGE.into());
         self.assert_is_equal(height_diff, window_range_target);
 
         // Verify the current block's height
         self.verify_block_height(
-            input.current_header.header,
-            &input.current_header.header_height_proof,
-            &input.current_header.height,
-            input.current_header.height_byte_length,
+            input.current_header,
+            &input.current_header_height_proof.proof,
+            &input.current_header_height_proof.height,
+            input.current_header_height_proof.height_byte_length,
         );
 
         // Verify the trusted block's height
         self.verify_block_height(
-            input.trusted_header.header,
-            &input.trusted_header.header_height_proof,
-            &input.trusted_header.height,
-            input.trusted_header.height_byte_length,
+            input.trusted_header,
+            &input.trusted_header_height_proof.proof,
+            &input.trusted_header_height_proof.height,
+            input.trusted_header_height_proof.height_byte_length,
         );
 
         // Verify the header chain.
-        let mut curr_header_hash = input.current_header.header;
+        let mut curr_header_hash = input.current_header;
 
         for i in 0..WINDOW_RANGE {
             let data_hash_proof = &input.data_hash_proofs[i];
@@ -209,7 +214,7 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
             curr_header_hash = prev_header_hash;
         }
         // Verify the last header hash in the chain is the trusted header.
-        self.assert_is_equal(curr_header_hash, input.trusted_header.header);
+        self.assert_is_equal(curr_header_hash, input.trusted_header);
     }
 
     fn prove_data_commitment<const WINDOW_RANGE: usize, const NB_LEAVES: usize>(
@@ -220,7 +225,7 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
         // Compute the data commitment.
         let data_commitment = self.get_data_commitment::<WINDOW_RANGE, NB_LEAVES>(
             data_hashes,
-            input.trusted_header.height,
+            input.trusted_header_height_proof.height,
         );
         // Verify the header chain.
         self.prove_header_chain::<WINDOW_RANGE>(input);
