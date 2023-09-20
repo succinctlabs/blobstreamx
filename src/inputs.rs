@@ -35,7 +35,7 @@ use plonky2x::prelude::{CircuitVariable, GoldilocksField};
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 use tendermint::crypto::ed25519::VerificationKey;
-use tendermint::{private_key, Hash, Signature};
+use tendermint::{private_key, Signature};
 use tendermint::{validator::Set as ValidatorSet, vote::SignedVote, vote::ValidatorIndex};
 use tendermint_proto::types::BlockId as RawBlockId;
 use tendermint_proto::Protobuf;
@@ -252,7 +252,7 @@ pub fn generate_header_chain_inputs<const WINDOW_SIZE: usize, F: RichField>(
     end_block: usize,
 ) -> HeaderChainProofValueType<WINDOW_SIZE, F> {
     assert!(
-        start_block - end_block == WINDOW_SIZE,
+        end_block - start_block == WINDOW_SIZE,
         "window size does not match"
     );
     // Generate test cases from header chain fixture
