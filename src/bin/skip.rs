@@ -74,11 +74,11 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize, L: PlonkParameters<D>, const D: usize>
     }
 }
 
-struct StepCircuit<const MAX_VALIDATOR_SET_SIZE: usize> {
+struct SkipCircuit<const MAX_VALIDATOR_SET_SIZE: usize> {
     _config: usize,
 }
 
-impl<const MAX_VALIDATOR_SET_SIZE: usize> Circuit for StepCircuit<MAX_VALIDATOR_SET_SIZE> {
+impl<const MAX_VALIDATOR_SET_SIZE: usize> Circuit for SkipCircuit<MAX_VALIDATOR_SET_SIZE> {
     fn define<L: PlonkParameters<D>, const D: usize>(builder: &mut CircuitBuilder<L, D>) {
         let trusted_header_hash = builder.evm_read::<Bytes32Variable>();
         let trusted_block = builder.evm_read::<U64Variable>();
@@ -117,12 +117,21 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize> Circuit for StepCircuit<MAX_VALIDATOR_
         );
         builder.evm_write(target_header);
     }
+
+    fn add_generators<L: PlonkParameters<D>, const D: usize>(
+        generator_registry: &mut plonky2x::prelude::WitnessGeneratorRegistry<L, D>,
+    ) where
+        <<L as PlonkParameters<D>>::Config as plonky2::plonk::config::GenericConfig<D>>::Hasher:
+            plonky2::plonk::config::AlgebraicHasher<L::Field>,
+    {
+        generator_registry.register_hint::<SkipOffchainInputs<MAX_VALIDATOR_SET_SIZE>>();
+    }
 }
 
 fn main() {
     // Will only work with blocks that have max 4 validators, this is useful for end-to-end testing on the platform quickly
     const MAX_VALIDATOR_SET_SIZE: usize = 4;
-    VerifiableFunction::<StepCircuit<MAX_VALIDATOR_SET_SIZE>>::entrypoint();
+    VerifiableFunction::<SkipCircuit<MAX_VALIDATOR_SET_SIZE>>::entrypoint();
 }
 
 #[cfg(test)]
@@ -130,38 +139,41 @@ mod tests {
     use ethers::types::H256;
     use std::env;
 
-    use plonky2x::prelude::DefaultBuilder;
-
     use super::*;
+    use plonky2x::prelude::{DefaultBuilder, GateRegistry, WitnessGeneratorRegistry};
 
     #[test]
     fn test_serialization() {
+        env::set_var("RUST_LOG", "debug");
         env_logger::try_init().unwrap_or_default();
 
         const MAX_VALIDATOR_SET_SIZE: usize = 2;
         let mut builder = DefaultBuilder::new();
 
         log::debug!("Defining circuit");
-        StepCircuit::<MAX_VALIDATOR_SET_SIZE>::define(&mut builder);
-
-        log::debug!("Building circuit");
+        SkipCircuit::<MAX_VALIDATOR_SET_SIZE>::define(&mut builder);
         let circuit = builder.build();
         log::debug!("Done building circuit");
 
-        circuit.test_default_serializers();
+        let mut generator_registry = WitnessGeneratorRegistry::new();
+        let mut gate_registry = GateRegistry::new();
+        SkipCircuit::<MAX_VALIDATOR_SET_SIZE>::add_generators(&mut generator_registry);
+        SkipCircuit::<MAX_VALIDATOR_SET_SIZE>::add_gates(&mut gate_registry);
+
+        circuit.test_serializers(&gate_registry, &generator_registry);
     }
 
     #[test]
     fn test_circuit_function_skip_fixture() {
         env::set_var("RUST_LOG", "debug");
         env_logger::try_init().unwrap_or_default();
-        // env::set_var("RPC_MOCHA_4", "fixture"); // Use fixture during testing
+        env::set_var("RPC_MOCHA_4", "fixture"); // Use fixture during testing
 
         const MAX_VALIDATOR_SET_SIZE: usize = 16;
         let mut builder = DefaultBuilder::new();
 
         log::debug!("Defining circuit");
-        StepCircuit::<MAX_VALIDATOR_SET_SIZE>::define(&mut builder);
+        SkipCircuit::<MAX_VALIDATOR_SET_SIZE>::define(&mut builder);
 
         log::debug!("Building circuit");
         let circuit = builder.build();

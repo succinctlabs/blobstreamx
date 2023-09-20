@@ -17,6 +17,7 @@
 use plonky2x::backend::circuit::Circuit;
 use plonky2x::backend::function::VerifiableFunction;
 use plonky2x::frontend::generator::simple::hint::Hint;
+use plonky2x::frontend::num::u32::gates::subtraction_u32::U32SubtractionGenerator;
 use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::frontend::vars::ValueStream;
 use plonky2x::prelude::{
@@ -108,22 +109,88 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize> Circuit for StepCircuit<MAX_VALIDATOR_
         );
         builder.evm_write(next_header);
     }
+
+    fn add_gates<L: PlonkParameters<D>, const D: usize>(
+        gate_registry: &mut plonky2x::prelude::GateRegistry<L, D>,
+    ) where
+        <<L as PlonkParameters<D>>::Config as plonky2::plonk::config::GenericConfig<D>>::Hasher:
+            plonky2::plonk::config::AlgebraicHasher<L::Field>,
+    {
+    }
+
+    fn add_generators<L: PlonkParameters<D>, const D: usize>(
+        generator_registry: &mut plonky2x::prelude::WitnessGeneratorRegistry<L, D>,
+    ) where
+        <<L as PlonkParameters<D>>::Config as plonky2::plonk::config::GenericConfig<D>>::Hasher:
+            plonky2::plonk::config::AlgebraicHasher<L::Field>,
+    {
+        generator_registry.register_hint::<StepOffchainInputs<MAX_VALIDATOR_SET_SIZE>>();
+    }
 }
 
 fn main() {
-    const MAX_VALIDATOR_SET_SIZE: usize = 128;
-    // let step_circuit = StepCircuit::<MAX_VALIDATOR_SET_SIZE> { config: 0 };
+    const MAX_VALIDATOR_SET_SIZE: usize = 4;
     VerifiableFunction::<StepCircuit<MAX_VALIDATOR_SET_SIZE>>::entrypoint();
 }
 
 #[cfg(test)]
 mod tests {
     use ethers::types::H256;
+    use ethers::utils::hex;
+    use plonky2x::backend::circuit::PublicInput;
+    use plonky2x::prelude::{DefaultBuilder, GateRegistry, WitnessGeneratorRegistry};
     use std::env;
 
-    use plonky2x::prelude::DefaultBuilder;
-
     use super::*;
+
+    #[test]
+    fn test_serialization() {
+        env::set_var("RUST_LOG", "debug");
+        env_logger::try_init().unwrap_or_default();
+
+        const MAX_VALIDATOR_SET_SIZE: usize = 2;
+        let mut builder = DefaultBuilder::new();
+
+        log::debug!("Defining circuit");
+        StepCircuit::<MAX_VALIDATOR_SET_SIZE>::define(&mut builder);
+        let circuit = builder.build();
+        log::debug!("Done building circuit");
+
+        let mut generator_registry = WitnessGeneratorRegistry::new();
+        let mut gate_registry = GateRegistry::new();
+        StepCircuit::<MAX_VALIDATOR_SET_SIZE>::add_generators(&mut generator_registry);
+        StepCircuit::<MAX_VALIDATOR_SET_SIZE>::add_gates(&mut gate_registry);
+
+        circuit.test_serializers(&gate_registry, &generator_registry);
+    }
+
+    // TODO: this test should not run in CI because it uses the RPC instead of a fixture
+    #[test]
+    fn test_circuit_with_input_bytes() {
+        env::set_var("RUST_LOG", "debug");
+        env_logger::try_init().unwrap_or_default();
+
+        const MAX_VALIDATOR_SET_SIZE: usize = 4;
+        // This is from block 3000
+        let input_bytes = hex::decode(
+            "a8512f18c34b70e1533cfd5aa04f251fcb0d7be56ec570051fbad9bdb9435e6a0000000000000bb8",
+        )
+        .unwrap();
+
+        let mut builder = DefaultBuilder::new();
+
+        log::debug!("Defining circuit");
+        StepCircuit::<MAX_VALIDATOR_SET_SIZE>::define(&mut builder);
+
+        log::debug!("Building circuit");
+        let circuit = builder.build();
+        log::debug!("Done building circuit");
+
+        let input = PublicInput::Bytes(input_bytes);
+        let (proof, mut output) = circuit.prove(&input);
+        let next_header = output.evm_read::<Bytes32Variable>();
+        println!("next_header {:?}", next_header);
+    }
 
     #[test]
     fn test_circuit_function_step() {
