@@ -1,8 +1,5 @@
 use celestia::{
-    fixture::{
-        create_block_fixture, create_data_commitment_fixture, create_header_chain_fixture,
-        generate_val_array,
-    },
+    fixture::{create_block_fixture, create_data_commitment_fixture, generate_val_array},
     inputs::generate_step_inputs,
 };
 use clap::Parser;
@@ -66,9 +63,6 @@ async fn main() {
             create_data_commitment_fixture(start_block, end_block)
                 .await
                 .expect("Failed to create new data commitment fixture");
-            create_header_chain_fixture(start_block, end_block)
-                .await
-                .expect("Failed to create new header chain fixture");
         }
         Function::GenerateStepInputs { block } => {
             const VALIDATOR_SET_SIZE_MAX: usize = 128;

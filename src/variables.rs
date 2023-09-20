@@ -46,6 +46,10 @@ pub struct HeightProofVariable {
 }
 
 // The data commitment inputs as a struct.
+// Note: data_hashes should be in order from start_header to end_header - 1.
+// Note: data_hash_proofs and prev_header_proofs should be in order from end_header to start_header.
+// Note: data_hash_proofs starts at end_header - 1.
+// Note: prev_header_proofs starts at end_header.
 #[derive(Clone, Debug, CircuitVariable)]
 #[value_name(DataCommitmentProofValueType)]
 pub struct DataCommitmentProofVariable<const WINDOW_RANGE: usize> {

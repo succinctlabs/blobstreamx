@@ -4,7 +4,7 @@ use crate::consts::{
     HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES,
     VALIDATOR_MESSAGE_BYTES_LENGTH_MAX,
 };
-use crate::fixture::{DataCommitmentFixture, HeaderChainFixture};
+use crate::fixture::DataCommitmentFixture;
 /// Source (tendermint-rs): https://github.com/informalsystems/tendermint-rs/blob/e930691a5639ef805c399743ac0ddbba0e9f53da/tendermint/src/merkle.rs#L32
 use crate::input_data::tendermint_utils::{
     compute_hash_from_aunts, generate_proofs_from_header, leaf_hash, non_absent_vote,
@@ -202,7 +202,7 @@ pub fn generate_expected_data_commitment<const WINDOW_SIZE: usize, F: RichField>
     // Generate test cases from data commitment fixture
     let fixture = get_data_commitment_fixture(start_block, end_block);
 
-    H256::from_slice(fixture.data_commitment.as_bytes())
+    H256::from_slice(fixture.expected_data_commitment.as_bytes())
 }
 
 /// Generate the inputs for a data commitment proof from start_block to end_block.
@@ -216,42 +216,39 @@ pub fn generate_data_commitment_inputs<const WINDOW_SIZE: usize, F: RichField>(
     );
 
     // Generate test cases from data commitment fixture
-    let data_commitment_fixture = get_data_commitment_fixture(start_block, end_block);
+    let fixture = get_data_commitment_fixture(start_block, end_block);
 
     let mut data_hashes = Vec::new();
     for i in start_block..end_block {
         data_hashes.push(H256::from_slice(
-            data_commitment_fixture.data_hashes[i - start_block].as_bytes(),
+            fixture.data_hashes[i - start_block].as_bytes(),
         ));
     }
-
-    // Generate test cases from header chain fixture
-    let header_chain_fixture = get_header_chain_fixture(start_block, end_block);
 
     let mut data_hash_proofs = Vec::new();
     let mut prev_header_proofs = Vec::new();
     for i in 0..WINDOW_SIZE {
         data_hash_proofs.push(InclusionProof {
-            leaf: header_chain_fixture.data_hash_proofs[i]
+            leaf: fixture.data_hash_proofs[i]
                 .enc_leaf
                 .clone()
                 .try_into()
                 .unwrap(),
-            path_indices: header_chain_fixture.data_hash_proofs[i].path.clone(),
-            aunts: header_chain_fixture.data_hash_proofs[i]
+            path_indices: fixture.data_hash_proofs[i].path.clone(),
+            aunts: fixture.data_hash_proofs[i]
                 .proof
                 .clone()
                 .try_into()
                 .unwrap(),
         });
         prev_header_proofs.push(InclusionProof {
-            leaf: header_chain_fixture.prev_header_proofs[i]
+            leaf: fixture.prev_header_proofs[i]
                 .enc_leaf
                 .clone()
                 .try_into()
                 .unwrap(),
-            path_indices: header_chain_fixture.prev_header_proofs[i].path.clone(),
-            aunts: header_chain_fixture.prev_header_proofs[i]
+            path_indices: fixture.prev_header_proofs[i].path.clone(),
+            aunts: fixture.prev_header_proofs[i]
                 .proof
                 .clone()
                 .try_into()
@@ -261,47 +258,31 @@ pub fn generate_data_commitment_inputs<const WINDOW_SIZE: usize, F: RichField>(
 
     DataCommitmentProofValueType {
         data_hashes,
-        end_header: H256::from_slice(header_chain_fixture.end_header.as_bytes()),
+        end_header: H256::from_slice(fixture.end_header.as_bytes()),
         end_header_height_proof: HeightProofValueType {
-            proof: header_chain_fixture
+            proof: fixture
                 .end_block_height_proof
                 .proof
                 .clone()
                 .try_into()
                 .unwrap(),
-            height: header_chain_fixture.end_block.into(),
-            enc_height_byte_length: header_chain_fixture.encoded_end_height_byte_length,
+            height: fixture.end_block.into(),
+            enc_height_byte_length: fixture.encoded_end_height_byte_length,
         },
-        start_header: H256::from_slice(header_chain_fixture.start_header.as_bytes()),
+        start_header: H256::from_slice(fixture.start_header.as_bytes()),
         start_header_height_proof: HeightProofValueType {
-            proof: header_chain_fixture
+            proof: fixture
                 .start_block_height_proof
                 .proof
                 .clone()
                 .try_into()
                 .unwrap(),
-            height: header_chain_fixture.start_block.into(),
-            enc_height_byte_length: header_chain_fixture.encoded_start_height_byte_length,
+            height: fixture.start_block.into(),
+            enc_height_byte_length: fixture.encoded_start_height_byte_length,
         },
         prev_header_proofs,
         data_hash_proofs,
     }
-}
-
-pub fn get_header_chain_fixture(start_block: usize, end_block: usize) -> HeaderChainFixture {
-    let mut file = String::new();
-    file.push_str("./src/fixtures/mocha-4/");
-    file.push_str(&start_block.to_string());
-    file.push_str("-");
-    file.push_str(&end_block.to_string());
-    file.push_str("/header_chain.json");
-
-    let file_content = fs::read_to_string(file.as_str());
-
-    HeaderChainFixture::from(
-        serde_json::from_str::<HeaderChainFixture>(&file_content.unwrap())
-            .expect("failed to parse json"),
-    )
 }
 
 pub fn convert_to_h256(aunts: Vec<[u8; 32]>) -> Vec<H256> {
