@@ -25,8 +25,8 @@ use plonky2x::prelude::{
 use serde::{Deserialize, Serialize};
 use tokio::runtime::Runtime;
 
+use celestia::consts::HEADER_PROOF_DEPTH;
 use celestia::input_data::{InputDataFetcher, InputDataMode};
-use celestia::utils::HEADER_PROOF_DEPTH;
 use celestia::verify::{
     HashInclusionProofVariable, TendermintVerify, ValidatorHashFieldVariable, ValidatorVariable,
 };

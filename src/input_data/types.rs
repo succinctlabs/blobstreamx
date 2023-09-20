@@ -1,9 +1,9 @@
 use super::tendermint_utils::{non_absent_vote, TempSignedBlock};
-use crate::signature::DUMMY_SIGNATURE;
-use crate::utils::{
+use crate::consts::{
     HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES,
     VALIDATOR_MESSAGE_BYTES_LENGTH_MAX,
 };
+use crate::signature::DUMMY_SIGNATURE;
 use crate::verify::{
     BlockIDInclusionProof, BlockIDInclusionProofVariable, HashInclusionProof,
     HashInclusionProofVariable, Validator, ValidatorHashField,

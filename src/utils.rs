@@ -1,14 +1,10 @@
 use plonky2::hash::hash_types::RichField;
 
-use plonky2x::frontend::ecc::ed25519::gadgets::curve::AffinePointTarget;
-use plonky2x::frontend::num::u32::gadgets::arithmetic_u32::U32Target;
-use plonky2x::prelude::{Bytes32Variable, BytesVariable};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::cell::RefCell;
 use std::rc::Rc;
 use subtle_encoding::hex;
-use tendermint::merkle::HASH_SIZE;
 /// Source (tendermint-rs): https://github.com/informalsystems/tendermint-rs/blob/e930691a5639ef805c399743ac0ddbba0e9f53da/tendermint/src/merkle.rs#L32
 use tendermint::{
     block::Header,
@@ -22,78 +18,6 @@ use tendermint_proto::{
     types::BlockId as RawBlockId, types::Data as RawData,
     version::Consensus as RawConsensusVersion, Protobuf,
 };
-
-// TODO: all these numbers below and variables should be moved to a `consts.rs`
-
-pub const TOTAL_HEADER_FIELDS: usize = 14;
-pub const BLOCK_HEIGHT_INDEX: usize = 2; // u64
-pub const LAST_BLOCK_ID_INDEX: usize = 4;
-pub const VALIDATORS_HASH_INDEX: usize = 7;
-pub const NEXT_VALIDATORS_HASH_INDEX: usize = 8;
-
-/// The number of bits in a SHA256 hash.
-pub const HASH_SIZE_BITS: usize = HASH_SIZE * 8;
-
-/// The number of bytes in a varint.
-pub const VARINT_SIZE_BYTES: usize = 9;
-pub const PROTOBUF_VARINT_SIZE_BYTES: usize = VARINT_SIZE_BYTES + 1;
-
-/// The number of bits in a protobuf-encoded SHA256 hash.
-pub const PROTOBUF_HASH_SIZE_BYTES: usize = HASH_SIZE + 2;
-
-/// The number of bits in a protobuf-encoded tendermint block ID.
-pub const PROTOBUF_BLOCK_ID_SIZE_BYTES: usize = 72;
-
-// Constants that represent the number of bytes necessary to pad the protobuf encoded data for SHA256
-pub const PROTOBUF_HASH_SHA256_NUM_BYTES: usize = 64;
-pub const PROTOBUF_BLOCK_ID_SHA256_NUM_BYTES: usize = 128;
-
-// Depth of the proofs against the header.
-pub const HEADER_PROOF_DEPTH: usize = 4;
-
-/// The maximum length of a protobuf-encoded Tendermint validator in bytes.
-pub const VALIDATOR_BYTE_LENGTH_MAX: usize = 46;
-
-/// The minimum length of a protobuf-encoded Tendermint validator in bytes.
-pub const VALIDATOR_BYTE_LENGTH_MIN: usize = 38;
-
-/// The number of possible byte lengths of a protobuf-encoded Tendermint validator.
-pub const NUM_POSSIBLE_VALIDATOR_BYTE_LENGTHS: usize =
-    VALIDATOR_BYTE_LENGTH_MAX - VALIDATOR_BYTE_LENGTH_MIN + 1;
-
-// The number of bytes in a Tendermint validator's public key.
-const _PUBKEY_BYTES_LEN: usize = 32;
-
-// The maximum number of bytes in a Tendermint validator's voting power.
-// https://docs.tendermint.com/v0.34/tendermint-core/using-tendermint.html#tendermint-networks
-pub const VARINT_BYTES_LENGTH_MAX: usize = 9;
-
-// // The maximum number of validators in a Tendermint validator set.
-// // Note: Must be a power of 2.
-// pub const VALIDATOR_SET_SIZE_MAX: usize = 16;
-
-// The maximum number of bytes in a validator message (CanonicalVote toSignBytes).
-pub const VALIDATOR_MESSAGE_BYTES_LENGTH_MAX: usize = 124;
-
-pub type EDDSAPublicKeyVariable<C> = AffinePointTarget<C>;
-
-/// A protobuf-encoded tendermint block ID as a 72 byte target.
-pub type EncBlockIDVariable = BytesVariable<PROTOBUF_BLOCK_ID_SIZE_BYTES>;
-
-// TODO: add a comment here
-pub type EncTendermintHashVariable = BytesVariable<PROTOBUF_HASH_SIZE_BYTES>;
-
-/// The Tendermint hash as a 32 byte variable.
-pub type TendermintHashVariable = Bytes32Variable;
-
-/// The marshalled validator bytes as a variable.
-pub type MarshalledValidatorVariable = BytesVariable<VALIDATOR_BYTE_LENGTH_MAX>;
-
-/// The message signed by the validator as a variable.
-pub type ValidatorMessageVariable = BytesVariable<VALIDATOR_MESSAGE_BYTES_LENGTH_MAX>;
-/// The voting power as a list of 2 u32 targets.
-#[derive(Debug, Clone, Copy)]
-pub struct I64Target(pub [U32Target; 2]);
 
 // TODO: I think we can remove a lot of these methods, as we no longer need them
 // Convert from [BoolTarget; HASH_SIZE_BITS] to [BoolTarget; PROTOBUF_HASH_SIZE_BITS]

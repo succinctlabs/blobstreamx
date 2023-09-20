@@ -11,10 +11,10 @@ use plonky2x::prelude::{
     BoolVariable, ByteVariable, BytesVariable, CircuitBuilder, CircuitVariable, Variable,
 };
 
-use crate::shared::TendermintHeader;
-use crate::utils::{
+use crate::consts::{
     HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES, VARINT_SIZE_BYTES,
 };
+use crate::shared::TendermintHeader;
 
 #[derive(Clone, Debug, CircuitVariable)]
 #[value_name(CelestiaDataCommitmentProofInput)]

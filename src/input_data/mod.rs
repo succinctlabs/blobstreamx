@@ -10,8 +10,8 @@ use self::tendermint_utils::{
 };
 use self::types::{update_present_on_trusted_header, TempMerkleInclusionProof};
 use self::utils::{convert_to_h256, get_path_indices};
+use crate::consts::{LAST_BLOCK_ID_INDEX, NEXT_VALIDATORS_HASH_INDEX, VALIDATORS_HASH_INDEX};
 use crate::input_data::types::{get_validators_as_input, get_validators_fields_as_input};
-use crate::utils::{LAST_BLOCK_ID_INDEX, NEXT_VALIDATORS_HASH_INDEX, VALIDATORS_HASH_INDEX};
 use crate::verify::{Validator, ValidatorHashField};
 use ethers::types::H256;
 use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;

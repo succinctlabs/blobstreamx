@@ -11,16 +11,13 @@ use plonky2x::{
     },
 };
 
-use crate::utils::{
-    EDDSAPublicKeyVariable, EncBlockIDVariable, EncTendermintHashVariable, TendermintHashVariable,
-    ValidatorMessageVariable,
+use crate::variables::{
+    EDDSAPublicKeyVariable, EncBlockIDVariable, EncTendermintHashVariable,
+    MarshalledValidatorVariable, TendermintHashVariable, ValidatorMessageVariable,
 };
 use crate::{
+    consts::{HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES},
     signature::TendermintSignature,
-    utils::{
-        MarshalledValidatorVariable, HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES,
-        PROTOBUF_HASH_SIZE_BYTES,
-    },
     validator::TendermintValidator,
     voting::TendermintVoting,
 };
@@ -628,6 +625,7 @@ pub(crate) mod tests {
     use plonky2::util::timing::TimingTree;
     use plonky2x::prelude::DefaultBuilder;
 
+    // TODO: Remove dependency on inputs crate
     use crate::inputs::{
         generate_skip_inputs, generate_step_inputs, CelestiaSkipBlockProof, CelestiaStepBlockProof,
     };
