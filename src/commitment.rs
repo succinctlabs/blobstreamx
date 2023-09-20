@@ -163,8 +163,8 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
         let encoded_height = self.encode_marshalled_varint(&BytesVariable(encoded_height));
 
         // Extend encoded_height to 64 bytes for curta_sha256_variable.
-        let mut encoded_height_extended = [ByteVariable::init(self); 64];
-        for i in 0..PROTOBUF_VARINT_SIZE_BYTES + 1 {
+        let mut encoded_height_extended = [ByteVariable::init_unsafe(self); 64];
+        for i in 0..PROTOBUF_VARINT_SIZE_BYTES {
             encoded_height_extended[i] = encoded_height.0[i];
         }
         for i in PROTOBUF_VARINT_SIZE_BYTES + 1..64 {
