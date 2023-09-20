@@ -93,9 +93,9 @@ impl InputDataFetcher {
         let proofs = match self.proof_cache.get(&hash) {
             Some(proofs) => proofs.clone(),
             None => {
-                let (hash, proofs) = generate_proofs_from_header(&block_header);
+                let (hash, proofs) = generate_proofs_from_header(block_header);
                 self.proof_cache.insert(hash, proofs.clone());
-                proofs.clone()
+                proofs
             }
         };
         let total = proofs[0].total;

@@ -143,7 +143,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVoting for CircuitBuilder<
         // Sum up the voting power of all the validators
         let validator_voting_power = validator_voting_power
             .iter()
-            .map(|v| u64_variable_to_i64_target_legacy(v))
+            .map(u64_variable_to_i64_target_legacy)
             .collect::<Vec<_>>();
 
         let mut voting_power_low = U32Target(zero);
@@ -151,20 +151,21 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVoting for CircuitBuilder<
 
         // Note: We can only put a max of 80 targets into add_many_u32 (max num_routed_wires), which is why we need to split the sum into 2 chunks.
         for i in 0..2 {
-            let mut validator_voting_power_first = Vec::new();
-            for j in (VALIDATOR_SET_SIZE_MAX / 2) * i..(VALIDATOR_SET_SIZE_MAX / 2) * (i + 1) {
-                validator_voting_power_first.push(validator_voting_power[j].0[0]);
-            }
+            let start = (VALIDATOR_SET_SIZE_MAX / 2) * i;
+            let end = (VALIDATOR_SET_SIZE_MAX / 2) * (i + 1);
+            let validator_voting_power_first = validator_voting_power[start..end]
+                .iter()
+                .map(|x| x.0[0])
+                .collect::<Vec<_>>();
 
-            let (sum_lower_low, sum_lower_high) =
-                api.add_many_u32(&mut validator_voting_power_first);
+            let (sum_lower_low, sum_lower_high) = api.add_many_u32(&validator_voting_power_first);
 
-            let mut validator_voting_power_second = Vec::new();
-            for j in (VALIDATOR_SET_SIZE_MAX / 2) * i..(VALIDATOR_SET_SIZE_MAX / 2) * (i + 1) {
-                validator_voting_power_second.push(validator_voting_power[j].0[1]);
-            }
-            let (sum_upper_low, sum_upper_high) =
-                api.add_many_u32(&mut validator_voting_power_second);
+            let validator_voting_power_second = validator_voting_power[start..end]
+                .iter()
+                .map(|x| x.0[1])
+                .collect::<Vec<_>>();
+
+            let (sum_upper_low, sum_upper_high) = api.add_many_u32(&validator_voting_power_second);
 
             api.assert_zero_u32(sum_upper_high);
 
@@ -201,8 +202,8 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVoting for CircuitBuilder<
         let api = &mut self.api;
         let accumalated_power_convert = u64_variable_to_i64_target_legacy(accumulated_power);
         let total_voting_power_convert = u64_variable_to_i64_target_legacy(total_voting_power);
-        let threshold_numerator_convert = U32Target(threshold_numerator.0 .0.clone());
-        let threshold_denominator_convert = U32Target(threshold_denominator.0 .0.clone());
+        let threshold_numerator_convert = U32Target(threshold_numerator.0 .0);
+        let threshold_denominator_convert = U32Target(threshold_denominator.0 .0);
 
         // Threshold is numerator/denominator * total_voting_power
         // Compute accumulated_voting_power * m
@@ -337,8 +338,8 @@ pub(crate) mod tests {
                 input.write::<BoolVariable>(test_case.1[i] == 1);
             }
             input.write::<U64Variable>((total_vp as u64).into());
-            input.write::<U32Variable>(2u32.into());
-            input.write::<U32Variable>(3u32.into());
+            input.write::<U32Variable>(2u32);
+            input.write::<U32Variable>(3u32);
 
             let (_, mut output) = circuit.prove(&input);
             assert_eq!(output.read::<BoolVariable>(), test_case.2);
