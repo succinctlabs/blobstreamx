@@ -729,7 +729,7 @@ dependencies = [
 [[package]]
 name = "curta"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/curta.git#7923a47de8955e846927f867c71f725895c635c8"
+source = "git+https://github.com/succinctlabs/curta.git?branch=tamir/fix_scalar_mul_generator#1e5b0c6e5559e706f31de211d4e57ef67cb7b1c2"
 dependencies = [
  "anyhow",
  "bincode",
@@ -2774,7 +2774,7 @@ source = "git+https://github.com/mir-protocol/plonky2.git#6618cfad4a4ee0e5fe4fa7
 [[package]]
 name = "plonky2x"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git?branch=john/add-u32-gates#4c0b4bc26114e9391f2b05b0a1cb274c96d3ce11"
+source = "git+https://github.com/succinctlabs/succinctx.git?branch=tamir/fix_scalar_mul_generator#16f0351025b238318322f08e32f176ec92158a8a"
 dependencies = [
  "anyhow",
  "array-macro",
@@ -2812,7 +2812,7 @@ dependencies = [
 [[package]]
 name = "plonky2x-derive"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git?branch=john/add-u32-gates#4c0b4bc26114e9391f2b05b0a1cb274c96d3ce11"
+source = "git+https://github.com/succinctlabs/succinctx.git?branch=tamir/fix_scalar_mul_generator#16f0351025b238318322f08e32f176ec92158a8a"
 dependencies = [
  "proc-macro2",
  "quote",
