@@ -1,6 +1,6 @@
+pub mod block;
 pub mod commitment;
 pub mod fixture;
-pub mod header;
 pub mod inputs;
 pub mod signature;
 pub mod utils;
