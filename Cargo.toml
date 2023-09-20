@@ -3,6 +3,9 @@ name = "celestia"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+ci = []
+
 [dependencies]
 anyhow = "1.0.71"
 clap = { version = "4.3.18", features = ["derive"] }
