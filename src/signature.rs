@@ -248,7 +248,7 @@ pub(crate) mod tests {
     use tendermint::crypto::ed25519::SigningKey;
     use tendermint::private_key;
 
-    use crate::utils::to_be_bits;
+    use crate::input_data::utils::to_be_bits;
     use crate::variables::TendermintHashVariable;
 
     #[test]

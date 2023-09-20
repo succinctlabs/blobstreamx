@@ -625,6 +625,7 @@ pub(crate) mod tests {
     use plonky2::util::timing::TimingTree;
     use plonky2x::prelude::DefaultBuilder;
 
+    // TODO: Remove dependency on inputs crate
     use crate::inputs::{
         generate_skip_inputs, generate_step_inputs, CelestiaSkipBlockProof, CelestiaStepBlockProof,
     };

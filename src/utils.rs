@@ -1,14 +1,10 @@
 use plonky2::hash::hash_types::RichField;
 
-use plonky2x::frontend::ecc::ed25519::gadgets::curve::AffinePointTarget;
-use plonky2x::frontend::num::u32::gadgets::arithmetic_u32::U32Target;
-use plonky2x::prelude::{Bytes32Variable, BytesVariable};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::cell::RefCell;
 use std::rc::Rc;
 use subtle_encoding::hex;
-use tendermint::merkle::HASH_SIZE;
 /// Source (tendermint-rs): https://github.com/informalsystems/tendermint-rs/blob/e930691a5639ef805c399743ac0ddbba0e9f53da/tendermint/src/merkle.rs#L32
 use tendermint::{
     block::Header,

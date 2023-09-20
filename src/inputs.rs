@@ -9,10 +9,12 @@ use crate::consts::{
 };
 use crate::fixture::{DataCommitmentFixture, HeaderChainFixture};
 /// Source (tendermint-rs): https://github.com/informalsystems/tendermint-rs/blob/e930691a5639ef805c399743ac0ddbba0e9f53da/tendermint/src/merkle.rs#L32
-use crate::utils::{
-    compute_hash_from_aunts, generate_proofs_from_header, leaf_hash, non_absent_vote, SignedBlock,
+use crate::input_data::tendermint_utils::{
+    compute_hash_from_aunts, generate_proofs_from_header, leaf_hash, non_absent_vote,
     TempSignedBlock,
 };
+// TODO: Remove dependency on utils.
+use crate::utils::SignedBlock;
 use crate::verify::BlockIDInclusionProofVariable;
 use crate::verify::HashInclusionProofVariable;
 use ed25519_consensus::SigningKey;

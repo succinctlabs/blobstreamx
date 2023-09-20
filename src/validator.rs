@@ -160,8 +160,12 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for Circui
 pub(crate) mod tests {
     use super::*;
     use crate::consts::{HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES};
-    use crate::inputs::{convert_to_h256, get_path_indices, get_signed_block_from_fixture};
-    use crate::utils::{generate_proofs_from_header, hash_all_leaves, proofs_from_byte_slices};
+    use crate::input_data::tendermint_utils::{
+        generate_proofs_from_header, hash_all_leaves, proofs_from_byte_slices,
+    };
+    use crate::input_data::utils::{convert_to_h256, get_path_indices};
+    // TODO: Remove dependency on get_signed_block_from_fixture.
+    use crate::inputs::get_signed_block_from_fixture;
     use crate::validator::TendermintValidator;
     use ethers::types::H256;
     use ethers::utils::hex;
