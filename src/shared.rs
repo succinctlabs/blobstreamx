@@ -183,7 +183,7 @@ pub(crate) mod tests {
 
     #[test]
     fn test_marshal_int64_varint() {
-        env_logger::try_init().unwrap();
+        env_logger::try_init().unwrap_or_default();
         // These are test cases generated from `celestia-core`.
         //
         // allZerosPubkey := make(ed25519.PubKey, ed25519.PubKeySize)
