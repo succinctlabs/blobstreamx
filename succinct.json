@@ -1,5 +1,5 @@
 {
     "preset": "plonky2",
-    "build_command": "mkdir -p build && cargo run --bin step --release build && mv ./target/release/step ./build/step",
-    "prove_command": "./build/step prove-wrapped --input-json input.json --wrapper-path /verifier-build"
+    "build_command": "mkdir -p build && RUST_LOG=debug cargo run --bin step --release build && mv ./target/release/step ./build/step",
+    "prove_command": "RUST_LOG=info ./build/step prove-wrapped --input-json input.json --wrapper-path /verifier-build"
 }
