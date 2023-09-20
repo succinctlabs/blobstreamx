@@ -68,13 +68,18 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintHeader<L, D> for CircuitBu
 
         // Calculates the index of the last non-zero septet.
         let mut last_seen_non_zero_septet_idx = self.zero();
-        for i in 0..VARINT_BYTES_LENGTH_MAX {
-            // Ok to cast as BoolVariable since is_zero_septets[i] is 0 or 1 so result is either 0 or 1
-            let is_nonzero_septet = BoolVariable(self.sub(one, is_zero_septets[i].0));
-            let idx = self.constant::<Variable>(L::Field::from_canonical_usize(i));
-            last_seen_non_zero_septet_idx =
-                self.select(is_nonzero_septet, idx, last_seen_non_zero_septet_idx);
-        }
+
+        is_zero_septets
+            .iter()
+            .enumerate()
+            .take(VARINT_BYTES_LENGTH_MAX)
+            .for_each(|(i, is_zero)| {
+                // Ok to cast as BoolVariable since is_zero_septets[i] is 0 or 1 so result is either 0 or 1
+                let is_nonzero_septet = BoolVariable(self.sub(one, is_zero.0));
+                let idx = self.constant::<Variable>(L::Field::from_canonical_usize(i));
+                last_seen_non_zero_septet_idx =
+                    self.select(is_nonzero_septet, idx, last_seen_non_zero_septet_idx);
+            });
 
         let mut res = [self.zero(); VARINT_BYTES_LENGTH_MAX];
 
@@ -207,9 +212,8 @@ pub(crate) mod tests {
         let mut builder = DefaultBuilder::new();
         let voting_power_variable = builder.read::<U64Variable>();
         let result = builder.marshal_int64_varint(&voting_power_variable);
-        for i in 0..9 {
-            builder.write(result[i]);
-        }
+        builder.write::<BytesVariable<VARINT_BYTES_LENGTH_MAX>>(BytesVariable(result));
+
         let circuit = builder.build();
 
         for test_case in test_cases {
@@ -222,9 +226,10 @@ pub(crate) mod tests {
             println!("Voting Power: {:?}", test_case.0);
             println!("Expected Varint Encoding (Bytes): {:?}", expected_bytes);
 
-            for byte in expected_bytes {
-                let output_byte = output.read::<ByteVariable>();
-                assert_eq!(output_byte, byte);
+            let output_bytes = output.read::<BytesVariable<VARINT_BYTES_LENGTH_MAX>>();
+
+            for i in 0..expected_bytes.len() {
+                assert_eq!(output_bytes[i], expected_bytes[i]);
             }
         }
     }
