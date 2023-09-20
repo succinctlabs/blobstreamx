@@ -1,4 +1,4 @@
-use crate::block::TendermintHeader;
+use crate::shared::TendermintHeader;
 use crate::utils::TendermintHashVariable;
 use crate::utils::{MarshalledValidatorVariable, VALIDATOR_BYTE_LENGTH_MAX};
 use plonky2x::frontend::ecc::ed25519::curve::curve_types::Curve;

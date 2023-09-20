@@ -1,7 +1,7 @@
-pub mod block;
 pub mod commitment;
 pub mod fixture;
 pub mod inputs;
+pub mod shared;
 pub mod signature;
 pub mod utils;
 pub mod validator;
