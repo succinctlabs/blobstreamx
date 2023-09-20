@@ -79,7 +79,7 @@ pub trait TendermintSignature<L: PlonkParameters<D>, const D: usize> {
     fn verify_signatures<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
         // This message should be range-checked before being passed in.
-        validator_active: &Vec<BoolVariable>,
+        validator_active: &[BoolVariable],
         messages: Vec<ValidatorMessageVariable>,
         message_bit_lengths: Vec<U32Variable>,
         eddsa_sig_targets: Vec<EDDSASignatureTarget<Self::Curve>>,
@@ -101,7 +101,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintSignature<L, D> for Circui
         assert!(sig_r.is_valid());
 
         let sig_s_biguint = BigUint::from_bytes_le(&DUMMY_SIGNATURE[32..64]);
-        let sig_s = Ed25519Scalar::from_noncanonical_biguint(sig_s_biguint.clone());
+        let sig_s = Ed25519Scalar::from_noncanonical_biguint(sig_s_biguint);
 
         let pubkey = self.constant::<AffinePointTarget<Self::Curve>>(pub_key_uncompressed);
 
@@ -116,7 +116,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintSignature<L, D> for Circui
         let dummy_msg_length = self.constant::<U32Variable>(DUMMY_MSG_LENGTH_BITS);
 
         DummySignatureTarget {
-            pubkey: pubkey,
+            pubkey,
             signature,
             message,
             message_bit_length: dummy_msg_length,
@@ -168,7 +168,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintSignature<L, D> for Circui
     fn verify_signatures<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
         // This message should be range-checked before being passed in.
-        validator_active: &Vec<BoolVariable>,
+        validator_active: &[BoolVariable],
         messages: Vec<ValidatorMessageVariable>,
         message_bit_lengths: Vec<U32Variable>,
         eddsa_sig_targets: Vec<EDDSASignatureTarget<Self::Curve>>,
@@ -245,7 +245,6 @@ pub(crate) mod tests {
 
     use plonky2x::frontend::ecc::ed25519::curve::curve_types::AffinePoint;
     use plonky2x::frontend::ecc::ed25519::field::ed25519_scalar::Ed25519Scalar;
-    use tendermint::crypto::ed25519::SigningKey;
     use tendermint::private_key;
 
     use crate::input_data::utils::to_be_bits;
@@ -256,7 +255,6 @@ pub(crate) mod tests {
         let priv_key_bytes = vec![0u8; 32];
         let signing_key =
             private_key::Ed25519::try_from(&priv_key_bytes[..]).expect("failed to create key");
-        let signing_key = SigningKey::try_from(signing_key).unwrap();
         let signing_key = ed25519_consensus::SigningKey::try_from(signing_key).unwrap();
 
         let verification_key = signing_key.verification_key();
@@ -306,11 +304,11 @@ pub(crate) mod tests {
         assert!(sig_r.is_valid());
 
         let sig_s_biguint = BigUint::from_bytes_le(&sig_bytes[32..64]);
-        let sig_s = Ed25519Scalar::from_noncanonical_biguint(sig_s_biguint.clone());
+        let sig_s = Ed25519Scalar::from_noncanonical_biguint(sig_s_biguint);
         let sig = EDDSASignature { r: sig_r, s: sig_s };
 
         assert!(verify_message(
-            &to_be_bits(msg_bytes.clone()),
+            &to_be_bits(msg_bytes),
             &sig,
             &EDDSAPublicKey(pub_key_uncompressed)
         ));

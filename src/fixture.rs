@@ -163,12 +163,11 @@ pub fn get_header_and_height_proof(block: &SignedBlock) -> TempMerkleInclusionPr
     let enc_height_proof = proofs[2].clone();
     let enc_height_proof_indices = get_path_indices(2, total);
     let enc_height = block.header.height.encode_vec();
-    let enc_height_proof = TempMerkleInclusionProof {
+    TempMerkleInclusionProof {
         enc_leaf: enc_height,
         path: enc_height_proof_indices,
-        proof: convert_to_h256(enc_height_proof.clone().aunts),
-    };
-    enc_height_proof
+        proof: convert_to_h256(enc_height_proof.aunts),
+    }
 }
 
 pub async fn create_header_chain_fixture(

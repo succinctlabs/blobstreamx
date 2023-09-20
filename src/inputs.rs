@@ -1,4 +1,5 @@
 use std::fs;
+use std::path::PathBuf;
 
 use crate::commitment::{
     CelestiaDataCommitmentProofInput, CelestiaHeaderChainProofInput, HeaderVariableInput,
@@ -118,10 +119,10 @@ fn signature_to_value_type(signature: &Signature) -> SignatureValueType<F> {
     let sig_r = AffinePoint::new_from_compressed_point(&sig_bytes[0..32]);
     assert!(sig_r.is_valid());
     let sig_s_biguint = BigUint::from_bytes_le(&sig_bytes[32..64]);
-    if sig_s_biguint.to_u32_digits().len() == 0 {
+    if sig_s_biguint.to_u32_digits().is_empty() {
         panic!("sig_s_biguint has 0 limbs which will cause problems down the line")
     }
-    let sig_s = Ed25519Scalar::from_noncanonical_biguint(sig_s_biguint.clone());
+    let sig_s = Ed25519Scalar::from_noncanonical_biguint(sig_s_biguint);
     SignatureValueType::<F> { r: sig_r, s: sig_s }
 }
 
@@ -159,8 +160,8 @@ pub fn get_path_indices(index: u64, total: u64) -> Vec<bool> {
     let mut current_index = index;
     while current_total >= 1 {
         path_indices.push(current_index % 2 == 1);
-        current_total = current_total / 2;
-        current_index = current_index / 2;
+        current_total /= 2;
+        current_index /= 2;
     }
     path_indices
 }
@@ -173,13 +174,13 @@ pub fn get_signed_block_from_fixture(block: usize) -> Box<SignedBlock> {
 
     let file_content = fs::read_to_string(file.as_str());
 
-    let temp_block = Box::new(TempSignedBlock::from(
+    let temp_block = Box::new(
         serde_json::from_str::<TempSignedBlock>(&file_content.unwrap())
             .expect("failed to parse json"),
-    ));
+    );
 
     // Cast to SignedBlock
-    let block = Box::new(SignedBlock {
+    Box::new(SignedBlock {
         header: temp_block.header,
         data: temp_block.data,
         commit: temp_block.commit,
@@ -187,25 +188,20 @@ pub fn get_signed_block_from_fixture(block: usize) -> Box<SignedBlock> {
             temp_block.validator_set.validators,
             temp_block.validator_set.proposer,
         ),
-    });
-
-    block
+    })
 }
 
 fn get_data_commitment_fixture(start_block: usize, end_block: usize) -> DataCommitmentFixture {
-    let mut file = String::new();
-    file.push_str("./src/fixtures/mocha-4/");
-    file.push_str(&start_block.to_string());
-    file.push_str("-");
-    file.push_str(&end_block.to_string());
-    file.push_str("/data_commitment.json");
+    let path = PathBuf::from(format!(
+        "./src/fixtures/mocha-4/{}-{}",
+        start_block, end_block
+    ))
+    .join("data_commitment.json");
 
-    let file_content = fs::read_to_string(file.as_str());
+    let file_content = fs::read_to_string(path);
 
-    DataCommitmentFixture::from(
-        serde_json::from_str::<DataCommitmentFixture>(&file_content.unwrap())
-            .expect("failed to parse json"),
-    )
+    serde_json::from_str::<DataCommitmentFixture>(&file_content.unwrap())
+        .expect("failed to parse json")
 }
 
 /// Generate the inputs for a skip proof from a trusted_block to block.
@@ -233,19 +229,16 @@ pub fn generate_data_commitment_inputs<const WINDOW_SIZE: usize, F: RichField>(
 }
 
 pub fn get_header_chain_fixture(trusted_block: usize, current_block: usize) -> HeaderChainFixture {
-    let mut file = String::new();
-    file.push_str("./src/fixtures/mocha-4/");
-    file.push_str(&trusted_block.to_string());
-    file.push_str("-");
-    file.push_str(&current_block.to_string());
-    file.push_str("/header_chain.json");
+    let path = PathBuf::from(format!(
+        "./src/fixtures/mocha-4/{}-{}",
+        trusted_block, current_block
+    ))
+    .join("header_chain.json");
 
-    let file_content = fs::read_to_string(file.as_str());
+    let file_content = fs::read_to_string(path);
 
-    HeaderChainFixture::from(
-        serde_json::from_str::<HeaderChainFixture>(&file_content.unwrap())
-            .expect("failed to parse json"),
-    )
+    serde_json::from_str::<HeaderChainFixture>(&file_content.unwrap())
+        .expect("failed to parse json")
 }
 
 /// Generate the inputs for a skip proof from a trusted_block to block.
@@ -270,11 +263,7 @@ pub fn generate_header_chain_inputs<const WINDOW_SIZE: usize, F: RichField>(
                 .try_into()
                 .unwrap(),
             path_indices: fixture.data_hash_proofs[i].path.clone(),
-            aunts: fixture.data_hash_proofs[i]
-                .proof
-                .clone()
-                .try_into()
-                .unwrap(),
+            aunts: fixture.data_hash_proofs[i].proof.clone(),
         });
         prev_header_proofs.push(InclusionProof {
             leaf: fixture.prev_header_proofs[i]
@@ -283,11 +272,7 @@ pub fn generate_header_chain_inputs<const WINDOW_SIZE: usize, F: RichField>(
                 .try_into()
                 .unwrap(),
             path_indices: fixture.prev_header_proofs[i].path.clone(),
-            aunts: fixture.prev_header_proofs[i]
-                .proof
-                .clone()
-                .try_into()
-                .unwrap(),
+            aunts: fixture.prev_header_proofs[i].proof.clone(),
         });
     }
 
@@ -298,12 +283,7 @@ pub fn generate_header_chain_inputs<const WINDOW_SIZE: usize, F: RichField>(
                 // TODO: We use the height to generate the leaf, can remove this when we refactor the type
                 leaf: [0u8; VARINT_SIZE_BYTES],
                 path_indices: fixture.current_block_height_proof.path.clone(),
-                aunts: fixture
-                    .current_block_height_proof
-                    .proof
-                    .clone()
-                    .try_into()
-                    .unwrap(),
+                aunts: fixture.current_block_height_proof.proof.clone(),
             },
             height: fixture.current_block.into(),
             height_byte_length: fixture.encoded_current_height_byte_length,
@@ -314,12 +294,7 @@ pub fn generate_header_chain_inputs<const WINDOW_SIZE: usize, F: RichField>(
                 // TODO: We use the height to generate the leaf, can remove this when we refactor the type
                 leaf: [0u8; VARINT_SIZE_BYTES],
                 path_indices: fixture.trusted_block_height_proof.path.clone(),
-                aunts: fixture
-                    .trusted_block_height_proof
-                    .proof
-                    .clone()
-                    .try_into()
-                    .unwrap(),
+                aunts: fixture.trusted_block_height_proof.proof.clone(),
             },
             height: fixture.trusted_block.into(),
             height_byte_length: fixture.encoded_trusted_height_byte_length,
@@ -339,7 +314,7 @@ pub fn convert_to_h256(aunts: Vec<[u8; 32]>) -> Vec<H256> {
 
 /// Generate the base inputs for a proof of a Celestia block (to be used by the skip or step circuits).
 fn generate_base_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
-    block: &Box<SignedBlock>,
+    block: &SignedBlock,
 ) -> CelestiaBaseBlockProof {
     let mut validators = Vec::new();
 
@@ -405,7 +380,6 @@ fn generate_base_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
         let signing_key =
             private_key::Ed25519::try_from(&priv_key_bytes[..]).expect("failed to create key");
         let signing_key = SigningKey::try_from(signing_key).unwrap();
-        let signing_key = ed25519_consensus::SigningKey::try_from(signing_key).unwrap();
 
         let verification_key = signing_key.verification_key();
         // TODO: Fix empty signatures
@@ -510,7 +484,7 @@ pub fn generate_step_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
         4,
         14,
         leaf_hash::<Sha256>(&enc_leaf),
-        enc_last_block_id_proof.clone().aunts,
+        enc_last_block_id_proof.aunts,
     );
     assert_eq!(computed_root.unwrap(), block.header.hash().as_bytes());
 
@@ -551,13 +525,13 @@ pub fn generate_step_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
 
 fn update_present_on_trusted_header(
     base: &mut CelestiaBaseBlockProof,
-    block: &Box<SignedBlock>,
-    trusted_block: &Box<SignedBlock>,
+    block: &SignedBlock,
+    trusted_block: &SignedBlock,
 ) {
     // Parse each block to compute the validators that are the same from block_1 to block_2, and the cumulative voting power of the shared validators
     let mut shared_voting_power = 0;
 
-    let threshold = 1 as f64 / 3 as f64;
+    let threshold = 1_f64 / 3_f64;
     let block_2_total_voting_power = block.validator_set.total_voting_power().value();
 
     let block_1_validators = trusted_block.validator_set.validators();
@@ -576,18 +550,17 @@ fn update_present_on_trusted_header(
         {
             // Confirm that the validator has signed on block_2
             for sig in block.commit.signatures.iter() {
-                if sig.validator_address().is_some() {
-                    if sig.validator_address().unwrap() == block_2_validator.address {
-                        // Add the shared voting power to the validator
-                        shared_voting_power += block_2_validator.power();
-                        // Set the present_on_trusted_header field to true
-                        base.validators[idx].present_on_trusted_header = true;
-                        println!("added validator: {}", idx);
-                    }
+                if sig.validator_address().is_some()
+                    && sig.validator_address().unwrap() == block_2_validator.address
+                {
+                    // Add the shared voting power to the validator
+                    shared_voting_power += block_2_validator.power();
+                    // Set the present_on_trusted_header field to true
+                    base.validators[idx].present_on_trusted_header = true;
+                    println!("added validator: {}", idx);
                 }
             }
         }
-        println!("idx: {}", idx);
         idx += 1;
     }
 
@@ -641,7 +614,6 @@ pub fn generate_skip_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
         let signing_key =
             private_key::Ed25519::try_from(&priv_key_bytes[..]).expect("failed to create key");
         let signing_key = SigningKey::try_from(signing_key).unwrap();
-        let signing_key = ed25519_consensus::SigningKey::try_from(signing_key).unwrap();
         let verification_key = signing_key.verification_key();
         // TODO: Fix empty signatures
         trusted_validator_fields.push(ValidatorHashField {
@@ -704,65 +676,5 @@ pub(crate) mod tests {
         let block = get_signed_block_from_fixture(10000);
         let header_hash = block.header.hash();
         println!("header hash: {}", header_hash);
-    }
-
-    #[test]
-    #[cfg_attr(feature = "ci", ignore)]
-    fn get_shared_voting_power() {
-        let block_1 = get_signed_block_from_fixture(50000);
-        let block_2 = get_signed_block_from_fixture(100000);
-
-        // Parse each block to compute the validators that are the same from block_1 to block_2, and the cumulative voting power of the shared validators
-        let mut shared_voting_power = 0;
-        let mut shared_validators = Vec::new();
-
-        let threshold = 1 as f64 / 3 as f64;
-        let block_2_total_voting_power = block_2.validator_set.total_voting_power().value();
-
-        let block_1_validators = block_1.validator_set.validators();
-
-        let num_validators = block_1_validators.len();
-
-        println!("num validators: {}", num_validators);
-
-        let mut idx = 0;
-        let num_validators = block_1_validators.len();
-
-        // Exit if we have already reached the threshold
-        // TODO: We might need to add checks to make this more resilient
-        while block_2_total_voting_power as f64 * threshold > shared_voting_power as f64
-            && idx < num_validators
-        {
-            if let Some(block_2_validator) = block_2
-                .validator_set
-                .validator(block_1_validators[idx].address)
-            {
-                // Confirm that the validator has signed on block_2
-                for sig in block_2.commit.signatures.iter() {
-                    if sig.validator_address().is_some() {
-                        if sig.validator_address().unwrap() == block_2_validator.address {
-                            // Add the shared voting power to the validator
-                            shared_voting_power += block_2_validator.power();
-                            // Set the present_on_trusted_header field to true
-                            shared_validators.push(block_2_validator.clone());
-                            println!("added validator: {}", idx);
-                        }
-                    }
-                }
-            }
-            println!("idx: {}", idx);
-            idx += 1;
-        }
-        println!("shared voting power: {}", shared_voting_power);
-
-        // Calculate shared voting power as a percentage of total voting power of block_2
-        let shared_voting_power_percentage =
-            shared_voting_power as f64 / block_2_total_voting_power as f64;
-        println!(
-            "shared voting power percentage: {}",
-            shared_voting_power_percentage
-        );
-
-        println!("shared validators (len): {:?}", shared_validators.len());
     }
 }

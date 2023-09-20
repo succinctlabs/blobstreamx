@@ -108,7 +108,7 @@ pub trait TendermintVoting {
     // Gets the total voting power by summing the voting power of all validators.
     fn get_total_voting_power<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
-        validator_voting_power: &Vec<U64Variable>,
+        validator_voting_power: &[U64Variable],
     ) -> U64Variable;
 
     // Checks if accumulated voting power * m > total voting power * n (threshold is n/m)
@@ -123,8 +123,8 @@ pub trait TendermintVoting {
     /// Accumulate voting power from the enabled validators & check that the voting power is greater than 2/3 of the total voting power.
     fn check_voting_power<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
-        validator_voting_power: &Vec<U64Variable>,
-        validator_enabled: &Vec<BoolVariable>,
+        validator_voting_power: &[U64Variable],
+        validator_enabled: &[BoolVariable],
         total_voting_power: &U64Variable,
         threshold_numerator: &U32Variable,
         threshold_denominator: &U32Variable,
@@ -136,7 +136,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVoting for CircuitBuilder<
 
     fn get_total_voting_power<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
-        validator_voting_power: &Vec<U64Variable>,
+        validator_voting_power: &[U64Variable],
     ) -> U64Variable {
         let api = &mut self.api;
         let zero = api.zero();
@@ -225,8 +225,8 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVoting for CircuitBuilder<
 
     fn check_voting_power<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
-        validator_voting_power: &Vec<U64Variable>,
-        validator_enabled: &Vec<BoolVariable>,
+        validator_voting_power: &[U64Variable],
+        validator_enabled: &[BoolVariable],
         total_voting_power: &U64Variable,
         threshold_numerator: &U32Variable,
         threshold_denominator: &U32Variable,

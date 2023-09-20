@@ -115,7 +115,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintHeader<L, D> for CircuitBu
             );
         }
 
-        return res;
+        res
     }
 
     /// Verifies the block height against the header.
@@ -131,7 +131,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintHeader<L, D> for CircuitBu
         let block_height_path = vec![false_t, true_t, false_t, false_t];
 
         // Verify the current header height proof against the current header.
-        let encoded_height = self.marshal_int64_varint(&height);
+        let encoded_height = self.marshal_int64_varint(height);
         let encoded_height = self.encode_marshalled_varint(&BytesVariable(encoded_height));
 
         // Extend encoded_height to 64 bytes for curta_sha256_variable.
@@ -159,7 +159,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintHeader<L, D> for CircuitBu
         );
 
         let computed_root = self.get_root_from_merkle_proof_hashed_leaf::<HEADER_PROOF_DEPTH>(
-            &proof,
+            proof,
             &block_height_path.try_into().unwrap(),
             leaf_hash,
         );

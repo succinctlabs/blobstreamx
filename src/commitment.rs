@@ -165,12 +165,9 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
         leaves_enabled.resize(WINDOW_RANGE, self.constant::<BoolVariable>(true));
         leaves_enabled.resize(NB_LEAVES, self.constant::<BoolVariable>(false));
 
-        let root = self.compute_root_from_leaves::<NB_LEAVES, 64>(leaves, leaves_enabled);
-
         // Return the root hash.
-        root
+        self.compute_root_from_leaves::<NB_LEAVES, 64>(leaves, leaves_enabled)
     }
-
     fn prove_header_chain<const WINDOW_RANGE: usize>(
         &mut self,
         input: CelestiaHeaderChainProofInputVariable<WINDOW_RANGE>,
@@ -205,11 +202,11 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
 
             let data_hash_proof_root = self
                 .get_root_from_merkle_proof::<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES>(
-                    &data_hash_proof,
+                    data_hash_proof,
                 );
             let prev_header_proof_root = self
                 .get_root_from_merkle_proof::<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES>(
-                    &prev_header_proof,
+                    prev_header_proof,
                 );
 
             // Verify the prev header proof against the current header hash.

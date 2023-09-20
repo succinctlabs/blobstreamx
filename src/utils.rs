@@ -76,7 +76,7 @@ pub fn to_be_bits(msg: Vec<u8>) -> Vec<bool> {
     for i in 0..msg.len() {
         let char = msg[i];
         for j in 0..8 {
-            if (char & (1 << 7 - j)) != 0 {
+            if (char & (1 << (7 - j))) != 0 {
                 res.push(true);
             } else {
                 res.push(false);
@@ -263,11 +263,7 @@ impl ProofNode {
     }
 }
 
-pub fn compute_hash_from_proof(
-    enc_leaf: &Vec<u8>,
-    path: &Vec<bool>,
-    aunts: &Vec<Hash>,
-) -> Option<Hash> {
+pub fn compute_hash_from_proof(enc_leaf: &[u8], path: &Vec<bool>, aunts: &[Hash]) -> Option<Hash> {
     let mut hash_so_far = leaf_hash::<Sha256>(enc_leaf);
     for i in 0..path.len() {
         hash_so_far = if path[i] {
@@ -324,13 +320,8 @@ pub fn compute_hash_from_aunts(
                 leaf_hash,
                 inner_hashes[..inner_hashes.len() - 1].to_vec(),
             );
-            match right_hash {
-                None => None,
-                Some(hash) => Some(inner_hash::<Sha256>(
-                    inner_hashes[inner_hashes.len() - 1],
-                    hash,
-                )),
-            }
+
+            right_hash.map(|hash| inner_hash::<Sha256>(inner_hashes[inner_hashes.len() - 1], hash))
         }
     }
 }
@@ -567,13 +558,10 @@ pub(crate) mod tests {
     #[test]
     fn test_generate_validator_hash_proof() {
         // Generate test cases from Celestia block:
-        let temp_block = TempSignedBlock::from(
-            serde_json::from_str::<TempSignedBlock>(include_str!(
-                "./fixtures/mocha-3/signed_celestia_block.json"
-            ))
-            .unwrap(),
-        );
-
+        let temp_block = serde_json::from_str::<TempSignedBlock>(include_str!(
+            "./fixtures/mocha-3/signed_celestia_block.json"
+        ))
+        .unwrap();
         // Cast to SignedBlock
         let block = SignedBlock {
             header: temp_block.header,
@@ -604,12 +592,12 @@ pub(crate) mod tests {
     #[test]
     fn test_verify_signatures() {
         // Generate test cases from Celestia block:
-        let temp_block = Box::new(TempSignedBlock::from(
+        let temp_block = Box::new(
             serde_json::from_str::<TempSignedBlock>(include_str!(
                 "./fixtures/mocha-3/signed_celestia_block.json"
             ))
             .unwrap(),
-        ));
+        );
 
         // Cast to SignedBlock
         let block = Box::new(SignedBlock {
@@ -698,12 +686,10 @@ pub(crate) mod tests {
     #[test]
     fn test_verify_validator_hash_from_root_proof() {
         // Generate test cases from Celestia block:
-        let block = tendermint::Block::from(
-            serde_json::from_str::<tendermint::block::Block>(include_str!(
-                "./fixtures/mocha-3/celestia_block.json"
-            ))
-            .unwrap(),
-        );
+        let block = serde_json::from_str::<tendermint::block::Block>(include_str!(
+            "./fixtures/mocha-3/celestia_block.json"
+        ))
+        .unwrap();
 
         let (root_hash, proofs) = generate_proofs_from_header(&block.header);
 
@@ -725,8 +711,8 @@ pub(crate) mod tests {
         let mut current_index = proofs[validator_hash_index].index;
         while current_total >= 1 {
             path_indices.push(current_index % 2 == 1);
-            current_total = current_total / 2;
-            current_index = current_index / 2;
+            current_total /= 2;
+            current_index /= 2;
         }
 
         let validators_hash = block.header.validators_hash.encode_vec();
