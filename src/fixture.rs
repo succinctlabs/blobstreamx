@@ -165,36 +165,9 @@ pub fn get_header_and_height_proof(block: &SignedBlock) -> TempMerkleInclusionPr
     enc_height_proof
 }
 
-pub async fn create_data_commitment_fixture(
-    start_block: usize,
-    end_block: usize,
-) -> Result<(), Error> {
-    dotenv::dotenv().ok();
-
-    let mut fixture: DataCommitmentFixture = DataCommitmentFixture {
-        end_block: end_block as u32,
-        start_block: start_block as u32,
-        data_hashes: Vec::new(),
-        expected_data_commitment: Hash::default(),
-        end_header: Hash::default(),
-        end_block_height_proof: TempMerkleInclusionProof {
-            enc_leaf: Vec::new(),
-            path: Vec::new(),
-            proof: Vec::new(),
-        },
-        encoded_end_height_byte_length: 0,
-        start_header: Hash::default(),
-        start_block_height_proof: TempMerkleInclusionProof {
-            enc_leaf: Vec::new(),
-            path: Vec::new(),
-            proof: Vec::new(),
-        },
-        encoded_start_height_byte_length: 0,
-        data_hash_proofs: Vec::new(),
-        prev_header_proofs: Vec::new(),
-    };
-
-    // DATA COMMITMENT_INPUTS
+// Fills in get_data_commitment inputs for the given fixture
+// TODO: Remove this when we depreacate fixture, atrocious code
+pub async fn fill_get_data_commitment_inputs(fixture: &mut DataCommitmentFixture) {
     // Get the dataHash of the block range (startBlock, endBlock)
     let mut url = env::var("RPC_MOCHA_4").expect("RPC_MOCHA_4 is not set in .env");
 
@@ -202,7 +175,7 @@ pub async fn create_data_commitment_fixture(
 
     let mut encoded_leaves = Vec::new();
 
-    for i in start_block..end_block {
+    for i in fixture.start_block..fixture.end_block {
         let mut url = url.clone();
         url.push_str(i.to_string().as_str());
 
@@ -233,17 +206,20 @@ pub async fn create_data_commitment_fixture(
     let root_hash = simple_hash_from_byte_vectors::<Sha256>(&encoded_leaves);
 
     fixture.expected_data_commitment = Hash::Sha256(root_hash);
+}
 
-    // HEADER CHAIN INPUTS
+// Fills in prove_header_chain inputs for the given fixture
+// TODO: Remove this when we depreacate fixture, atrocious code
+pub async fn fill_prove_header_chain_inputs(fixture: &mut DataCommitmentFixture) {
     // Get the header hash and block height proof of the current block
-    let block = get_signed_block_from_rpc(end_block).await;
+    let block = get_signed_block_from_rpc(fixture.end_block as usize).await;
     let height_proof = get_header_and_height_proof(&block);
     fixture.end_header = block.header.hash();
     fixture.end_block_height_proof = height_proof.clone();
     fixture.encoded_end_height_byte_length = height_proof.enc_leaf.len() as u32;
 
     // Get the header hash and block height proof of the trusted block
-    let block = get_signed_block_from_rpc(start_block).await;
+    let block = get_signed_block_from_rpc(fixture.start_block as usize).await;
     let height_proof = get_header_and_height_proof(&block);
     fixture.start_header = block.header.hash();
     fixture.start_block_height_proof = height_proof.clone();
@@ -253,7 +229,7 @@ pub async fn create_data_commitment_fixture(
     let mut prev_header_proofs = Vec::new();
 
     // Loop from endBlock to startBlock
-    for i in (start_block + 1..end_block + 1).rev() {
+    for i in (fixture.start_block as usize + 1..fixture.end_block as usize + 1).rev() {
         // Fetch the newer block
         let block = get_signed_block_from_rpc(i).await;
 
@@ -292,6 +268,42 @@ pub async fn create_data_commitment_fixture(
 
     fixture.data_hash_proofs = data_hash_proofs;
     fixture.prev_header_proofs = prev_header_proofs;
+}
+
+pub async fn create_data_commitment_fixture(
+    start_block: usize,
+    end_block: usize,
+) -> Result<(), Error> {
+    dotenv::dotenv().ok();
+
+    let mut fixture: DataCommitmentFixture = DataCommitmentFixture {
+        end_block: end_block as u32,
+        start_block: start_block as u32,
+        data_hashes: Vec::new(),
+        expected_data_commitment: Hash::default(),
+        end_header: Hash::default(),
+        end_block_height_proof: TempMerkleInclusionProof {
+            enc_leaf: Vec::new(),
+            path: Vec::new(),
+            proof: Vec::new(),
+        },
+        encoded_end_height_byte_length: 0,
+        start_header: Hash::default(),
+        start_block_height_proof: TempMerkleInclusionProof {
+            enc_leaf: Vec::new(),
+            path: Vec::new(),
+            proof: Vec::new(),
+        },
+        encoded_start_height_byte_length: 0,
+        data_hash_proofs: Vec::new(),
+        prev_header_proofs: Vec::new(),
+    };
+
+    // Data Commitment Inputs
+    fill_get_data_commitment_inputs(&mut fixture).await;
+
+    // Header Chain Inputs
+    fill_prove_header_chain_inputs(&mut fixture).await;
 
     // Write to JSON file
     let json = serde_json::to_string(&fixture).unwrap();
