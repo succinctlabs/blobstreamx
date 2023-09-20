@@ -1,14 +1,13 @@
 use std::fs;
 
 use crate::commitment::{
-    CelestiaDataCommitmentProofInput, CelestiaHeaderChainProofInput, HeightProofVariable,
-    HeightProofVariableInput,
+    CelestiaDataCommitmentProofInput, CelestiaHeaderChainProofInput, HeightProofVariableInput,
 };
 use crate::fixture::{DataCommitmentFixture, HeaderChainFixture};
 /// Source (tendermint-rs): https://github.com/informalsystems/tendermint-rs/blob/e930691a5639ef805c399743ac0ddbba0e9f53da/tendermint/src/merkle.rs#L32
 use crate::utils::{
     compute_hash_from_aunts, generate_proofs_from_header, leaf_hash, non_absent_vote, SignedBlock,
-    TempSignedBlock, VARINT_SIZE_BYTES,
+    TempSignedBlock,
 };
 use crate::utils::{
     HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES,
@@ -17,7 +16,6 @@ use crate::utils::{
 use crate::verify::BlockIDInclusionProofVariable;
 use crate::verify::HashInclusionProofVariable;
 use ed25519_consensus::SigningKey;
-use ethers::types::TxHash;
 use ethers::types::H256;
 use num::BigUint;
 use plonky2x::frontend::ecc::ed25519::curve::curve_types::AffinePoint;

@@ -1,4 +1,3 @@
-use crate::commitment::CelestiaCommitment;
 use crate::utils::{HEADER_PROOF_DEPTH, PROTOBUF_VARINT_SIZE_BYTES, VARINT_BYTES_LENGTH_MAX};
 use plonky2x::frontend::ecc::ed25519::curve::curve_types::Curve;
 use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
@@ -158,7 +157,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintHeader<L, D> for CircuitBu
         for i in 0..PROTOBUF_VARINT_SIZE_BYTES + 1 {
             encoded_height_extended.push(encoded_height.0[i]);
         }
-        for i in PROTOBUF_VARINT_SIZE_BYTES + 1..64 {
+        for _i in PROTOBUF_VARINT_SIZE_BYTES + 1..64 {
             encoded_height_extended.push(self.constant::<ByteVariable>(0u8));
         }
 
