@@ -137,55 +137,6 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
         BytesVariable::<64>(encoded_tuple.try_into().unwrap())
     }
 
-    /// Verifies the block height against the header.
-    fn verify_block_height(
-        &mut self,
-        header: Bytes32Variable,
-        proof: &ArrayVariable<Bytes32Variable, HEADER_PROOF_DEPTH>,
-        height: &U64Variable,
-        encoded_height_byte_length: U32Variable,
-    ) {
-        let false_t = self._false();
-        let true_t = self._true();
-        let block_height_path = vec![false_t, true_t, false_t, false_t];
-
-        // Verify the current header height proof against the current header.
-        let encoded_height = self.marshal_int64_varint(&height);
-        let encoded_height = self.encode_marshalled_varint(&BytesVariable(encoded_height));
-
-        // Extend encoded_height to 64 bytes for curta_sha256_variable.
-        let mut encoded_height_extended = Vec::new();
-        for i in 0..PROTOBUF_VARINT_SIZE_BYTES + 1 {
-            encoded_height_extended.push(encoded_height.0[i]);
-        }
-        for i in PROTOBUF_VARINT_SIZE_BYTES + 1..64 {
-            encoded_height_extended.push(self.constant::<ByteVariable>(0u8));
-        }
-
-        let last_chunk = self.constant::<U32Variable>(0);
-
-        // Add 1 to the encoded height byte length to account for the 0x00 byte.
-        let one_u32 = self.constant::<U32Variable>(1);
-        let encoded_height_byte_length = self.add(encoded_height_byte_length, one_u32);
-        self.watch(&encoded_height_byte_length, "encoded_height_byte_length");
-
-        // Only one chunk is needed for the encoded height.
-        const MAX_NUM_CHUNKS: usize = 1;
-        let leaf_hash = self.curta_sha256_variable::<MAX_NUM_CHUNKS>(
-            &encoded_height_extended,
-            last_chunk,
-            encoded_height_byte_length,
-        );
-
-        let computed_root = self.get_root_from_merkle_proof_hashed_leaf::<HEADER_PROOF_DEPTH>(
-            &proof,
-            &block_height_path.try_into().unwrap(),
-            leaf_hash,
-        );
-
-        self.assert_is_equal(computed_root, header);
-    }
-
     fn extract_hash_from_protobuf<const START_BYTE: usize, const PROTOBUF_LENGTH_BYTES: usize>(
         &mut self,
         bytes: &BytesVariable<PROTOBUF_LENGTH_BYTES>,
