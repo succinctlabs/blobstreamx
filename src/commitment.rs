@@ -1,51 +1,14 @@
-use plonky2::hash::hash_types::RichField;
-use plonky2::iop::witness::{Witness, WitnessWrite};
 use plonky2x::backend::circuit::PlonkParameters;
 use plonky2x::frontend::ecc::ed25519::curve::curve_types::Curve;
 use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
 
-use plonky2x::frontend::merkle::tree::MerkleInclusionProofVariable;
 use plonky2x::frontend::uint::uint64::U64Variable;
-use plonky2x::frontend::vars::{ArrayVariable, Bytes32Variable, EvmVariable, U32Variable};
-use plonky2x::prelude::{
-    BoolVariable, ByteVariable, BytesVariable, CircuitBuilder, CircuitVariable, Variable,
-};
+use plonky2x::frontend::vars::{ArrayVariable, Bytes32Variable, EvmVariable};
+use plonky2x::prelude::{BoolVariable, ByteVariable, BytesVariable, CircuitBuilder};
 
 use crate::consts::{HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES};
 use crate::shared::TendermintHeader;
-
-#[derive(Clone, Debug, CircuitVariable)]
-#[value_name(CelestiaDataCommitmentProofInput)]
-pub struct CelestiaDataCommitmentProofInputVariable<const WINDOW_SIZE: usize> {
-    pub data_hashes: ArrayVariable<Bytes32Variable, WINDOW_SIZE>,
-    pub block_heights: ArrayVariable<U64Variable, WINDOW_SIZE>,
-    pub data_commitment_root: Bytes32Variable,
-}
-
-#[derive(Clone, Debug, CircuitVariable)]
-#[value_name(HeightProofVariableInput)]
-pub struct HeightProofVariable {
-    pub proof: ArrayVariable<Bytes32Variable, HEADER_PROOF_DEPTH>,
-    pub height_byte_length: U32Variable,
-    pub height: U64Variable,
-}
-
-#[derive(Clone, Debug, CircuitVariable)]
-#[value_name(CelestiaHeaderChainProofInput)]
-pub struct CelestiaHeaderChainProofInputVariable<const WINDOW_RANGE: usize> {
-    pub current_header: Bytes32Variable,
-    pub current_header_height_proof: HeightProofVariable,
-    pub trusted_header: Bytes32Variable,
-    pub trusted_header_height_proof: HeightProofVariable,
-    pub data_hash_proofs: ArrayVariable<
-        MerkleInclusionProofVariable<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES>,
-        WINDOW_RANGE,
-    >,
-    pub prev_header_proofs: ArrayVariable<
-        MerkleInclusionProofVariable<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES>,
-        WINDOW_RANGE,
-    >,
-}
+use crate::variables::CelestiaHeaderChainProofInputVariable;
 
 pub trait CelestiaCommitment<L: PlonkParameters<D>, const D: usize> {
     type Curve: Curve;
@@ -241,6 +204,7 @@ pub(crate) mod tests {
     use crate::{
         commitment::CelestiaCommitment,
         inputs::{generate_data_commitment_inputs, generate_header_chain_inputs},
+        variables::CelestiaDataCommitmentProofInputVariable,
     };
 
     type L = DefaultParameters;

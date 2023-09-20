@@ -14,7 +14,7 @@
 //!
 //!
 //!
-use celestia::commitment::HeightProofVariable;
+use celestia::variables::HeightProofVariable;
 use plonky2x::backend::circuit::Circuit;
 use plonky2x::backend::function::VerifiableFunction;
 use plonky2x::frontend::generator::simple::hint::Hint;

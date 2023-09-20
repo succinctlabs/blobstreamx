@@ -12,18 +12,18 @@ use plonky2x::{
 };
 
 use crate::{
-    commitment::HeightProofVariable,
+    consts::{HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES},
+    signature::TendermintSignature,
+    validator::TendermintValidator,
+    variables::HeightProofVariable,
+    voting::TendermintVoting,
+};
+use crate::{
     shared::TendermintHeader,
     variables::{
         EDDSAPublicKeyVariable, EncBlockIDVariable, EncTendermintHashVariable,
         MarshalledValidatorVariable, TendermintHashVariable, ValidatorMessageVariable,
     },
-};
-use crate::{
-    consts::{HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES},
-    signature::TendermintSignature,
-    validator::TendermintValidator,
-    voting::TendermintVoting,
 };
 
 #[derive(Debug, Clone, CircuitVariable)]
@@ -639,12 +639,8 @@ pub(crate) mod tests {
     use plonky2x::prelude::DefaultBuilder;
 
     // TODO: Remove dependency on inputs crate
-    use crate::{
-        commitment::HeightProofVariable,
-        inputs::{
-            generate_skip_inputs, generate_step_inputs, CelestiaSkipBlockProof,
-            CelestiaStepBlockProof,
-        },
+    use crate::inputs::{
+        generate_skip_inputs, generate_step_inputs, CelestiaSkipBlockProof, CelestiaStepBlockProof,
     };
 
     fn test_step_template<const VALIDATOR_SET_SIZE_MAX: usize>(block: usize) {

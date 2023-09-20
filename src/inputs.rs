@@ -1,8 +1,5 @@
 use std::fs;
 
-use crate::commitment::{
-    CelestiaDataCommitmentProofInput, CelestiaHeaderChainProofInput, HeightProofVariableInput,
-};
 use crate::consts::{
     HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES,
     VALIDATOR_MESSAGE_BYTES_LENGTH_MAX,
@@ -15,6 +12,9 @@ use crate::input_data::tendermint_utils::{
 };
 // TODO: Remove dependency on utils.
 use crate::utils::SignedBlock;
+use crate::variables::{
+    CelestiaDataCommitmentProofInput, CelestiaHeaderChainProofInput, HeightProofVariableInput,
+};
 use crate::verify::BlockIDInclusionProofVariable;
 use crate::verify::HashInclusionProofVariable;
 use ed25519_consensus::SigningKey;

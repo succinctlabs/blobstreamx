@@ -1,14 +1,18 @@
+use plonky2x::prelude::{
+    CircuitBuilder, PlonkParameters, RichField, Variable, Witness, WitnessWrite,
+};
 use plonky2x::{
     frontend::{
         ecc::ed25519::gadgets::curve::AffinePointTarget,
-        num::u32::gadgets::arithmetic_u32::U32Target,
+        merkle::tree::MerkleInclusionProofVariable, num::u32::gadgets::arithmetic_u32::U32Target,
+        uint::uint64::U64Variable, vars::U32Variable,
     },
-    prelude::{Bytes32Variable, BytesVariable},
+    prelude::{ArrayVariable, Bytes32Variable, BytesVariable, CircuitVariable},
 };
 
 use crate::consts::{
-    PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES, VALIDATOR_BYTE_LENGTH_MAX,
-    VALIDATOR_MESSAGE_BYTES_LENGTH_MAX,
+    HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES,
+    VALIDATOR_BYTE_LENGTH_MAX, VALIDATOR_MESSAGE_BYTES_LENGTH_MAX,
 };
 
 pub type EDDSAPublicKeyVariable<C> = AffinePointTarget<C>;
@@ -27,6 +31,39 @@ pub type MarshalledValidatorVariable = BytesVariable<VALIDATOR_BYTE_LENGTH_MAX>;
 
 /// The message signed by the validator as a variable.
 pub type ValidatorMessageVariable = BytesVariable<VALIDATOR_MESSAGE_BYTES_LENGTH_MAX>;
+
+#[derive(Clone, Debug, CircuitVariable)]
+#[value_name(CelestiaDataCommitmentProofInput)]
+pub struct CelestiaDataCommitmentProofInputVariable<const WINDOW_SIZE: usize> {
+    pub data_hashes: ArrayVariable<Bytes32Variable, WINDOW_SIZE>,
+    pub block_heights: ArrayVariable<U64Variable, WINDOW_SIZE>,
+    pub data_commitment_root: Bytes32Variable,
+}
+
+#[derive(Clone, Debug, CircuitVariable)]
+#[value_name(HeightProofVariableInput)]
+pub struct HeightProofVariable {
+    pub proof: ArrayVariable<Bytes32Variable, HEADER_PROOF_DEPTH>,
+    pub height_byte_length: U32Variable,
+    pub height: U64Variable,
+}
+
+#[derive(Clone, Debug, CircuitVariable)]
+#[value_name(CelestiaHeaderChainProofInput)]
+pub struct CelestiaHeaderChainProofInputVariable<const WINDOW_RANGE: usize> {
+    pub current_header: Bytes32Variable,
+    pub current_header_height_proof: HeightProofVariable,
+    pub trusted_header: Bytes32Variable,
+    pub trusted_header_height_proof: HeightProofVariable,
+    pub data_hash_proofs: ArrayVariable<
+        MerkleInclusionProofVariable<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES>,
+        WINDOW_RANGE,
+    >,
+    pub prev_header_proofs: ArrayVariable<
+        MerkleInclusionProofVariable<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES>,
+        WINDOW_RANGE,
+    >,
+}
 /// The voting power as a list of 2 u32 targets.
 #[derive(Debug, Clone, Copy)]
 pub struct I64Target(pub [U32Target; 2]);
