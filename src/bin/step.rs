@@ -126,7 +126,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_circuit_function_evm() {
+    fn test_circuit_function_step() {
         env::set_var("RUST_LOG", "debug");
         env_logger::try_init().unwrap_or_default();
 
