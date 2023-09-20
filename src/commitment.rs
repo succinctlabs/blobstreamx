@@ -163,16 +163,13 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
         let encoded_height = self.encode_marshalled_varint(&BytesVariable(encoded_height));
 
         // Extend encoded_height to 64 bytes for curta_sha256_variable.
-        let mut encoded_height_extended = [ByteVariable::init_unsafe(self); 64];
-        for i in 0..PROTOBUF_VARINT_SIZE_BYTES {
-            encoded_height_extended[i] = encoded_height.0[i];
+        let mut encoded_height_extended = Vec::new();
+        for i in 0..PROTOBUF_VARINT_SIZE_BYTES + 1 {
+            encoded_height_extended.push(encoded_height.0[i]);
         }
         for i in PROTOBUF_VARINT_SIZE_BYTES + 1..64 {
-            encoded_height_extended[i] = self.constant::<ByteVariable>(0u8);
+            encoded_height_extended.push(self.constant::<ByteVariable>(0u8));
         }
-        let encoded_height = BytesVariable::<64>(encoded_height_extended);
-
-        self.watch(&encoded_height, "encoded_height");
 
         let last_chunk = self.constant::<U32Variable>(0);
 
@@ -184,7 +181,7 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
         // Only one chunk is needed for the encoded height.
         const MAX_NUM_CHUNKS: usize = 1;
         let leaf_hash = self.curta_sha256_variable::<MAX_NUM_CHUNKS>(
-            &encoded_height.0,
+            &encoded_height_extended,
             last_chunk,
             encoded_height_byte_length,
         );
