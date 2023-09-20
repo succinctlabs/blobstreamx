@@ -16,6 +16,15 @@ pub trait TendermintHeader<L: PlonkParameters<D>, const D: usize> {
         &mut self,
         num: &U64Variable,
     ) -> [ByteVariable; VARINT_BYTES_LENGTH_MAX];
+
+    /// Verifies the block height against the header.
+    fn verify_block_height(
+        &mut self,
+        header: Bytes32Variable,
+        proof: &ArrayVariable<Bytes32Variable, HEADER_PROOF_DEPTH>,
+        height: &U64Variable,
+        encoded_height_byte_length: U32Variable,
+    );
 }
 
 impl<L: PlonkParameters<D>, const D: usize> TendermintHeader<L, D> for CircuitBuilder<L, D> {

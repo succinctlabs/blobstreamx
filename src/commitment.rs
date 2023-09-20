@@ -67,15 +67,6 @@ pub trait CelestiaCommitment<L: PlonkParameters<D>, const D: usize> {
         height: &U64Variable,
     ) -> BytesVariable<64>;
 
-    /// Verifies the block height against the header.
-    fn verify_block_height(
-        &mut self,
-        header: Bytes32Variable,
-        proof: &ArrayVariable<Bytes32Variable, HEADER_PROOF_DEPTH>,
-        height: &U64Variable,
-        encoded_height_byte_length: U32Variable,
-    );
-
     fn extract_hash_from_protobuf<const START_BYTE: usize, const PROTOBUF_LENGTH_BYTES: usize>(
         &mut self,
         bytes: &BytesVariable<PROTOBUF_LENGTH_BYTES>,
