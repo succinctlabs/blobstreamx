@@ -322,57 +322,57 @@ fn generate_base_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
     // Need signature to output either verify or no verify (then we can assert that it matches or doesn't match)
     let block_validators = block.validator_set.validators();
 
-    for i in 0..block.commit.signatures.len() {
-        let val_idx = ValidatorIndex::try_from(i).unwrap();
-        let validator = Box::new(
-            match block.validator_set.validator(block_validators[i].address) {
-                Some(validator) => validator,
-                None => continue, // Cannot find matching validator, so we skip the vote
-            },
-        );
-        let val_bytes = validator.hash_bytes();
-        if block.commit.signatures[i].is_commit() {
-            let vote =
-                non_absent_vote(&block.commit.signatures[i], val_idx, &block.commit).unwrap();
+    // Exclude invalid validators (i.e. those that are malformed & are not included in the validator set).
+    block_validators
+        .iter()
+        .take(block.commit.signatures.len())
+        .filter_map(|validator| block.validator_set.validator(validator.address))
+        .enumerate()
+        .for_each(|(i, validator)| {
+            let val_idx = ValidatorIndex::try_from(i).unwrap();
+            let val_bytes = validator.hash_bytes();
+            if block.commit.signatures[i].is_commit() {
+                let vote =
+                    non_absent_vote(&block.commit.signatures[i], val_idx, &block.commit).unwrap();
 
-            let signed_vote = Box::new(
-                SignedVote::from_vote(vote.clone(), block.header.chain_id.clone())
-                    .expect("missing signature"),
-            );
-            let mut message_padded = signed_vote.sign_bytes();
-            message_padded.resize(VALIDATOR_MESSAGE_BYTES_LENGTH_MAX, 0u8);
+                let signed_vote = Box::new(
+                    SignedVote::from_vote(vote, block.header.chain_id.clone())
+                        .expect("missing signature"),
+                );
+                let mut message_padded = signed_vote.sign_bytes();
+                message_padded.resize(VALIDATOR_MESSAGE_BYTES_LENGTH_MAX, 0u8);
 
-            let sig = signed_vote.signature();
+                let sig = signed_vote.signature();
 
-            validators.push(Validator {
-                pubkey: pubkey_to_affine_point(&validator.pub_key.ed25519().unwrap()),
-                signature: signature_to_value_type(&sig.clone()),
-                message: message_padded.try_into().unwrap(),
-                message_bit_length: F::from_canonical_usize(signed_vote.sign_bytes().len() * 8),
-                voting_power: validator.power().into(),
-                validator_byte_length: F::from_canonical_usize(val_bytes.len()),
-                enabled: true,
-                signed: true,
-                present_on_trusted_header: false, // This field is ignored in this case
-            });
-        } else {
-            // These are dummy signatures (included in val hash, did not vote)
-            validators.push(Validator {
-                pubkey: pubkey_to_affine_point(&validator.pub_key.ed25519().unwrap()),
-                signature: signature_to_value_type(
-                    &Signature::try_from(DUMMY_SIGNATURE.to_vec()).expect("missing signature"),
-                ),
-                // TODO: Replace these with correct outputs
-                message: [0u8; VALIDATOR_MESSAGE_BYTES_LENGTH_MAX],
-                message_bit_length: F::from_canonical_usize(256),
-                voting_power: validator.power().into(),
-                validator_byte_length: F::from_canonical_usize(val_bytes.len()),
-                enabled: true,
-                signed: false,
-                present_on_trusted_header: false, // This field is ignored in this case
-            });
-        }
-    }
+                validators.push(Validator {
+                    pubkey: pubkey_to_affine_point(&validator.pub_key.ed25519().unwrap()),
+                    signature: signature_to_value_type(&sig.clone()),
+                    message: message_padded.try_into().unwrap(),
+                    message_bit_length: F::from_canonical_usize(signed_vote.sign_bytes().len() * 8),
+                    voting_power: validator.power().into(),
+                    validator_byte_length: F::from_canonical_usize(val_bytes.len()),
+                    enabled: true,
+                    signed: true,
+                    present_on_trusted_header: false, // This field is ignored in this case
+                });
+            } else {
+                // These are dummy signatures (included in val hash, did not vote)
+                validators.push(Validator {
+                    pubkey: pubkey_to_affine_point(&validator.pub_key.ed25519().unwrap()),
+                    signature: signature_to_value_type(
+                        &Signature::try_from(DUMMY_SIGNATURE.to_vec()).expect("missing signature"),
+                    ),
+                    // TODO: Replace these with correct outputs
+                    message: [0u8; VALIDATOR_MESSAGE_BYTES_LENGTH_MAX],
+                    message_bit_length: F::from_canonical_usize(256),
+                    voting_power: validator.power().into(),
+                    validator_byte_length: F::from_canonical_usize(val_bytes.len()),
+                    enabled: true,
+                    signed: false,
+                    present_on_trusted_header: false, // This field is ignored in this case
+                });
+            }
+        });
 
     // These are empty signatures (not included in val hash)
     for _ in block.commit.signatures.len()..VALIDATOR_SET_SIZE_MAX {
@@ -588,25 +588,21 @@ pub fn generate_skip_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
     // Signatures or dummy
     // Need signature to output either verify or no verify (then we can assert that it matches or doesn't match)
     let block_validators = trusted_block.validator_set.validators();
-
-    for i in 0..trusted_block.commit.signatures.len() {
-        let validator = Box::new(
-            match trusted_block
-                .validator_set
-                .validator(block_validators[i].address)
-            {
-                Some(validator) => validator,
-                None => continue, // Cannot find matching validator, so we skip the vote
-            },
-        );
-        let val_bytes = validator.hash_bytes();
-        trusted_validator_fields.push(ValidatorHashField {
-            pubkey: pubkey_to_affine_point(&validator.pub_key.ed25519().unwrap()),
-            voting_power: validator.power().into(),
-            validator_byte_length: F::from_canonical_usize(val_bytes.len()),
-            enabled: true,
+    block_validators
+        .iter()
+        .take(trusted_block.commit.signatures.len())
+        .filter_map(|v| trusted_block.validator_set.validator(v.address))
+        .for_each(|validator| {
+            let val_bytes = validator.hash_bytes();
+            if let Some(pub_key) = validator.pub_key.ed25519() {
+                trusted_validator_fields.push(ValidatorHashField {
+                    pubkey: pubkey_to_affine_point(&pub_key),
+                    voting_power: validator.power().into(),
+                    validator_byte_length: F::from_canonical_usize(val_bytes.len()),
+                    enabled: true,
+                });
+            }
         });
-    }
 
     // These are empty signatures (not included in val hash)
     for _ in trusted_block.commit.signatures.len()..VALIDATOR_SET_SIZE_MAX {

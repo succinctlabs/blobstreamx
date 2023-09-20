@@ -212,10 +212,15 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintSignature<L, D> for Circui
             // TODO: REMOVE THESE CONSTRAINTS AFTER VERIFY_VARIABLE_SIGNATURES_CIRCUIT is ported
             // TODO: Check the endianness of msg if this fails
             let msg_bool_targets = self.to_be_bits(msg);
-            for j in 0..VALIDATOR_MESSAGE_BITS_LENGTH_MAX {
-                self.api
-                    .connect(eddsa_target.msgs[i][j].target, msg_bool_targets[j].0 .0);
-            }
+            msg_bool_targets
+                .iter()
+                .enumerate()
+                .take(VALIDATOR_MESSAGE_BITS_LENGTH_MAX)
+                .for_each(|(j, _)| {
+                    self.api
+                        .connect(eddsa_target.msgs[i][j].target, msg_bool_targets[j].0 .0);
+                });
+
             self.api
                 .connect(eddsa_target.msgs_lengths[i], bit_length.0 .0);
 
@@ -252,7 +257,7 @@ pub(crate) mod tests {
 
     #[test]
     fn test_generate_signature() {
-        let priv_key_bytes = vec![0u8; 32];
+        let priv_key_bytes = [0u8; 32];
         let signing_key =
             private_key::Ed25519::try_from(&priv_key_bytes[..]).expect("failed to create key");
         let signing_key = ed25519_consensus::SigningKey::try_from(signing_key).unwrap();

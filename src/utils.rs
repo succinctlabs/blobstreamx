@@ -73,8 +73,7 @@ pub fn bytes_to_le_f_bits<F: RichField>(bytes: &[u8]) -> Vec<F> {
 
 pub fn to_be_bits(msg: Vec<u8>) -> Vec<bool> {
     let mut res = Vec::new();
-    for i in 0..msg.len() {
-        let char = msg[i];
+    msg.iter().for_each(|char| {
         for j in 0..8 {
             if (char & (1 << (7 - j))) != 0 {
                 res.push(true);
@@ -82,14 +81,13 @@ pub fn to_be_bits(msg: Vec<u8>) -> Vec<bool> {
                 res.push(false);
             }
         }
-    }
+    });
     res
 }
 
 pub fn to_le_bits(msg: Vec<u8>) -> Vec<bool> {
     let mut res = Vec::new();
-    for i in 0..msg.len() {
-        let char = msg[i];
+    msg.iter().for_each(|char| {
         for j in 0..8 {
             if (char & (1 << j)) != 0 {
                 res.push(true);
@@ -97,7 +95,7 @@ pub fn to_le_bits(msg: Vec<u8>) -> Vec<bool> {
                 res.push(false);
             }
         }
-    }
+    });
     res
 }
 
