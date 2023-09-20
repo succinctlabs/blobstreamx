@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-interface IGateway {
-    function request() {}
-}
+import {IFunctionGateway} from "@succinctx/interfaces/IFunctionGateway.sol";
 
 contract ZKTendermint {
     address public gateway;
@@ -12,6 +10,16 @@ contract ZKTendermint {
 
     mapping(uint64 => bytes32) public blockHeightToHeaderHash;
     uint64 head;
+
+    event HeaderSkipRequested(
+        uint64 indexed trustedBlock,
+        uint64 indexed requestedBlock,
+        bytes32 requestId
+    );
+    event HeaderSkipFulfilled(uint64 indexed requestedBlock, bytes32 header);
+
+    event HeaderStepRequested(uint64 indexed prevBlock, bytes32 requestId);
+    event HeaderStepFulfilled(uint64 indexed nextBlock, bytes32 header);
 
     constructor(address _gateway) {
         gateway = _gateway;
@@ -43,26 +51,25 @@ contract ZKTendermint {
         require(_requestedBlock > _trustedBlock);
         require(_requestedBlock - _trustedBlock <= 10000); // TODO: change this constant
         require(_requestedBlock > head); // TODO: do we need this?
-        bytes memory result = IGateway(gateway).request(
+        bytes32 requestId = IFunctionGateway(gateway).request(
             id,
             abi.encodePacked(trustedHeader, _trustedBlock, _requestedBlock),
-            this.callbackHeaderSkip,
-            abi.encode(_trustedBlock, _requestedBlock)
+            this.callbackHeaderSkip.selector,
+            abi.encode(_requestedBlock)
         );
+        emit HeaderSkipRequested(_trustedBlock, _requestedBlock, requestId);
     }
 
     function callbackHeaderSkip(
         bytes memory requestResult,
         bytes memory context
     ) external {
-        (uint64 trustedBlock, uint64 requestedBlock) = abi.decode(
-            context,
-            (uint64, uint64)
-        );
+        uint64 requestedBlock = abi.decode(context, (uint64));
         bytes32 newHeader = abi.decode(requestResult, (bytes32));
         blockHeightToHeaderHash[requestedBlock] = newHeader;
         require(requestedBlock > head);
         head = requestedBlock;
+        emit HeaderSkipFulfilled(requestedBlock, newHeader);
     }
 
     // Needed in the rare case that skip cannot be used--when validator set changes by > 1/3
@@ -76,12 +83,13 @@ contract ZKTendermint {
             revert("Function ID for step not found");
         }
         require(_prevBlock + 1 > head); // TODO: do we need this?
-        bytes memory result = IGateway(gateway).request(
+        bytes32 requestId = IFunctionGateway(gateway).request(
             id,
             abi.encodePacked(prevHeader, _prevBlock),
-            this.callbackHeaderStep,
+            this.callbackHeaderStep.selector,
             abi.encode(_prevBlock)
         );
+        emit HeaderStepRequested(_prevBlock, requestId);
     }
 
     function callbackHeaderStep(
@@ -94,6 +102,7 @@ contract ZKTendermint {
         blockHeightToHeaderHash[nextBlock] = nextHeader;
         require(nextBlock > head);
         head = nextBlock;
+        emit HeaderStepFulfilled(nextBlock, nextHeader);
     }
 }
 
