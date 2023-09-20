@@ -1,7 +1,8 @@
 use std::fs;
 
 use crate::commitment::{
-    CelestiaDataCommitmentProofInput, CelestiaHeaderChainProofInput, HeaderVariableInput,
+    CelestiaDataCommitmentProofInput, CelestiaHeaderChainProofInput, HeightProofVariable,
+    HeightProofVariableInput,
 };
 use crate::fixture::{DataCommitmentFixture, HeaderChainFixture};
 /// Source (tendermint-rs): https://github.com/informalsystems/tendermint-rs/blob/e930691a5639ef805c399743ac0ddbba0e9f53da/tendermint/src/merkle.rs#L32
@@ -16,6 +17,7 @@ use crate::utils::{
 use crate::verify::BlockIDInclusionProofVariable;
 use crate::verify::HashInclusionProofVariable;
 use ed25519_consensus::SigningKey;
+use ethers::types::TxHash;
 use ethers::types::H256;
 use num::BigUint;
 use plonky2x::frontend::ecc::ed25519::curve::curve_types::AffinePoint;
@@ -146,6 +148,7 @@ pub struct CelestiaSkipBlockProof {
     pub trusted_header: H256,
     pub trusted_validator_hash_proof: TempMerkleInclusionProof,
     pub trusted_validator_fields: Vec<ValidatorHashField<C, F>>,
+    pub block_height_proof: HeightProofVariableInput<F>,
     pub base: CelestiaBaseBlockProof,
 }
 
@@ -290,35 +293,25 @@ pub fn generate_header_chain_inputs<const WINDOW_SIZE: usize, F: RichField>(
     }
 
     CelestiaHeaderChainProofInput {
-        current_header: HeaderVariableInput {
+        current_header: HeightProofVariableInput {
             header: H256::from_slice(fixture.curr_header.as_bytes()),
-            header_height_proof: InclusionProof {
-                // TODO: We use the height to generate the leaf, can remove this when we refactor the type
-                leaf: [0u8; VARINT_SIZE_BYTES],
-                path_indices: fixture.current_block_height_proof.path.clone(),
-                aunts: fixture
-                    .current_block_height_proof
-                    .proof
-                    .clone()
-                    .try_into()
-                    .unwrap(),
-            },
+            header_height_proof: fixture
+                .current_block_height_proof
+                .proof
+                .clone()
+                .try_into()
+                .unwrap(),
             height: fixture.current_block.into(),
             height_byte_length: fixture.encoded_current_height_byte_length,
         },
-        trusted_header: HeaderVariableInput {
+        trusted_header: HeightProofVariableInput {
             header: H256::from_slice(fixture.trusted_header.as_bytes()),
-            header_height_proof: InclusionProof {
-                // TODO: We use the height to generate the leaf, can remove this when we refactor the type
-                leaf: [0u8; VARINT_SIZE_BYTES],
-                path_indices: fixture.trusted_block_height_proof.path.clone(),
-                aunts: fixture
-                    .trusted_block_height_proof
-                    .proof
-                    .clone()
-                    .try_into()
-                    .unwrap(),
-            },
+            header_height_proof: fixture
+                .trusted_block_height_proof
+                .proof
+                .clone()
+                .try_into()
+                .unwrap(),
             height: fixture.trusted_block.into(),
             height_byte_length: fixture.encoded_trusted_height_byte_length,
         },
@@ -669,11 +662,23 @@ pub fn generate_skip_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
     // Mutates the base object (which has present_on_trusted_header default set to none)
     update_present_on_trusted_header(&mut base, &block, &trusted_block);
 
+    let (_root, proofs) = generate_proofs_from_header(&block.header);
+    let enc_height_leaf = block.header.height.encode_vec();
+    let enc_height_proof = proofs[2].clone();
+
+    let height_proof = HeightProofVariableInput {
+        header: TxHash::from_slice(&block.header.hash().as_bytes()),
+        header_height_proof: convert_to_h256(enc_height_proof.aunts),
+        height_byte_length: enc_height_leaf.len() as u32,
+        height: block.header.height.value().into(),
+    };
+
     let hash: Vec<u8> = trusted_block.header.hash().into();
     CelestiaSkipBlockProof {
         trusted_header: H256::from_slice(&hash),
         trusted_validator_hash_proof: validators_hash_proof,
         trusted_validator_fields,
+        block_height_proof: height_proof,
         base,
     }
 }

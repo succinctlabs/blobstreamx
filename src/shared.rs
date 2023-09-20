@@ -20,6 +20,13 @@ pub trait TendermintHeader<L: PlonkParameters<D>, const D: usize> {
         num: &U64Variable,
     ) -> [ByteVariable; VARINT_BYTES_LENGTH_MAX];
 
+    /// Encodes the marshalled height into a BytesVariable<11>.
+    /// Prepends a 0x00 byte for the leaf prefix and a 0x08 byte to the marshalled varint.
+    fn encode_marshalled_varint(
+        &mut self,
+        marshalled_varint: &BytesVariable<9>,
+    ) -> BytesVariable<11>;
+
     /// Verifies the block height against the header.
     fn verify_block_height(
         &mut self,
@@ -116,6 +123,18 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintHeader<L, D> for CircuitBu
         }
 
         return res;
+    }
+
+    fn encode_marshalled_varint(
+        &mut self,
+        marshalled_varint: &BytesVariable<9>,
+    ) -> BytesVariable<11> {
+        // Prepend the 0x08 byte to the marshalled varint.
+        let mut encoded_marshalled_varint = Vec::new();
+        encoded_marshalled_varint.push(self.constant::<ByteVariable>(0u8));
+        encoded_marshalled_varint.push(self.constant::<ByteVariable>(8u8));
+        encoded_marshalled_varint.extend_from_slice(&marshalled_varint.0);
+        BytesVariable(encoded_marshalled_varint.try_into().unwrap())
     }
 
     /// Verifies the block height against the header.
@@ -227,5 +246,26 @@ pub(crate) mod tests {
                 assert_eq!(output_byte, byte);
             }
         }
+    }
+
+    #[test]
+    fn test_encode_varint() {
+        env_logger::try_init().unwrap_or_default();
+
+        let mut builder = DefaultBuilder::new();
+
+        let height = builder.constant::<U64Variable>(3804.into());
+
+        let encoded_height = builder.marshal_int64_varint(&height);
+        let encoded_height = builder.encode_marshalled_varint(&BytesVariable(encoded_height));
+        builder.watch(&encoded_height, "encoded_height");
+
+        let circuit = builder.build();
+
+        let input = circuit.input();
+        let (proof, output) = circuit.prove(&input);
+        circuit.verify(&proof, &input, &output);
+
+        println!("Verified proof");
     }
 }

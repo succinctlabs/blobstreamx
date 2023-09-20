@@ -26,10 +26,10 @@ pub struct CelestiaDataCommitmentProofInputVariable<const WINDOW_SIZE: usize> {
 }
 
 #[derive(Clone, Debug, CircuitVariable)]
-#[value_name(HeaderVariableInput)]
-pub struct HeaderVariable {
+#[value_name(HeightProofVariableInput)]
+pub struct HeightProofVariable {
     pub header: Bytes32Variable,
-    pub header_height_proof: MerkleInclusionProofVariable<HEADER_PROOF_DEPTH, VARINT_SIZE_BYTES>,
+    pub header_height_proof: ArrayVariable<Bytes32Variable, HEADER_PROOF_DEPTH>,
     pub height_byte_length: U32Variable,
     pub height: U64Variable,
 }
@@ -37,8 +37,8 @@ pub struct HeaderVariable {
 #[derive(Clone, Debug, CircuitVariable)]
 #[value_name(CelestiaHeaderChainProofInput)]
 pub struct CelestiaHeaderChainProofInputVariable<const WINDOW_RANGE: usize> {
-    pub current_header: HeaderVariable,
-    pub trusted_header: HeaderVariable,
+    pub current_header: HeightProofVariable,
+    pub trusted_header: HeightProofVariable,
     pub data_hash_proofs: ArrayVariable<
         MerkleInclusionProofVariable<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES>,
         WINDOW_RANGE,
@@ -51,13 +51,6 @@ pub struct CelestiaHeaderChainProofInputVariable<const WINDOW_RANGE: usize> {
 
 pub trait CelestiaCommitment<L: PlonkParameters<D>, const D: usize> {
     type Curve: Curve;
-
-    /// Encodes the marshalled varint into a BytesVariable<11>.
-    /// Prepends a 0x00 byte for the leaf prefix and a 0x08 byte to the marshalled varint.
-    fn encode_marshalled_varint(
-        &mut self,
-        marshalled_varint: &BytesVariable<9>,
-    ) -> BytesVariable<11>;
 
     /// Encodes the data hash and height into a tuple.
     /// Spec: https://github.com/celestiaorg/celestia-core/blob/6933af1ead0ddf4a8c7516690e3674c6cdfa7bd8/rpc/core/blocks.go#L325-L334
@@ -98,18 +91,6 @@ pub trait CelestiaCommitment<L: PlonkParameters<D>, const D: usize> {
 
 impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for CircuitBuilder<L, D> {
     type Curve = Ed25519;
-
-    fn encode_marshalled_varint(
-        &mut self,
-        marshalled_varint: &BytesVariable<9>,
-    ) -> BytesVariable<11> {
-        // Prepend the 0x08 byte to the marshalled varint.
-        let mut encoded_marshalled_varint = Vec::new();
-        encoded_marshalled_varint.push(self.constant::<ByteVariable>(0u8));
-        encoded_marshalled_varint.push(self.constant::<ByteVariable>(8u8));
-        encoded_marshalled_varint.extend_from_slice(&marshalled_varint.0);
-        BytesVariable(encoded_marshalled_varint.try_into().unwrap())
-    }
 
     fn encode_data_root_tuple(
         &mut self,
@@ -184,7 +165,7 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
         // Verify the current block's height
         self.verify_block_height(
             input.current_header.header,
-            &input.current_header.header_height_proof.aunts,
+            &input.current_header.header_height_proof,
             &input.current_header.height,
             input.current_header.height_byte_length,
         );
@@ -192,7 +173,7 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
         // Verify the trusted block's height
         self.verify_block_height(
             input.trusted_header.header,
-            &input.trusted_header.header_height_proof.aunts,
+            &input.trusted_header.header_height_proof,
             &input.trusted_header.height,
             input.trusted_header.height_byte_length,
         );
@@ -361,27 +342,6 @@ pub(crate) mod tests {
         );
         let (proof, output) = circuit.prove(&input);
         circuit.verify(&proof, &input, &output);
-    }
-
-    #[test]
-    fn test_encode_varint() {
-        env_logger::try_init().unwrap_or_default();
-
-        let mut builder = CircuitBuilder::<L, D>::new();
-
-        let height = builder.constant::<U64Variable>(3804.into());
-
-        let encoded_height = builder.marshal_int64_varint(&height);
-        let encoded_height = builder.encode_marshalled_varint(&BytesVariable(encoded_height));
-        builder.watch(&encoded_height, "encoded_height");
-
-        let circuit = builder.build();
-
-        let input = circuit.input();
-        let (proof, output) = circuit.prove(&input);
-        circuit.verify(&proof, &input, &output);
-
-        println!("Verified proof");
     }
 
     #[test]

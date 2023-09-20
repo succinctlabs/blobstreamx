@@ -11,9 +11,13 @@ use plonky2x::{
     },
 };
 
-use crate::utils::{
-    EDDSAPublicKeyVariable, EncBlockIDVariable, EncTendermintHashVariable, TendermintHashVariable,
-    ValidatorMessageVariable,
+use crate::{
+    commitment::HeightProofVariable,
+    shared::TendermintHeader,
+    utils::{
+        EDDSAPublicKeyVariable, EncBlockIDVariable, EncTendermintHashVariable,
+        TendermintHashVariable, ValidatorMessageVariable,
+    },
 };
 use crate::{
     signature::TendermintSignature,
@@ -180,6 +184,7 @@ pub trait TendermintVerify<
         &mut self,
         validators: &ArrayVariable<ValidatorVariable<Self::Curve>, VALIDATOR_SET_SIZE_MAX>,
         header: &TendermintHashVariable,
+        header_height_proof: HeightProofVariable,
         data_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
         validator_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
         next_validators_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
@@ -521,6 +526,7 @@ impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
         &mut self,
         validators: &ArrayVariable<ValidatorVariable<Self::Curve>, VALIDATOR_SET_SIZE_MAX>,
         header: &TendermintHashVariable,
+        header_height_proof: HeightProofVariable,
         data_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
         validator_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
         next_validators_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
@@ -547,6 +553,13 @@ impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
             next_validators_hash_proof,
             round_present,
         );
+
+        self.verify_block_height(
+            *header,
+            &header_height_proof.header_height_proof,
+            &header_height_proof.height,
+            header_height_proof.height_byte_length,
+        )
     }
 
     fn verify_trusted_validators(
@@ -677,8 +690,12 @@ pub(crate) mod tests {
     use plonky2::util::timing::TimingTree;
     use plonky2x::prelude::DefaultBuilder;
 
-    use crate::inputs::{
-        generate_skip_inputs, generate_step_inputs, CelestiaSkipBlockProof, CelestiaStepBlockProof,
+    use crate::{
+        commitment::HeightProofVariable,
+        inputs::{
+            generate_skip_inputs, generate_step_inputs, CelestiaSkipBlockProof,
+            CelestiaStepBlockProof,
+        },
     };
 
     fn test_step_template<const VALIDATOR_SET_SIZE_MAX: usize>(block: usize) {
@@ -789,6 +806,7 @@ pub(crate) mod tests {
         let validators =
             builder.read::<ArrayVariable<ValidatorVariable<Curve>, VALIDATOR_SET_SIZE_MAX>>();
         let header = builder.read::<TendermintHashVariable>();
+        let header_height_proof = builder.read::<HeightProofVariable>();
         let data_hash_proof = builder.read::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>();
         let validator_hash_proof = builder.read::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>();
         let next_validators_hash_proof =
@@ -803,6 +821,7 @@ pub(crate) mod tests {
         builder.skip(
             &validators,
             &header,
+            header_height_proof,
             &data_hash_proof,
             &validator_hash_proof,
             &next_validators_hash_proof,
@@ -821,6 +840,7 @@ pub(crate) mod tests {
             celestia_skip_block_proof.base.validators,
         );
         input.write::<TendermintHashVariable>(celestia_skip_block_proof.base.header);
+        input.write::<HeightProofVariable>(celestia_skip_block_proof.block_height_proof);
         input.write::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>(
             celestia_skip_block_proof.base.data_hash_proof.into(),
         );
