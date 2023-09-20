@@ -194,6 +194,7 @@ pub async fn create_data_commitment_fixture(
         prev_header_proofs: Vec::new(),
     };
 
+    // DATA COMMITMENT_INPUTS
     // Get the dataHash of the block range (startBlock, endBlock)
     let mut url = env::var("RPC_MOCHA_4").expect("RPC_MOCHA_4 is not set in .env");
 
