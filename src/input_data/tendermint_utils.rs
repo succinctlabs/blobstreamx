@@ -1,16 +1,20 @@
-use plonky2::hash::hash_types::RichField;
+// is taken from tendermint-rs (if that is the case).
+/*
+* Mocking comet-bft proof logic in Rust
+* TODO: Upstream to tendermint-rs
+*/
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::cell::RefCell;
 use std::rc::Rc;
 use subtle_encoding::hex;
+pub use tendermint::{block::Header, merkle::Hash};
 /// Source (tendermint-rs): https://github.com/informalsystems/tendermint-rs/blob/e930691a5639ef805c399743ac0ddbba0e9f53da/tendermint/src/merkle.rs#L32
 use tendermint::{
-    block::Header,
     block::{Commit, CommitSig},
-    merkle::{Hash, MerkleHash},
-    validator::{Info, Set as ValidatorSet},
+    merkle::MerkleHash,
+    validator::Info,
     vote::Power,
     vote::{ValidatorIndex, Vote},
 };
@@ -18,65 +22,6 @@ use tendermint_proto::{
     types::BlockId as RawBlockId, types::Data as RawData,
     version::Consensus as RawConsensusVersion, Protobuf,
 };
-
-// TODO: I think we can remove a lot of these methods, as we no longer need them
-// Convert from [BoolTarget; HASH_SIZE_BITS] to [BoolTarget; PROTOBUF_HASH_SIZE_BITS]
-pub fn bits_to_bytes(bits: &[bool]) -> Vec<u8> {
-    let mut bytes = Vec::new();
-    let nb_bytes = if bits.len() % 8 == 0 {
-        bits.len() / 8
-    } else {
-        bits.len() / 8 + 1
-    };
-    for i in 0..nb_bytes {
-        let mut byte = 0;
-        for j in 0..8 {
-            if i * 8 + j >= bits.len() {
-                break;
-            }
-            byte |= (bits[i * 8 + j] as u8) << j;
-        }
-        bytes.push(byte);
-    }
-    bytes
-}
-
-pub fn f_bits_to_bytes<F: RichField>(bits: &[F]) -> Vec<u8> {
-    let mut bytes = Vec::new();
-    let nb_bytes = if bits.len() % 8 == 0 {
-        bits.len() / 8
-    } else {
-        bits.len() / 8 + 1
-    };
-    for i in 0..nb_bytes {
-        let mut byte = 0;
-        for j in 0..8 {
-            if i * 8 + j >= bits.len() {
-                break;
-            }
-            byte |= (bits[i * 8 + j].to_canonical_u64() << j) as u8;
-        }
-        bytes.push(byte);
-    }
-    bytes
-}
-
-pub fn bytes_to_le_f_bits<F: RichField>(bytes: &[u8]) -> Vec<F> {
-    let mut bits = Vec::new();
-    for byte in bytes {
-        for i in 0..8 {
-            bits.push(F::from_bool((byte >> i) & 1 == 1));
-        }
-    }
-    bits
-}
-
-// TODO: all the logic below should be moved to a different file and then stated at the top of the file that most of it
-// is taken from tendermint-rs (if that is the case).
-/*
-* Mocking comet-bft proof logic in Rust
-* TODO: Upstream to tendermint-rs
-*/
 
 /// Compute leaf hashes for arbitrary byte vectors.
 /// The leaves of the tree are the bytes of the given byte vectors in
@@ -91,6 +36,11 @@ where
         .map(|b| leaf_hash::<Sha256>(b.as_ref()))
         .collect();
     hashed_leaves
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SignedBlockResponse {
+    pub result: TempSignedBlock,
 }
 
 // Note: Implementations of ValidatorSet and SignedBlock differ in tendermint-rs and comet-bft
@@ -119,21 +69,21 @@ pub struct TempSignedBlock {
     pub validator_set: TempValidatorSet,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-#[non_exhaustive]
-pub struct SignedBlock {
-    /// Block header
-    pub header: Header,
+// #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+// #[non_exhaustive]
+// pub struct SignedBlock {
+//     /// Block header
+//     pub header: Header,
 
-    /// Transaction data
-    pub data: RawData,
+//     /// Transaction data
+//     pub data: RawData,
 
-    /// Commit
-    pub commit: Commit,
+//     /// Commit
+//     pub commit: Commit,
 
-    /// Validator set
-    pub validator_set: ValidatorSet,
-}
+//     /// Validator set
+//     pub validator_set: ValidatorSet,
+// }
 
 // Note: Matches the implementation in tendermint-rs, need to add PR to tendermint-rs to support proofs
 // https://github.com/tendermint/tendermint/blob/35581cf54ec436b8c37fabb43fdaa3f48339a170/crypto/merkle/proof.go#L35-L236
@@ -426,7 +376,7 @@ pub fn generate_proofs_from_header(h: &Header) -> (Hash, Vec<Proof>) {
 
 pub fn generate_proofs_from_block_id(
     id: &tendermint::block::Id,
-) -> (tendermint::merkle::Hash, Vec<crate::utils::Proof>) {
+) -> (tendermint::merkle::Hash, Vec<Proof>) {
     let fields_bytes = vec![id.hash.encode_vec(), id.part_set_header.hash.encode_vec()];
 
     proofs_from_byte_slices(fields_bytes)
@@ -470,247 +420,4 @@ pub fn non_absent_vote(
         extension: Default::default(),
         extension_signature: None,
     })
-}
-
-// To run tests with logs (i.e. to see proof generation time), set the environment variable `RUST_LOG=debug` before the test command.
-// Alternatively, add env::set_var("RUST_LOG", "debug") to the top of the test.
-#[cfg(test)]
-pub(crate) mod tests {
-    use sha2::Sha256;
-    use subtle_encoding::hex;
-    use tendermint_proto::{types::SimpleValidator as RawSimpleValidator, Protobuf};
-
-    use super::{generate_proofs_from_header, TempSignedBlock};
-    use tendermint::{
-        merkle::simple_hash_from_byte_vectors,
-        validator::{Set as ValidatorSet, SimpleValidator},
-        vote::{SignedVote, ValidatorIndex},
-    };
-
-    use super::{inner_hash, leaf_hash, non_absent_vote, SignedBlock};
-
-    #[test]
-    fn test_validator_inclusion() {
-        // These are test cases generated from querying `cosmos-hub`
-        // for the validator set at height 0 for validator 0.
-
-        // let root_hash = [125u8, 130, 148, 137, 132, 154, 188, 169, 153, 181, 72, 1, 150, 95, 7, 68, 137, 114, 181, 223, 226, 151, 52, 72, 170, 185, 171, 167, 154, 96, 187, 240];
-        // Total: 180
-        let leaf_root_hex = "395aa064aa4c29f7010acfe3f25db9485bbd4b91897b6ad7ad547639252b4d56";
-        let leaf_string = "L123456";
-
-        let leaf_root = &hex::decode(leaf_root_hex).unwrap();
-        let leaf_tree: Vec<Vec<u8>> = vec![leaf_string.as_bytes().to_vec(); 1];
-
-        let root = simple_hash_from_byte_vectors::<Sha256>(&leaf_tree);
-        assert_eq!(leaf_root, &root);
-    }
-
-    #[test]
-    fn test_multiple_validator_inclusion() {
-        // These are test cases generated from generating a random set of validators with a byte length of 38.
-
-        // Serde JSON
-        let leaf_root_hex = "5541a94a9cf19e568401a2eed59f4ac8118c945d37803632aad655c6ee4f3ed6";
-
-        // JSON string
-        let validators = vec![
-            "de6ad0941095ada2a7996e6a888581928203b8b69e07ee254d289f5b9c9caea193c2ab01902d",
-            "92fbe0c52937d80c5ea643c7832620b84bfdf154ec7129b8b471a63a763f2fe955af1ac65fd3",
-            "e902f88b2371ff6243bf4b0ebe8f46205e00749dd4dad07b2ea34350a1f9ceedb7620ab913c2",
-        ];
-
-        // Process the JSON value
-        for validator in &validators {
-            println!("Validator: {}", validator);
-        }
-
-        let bytes_vec: Vec<Vec<u8>> = validators.iter().map(|s| hex::decode(s).unwrap()).collect();
-
-        let leaf_root = &hex::decode(leaf_root_hex).unwrap();
-        let leaf_tree: Vec<Vec<u8>> = bytes_vec;
-
-        let root = simple_hash_from_byte_vectors::<Sha256>(&leaf_tree);
-        assert_eq!(leaf_root, &root);
-    }
-
-    #[test]
-    fn test_generate_validator_hash_proof() {
-        // Generate test cases from Celestia block:
-        let temp_block = TempSignedBlock::from(
-            serde_json::from_str::<TempSignedBlock>(include_str!(
-                "./fixtures/mocha-3/signed_celestia_block.json"
-            ))
-            .unwrap(),
-        );
-
-        // Cast to SignedBlock
-        let block = SignedBlock {
-            header: temp_block.header,
-            data: temp_block.data,
-            commit: temp_block.commit,
-            validator_set: ValidatorSet::new(
-                temp_block.validator_set.validators,
-                temp_block.validator_set.proposer,
-            ),
-        };
-
-        for validator in block.validator_set.validators() {
-            println!("Validator: {:?}", validator);
-            let encoded_bytes =
-                Protobuf::<RawSimpleValidator>::encode_vec(SimpleValidator::from(validator));
-            println!(
-                "Encoded Validator (Hex): {:?}",
-                String::from_utf8(hex::encode(encoded_bytes))
-            );
-        }
-
-        let validator_hash = block.validator_set.hash();
-
-        // Check that the computed hash and validators_hash match
-        assert_eq!(validator_hash, block.header.validators_hash);
-    }
-
-    #[test]
-    fn test_verify_signatures() {
-        // Generate test cases from Celestia block:
-        let temp_block = Box::new(TempSignedBlock::from(
-            serde_json::from_str::<TempSignedBlock>(include_str!(
-                "./fixtures/mocha-3/signed_celestia_block.json"
-            ))
-            .unwrap(),
-        ));
-
-        // Cast to SignedBlock
-        let block = Box::new(SignedBlock {
-            header: temp_block.header,
-            data: temp_block.data,
-            commit: temp_block.commit,
-            validator_set: ValidatorSet::new(
-                temp_block.validator_set.validators,
-                temp_block.validator_set.proposer,
-            ),
-        });
-
-        // Source: https://github.com/informalsystems/tendermint-rs/blob/c2b5c9e01eab1c740598aa14375a7453f3bfa436/light-client-verifier/src/operations/voting_power.rs#L139-L198
-        // Verify each of the signatures of the non_absent_votes
-        // Verify signatures
-        let non_absent_votes =
-            block
-                .commit
-                .signatures
-                .iter()
-                .enumerate()
-                .filter_map(|(idx, signature)| {
-                    ValidatorIndex::try_from(idx)
-                        .ok()
-                        .and_then(|validator_idx| {
-                            non_absent_vote(signature, validator_idx, &block.commit)
-                                .map(|vote| (signature, vote))
-                        })
-                });
-
-        let mut min_sign_bytes_len = 1000000;
-        let mut max_sign_bytes_len = 0;
-
-        for (_, vote) in non_absent_votes {
-            let validator = Box::new(
-                match block.validator_set.validator(vote.validator_address) {
-                    Some(validator) => validator,
-                    None => continue, // Cannot find matching validator, so we skip the vote
-                },
-            );
-
-            // Cast the vote into a signedVote struct (which is used to get the signed bytes)
-            let signed_vote = Box::new(
-                SignedVote::from_vote(vote.clone(), block.header.chain_id.clone())
-                    .expect("missing signature"),
-            );
-
-            let _pub_key = validator.pub_key.ed25519().unwrap();
-
-            // Get the encoded signed vote bytes
-            // https://github.com/celestiaorg/celestia-core/blob/main/proto/tendermint/types/canonical.proto#L30-L37
-            let sign_bytes = signed_vote.sign_bytes();
-
-            if sign_bytes.len() < min_sign_bytes_len {
-                min_sign_bytes_len = sign_bytes.len();
-            }
-            if sign_bytes.len() > max_sign_bytes_len {
-                max_sign_bytes_len = sign_bytes.len();
-            }
-
-            // Similar to encoding the vote: https://github.com/informalsystems/tendermint-rs/blob/c2b5c9e01eab1c740598aa14375a7453f3bfa436/tendermint/src/vote.rs#L267-L271
-            // let decoded_vote: CanonicalVote = Protobuf::<RawCanonicalVote>::decode_length_delimited_vec(&sign_bytes).expect("failed to decode sign_bytes");
-
-            // Verify that the message signed is in fact the sign_bytes
-            validator
-                .verify_signature::<tendermint::crypto::default::signature::Verifier>(
-                    &sign_bytes,
-                    signed_vote.signature(),
-                )
-                .expect("invalid signature");
-
-            // TODO: We can break out of the loop when we have enough voting power.
-            // See https://github.com/informalsystems/tendermint-rs/issues/235
-        }
-
-        let validator_hash = block.validator_set.hash();
-
-        // Check that the computed hash and validators_hash match
-        assert_eq!(validator_hash, block.header.validators_hash);
-
-        let header_hash = block.header.hash();
-        let header_hash_bytes = block.commit.block_id.hash;
-        assert_eq!(header_hash, header_hash_bytes);
-    }
-
-    #[test]
-    fn test_verify_validator_hash_from_root_proof() {
-        // Generate test cases from Celestia block:
-        let block = tendermint::Block::from(
-            serde_json::from_str::<tendermint::block::Block>(include_str!(
-                "./fixtures/mocha-3/celestia_block.json"
-            ))
-            .unwrap(),
-        );
-
-        let (root_hash, proofs) = generate_proofs_from_header(&block.header);
-
-        let validator_hash_index = 7;
-
-        // Verify validator proof
-        proofs[validator_hash_index]
-            .verify(&root_hash, &block.header.validators_hash.encode_vec())
-            .unwrap();
-
-        // Verify proof using aunts
-        let mut path_indices = vec![];
-        let mut path_values = vec![];
-        for i in 0..proofs[validator_hash_index].aunts.len() {
-            path_values.push(proofs[validator_hash_index].aunts[i]);
-        }
-
-        let mut current_total = proofs[validator_hash_index].total;
-        let mut current_index = proofs[validator_hash_index].index;
-        while current_total >= 1 {
-            path_indices.push(current_index % 2 == 1);
-            current_total = current_total / 2;
-            current_index = current_index / 2;
-        }
-
-        let validators_hash = block.header.validators_hash.encode_vec();
-        let leaf_hash = leaf_hash::<Sha256>(&validators_hash);
-
-        let mut current_hash = leaf_hash;
-        for i in 0..path_indices.len() {
-            if path_indices[i] {
-                current_hash = inner_hash::<Sha256>(path_values[i], current_hash);
-            } else {
-                current_hash = inner_hash::<Sha256>(current_hash, path_values[i]);
-            }
-        }
-
-        assert_eq!(current_hash, root_hash);
-    }
 }
