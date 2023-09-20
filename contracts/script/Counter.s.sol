@@ -4,13 +4,14 @@ pragma solidity ^0.8.13;
 import "forge-std/Script.sol";
 import {ZKTendermint} from "../src/Counter.sol";
 
+// forge script script/Counter.s.sol --verifier etherscan --chain-id 5 --account ded
 contract CounterScript is Script {
     function setUp() public {}
 
     function run() public {
         vm.broadcast();
         address gateway = address(0x852a94F8309D445D27222eDb1E92A4E83DdDd2a8);
-        bytes32 functionId = bytes32(0);
+        bytes32 functionId = bytes32(hex"01");
 
         ZKTendermint lightClient = new ZKTendermint(gateway);
 
