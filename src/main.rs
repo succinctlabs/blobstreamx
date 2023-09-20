@@ -29,14 +29,6 @@ enum Function {
         #[clap(short, long)]
         end_block: usize,
     },
-    /// Calls the create_header_chain_fixture function
-    CreateHeaderChainFixture {
-        /// The block number range to create a new fixture for
-        #[clap(short, long)]
-        trusted_block: usize,
-        #[clap(short, long)]
-        current_block: usize,
-    },
     /// Generates step inputs
     GenerateStepInputs {
         /// Number of validators to generate test cases for
@@ -74,12 +66,7 @@ async fn main() {
             create_data_commitment_fixture(start_block, end_block)
                 .await
                 .expect("Failed to create new data commitment fixture");
-        }
-        Function::CreateHeaderChainFixture {
-            trusted_block,
-            current_block,
-        } => {
-            create_header_chain_fixture(trusted_block, current_block)
+            create_header_chain_fixture(start_block, end_block)
                 .await
                 .expect("Failed to create new header chain fixture");
         }
