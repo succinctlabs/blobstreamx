@@ -121,7 +121,7 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
         // Encode the height.
         let encoded_height = height.encode(self);
 
-        // Pad the abi.encodePacked(height) to 32 bytes.
+        // Pad the abi.encodePacked(height) to 32 bytes. Height is 8 bytes, pad with 32 - 8 = 24 bytes.
         encoded_tuple.extend(
             self.constant::<ArrayVariable<ByteVariable, 24>>(vec![0u8; 24])
                 .as_vec(),
