@@ -13,8 +13,7 @@ use plonky2x::prelude::{
 
 use crate::shared::TendermintHeader;
 use crate::utils::{
-    HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES,
-    PROTOBUF_VARINT_SIZE_BYTES, VARINT_SIZE_BYTES,
+    HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES, VARINT_SIZE_BYTES,
 };
 
 #[derive(Clone, Debug, CircuitVariable)]
