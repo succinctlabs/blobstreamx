@@ -5,7 +5,7 @@ use crate::commitment::{
 };
 use crate::consts::{
     HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES,
-    VALIDATOR_MESSAGE_BYTES_LENGTH_MAX, VARINT_SIZE_BYTES,
+    VALIDATOR_MESSAGE_BYTES_LENGTH_MAX,
 };
 use crate::fixture::{DataCommitmentFixture, HeaderChainFixture};
 /// Source (tendermint-rs): https://github.com/informalsystems/tendermint-rs/blob/e930691a5639ef805c399743ac0ddbba0e9f53da/tendermint/src/merkle.rs#L32
@@ -41,19 +41,6 @@ use tendermint_proto::types::BlockId as RawBlockId;
 use tendermint_proto::Protobuf;
 type F = GoldilocksField;
 type C = Ed25519;
-
-// #[derive(Debug, Clone)]
-// pub struct Validator {
-//     pub pubkey: AffinePoint<C>,
-//     pub signature: <EDDSASignatureTarget<C> as CircuitVariable>::ValueType<F>,
-//     pub message: [u8; VALIDATOR_MESSAGE_BYTES_LENGTH_MAX],
-//     pub message_bit_length: F,
-//     pub voting_power: U64,
-//     pub validator_byte_length: F,
-//     pub enabled: bool,
-//     pub signed: bool,
-//     pub present_on_trusted_header: bool,
-// }
 
 /// The protobuf-encoded leaf (a hash), and it's corresponding proof and path indices against the header.
 /// TODO: Remove this once we port step & skip circuits to use CircuitVariable
