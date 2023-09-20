@@ -26,7 +26,7 @@ use serde::{Deserialize, Serialize};
 use tokio::runtime::Runtime;
 
 use celestia::consts::HEADER_PROOF_DEPTH;
-use celestia::input_data::{InputDataFetcher, InputDataMode};
+use celestia::input_data::InputDataFetcher;
 use celestia::verify::{
     BlockIDInclusionProofVariable, HashInclusionProofVariable, TendermintVerify, ValidatorVariable,
 };
@@ -43,7 +43,7 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize, L: PlonkParameters<D>, const D: usize>
     fn hint(&self, input_stream: &mut ValueStream<L, D>, output_stream: &mut ValueStream<L, D>) {
         let prev_header_hash = input_stream.read_value::<Bytes32Variable>();
         let prev_block_number = input_stream.read_value::<U64Variable>();
-        let mut data_fetcher = InputDataFetcher::new(InputDataMode::Fixture);
+        let mut data_fetcher = InputDataFetcher::new();
         let rt = Runtime::new().expect("failed to create tokio runtime");
         let result = rt.block_on(async {
             data_fetcher
@@ -129,6 +129,7 @@ mod tests {
     fn test_circuit_function_step() {
         env::set_var("RUST_LOG", "debug");
         env_logger::try_init().unwrap_or_default();
+        env::set_var("RPC_MOCHA_4", "fixture"); // Use fixture during testing
 
         const MAX_VALIDATOR_SET_SIZE: usize = 8;
         let mut builder = DefaultBuilder::new();

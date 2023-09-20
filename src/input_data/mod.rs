@@ -2,6 +2,7 @@ pub mod tendermint_utils;
 pub mod types;
 pub mod utils;
 
+use std::env;
 use std::path::Path;
 use std::{collections::HashMap, fs};
 
@@ -31,7 +32,18 @@ pub struct InputDataFetcher {
 }
 
 impl InputDataFetcher {
-    pub fn new(mode: InputDataMode) -> Self {
+    pub fn new() -> Self {
+        dotenv::dotenv().ok();
+        let url = env::var("RPC_MOCHA_4").expect("RPC_MOCHA_4 is not set in .env");
+
+        let mode = if url == "" || url == "fixture" {
+            println!("Using fixture mode for data fetcher");
+            InputDataMode::Fixture
+        } else {
+            println!("Using rpc mode for data fetch with rpc {:?}", url.as_str());
+            InputDataMode::Rpc(url.clone())
+        };
+
         Self {
             mode,
             proof_cache: HashMap::new(),
