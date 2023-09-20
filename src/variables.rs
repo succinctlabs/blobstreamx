@@ -32,6 +32,7 @@ pub type MarshalledValidatorVariable = BytesVariable<VALIDATOR_BYTE_LENGTH_MAX>;
 /// The message signed by the validator as a variable.
 pub type ValidatorMessageVariable = BytesVariable<VALIDATOR_MESSAGE_BYTES_LENGTH_MAX>;
 
+// The Celestia data commitment inputs as a struct.
 #[derive(Clone, Debug, CircuitVariable)]
 #[value_name(CelestiaDataCommitmentProofInput)]
 pub struct CelestiaDataCommitmentProofInputVariable<const WINDOW_SIZE: usize> {
@@ -40,6 +41,8 @@ pub struct CelestiaDataCommitmentProofInputVariable<const WINDOW_SIZE: usize> {
     pub data_commitment_root: Bytes32Variable,
 }
 
+// A block height proof as a struct.
+// TODO: Make this generic for all variable length header proofs.
 #[derive(Clone, Debug, CircuitVariable)]
 #[value_name(HeightProofVariableInput)]
 pub struct HeightProofVariable {
@@ -48,6 +51,7 @@ pub struct HeightProofVariable {
     pub height: U64Variable,
 }
 
+// The Celestia header chain inputs as a struct.
 #[derive(Clone, Debug, CircuitVariable)]
 #[value_name(CelestiaHeaderChainProofInput)]
 pub struct CelestiaHeaderChainProofInputVariable<const WINDOW_RANGE: usize> {
