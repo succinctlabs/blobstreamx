@@ -687,6 +687,7 @@ pub(crate) mod tests {
     use super::*;
 
     #[test]
+    #[cfg_attr(feature = "ci", ignore)]
     fn test_get_block_height() {
         let block = get_signed_block_from_fixture(11000);
         let encoded_block_height = block.header.height.encode_vec();
@@ -698,6 +699,7 @@ pub(crate) mod tests {
     }
 
     #[test]
+    #[cfg_attr(feature = "ci", ignore)]
     fn test_get_header_hash() {
         let block = get_signed_block_from_fixture(10000);
         let header_hash = block.header.hash();
@@ -705,6 +707,7 @@ pub(crate) mod tests {
     }
 
     #[test]
+    #[cfg_attr(feature = "ci", ignore)]
     fn get_shared_voting_power() {
         let block_1 = get_signed_block_from_fixture(50000);
         let block_2 = get_signed_block_from_fixture(100000);

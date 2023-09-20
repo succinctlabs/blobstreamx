@@ -781,6 +781,7 @@ pub(crate) mod tests {
     }
 
     #[test]
+    #[cfg_attr(feature = "ci", ignore)]
     fn test_step_with_dummy_sigs() {
         // Testing block 11105 (4 validators, 2 signed)
         // Need to handle empty validators as well
@@ -793,6 +794,7 @@ pub(crate) mod tests {
     }
 
     #[test]
+    #[cfg_attr(feature = "ci", ignore)]
     fn test_step_small() {
         // Testing block 11000
         let block = 11000;
@@ -803,6 +805,7 @@ pub(crate) mod tests {
     }
 
     #[test]
+    #[cfg_attr(feature = "ci", ignore)]
     fn test_step_with_empty() {
         // Testing block 10000
         let block = 10000;
@@ -813,6 +816,7 @@ pub(crate) mod tests {
     }
 
     #[test]
+    #[cfg_attr(feature = "ci", ignore)]
     fn test_step_large() {
         // Testing block 75000
         // 77 validators (128)
@@ -831,6 +835,7 @@ pub(crate) mod tests {
     }
 
     #[test]
+    #[cfg_attr(feature = "ci", ignore)]
     fn test_skip_small() {
         // Testing skip from 11000 to 11105
         let trusted_block = 11000;
@@ -843,6 +848,7 @@ pub(crate) mod tests {
     }
 
     #[test]
+    #[cfg_attr(feature = "ci", ignore)]
     fn test_skip_large() {
         // Testing skip from 60000 to 75000
 

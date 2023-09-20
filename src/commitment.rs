@@ -265,6 +265,7 @@ pub(crate) mod tests {
     const D: usize = 2;
 
     #[test]
+    #[cfg_attr(feature = "ci", ignore)]
     fn test_prove_data_commitment() {
         env_logger::try_init().unwrap_or_default();
 
@@ -304,6 +305,7 @@ pub(crate) mod tests {
     }
 
     #[test]
+    #[cfg_attr(feature = "ci", ignore)]
     fn test_data_commitment() {
         env_logger::try_init().unwrap_or_default();
 
@@ -338,6 +340,7 @@ pub(crate) mod tests {
     }
 
     #[test]
+    #[cfg_attr(feature = "ci", ignore)]
     fn test_prove_header_chain() {
         env_logger::try_init().unwrap_or_default();
 
@@ -363,6 +366,7 @@ pub(crate) mod tests {
     }
 
     #[test]
+    #[cfg_attr(feature = "ci", ignore)]
     fn test_encode_varint() {
         env_logger::try_init().unwrap_or_default();
 

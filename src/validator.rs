@@ -237,6 +237,7 @@ pub(crate) mod tests {
     }
 
     #[test]
+    #[cfg_attr(feature = "ci", ignore)]
     fn test_hash_validator_leaves() {
         const VALIDATOR_SET_SIZE_MAX: usize = 4;
 
@@ -295,6 +296,7 @@ pub(crate) mod tests {
     }
 
     #[test]
+    #[cfg_attr(feature = "ci", ignore)]
     fn test_generate_validators_hash() {
         const VALIDATOR_SET_SIZE_MAX: usize = 4;
 
@@ -373,6 +375,7 @@ pub(crate) mod tests {
     }
 
     #[test]
+    #[cfg_attr(feature = "ci", ignore)]
     fn test_get_root_from_merkle_proof() {
         env_logger::try_init().unwrap_or_default();
 

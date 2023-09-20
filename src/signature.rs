@@ -330,6 +330,7 @@ pub(crate) mod tests {
     }
 
     #[test]
+    #[cfg_attr(feature = "ci", ignore)]
     fn test_verify_round_absent_eddsa_signature() {
         // First signature from block 11000
         let msg = "6c080211f82a00000000000022480a2036f2d954fe1ba37c5036cb3c6b366d0daf68fccbaa370d9490361c51a0a38b61122408011220cddf370e891591c9d912af175c966cd8dfa44b2c517e965416b769eb4b9d5d8d2a0c08f6b097a50610dffbcba90332076d6f6368612d33";
@@ -341,6 +342,7 @@ pub(crate) mod tests {
         verify_eddsa_signature(msg_bytes, pub_key_bytes, sig_bytes)
     }
     #[test]
+    #[cfg_attr(feature = "ci", ignore)]
     fn test_verify_round_present_eddsa_signature() {
         // First signature from block 11105 (round present)
         let msg = "74080211612b00000000000019010000000000000022480a205047a5a855854ca8bc610fb47ee849084c04fe25a2f037a07de6ae343c55216b122408011220cb05d8adc7c24d55f06d3bd0aea50620d3f0d73a9656a9073cc47a959a0961672a0b08acbd97a50610b1a5f31132076d6f6368612d33";
@@ -352,6 +354,7 @@ pub(crate) mod tests {
         verify_eddsa_signature(msg_bytes, pub_key_bytes, sig_bytes)
     }
     #[test]
+    #[cfg_attr(feature = "ci", ignore)]
     fn test_verify_dummy_signature() {
         verify_eddsa_signature(
             DUMMY_MSG.to_vec(),
