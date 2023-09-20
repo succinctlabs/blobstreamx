@@ -137,9 +137,11 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use ethers::types::H256;
+    use ethers::utils::hex;
     use std::env;
 
     use super::*;
+    use plonky2x::backend::circuit::PublicInput;
     use plonky2x::prelude::{DefaultBuilder, GateRegistry, WitnessGeneratorRegistry};
 
     #[test]
@@ -161,6 +163,34 @@ mod tests {
         SkipCircuit::<MAX_VALIDATOR_SET_SIZE>::add_gates(&mut gate_registry);
 
         circuit.test_serializers(&gate_registry, &generator_registry);
+    }
+
+    // TODO: this test should not run in CI because it uses the RPC instead of a fixture
+    #[test]
+    fn test_circuit_with_input_bytes() {
+        env::set_var("RUST_LOG", "debug");
+        env_logger::try_init().unwrap_or_default();
+
+        const MAX_VALIDATOR_SET_SIZE: usize = 4;
+        // This is from block 3000 with requested block 3100
+        let input_bytes = hex::decode(
+            "a8512f18c34b70e1533cfd5aa04f251fcb0d7be56ec570051fbad9bdb9435e6a0000000000000bb80000000000000c1c",
+        )
+        .unwrap();
+
+        let mut builder = DefaultBuilder::new();
+
+        log::debug!("Defining circuit");
+        SkipCircuit::<MAX_VALIDATOR_SET_SIZE>::define(&mut builder);
+
+        log::debug!("Building circuit");
+        let circuit = builder.build();
+        log::debug!("Done building circuit");
+
+        let input = PublicInput::Bytes(input_bytes);
+        let (proof, mut output) = circuit.prove(&input);
+        let next_header = output.evm_read::<Bytes32Variable>();
+        println!("next_header {:?}", next_header);
     }
 
     #[test]

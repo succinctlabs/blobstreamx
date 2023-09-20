@@ -11,11 +11,24 @@ contract CounterTest is Test {
         lightClient = new ZKTendermint(address(0));
     }
 
-    function testGetEncodePacked() public {
+    function testGetEncodePackedStep() public {
         // http://64.227.18.169:26657/block?height=3000
         bytes32 header = hex"A8512F18C34B70E1533CFD5AA04F251FCB0D7BE56EC570051FBAD9BDB9435E6A";
         uint64 height = 3000;
         bytes memory encodedInput = abi.encodePacked(header, height);
+        console.logBytes(encodedInput);
+    }
+
+    function testGetEncodePackedSkip() public {
+        // http://64.227.18.169:26657/block?height=3000
+        bytes32 header = hex"A8512F18C34B70E1533CFD5AA04F251FCB0D7BE56EC570051FBAD9BDB9435E6A";
+        uint64 height = 3000;
+        uint64 requestedHeight = 3100;
+        bytes memory encodedInput = abi.encodePacked(
+            header,
+            height,
+            requestedHeight
+        );
         console.logBytes(encodedInput);
     }
 
