@@ -1,7 +1,5 @@
-use crate::utils::TendermintHashVariable;
-use crate::utils::{
-    MarshalledValidatorVariable, VALIDATOR_BYTE_LENGTH_MAX, VOTING_POWER_BYTES_LENGTH_MAX,
-};
+use crate::consts::{VALIDATOR_BYTE_LENGTH_MAX, VOTING_POWER_BYTES_LENGTH_MAX};
+use crate::variables::{MarshalledValidatorVariable, TendermintHashVariable};
 use plonky2x::frontend::ecc::ed25519::curve::curve_types::Curve;
 use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
 use plonky2x::frontend::ecc::ed25519::gadgets::curve::{AffinePointTarget, CircuitBuilderCurve};
@@ -253,11 +251,9 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for Circui
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
+    use crate::consts::{HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES};
     use crate::inputs::{convert_to_h256, get_path_indices, get_signed_block_from_fixture};
-    use crate::utils::{
-        generate_proofs_from_header, hash_all_leaves, proofs_from_byte_slices, HEADER_PROOF_DEPTH,
-        PROTOBUF_BLOCK_ID_SIZE_BYTES,
-    };
+    use crate::utils::{generate_proofs_from_header, hash_all_leaves, proofs_from_byte_slices};
     use crate::validator::TendermintValidator;
     use ethers::types::H256;
     use ethers::utils::hex;

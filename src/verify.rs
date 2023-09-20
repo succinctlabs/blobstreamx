@@ -11,13 +11,13 @@ use plonky2x::{
     },
 };
 
-use crate::utils::{
-    EDDSAPublicKeyVariable, EncBlockIDVariable, EncTendermintHashVariable, TendermintHashVariable,
-    ValidatorMessageVariable,
+use crate::variables::{
+    EDDSAPublicKeyVariable, EncBlockIDVariable, EncTendermintHashVariable,
+    MarshalledValidatorVariable, TendermintHashVariable, ValidatorMessageVariable,
 };
 use crate::{
+    consts::{PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES},
     signature::TendermintSignature,
-    utils::{MarshalledValidatorVariable, PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES},
     validator::TendermintValidator,
     voting::TendermintVoting,
 };
