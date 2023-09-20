@@ -6,7 +6,6 @@
 //! The `pubkey` is encoded as the raw list of bytes used in the public key. The `varint` is
 //! encoded using protobuf's default integer encoding, which consist of 7 bit payloads. You can
 //! read more about them here: https://protobuf.dev/programming-guides/encoding/#varints.
-use curta::math::field::Field;
 use num::BigUint;
 use plonky2::field::types::PrimeField;
 use plonky2x::frontend::ecc::ed25519::curve::curve_types::AffinePoint;
@@ -24,6 +23,7 @@ use plonky2x::prelude::BoolVariable;
 use plonky2x::prelude::Bytes32Variable;
 use plonky2x::prelude::BytesVariable;
 use plonky2x::prelude::CircuitBuilder;
+use plonky2x::prelude::Field;
 use plonky2x::prelude::PlonkParameters;
 
 use crate::consts::VALIDATOR_MESSAGE_BYTES_LENGTH_MAX;
