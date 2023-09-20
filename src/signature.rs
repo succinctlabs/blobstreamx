@@ -26,8 +26,8 @@ use plonky2x::prelude::BytesVariable;
 use plonky2x::prelude::CircuitBuilder;
 use plonky2x::prelude::PlonkParameters;
 
-use crate::utils::ValidatorMessageVariable;
-use crate::utils::VALIDATOR_MESSAGE_BYTES_LENGTH_MAX;
+use crate::consts::VALIDATOR_MESSAGE_BYTES_LENGTH_MAX;
+use crate::variables::ValidatorMessageVariable;
 
 pub struct DummySignatureTarget<C: Curve> {
     // TODO: Change back to EDDSAPublicKeyTarget after type alias on EDDSAPublicKeyTarget
@@ -248,7 +248,8 @@ pub(crate) mod tests {
     use tendermint::crypto::ed25519::SigningKey;
     use tendermint::private_key;
 
-    use crate::utils::{to_be_bits, TendermintHashVariable};
+    use crate::input_data::utils::to_be_bits;
+    use crate::variables::TendermintHashVariable;
 
     #[test]
     fn test_generate_signature() {

@@ -1,12 +1,10 @@
-pub mod commitment;
-pub mod fixture;
-pub mod inputs;
-pub mod signature;
-pub mod utils;
-pub mod validator;
-pub mod verify;
-pub mod voting;
-
+use celestia::{
+    fixture::{
+        create_block_fixture, create_data_commitment_fixture, create_header_chain_fixture,
+        generate_val_array,
+    },
+    inputs::generate_step_inputs,
+};
 use clap::Parser;
 
 #[derive(Parser, Debug)]
@@ -62,10 +60,10 @@ async fn main() {
     match args.function {
         Function::GenerateValArray { validators } => {
             println!("Number of validators: {}", validators);
-            fixture::generate_val_array(validators);
+            generate_val_array(validators);
         }
         Function::CreateBlockFixture { block } => {
-            fixture::create_block_fixture(block)
+            create_block_fixture(block)
                 .await
                 .expect("Failed to create new block fixture");
         }
@@ -73,7 +71,7 @@ async fn main() {
             start_block,
             end_block,
         } => {
-            fixture::create_data_commitment_fixture(start_block, end_block)
+            create_data_commitment_fixture(start_block, end_block)
                 .await
                 .expect("Failed to create new data commitment fixture");
         }
@@ -81,13 +79,13 @@ async fn main() {
             trusted_block,
             current_block,
         } => {
-            fixture::create_header_chain_fixture(trusted_block, current_block)
+            create_header_chain_fixture(trusted_block, current_block)
                 .await
                 .expect("Failed to create new header chain fixture");
         }
         Function::GenerateStepInputs { block } => {
             const VALIDATOR_SET_SIZE_MAX: usize = 128;
-            let _ = inputs::generate_step_inputs::<VALIDATOR_SET_SIZE_MAX>(block);
+            let _ = generate_step_inputs::<VALIDATOR_SET_SIZE_MAX>(block);
         }
     }
 }

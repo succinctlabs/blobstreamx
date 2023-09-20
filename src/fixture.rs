@@ -437,7 +437,7 @@ async fn write_block_fixture(block_number: usize) -> Result<(), Error> {
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use crate::utils::{leaf_hash, proofs_from_byte_slices};
+    use crate::input_data::tendermint_utils::{leaf_hash, proofs_from_byte_slices};
 
     use super::*;
     use sha2::Sha256;

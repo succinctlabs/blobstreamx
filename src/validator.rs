@@ -1,13 +1,11 @@
-use crate::utils::TendermintHashVariable;
-use crate::utils::{
-    MarshalledValidatorVariable, VALIDATOR_BYTE_LENGTH_MAX, VOTING_POWER_BYTES_LENGTH_MAX,
-};
+use crate::consts::VALIDATOR_BYTE_LENGTH_MAX;
+use crate::shared::TendermintHeader;
+use crate::variables::{MarshalledValidatorVariable, TendermintHashVariable};
 use plonky2x::frontend::ecc::ed25519::curve::curve_types::Curve;
 use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
 use plonky2x::frontend::ecc::ed25519::gadgets::curve::{AffinePointTarget, CircuitBuilderCurve};
 use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::frontend::vars::U32Variable;
-use plonky2x::prelude::Field;
 
 use plonky2x::prelude::{
     BoolVariable, ByteVariable, BytesVariable, CircuitBuilder, CircuitVariable, PlonkParameters,
@@ -16,12 +14,6 @@ use plonky2x::prelude::{
 
 pub trait TendermintValidator<L: PlonkParameters<D>, const D: usize> {
     type Curve: Curve;
-
-    /// Serializes an int64 as a protobuf varint.
-    fn marshal_int64_varint(
-        &mut self,
-        num: &U64Variable,
-    ) -> [ByteVariable; VOTING_POWER_BYTES_LENGTH_MAX];
 
     /// Serializes the validator public key and voting power to bytes.
     /// The protobuf encoding of a Tendermint validator is a deterministic function of the validator's
@@ -62,92 +54,6 @@ pub trait TendermintValidator<L: PlonkParameters<D>, const D: usize> {
 
 impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for CircuitBuilder<L, D> {
     type Curve = Ed25519;
-
-    fn marshal_int64_varint(
-        &mut self,
-        voting_power: &U64Variable,
-    ) -> [ByteVariable; VOTING_POWER_BYTES_LENGTH_MAX] {
-        let zero = self.zero::<Variable>();
-        let one = self.one::<Variable>();
-
-        // The remaining bytes of the serialized validator are the voting power as a "varint".
-        // Note: need to be careful regarding U64 and I64 differences.
-        let voting_power_bits = self.to_le_bits(*voting_power);
-
-        // Check that the MSB of the voting power is zero.
-        self.api
-            .assert_zero(voting_power_bits[voting_power_bits.len() - 1].0 .0);
-
-        // The septet (7 bit) payloads  of the "varint".
-        let septets = (0..VOTING_POWER_BYTES_LENGTH_MAX)
-            .map(|i| {
-                let mut base = L::Field::ONE;
-                let mut septet = self.zero::<Variable>();
-                for j in 0..7 {
-                    let bit = voting_power_bits[i * 7 + j];
-                    septet = Variable(self.api.mul_const_add(base, bit.0 .0, septet.0));
-                    base *= L::Field::TWO;
-                }
-                septet
-            })
-            .collect::<Vec<_>>();
-
-        // Calculates whether the septet is not zero.
-        let is_zero_septets = (0..VOTING_POWER_BYTES_LENGTH_MAX)
-            .map(|i| self.is_equal(septets[i], zero))
-            .collect::<Vec<_>>();
-
-        // Calculates the index of the last non-zero septet.
-        let mut last_seen_non_zero_septet_idx = self.zero();
-        for i in 0..VOTING_POWER_BYTES_LENGTH_MAX {
-            // Ok to cast as BoolVariable since is_zero_septets[i] is 0 or 1 so result is either 0 or 1
-            let is_nonzero_septet = BoolVariable(self.sub(one, is_zero_septets[i].0));
-            let idx = self.constant::<Variable>(L::Field::from_canonical_usize(i));
-            last_seen_non_zero_septet_idx =
-                self.select(is_nonzero_septet, idx, last_seen_non_zero_septet_idx);
-        }
-
-        let mut res = [self.zero(); VOTING_POWER_BYTES_LENGTH_MAX];
-
-        // If the index of a septet is elss than the last non-zero septet, set the most significant
-        // bit of the byte to 1 and copy the septet bits into the lower 7 bits. Otherwise, still
-        // copy the bit but the set the most significant bit to zero.
-        for i in 0..VOTING_POWER_BYTES_LENGTH_MAX {
-            // If the index is less than the last non-zero septet index, `diff` will be in
-            // [0, VOTING_POWER_BYTES_LENGTH_MAX).
-            let idx = self.constant(L::Field::from_canonical_usize(i + 1));
-            let diff = self.sub(last_seen_non_zero_septet_idx, idx);
-
-            // Calculates whether we've seen at least one `diff` in [0, VOTING_POWER_BYTES_LENGTH_MAX).
-            let mut is_lt_last_non_zero_septet_idx = self._false();
-            for j in 0..VOTING_POWER_BYTES_LENGTH_MAX {
-                let candidate_idx = self.constant(L::Field::from_canonical_usize(j));
-                let is_candidate = self.is_equal(diff, candidate_idx);
-                is_lt_last_non_zero_septet_idx =
-                    self.or(is_lt_last_non_zero_septet_idx, is_candidate);
-            }
-
-            let mut buffer = [self._false(); 8];
-            // Copy septet bits into the buffer.
-            for j in 0..7 {
-                let bit = voting_power_bits[i * 7 + j];
-                buffer[j] = bit;
-            }
-
-            // Set the most significant bit of the byte to 1 if the index is less than the last
-            // non-zero septet index.
-            buffer[7] = is_lt_last_non_zero_septet_idx;
-
-            // Reverse the buffer to BE since ByteVariable interprets variables as BE
-            buffer.reverse();
-
-            res[i] = ByteVariable::from_variables_unsafe(
-                &buffer.iter().map(|x| x.0).collect::<Vec<Variable>>(),
-            );
-        }
-
-        return res;
-    }
 
     fn marshal_tendermint_validator(
         &mut self,
@@ -253,11 +159,13 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for Circui
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::inputs::{convert_to_h256, get_path_indices, get_signed_block_from_fixture};
-    use crate::utils::{
-        generate_proofs_from_header, hash_all_leaves, proofs_from_byte_slices, HEADER_PROOF_DEPTH,
-        PROTOBUF_BLOCK_ID_SIZE_BYTES,
+    use crate::consts::{HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES};
+    use crate::input_data::tendermint_utils::{
+        generate_proofs_from_header, hash_all_leaves, proofs_from_byte_slices,
     };
+    use crate::input_data::utils::{convert_to_h256, get_path_indices};
+    // TODO: Remove dependency on inputs.
+    use crate::inputs::get_signed_block_from_fixture;
     use crate::validator::TendermintValidator;
     use ethers::types::H256;
     use ethers::utils::hex;
@@ -265,65 +173,13 @@ pub(crate) mod tests {
     use plonky2::field::types::PrimeField;
     use plonky2x::frontend::ecc::ed25519::curve::curve_types::AffinePoint;
     use plonky2x::frontend::merkle::tree::{InclusionProof, MerkleInclusionProofVariable};
+    use plonky2x::prelude::Field;
     use plonky2x::prelude::{ArrayVariable, Bytes32Variable, DefaultBuilder, GoldilocksField};
     use sha2::Sha256;
     use tendermint_proto::types::BlockId as RawBlockId;
     use tendermint_proto::Protobuf;
 
     type Curve = Ed25519;
-
-    #[test]
-    fn test_marshal_int64_varint() {
-        env_logger::try_init().unwrap();
-        // These are test cases generated from `celestia-core`.
-        //
-        // allZerosPubkey := make(ed25519.PubKey, ed25519.PubKeySize)
-        // votingPower := int64(9999999999999)
-        // validator := NewValidator(allZerosPubkey, votingPower)
-        // fmt.Println(validator.Bytes()[37:])
-        //
-        // The tuples hold the form: (voting_power_i64, voting_power_varint_bytes).
-        let test_cases = [
-            (1i64, vec![1u8]),
-            (3804i64, vec![220u8, 29u8]),
-            (1234567890i64, vec![210, 133, 216, 204, 4]),
-            (38957235239i64, vec![167, 248, 160, 144, 145, 1]),
-            (9999999999999i64, vec![255, 191, 202, 243, 132, 163, 2]),
-            (
-                724325643436111i64,
-                vec![207, 128, 183, 165, 211, 216, 164, 1],
-            ),
-            (
-                9223372036854775807i64,
-                vec![255, 255, 255, 255, 255, 255, 255, 255, 127],
-            ),
-        ];
-
-        // Define the circuit
-        let mut builder = DefaultBuilder::new();
-        let voting_power_variable = builder.read::<U64Variable>();
-        let result = builder.marshal_int64_varint(&voting_power_variable);
-        for i in 0..9 {
-            builder.write(result[i]);
-        }
-        let circuit = builder.build();
-
-        for test_case in test_cases {
-            let mut input = circuit.input();
-            input.write::<U64Variable>((test_case.0 as u64).into());
-            let (_, mut output) = circuit.prove(&input);
-
-            let expected_bytes = test_case.1;
-
-            println!("Voting Power: {:?}", test_case.0);
-            println!("Expected Varint Encoding (Bytes): {:?}", expected_bytes);
-
-            for byte in expected_bytes {
-                let output_byte = output.read::<ByteVariable>();
-                assert_eq!(output_byte, byte);
-            }
-        }
-    }
 
     #[test]
     fn test_marshal_tendermint_validator() {
