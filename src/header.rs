@@ -35,18 +35,17 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintHeader<L, D> for CircuitBu
 
     fn marshal_int64_varint(
         &mut self,
-        voting_power: &U64Variable,
+        value: &U64Variable,
     ) -> [ByteVariable; VARINT_BYTES_LENGTH_MAX] {
         let zero = self.zero::<Variable>();
         let one = self.one::<Variable>();
 
         // The remaining bytes of the serialized validator are the voting power as a "varint".
         // Note: need to be careful regarding U64 and I64 differences.
-        let voting_power_bits = self.to_le_bits(*voting_power);
+        let value_bits = self.to_le_bits(*value);
 
         // Check that the MSB of the voting power is zero.
-        self.api
-            .assert_zero(voting_power_bits[voting_power_bits.len() - 1].0 .0);
+        self.api.assert_zero(value_bits[value_bits.len() - 1].0 .0);
 
         // The septet (7 bit) payloads  of the "varint".
         let septets = (0..VARINT_BYTES_LENGTH_MAX)
@@ -54,7 +53,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintHeader<L, D> for CircuitBu
                 let mut base = L::Field::ONE;
                 let mut septet = self.zero::<Variable>();
                 for j in 0..7 {
-                    let bit = voting_power_bits[i * 7 + j];
+                    let bit = value_bits[i * 7 + j];
                     septet = Variable(self.api.mul_const_add(base, bit.0 .0, septet.0));
                     base *= L::Field::TWO;
                 }
@@ -100,7 +99,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintHeader<L, D> for CircuitBu
             let mut buffer = [self._false(); 8];
             // Copy septet bits into the buffer.
             for j in 0..7 {
-                let bit = voting_power_bits[i * 7 + j];
+                let bit = value_bits[i * 7 + j];
                 buffer[j] = bit;
             }
 

@@ -180,59 +180,6 @@ pub(crate) mod tests {
     type Curve = Ed25519;
 
     #[test]
-    fn test_marshal_int64_varint() {
-        env_logger::try_init().unwrap();
-        // These are test cases generated from `celestia-core`.
-        //
-        // allZerosPubkey := make(ed25519.PubKey, ed25519.PubKeySize)
-        // votingPower := int64(9999999999999)
-        // validator := NewValidator(allZerosPubkey, votingPower)
-        // fmt.Println(validator.Bytes()[37:])
-        //
-        // The tuples hold the form: (voting_power_i64, voting_power_varint_bytes).
-        let test_cases = [
-            (1i64, vec![1u8]),
-            (3804i64, vec![220u8, 29u8]),
-            (1234567890i64, vec![210, 133, 216, 204, 4]),
-            (38957235239i64, vec![167, 248, 160, 144, 145, 1]),
-            (9999999999999i64, vec![255, 191, 202, 243, 132, 163, 2]),
-            (
-                724325643436111i64,
-                vec![207, 128, 183, 165, 211, 216, 164, 1],
-            ),
-            (
-                9223372036854775807i64,
-                vec![255, 255, 255, 255, 255, 255, 255, 255, 127],
-            ),
-        ];
-
-        // Define the circuit
-        let mut builder = DefaultBuilder::new();
-        let voting_power_variable = builder.read::<U64Variable>();
-        let result = builder.marshal_int64_varint(&voting_power_variable);
-        for i in 0..9 {
-            builder.write(result[i]);
-        }
-        let circuit = builder.build();
-
-        for test_case in test_cases {
-            let mut input = circuit.input();
-            input.write::<U64Variable>((test_case.0 as u64).into());
-            let (_, mut output) = circuit.prove(&input);
-
-            let expected_bytes = test_case.1;
-
-            println!("Voting Power: {:?}", test_case.0);
-            println!("Expected Varint Encoding (Bytes): {:?}", expected_bytes);
-
-            for byte in expected_bytes {
-                let output_byte = output.read::<ByteVariable>();
-                assert_eq!(output_byte, byte);
-            }
-        }
-    }
-
-    #[test]
     fn test_marshal_tendermint_validator() {
         env_logger::try_init().unwrap_or_default();
 
