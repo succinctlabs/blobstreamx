@@ -32,14 +32,6 @@ pub type MarshalledValidatorVariable = BytesVariable<VALIDATOR_BYTE_LENGTH_MAX>;
 /// The message signed by the validator as a variable.
 pub type ValidatorMessageVariable = BytesVariable<VALIDATOR_MESSAGE_BYTES_LENGTH_MAX>;
 
-// The data commitment inputs as a struct.
-#[derive(Clone, Debug, CircuitVariable)]
-#[value_name(DataCommitmentProofValueType)]
-pub struct DataCommitmentProofVariable<const WINDOW_SIZE: usize> {
-    pub data_hashes: ArrayVariable<Bytes32Variable, WINDOW_SIZE>,
-    pub block_heights: ArrayVariable<U64Variable, WINDOW_SIZE>,
-}
-
 // A block height proof as a struct.
 // Proof is the block height proof against a header.
 // Height is the block height of the header as a u64.
@@ -53,10 +45,11 @@ pub struct HeightProofVariable {
     pub height: U64Variable,
 }
 
-// The header chain inputs as a struct.
+// The data commitment inputs as a struct.
 #[derive(Clone, Debug, CircuitVariable)]
-#[value_name(HeaderChainProofValueType)]
-pub struct HeaderChainProofVariable<const WINDOW_RANGE: usize> {
+#[value_name(DataCommitmentProofValueType)]
+pub struct DataCommitmentProofVariable<const WINDOW_RANGE: usize> {
+    pub data_hashes: ArrayVariable<Bytes32Variable, WINDOW_RANGE>,
     pub end_header: Bytes32Variable,
     pub end_header_height_proof: HeightProofVariable,
     pub start_header: Bytes32Variable,

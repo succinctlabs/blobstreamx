@@ -8,7 +8,7 @@ use plonky2x::prelude::{BoolVariable, ByteVariable, BytesVariable, CircuitBuilde
 
 use crate::consts::{HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES};
 use crate::shared::TendermintHeader;
-use crate::variables::HeaderChainProofVariable;
+use crate::variables::DataCommitmentProofVariable;
 
 pub trait DataCommitment<L: PlonkParameters<D>, const D: usize> {
     type Curve: Curve;
@@ -39,14 +39,13 @@ pub trait DataCommitment<L: PlonkParameters<D>, const D: usize> {
     /// Note: data_hash_proofs and prev_header_proofs should be in order from end_header to start_header
     fn prove_header_chain<const WINDOW_RANGE: usize>(
         &mut self,
-        input: HeaderChainProofVariable<WINDOW_RANGE>,
+        input: DataCommitmentProofVariable<WINDOW_RANGE>,
     );
 
     /// Prove the header chain from end_header to start_header & compute the data commitment.
     fn prove_data_commitment<const WINDOW_RANGE: usize, const NB_LEAVES: usize>(
         &mut self,
-        input: HeaderChainProofVariable<WINDOW_RANGE>,
-        data_hashes: &ArrayVariable<Bytes32Variable, WINDOW_RANGE>,
+        input: DataCommitmentProofVariable<WINDOW_RANGE>,
     ) -> Bytes32Variable;
 }
 
@@ -116,7 +115,7 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitment<L, D> for CircuitBuil
 
     fn prove_header_chain<const WINDOW_RANGE: usize>(
         &mut self,
-        input: HeaderChainProofVariable<WINDOW_RANGE>,
+        input: DataCommitmentProofVariable<WINDOW_RANGE>,
     ) {
         // Verify current_block_height - trusted_block_height == WINDOW_RANGE
         let height_diff = self.sub(
@@ -178,12 +177,11 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitment<L, D> for CircuitBuil
 
     fn prove_data_commitment<const WINDOW_RANGE: usize, const NB_LEAVES: usize>(
         &mut self,
-        input: HeaderChainProofVariable<WINDOW_RANGE>,
-        data_hashes: &ArrayVariable<Bytes32Variable, WINDOW_RANGE>,
+        input: DataCommitmentProofVariable<WINDOW_RANGE>,
     ) -> Bytes32Variable {
         // Compute the data commitment.
         let data_commitment = self.get_data_commitment::<WINDOW_RANGE, NB_LEAVES>(
-            data_hashes,
+            &input.data_hashes,
             input.start_header_height_proof.height,
         );
         // Verify the header chain.
@@ -203,11 +201,8 @@ pub(crate) mod tests {
 
     use crate::{
         commitment::DataCommitment,
-        inputs::{
-            generate_data_commitment_inputs, generate_expected_data_commitment,
-            generate_header_chain_inputs,
-        },
-        variables::{DataCommitmentProofVariable, HeaderChainProofVariable},
+        inputs::{generate_data_commitment_inputs, generate_expected_data_commitment},
+        variables::DataCommitmentProofVariable,
     };
 
     type L = DefaultParameters;
@@ -227,14 +222,10 @@ pub(crate) mod tests {
 
         let data_commitment_var = builder.read::<DataCommitmentProofVariable<WINDOW_SIZE>>();
 
-        let header_chain_var = builder.read::<HeaderChainProofVariable<WINDOW_SIZE>>();
-
         let expected_data_commitment = builder.read::<Bytes32Variable>();
 
-        let root_hash_target = builder.prove_data_commitment::<WINDOW_SIZE, NUM_LEAVES>(
-            header_chain_var,
-            &data_commitment_var.data_hashes,
-        );
+        let root_hash_target =
+            builder.prove_data_commitment::<WINDOW_SIZE, NUM_LEAVES>(data_commitment_var);
         builder.assert_is_equal(root_hash_target, expected_data_commitment);
 
         let circuit = builder.build();
@@ -244,10 +235,7 @@ pub(crate) mod tests {
             WINDOW_SIZE,
             F,
         >(START_BLOCK, END_BLOCK));
-        input.write::<HeaderChainProofVariable<WINDOW_SIZE>>(generate_header_chain_inputs::<
-            WINDOW_SIZE,
-            F,
-        >(START_BLOCK, END_BLOCK));
+
         input.write::<Bytes32Variable>(generate_expected_data_commitment::<WINDOW_SIZE, F>(
             START_BLOCK,
             END_BLOCK,
@@ -303,14 +291,14 @@ pub(crate) mod tests {
         const TRUSTED_BLOCK: usize = 3800;
         const CURRENT_BLOCK: usize = TRUSTED_BLOCK + WINDOW_SIZE;
 
-        let header_chain_var = builder.read::<HeaderChainProofVariable<WINDOW_SIZE>>();
+        let data_commitment_var = builder.read::<DataCommitmentProofVariable<WINDOW_SIZE>>();
 
-        builder.prove_header_chain::<WINDOW_SIZE>(header_chain_var);
+        builder.prove_header_chain::<WINDOW_SIZE>(data_commitment_var);
 
         let circuit = builder.build();
 
         let mut input = circuit.input();
-        input.write::<HeaderChainProofVariable<WINDOW_SIZE>>(generate_header_chain_inputs::<
+        input.write::<DataCommitmentProofVariable<WINDOW_SIZE>>(generate_data_commitment_inputs::<
             WINDOW_SIZE,
             F,
         >(
