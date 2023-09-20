@@ -128,7 +128,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintHeader<L, D> for CircuitBu
         &mut self,
         marshalled_varint: &BytesVariable<9>,
     ) -> BytesVariable<11> {
-        // Prepend the 0x08 byte to the marshalled varint.
+        // Prepend 0x00||0x08 byte to the marshalled varint.
         let mut encoded_marshalled_varint = Vec::new();
         encoded_marshalled_varint.push(self.constant::<ByteVariable>(0u8));
         encoded_marshalled_varint.push(self.constant::<ByteVariable>(8u8));
