@@ -124,6 +124,15 @@ pub trait TendermintVerify<
         proof: &ArrayVariable<TendermintHashVariable, HEADER_PROOF_DEPTH>,
     ) -> Bytes32Variable;
 
+    /// Extract the header hash from the signed message from a validator.
+    fn verify_hash_in_message(
+        &mut self,
+        message: &ValidatorMessageVariable,
+        header_hash: Bytes32Variable,
+        // Should be the same for all validators
+        round_present_in_message: BoolVariable,
+    ) -> BoolVariable;
+
     /// Verify the header hash of the previous block matches the current block's parent hash.
     fn verify_prev_header_in_header(
         &mut self,
@@ -219,6 +228,37 @@ impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
                 aunts: proof.clone(),
             },
         )
+    }
+
+    fn verify_hash_in_message(
+        &mut self,
+        message: &ValidatorMessageVariable,
+        header_hash: Bytes32Variable,
+        // Should be the same for all validators
+        round_present_in_message: BoolVariable,
+    ) -> BoolVariable {
+        // Logic:
+        //      Verify that header_hash is equal to the hash in the message at the correct index.
+        //      If the round is missing, then the hash starts at index 16.
+        //      If the round is present, then the hash starts at index 25.
+
+        const MISSING_ROUND_START_IDX: usize = 16;
+
+        const INCLUDING_ROUND_START_IDX: usize = 25;
+
+        let round_missing_header: Bytes32Variable =
+            message[MISSING_ROUND_START_IDX..MISSING_ROUND_START_IDX + HASH_SIZE].into();
+
+        let round_present_header: Bytes32Variable =
+            message[INCLUDING_ROUND_START_IDX..INCLUDING_ROUND_START_IDX + HASH_SIZE].into();
+
+        let computed_header = self.select(
+            round_present_in_message,
+            round_present_header,
+            round_missing_header,
+        );
+
+        self.is_equal(computed_header, header_hash)
     }
 
     fn assert_voting_check(
@@ -380,8 +420,13 @@ impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
 
             // Verify that the header is in the message in the correct location.
             // If a validator is signed, then the header should be in its signed message.
-            let hash_in_message =
-                self.verify_hash_in_message(&validators[i].message, *header, *round_present);
+            let hash_in_message = <plonky2x::prelude::CircuitBuilder<L, D> as TendermintVerify<
+                L,
+                D,
+                VALIDATOR_SET_SIZE_MAX,
+            >>::verify_hash_in_message(
+                self, &validators[i].message, *header, *round_present
+            );
             let hash_in_message_and_signed = self.and(hash_in_message, validators[i].signed);
             self.assert_is_equal(hash_in_message_and_signed, validators_signed[i]);
         }
@@ -609,15 +654,57 @@ impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
+    use ethers::types::H256;
     use log;
     use plonky2::timed;
     use plonky2::util::timing::TimingTree;
     use plonky2x::prelude::DefaultBuilder;
+    use subtle_encoding::hex;
 
     // TODO: Remove dependency on inputs crate
-    use crate::inputs::{
-        generate_skip_inputs, generate_step_inputs, CelestiaSkipBlockProof, CelestiaStepBlockProof,
+    use crate::{
+        consts::VALIDATOR_MESSAGE_BYTES_LENGTH_MAX,
+        inputs::{
+            generate_skip_inputs, generate_step_inputs, CelestiaSkipBlockProof,
+            CelestiaStepBlockProof,
+        },
     };
+
+    #[test]
+    fn test_verify_hash_in_message() {
+        // This is a test case generated from block 144094 of Celestia's Mocha 3 testnet
+        // Block Hash: 8909e1b73b7d987e95a7541d96ed484c17a4b0411e98ee4b7c890ad21302ff8c (needs to be lower case)
+        // Signed Message (from the last validator): 6b080211de3202000000000022480a208909e1b73b7d987e95a7541d96ed484c17a4b0411e98ee4b7c890ad21302ff8c12240801122061263df4855e55fcab7aab0a53ee32cf4f29a1101b56de4a9d249d44e4cf96282a0b089dce84a60610ebb7a81932076d6f6368612d33
+        // No round exists in present the message that was signed above
+
+        env_logger::try_init().unwrap_or_default();
+
+        // Define the circuit
+        let mut builder = DefaultBuilder::new();
+        let message = builder.read::<ValidatorMessageVariable>();
+        let header_hash = builder.read::<TendermintHashVariable>();
+        let round_present_in_message = builder.read::<BoolVariable>();
+
+        let verified =
+            builder.verify_hash_in_message(&message, header_hash, round_present_in_message);
+
+        builder.write(verified);
+        let circuit = builder.build();
+
+        let header_hash =
+            hex::decode("8909e1b73b7d987e95a7541d96ed484c17a4b0411e98ee4b7c890ad21302ff8c")
+                .unwrap();
+        let header_hash_h256 = H256::from_slice(&header_hash);
+        let mut signed_message = hex::decode("6b080211de3202000000000022480a208909e1b73b7d987e95a7541d96ed484c17a4b0411e98ee4b7c890ad21302ff8c12240801122061263df4855e55fcab7aab0a53ee32cf4f29a1101b56de4a9d249d44e4cf96282a0b089dce84a60610ebb7a81932076d6f6368612d33").unwrap();
+        signed_message.resize(VALIDATOR_MESSAGE_BYTES_LENGTH_MAX, 0u8);
+        let mut input = circuit.input();
+        input.write::<ValidatorMessageVariable>(signed_message.try_into().unwrap());
+        input.write::<TendermintHashVariable>(header_hash_h256);
+        input.write::<BoolVariable>(false);
+        let (_, mut output) = circuit.prove(&input);
+        let verified = output.read::<BoolVariable>();
+        assert!(verified);
+    }
 
     fn test_step_template<const VALIDATOR_SET_SIZE_MAX: usize>(block: usize) {
         env_logger::try_init().unwrap_or_default();
