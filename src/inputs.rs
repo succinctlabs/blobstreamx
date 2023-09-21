@@ -376,7 +376,7 @@ fn generate_base_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
 
     // These are empty signatures (not included in val hash)
     for _ in block.commit.signatures.len()..VALIDATOR_SET_SIZE_MAX {
-        let priv_key_bytes = vec![0u8; 32];
+        let priv_key_bytes = [0u8; 32];
         let signing_key =
             private_key::Ed25519::try_from(&priv_key_bytes[..]).expect("failed to create key");
         let signing_key = SigningKey::try_from(signing_key).unwrap();
