@@ -3,8 +3,11 @@ use plonky2x::frontend::ecc::ed25519::curve::curve_types::Curve;
 use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
 
 use plonky2x::frontend::uint::uint64::U64Variable;
-use plonky2x::frontend::vars::{ArrayVariable, Bytes32Variable, EvmVariable};
-use plonky2x::prelude::{BoolVariable, ByteVariable, BytesVariable, CircuitBuilder};
+use plonky2x::frontend::vars::{ArrayVariable, Bytes32Variable, EvmVariable, U32Variable};
+use plonky2x::prelude::{
+    BoolVariable, ByteVariable, BytesVariable, CircuitBuilder, CircuitVariable, Variable,
+};
+use tendermint::merkle::HASH_SIZE;
 
 use crate::consts::{HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES};
 use crate::shared::TendermintHeader;
@@ -20,11 +23,6 @@ pub trait DataCommitment<L: PlonkParameters<D>, const D: usize> {
         data_hash: &Bytes32Variable,
         height: &U64Variable,
     ) -> BytesVariable<64>;
-
-    fn extract_hash_from_protobuf<const START_BYTE: usize, const PROTOBUF_LENGTH_BYTES: usize>(
-        &mut self,
-        bytes: &BytesVariable<PROTOBUF_LENGTH_BYTES>,
-    ) -> Bytes32Variable;
 
     /// Compute the data commitment from the data hashes and block heights. WINDOW_RANGE is the number of blocks in the data commitment. NUM_LEAVES is the number of leaves in the tree for the data commitment.
     /// Assumes the data hashes are already proven.
@@ -76,15 +74,6 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitment<L, D> for CircuitBuil
 
         // Convert Vec<ByteVariable> to BytesVariable<64>.
         BytesVariable::<64>(encoded_tuple.try_into().unwrap())
-    }
-
-    fn extract_hash_from_protobuf<const START_BYTE: usize, const PROTOBUF_LENGTH_BYTES: usize>(
-        &mut self,
-        bytes: &BytesVariable<PROTOBUF_LENGTH_BYTES>,
-    ) -> Bytes32Variable {
-        let vec_slice = bytes.0[START_BYTE..START_BYTE + 32].to_vec();
-        let arr = ArrayVariable::<ByteVariable, 32>::new(vec_slice);
-        Bytes32Variable(BytesVariable(arr.as_slice().try_into().unwrap()))
     }
 
     fn get_data_commitment<const WINDOW_RANGE: usize, const NB_LEAVES: usize>(
@@ -161,10 +150,7 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitment<L, D> for CircuitBuil
             self.assert_is_equal(prev_header_proof_root, curr_header_hash);
 
             // Extract the prev header hash from the prev header proof.
-            let prev_header_hash = self
-                .extract_hash_from_protobuf::<2, PROTOBUF_BLOCK_ID_SIZE_BYTES>(
-                    &prev_header_proof.leaf,
-                );
+            let prev_header_hash = prev_header_proof.leaf[2..2 + HASH_SIZE].into();
 
             // Verify the data hash proof against the prev header hash.
             self.assert_is_equal(data_hash_proof_root, prev_header_hash);

@@ -10,9 +10,10 @@ use plonky2x::{
         CircuitVariable, PlonkParameters, RichField, Variable, Witness, WitnessWrite,
     },
 };
+use tendermint::merkle::HASH_SIZE;
 
 use crate::{
-    consts::{HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES},
+    consts::{HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES},
     signature::TendermintSignature,
     validator::TendermintValidator,
     variables::HeightProofVariable,
@@ -127,14 +128,14 @@ pub trait TendermintVerify<
     fn verify_prev_header_in_header(
         &mut self,
         header: &TendermintHashVariable,
-        prev_header: &TendermintHashVariable,
+        prev_header: TendermintHashVariable,
         last_block_id_proof: &BlockIDInclusionProofVariable<HEADER_PROOF_DEPTH>,
     );
 
     /// Verify the next validators hash in the previous block matches the current block's validators hash.
     fn verify_prev_header_next_validators_hash(
         &mut self,
-        validators_hash: &TendermintHashVariable,
+        validators_hash: TendermintHashVariable,
         prev_header: &TendermintHashVariable,
         prev_header_next_validators_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
     );
@@ -270,14 +271,11 @@ impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
             L,
             D,
             VALIDATOR_SET_SIZE_MAX,
-        >>::verify_prev_header_in_header(self, header, prev_header, last_block_id_proof);
+        >>::verify_prev_header_in_header(self, header, *prev_header, last_block_id_proof);
 
         // Extract the validators hash from the validator hash proof
-        const HASH_START_BYTE: usize = 2;
-        let validators_hash = self
-            .extract_hash_from_protobuf::<HASH_START_BYTE, PROTOBUF_HASH_SIZE_BYTES>(
-                &validator_hash_proof.enc_leaf,
-            );
+        let validators_hash: Bytes32Variable =
+            validator_hash_proof.enc_leaf[2..2 + HASH_SIZE].into();
 
         // Verify the next validators hash in the previous block matches the current validators hash
         // FIXME: why is Rust compiler being weird
@@ -287,7 +285,7 @@ impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
             VALIDATOR_SET_SIZE_MAX,
         >>::verify_prev_header_next_validators_hash(
             self,
-            &validators_hash,
+            validators_hash,
             prev_header,
             prev_header_next_validators_hash_proof,
         );
@@ -355,13 +353,9 @@ impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
             validators_enabled,
         );
 
-        /// Start of the hash in protobuf encoded validator hash & last block id
-        const HASH_START_BYTE: usize = 2;
         // Assert that computed validator hash matches expected validator hash
-        let extracted_hash = self
-            .extract_hash_from_protobuf::<HASH_START_BYTE, PROTOBUF_HASH_SIZE_BYTES>(
-                &validator_hash_proof.enc_leaf,
-            );
+        let extracted_hash: Bytes32Variable =
+            validator_hash_proof.enc_leaf[2..2 + HASH_SIZE].into();
 
         self.assert_is_equal(extracted_hash, validators_hash_target);
 
@@ -417,12 +411,9 @@ impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
     fn verify_prev_header_in_header(
         &mut self,
         header: &TendermintHashVariable,
-        prev_header: &TendermintHashVariable,
+        prev_header: TendermintHashVariable,
         last_block_id_proof: &BlockIDInclusionProofVariable<HEADER_PROOF_DEPTH>,
     ) {
-        /// Start of the hash in protobuf in last block id
-        const HASH_START_BYTE: usize = 2;
-
         let last_block_id_path = vec![self._false(), self._false(), self._true(), self._false()];
         let header_from_last_block_id_proof =
             <plonky2x::prelude::CircuitBuilder<L, D> as TendermintVerify<
@@ -439,16 +430,14 @@ impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
         self.assert_is_equal(header_from_last_block_id_proof, *header);
 
         // Extract prev header hash from the encoded leaf (starts at second byte)
-        let extracted_prev_header_hash = self
-            .extract_hash_from_protobuf::<HASH_START_BYTE, PROTOBUF_BLOCK_ID_SIZE_BYTES>(
-                &last_block_id_proof.enc_leaf,
-            );
-        self.assert_is_equal(*prev_header, extracted_prev_header_hash);
+        let extracted_prev_header_hash: Bytes32Variable =
+            last_block_id_proof.enc_leaf[2..2 + HASH_SIZE].into();
+        self.assert_is_equal(prev_header, extracted_prev_header_hash);
     }
 
     fn verify_prev_header_next_validators_hash(
         &mut self,
-        validators_hash: &TendermintHashVariable,
+        validators_hash: TendermintHashVariable,
         prev_header: &TendermintHashVariable,
         prev_header_next_validators_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
     ) {
@@ -467,16 +456,11 @@ impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
         // Confirms the prev_header computed from the proof of {next_validators_hash} matches the prev_header
         self.assert_is_equal(header_from_next_validators_root_proof, *prev_header);
 
-        /// Start of the hash in protobuf in next_validators_hash
-        const HASH_START_BYTE: usize = 2;
-
         // Extract prev header hash from the encoded leaf (starts at second byte)
-        let extracted_next_validators_hash = self
-            .extract_hash_from_protobuf::<HASH_START_BYTE, PROTOBUF_HASH_SIZE_BYTES>(
-                &prev_header_next_validators_hash_proof.enc_leaf,
-            );
+        let extracted_next_validators_hash =
+            prev_header_next_validators_hash_proof.enc_leaf[2..2 + HASH_SIZE].into();
         // Confirms the current validatorsHash matches the nextValidatorsHash of the prev_header
-        self.assert_is_equal(*validators_hash, extracted_next_validators_hash);
+        self.assert_is_equal(validators_hash, extracted_next_validators_hash);
     }
 
     fn skip(
@@ -566,12 +550,8 @@ impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
             trusted_validators_enabled,
         );
 
-        const HASH_START_BYTE: usize = 2;
         // Assert the computed validator hash matches the expected validator hash
-        let extracted_hash = self
-            .extract_hash_from_protobuf::<HASH_START_BYTE, PROTOBUF_HASH_SIZE_BYTES>(
-                &trusted_validator_hash_proof.enc_leaf,
-            );
+        let extracted_hash = trusted_validator_hash_proof.enc_leaf[2..2 + HASH_SIZE].into();
 
         self.assert_is_equal(validators_hash_target, extracted_hash);
 

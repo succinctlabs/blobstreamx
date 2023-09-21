@@ -25,6 +25,7 @@ use plonky2x::prelude::Bytes32Variable;
 use plonky2x::prelude::BytesVariable;
 use plonky2x::prelude::CircuitBuilder;
 use plonky2x::prelude::PlonkParameters;
+use tendermint::merkle::HASH_SIZE;
 
 use crate::consts::VALIDATOR_MESSAGE_BYTES_LENGTH_MAX;
 use crate::variables::ValidatorMessageVariable;
@@ -59,12 +60,6 @@ pub trait TendermintSignature<L: PlonkParameters<D>, const D: usize> {
 
     /// Returns the dummy targets
     fn get_dummy_targets(&mut self) -> DummySignatureTarget<Self::Curve>;
-
-    // Extract a hash from a protobuf-encoded array of bits.
-    fn extract_hash_from_protobuf<const START_BYTE: usize, const PROTOBUF_MSG_LENGTH_BYTES: usize>(
-        &mut self,
-        hash: &BytesVariable<PROTOBUF_MSG_LENGTH_BYTES>,
-    ) -> Bytes32Variable;
 
     /// Extract the header hash from the signed message from a validator.
     fn verify_hash_in_message(
@@ -123,18 +118,6 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintSignature<L, D> for Circui
         }
     }
 
-    fn extract_hash_from_protobuf<
-        const START_BYTE: usize,
-        const PROTOBUF_MSG_LENGTH_BYTES: usize,
-    >(
-        &mut self,
-        bytes: &BytesVariable<PROTOBUF_MSG_LENGTH_BYTES>,
-    ) -> Bytes32Variable {
-        Bytes32Variable(BytesVariable(
-            bytes.0[START_BYTE..START_BYTE + 32].try_into().unwrap(),
-        ))
-    }
-
     fn verify_hash_in_message(
         &mut self,
         message: &ValidatorMessageVariable,
@@ -151,9 +134,11 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintSignature<L, D> for Circui
 
         const INCLUDING_ROUND_START_IDX: usize = 25;
 
-        let round_missing_header = self.extract_hash_from_protobuf::<MISSING_ROUND_START_IDX, VALIDATOR_MESSAGE_BYTES_LENGTH_MAX>(message);
+        let round_missing_header: Bytes32Variable =
+            message[MISSING_ROUND_START_IDX..MISSING_ROUND_START_IDX + HASH_SIZE].into();
 
-        let round_present_header = self.extract_hash_from_protobuf::<INCLUDING_ROUND_START_IDX, VALIDATOR_MESSAGE_BYTES_LENGTH_MAX>(message);
+        let round_present_header: Bytes32Variable =
+            message[INCLUDING_ROUND_START_IDX..INCLUDING_ROUND_START_IDX + HASH_SIZE].into();
 
         let computed_header = self.select(
             round_present_in_message,
