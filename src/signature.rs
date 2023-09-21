@@ -201,7 +201,6 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintSignature<L, D> for Circui
                 self.api
                     .connect(eddsa_target.msgs[i][j].target, msg_bool_targets[j].0 .0);
             }
-
             self.api
                 .connect(eddsa_target.msgs_lengths[i], bit_length.0 .0);
 
