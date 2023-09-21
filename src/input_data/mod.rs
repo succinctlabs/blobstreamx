@@ -10,8 +10,11 @@ use self::tendermint_utils::{
 };
 use self::types::{update_present_on_trusted_header, TempMerkleInclusionProof};
 use self::utils::{convert_to_h256, get_path_indices};
-use crate::consts::{LAST_BLOCK_ID_INDEX, NEXT_VALIDATORS_HASH_INDEX, VALIDATORS_HASH_INDEX};
+use crate::consts::{
+    BLOCK_HEIGHT_INDEX, LAST_BLOCK_ID_INDEX, NEXT_VALIDATORS_HASH_INDEX, VALIDATORS_HASH_INDEX,
+};
 use crate::input_data::types::{get_validators_as_input, get_validators_fields_as_input};
+use crate::variables::HeightProofValueType;
 use crate::verify::{Validator, ValidatorHashField};
 use ethers::types::H256;
 use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
@@ -187,6 +190,7 @@ impl InputDataFetcher {
         Vec<Validator<Ed25519, F>>,          // validators
         [u8; 32],                            // target_header
         bool,                                // round_present
+        HeightProofValueType<F>,             // target_block_height_proof,
         TempMerkleInclusionProof,            // target_header_validators_hash_proof,
         [u8; 32],                            // trusted_header
         TempMerkleInclusionProof,            // trusted_validators_hash_proof
@@ -209,6 +213,18 @@ impl InputDataFetcher {
             &trusted_block,
         );
 
+        let temp_target_block_height_proof = self.get_merkle_proof(
+            &target_block.header,
+            BLOCK_HEIGHT_INDEX as u64,
+            target_block.header.height.encode_vec(),
+        );
+
+        let target_block_height_proof = HeightProofValueType::<F> {
+            height: target_block.header.height.value().into(),
+            enc_height_byte_length: target_block.header.height.encode_vec().len() as u32,
+            proof: temp_target_block_height_proof.proof,
+        };
+
         let target_block_validators_hash_proof = self.get_merkle_proof(
             &target_block.header,
             VALIDATORS_HASH_INDEX as u64,
@@ -223,12 +239,11 @@ impl InputDataFetcher {
             trusted_block.header.validators_hash.encode_vec(),
         );
 
-        // TODO: need 1 more merkle proof for the block height of the target block
-        // to ensure that it matches the provided target_block_number
         (
             target_block_validators,
             target_block_header.as_bytes().try_into().unwrap(),
             round_present,
+            target_block_height_proof,
             target_block_validators_hash_proof,
             trusted_block_hash.as_bytes().try_into().unwrap(),
             trusted_block_validator_hash_proof,
