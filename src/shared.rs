@@ -1,4 +1,3 @@
-use crate::commitment::CelestiaCommitment;
 use crate::consts::{HEADER_PROOF_DEPTH, PROTOBUF_VARINT_SIZE_BYTES, VARINT_BYTES_LENGTH_MAX};
 use plonky2x::frontend::ecc::ed25519::curve::curve_types::Curve;
 use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
@@ -19,6 +18,13 @@ pub trait TendermintHeader<L: PlonkParameters<D>, const D: usize> {
         &mut self,
         num: &U64Variable,
     ) -> [ByteVariable; VARINT_BYTES_LENGTH_MAX];
+
+    /// Encodes the marshalled height into a BytesVariable<11> that can be hashed according to the Tendermint spec.
+    /// Prepends a 0x00 byte for the leaf prefix and a 0x08 byte to the marshalled varint.
+    fn leaf_encode_marshalled_varint(
+        &mut self,
+        marshalled_varint: &BytesVariable<9>,
+    ) -> BytesVariable<11>;
 
     /// Verifies the block height against the header.
     fn verify_block_height(
@@ -119,6 +125,17 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintHeader<L, D> for CircuitBu
         res
     }
 
+    fn leaf_encode_marshalled_varint(
+        &mut self,
+        marshalled_varint: &BytesVariable<9>,
+    ) -> BytesVariable<11> {
+        // Prepends a 0x00 byte for the leaf prefix then a 0x08 byte for the protobuf varint encoding to the marshalled varint.
+        let mut encoded_marshalled_varint =
+            self.constant::<BytesVariable<2>>([0x00, 0x08]).0.to_vec();
+        encoded_marshalled_varint.extend_from_slice(&marshalled_varint.0);
+        BytesVariable(encoded_marshalled_varint.try_into().unwrap())
+    }
+
     /// Verifies the block height against the header.
     fn verify_block_height(
         &mut self,
@@ -132,8 +149,8 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintHeader<L, D> for CircuitBu
         let block_height_path = vec![false_t, true_t, false_t, false_t];
 
         // Verify the current header height proof against the current header.
-        let encoded_height = self.marshal_int64_varint(height);
-        let encoded_height = self.encode_marshalled_varint(&BytesVariable(encoded_height));
+        let encoded_height = self.marshal_int64_varint(&height);
+        let encoded_height = self.leaf_encode_marshalled_varint(&BytesVariable(encoded_height));
 
         // Extend encoded_height to 64 bytes for curta_sha256_variable.
         let mut encoded_height_extended = Vec::new();
@@ -228,5 +245,26 @@ pub(crate) mod tests {
                 assert_eq!(output_bytes[i], expected_bytes[i]);
             }
         }
+    }
+
+    #[test]
+    fn test_encode_varint() {
+        env_logger::try_init().unwrap_or_default();
+
+        let mut builder = DefaultBuilder::new();
+
+        let height = builder.constant::<U64Variable>(3804.into());
+
+        let encoded_height = builder.marshal_int64_varint(&height);
+        let encoded_height = builder.leaf_encode_marshalled_varint(&BytesVariable(encoded_height));
+        builder.watch(&encoded_height, "encoded_height");
+
+        let circuit = builder.build();
+
+        let input = circuit.input();
+        let (proof, output) = circuit.prove(&input);
+        circuit.verify(&proof, &input, &output);
+
+        println!("Verified proof");
     }
 }

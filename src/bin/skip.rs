@@ -14,6 +14,7 @@
 //!
 //!
 //!
+use celestia::variables::HeightProofVariable;
 use plonky2x::backend::circuit::Circuit;
 use plonky2x::backend::function::VerifiableFunction;
 use plonky2x::frontend::generator::simple::hint::Hint;
@@ -58,27 +59,28 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize, L: PlonkParameters<D>, const D: usize>
         output_stream
             .write_value::<ArrayVariable<ValidatorVariable<Ed25519>, MAX_VALIDATOR_SET_SIZE>>(
                 result.0,
-            );
+            ); // target_block_validators
         output_stream.write_value::<Bytes32Variable>(result.1.into()); // target_header
         output_stream.write_value::<BoolVariable>(result.2); // round_present
+        output_stream.write_value::<HeightProofVariable>(result.3); // block_height_proof
         output_stream.write_value::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>(
-            result.3.to_hash_value_type(),
-        );
-        output_stream.write_value::<Bytes32Variable>(result.4.into()); // trusted_header
+            result.4.to_hash_value_type(),
+        ); // validators_hash_proof
+        output_stream.write_value::<Bytes32Variable>(result.5.into()); // trusted_header
         output_stream.write_value::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>(
-            result.5.to_hash_value_type(),
-        );
+            result.6.to_hash_value_type(),
+        ); // trusted_header_validators_hash_proof
         output_stream.write_value::<ArrayVariable<ValidatorHashFieldVariable<Ed25519>, MAX_VALIDATOR_SET_SIZE>>(
-            result.6
-        );
+            result.7
+        ); // trusted_header_validators_hash_fields
     }
 }
 
-struct StepCircuit<const MAX_VALIDATOR_SET_SIZE: usize> {
+struct SkipCircuit<const MAX_VALIDATOR_SET_SIZE: usize> {
     _config: usize,
 }
 
-impl<const MAX_VALIDATOR_SET_SIZE: usize> Circuit for StepCircuit<MAX_VALIDATOR_SET_SIZE> {
+impl<const MAX_VALIDATOR_SET_SIZE: usize> Circuit for SkipCircuit<MAX_VALIDATOR_SET_SIZE> {
     fn define<L: PlonkParameters<D>, const D: usize>(builder: &mut CircuitBuilder<L, D>) {
         let trusted_header_hash = builder.evm_read::<Bytes32Variable>();
         let trusted_block = builder.evm_read::<U64Variable>();
@@ -96,6 +98,7 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize> Circuit for StepCircuit<MAX_VALIDATOR_
             .read::<ArrayVariable<ValidatorVariable<Ed25519>, MAX_VALIDATOR_SET_SIZE>>(builder);
         let target_header = output_stream.read::<Bytes32Variable>(builder);
         let round_present = output_stream.read::<BoolVariable>(builder);
+        let target_header_block_height_proof = output_stream.read::<HeightProofVariable>(builder);
         let target_header_validators_hash_proof =
             output_stream.read::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>(builder);
         let trusted_header = output_stream.read::<Bytes32Variable>(builder);
@@ -109,6 +112,7 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize> Circuit for StepCircuit<MAX_VALIDATOR_
         builder.skip(
             &target_block_validators,
             &target_header,
+            &target_header_block_height_proof,
             &target_header_validators_hash_proof,
             &round_present,
             trusted_header,
@@ -121,8 +125,7 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize> Circuit for StepCircuit<MAX_VALIDATOR_
 
 fn main() {
     const MAX_VALIDATOR_SET_SIZE: usize = 128;
-    // let step_circuit = StepCircuit::<MAX_VALIDATOR_SET_SIZE> { config: 0 };
-    VerifiableFunction::<StepCircuit<MAX_VALIDATOR_SET_SIZE>>::entrypoint();
+    VerifiableFunction::<SkipCircuit<MAX_VALIDATOR_SET_SIZE>>::entrypoint();
 }
 
 #[cfg(test)]
@@ -144,7 +147,7 @@ mod tests {
         let mut builder = DefaultBuilder::new();
 
         log::debug!("Defining circuit");
-        StepCircuit::<MAX_VALIDATOR_SET_SIZE>::define(&mut builder);
+        SkipCircuit::<MAX_VALIDATOR_SET_SIZE>::define(&mut builder);
 
         log::debug!("Building circuit");
         let circuit = builder.build();

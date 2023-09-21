@@ -71,34 +71,6 @@ pub fn bytes_to_le_f_bits<F: RichField>(bytes: &[u8]) -> Vec<F> {
     bits
 }
 
-pub fn to_be_bits(msg: Vec<u8>) -> Vec<bool> {
-    let mut res = Vec::new();
-    msg.iter().for_each(|char| {
-        for j in 0..8 {
-            if (char & (1 << (7 - j))) != 0 {
-                res.push(true);
-            } else {
-                res.push(false);
-            }
-        }
-    });
-    res
-}
-
-pub fn to_le_bits(msg: Vec<u8>) -> Vec<bool> {
-    let mut res = Vec::new();
-    msg.iter().for_each(|char| {
-        for j in 0..8 {
-            if (char & (1 << j)) != 0 {
-                res.push(true);
-            } else {
-                res.push(false);
-            }
-        }
-    });
-    res
-}
-
 // TODO: all the logic below should be moved to a different file and then stated at the top of the file that most of it
 // is taken from tendermint-rs (if that is the case).
 /*

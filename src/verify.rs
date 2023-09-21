@@ -12,15 +12,19 @@ use plonky2x::{
 };
 use tendermint::merkle::HASH_SIZE;
 
-use crate::variables::{
-    EDDSAPublicKeyVariable, EncBlockIDVariable, EncTendermintHashVariable,
-    MarshalledValidatorVariable, TendermintHashVariable, ValidatorMessageVariable,
-};
 use crate::{
     consts::{HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES},
     signature::TendermintSignature,
     validator::TendermintValidator,
+    variables::HeightProofVariable,
     voting::TendermintVoting,
+};
+use crate::{
+    shared::TendermintHeader,
+    variables::{
+        EDDSAPublicKeyVariable, EncBlockIDVariable, EncTendermintHashVariable,
+        MarshalledValidatorVariable, TendermintHashVariable, ValidatorMessageVariable,
+    },
 };
 
 #[derive(Debug, Clone, CircuitVariable)]
@@ -176,6 +180,7 @@ pub trait TendermintVerify<
         &mut self,
         validators: &ArrayVariable<ValidatorVariable<Self::Curve>, VALIDATOR_SET_SIZE_MAX>,
         header: &TendermintHashVariable,
+        header_height_proof: &HeightProofVariable,
         validator_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
         round_present: &BoolVariable,
         trusted_header: TendermintHashVariable,
@@ -458,6 +463,7 @@ impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
         &mut self,
         validators: &ArrayVariable<ValidatorVariable<Self::Curve>, VALIDATOR_SET_SIZE_MAX>,
         header: &TendermintHashVariable,
+        header_height_proof: &HeightProofVariable,
         validator_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
         round_present: &BoolVariable,
         trusted_header: TendermintHashVariable,
@@ -475,6 +481,13 @@ impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
         );
 
         self.verify_header(validators, header, validator_hash_proof, round_present);
+
+        self.verify_block_height(
+            *header,
+            &header_height_proof.proof,
+            &header_height_proof.height,
+            header_height_proof.enc_height_byte_length,
+        )
     }
 
     fn verify_trusted_validators(
@@ -704,8 +717,10 @@ pub(crate) mod tests {
         let mut builder = DefaultBuilder::new();
         let validators =
             builder.read::<ArrayVariable<ValidatorVariable<Curve>, VALIDATOR_SET_SIZE_MAX>>();
+
         let header = builder.read::<TendermintHashVariable>();
 
+        let header_height_proof = builder.read::<HeightProofVariable>();
         let validator_hash_proof = builder.read::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>();
 
         let round_present = builder.read::<BoolVariable>();
@@ -718,6 +733,7 @@ pub(crate) mod tests {
         builder.skip(
             &validators,
             &header,
+            &header_height_proof,
             &validator_hash_proof,
             &round_present,
             trusted_header,
@@ -735,6 +751,7 @@ pub(crate) mod tests {
         );
         input.write::<TendermintHashVariable>(celestia_skip_block_proof.base.header);
 
+        input.write::<HeightProofVariable>(celestia_skip_block_proof.block_height_proof);
         input.write::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>(
             celestia_skip_block_proof.base.validator_hash_proof.into(),
         );

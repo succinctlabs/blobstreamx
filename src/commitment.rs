@@ -1,63 +1,18 @@
-use plonky2::hash::hash_types::RichField;
-use plonky2::iop::witness::{Witness, WitnessWrite};
 use plonky2x::backend::circuit::PlonkParameters;
 use plonky2x::frontend::ecc::ed25519::curve::curve_types::Curve;
 use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
 
-use plonky2x::frontend::merkle::tree::MerkleInclusionProofVariable;
 use plonky2x::frontend::uint::uint64::U64Variable;
-use plonky2x::frontend::vars::{ArrayVariable, Bytes32Variable, EvmVariable, U32Variable};
-use plonky2x::prelude::{
-    BoolVariable, ByteVariable, BytesVariable, CircuitBuilder, CircuitVariable, Variable,
-};
+use plonky2x::frontend::vars::{ArrayVariable, Bytes32Variable, EvmVariable};
+use plonky2x::prelude::{BoolVariable, ByteVariable, BytesVariable, CircuitBuilder};
 use tendermint::merkle::HASH_SIZE;
 
-use crate::consts::{
-    HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES, VARINT_SIZE_BYTES,
-};
+use crate::consts::{HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES};
 use crate::shared::TendermintHeader;
+use crate::variables::DataCommitmentProofVariable;
 
-#[derive(Clone, Debug, CircuitVariable)]
-#[value_name(CelestiaDataCommitmentProofInput)]
-pub struct CelestiaDataCommitmentProofInputVariable<const WINDOW_SIZE: usize> {
-    pub data_hashes: ArrayVariable<Bytes32Variable, WINDOW_SIZE>,
-    pub block_heights: ArrayVariable<U64Variable, WINDOW_SIZE>,
-    pub data_commitment_root: Bytes32Variable,
-}
-
-#[derive(Clone, Debug, CircuitVariable)]
-#[value_name(HeaderVariableInput)]
-pub struct HeaderVariable {
-    pub header: Bytes32Variable,
-    pub header_height_proof: MerkleInclusionProofVariable<HEADER_PROOF_DEPTH, VARINT_SIZE_BYTES>,
-    pub height_byte_length: U32Variable,
-    pub height: U64Variable,
-}
-
-#[derive(Clone, Debug, CircuitVariable)]
-#[value_name(CelestiaHeaderChainProofInput)]
-pub struct CelestiaHeaderChainProofInputVariable<const WINDOW_RANGE: usize> {
-    pub current_header: HeaderVariable,
-    pub trusted_header: HeaderVariable,
-    pub data_hash_proofs: ArrayVariable<
-        MerkleInclusionProofVariable<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES>,
-        WINDOW_RANGE,
-    >,
-    pub prev_header_proofs: ArrayVariable<
-        MerkleInclusionProofVariable<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES>,
-        WINDOW_RANGE,
-    >,
-}
-
-pub trait CelestiaCommitment<L: PlonkParameters<D>, const D: usize> {
+pub trait DataCommitment<L: PlonkParameters<D>, const D: usize> {
     type Curve: Curve;
-
-    /// Encodes the marshalled varint into a BytesVariable<11>.
-    /// Prepends a 0x00 byte for the leaf prefix and a 0x08 byte to the marshalled varint.
-    fn encode_marshalled_varint(
-        &mut self,
-        marshalled_varint: &BytesVariable<9>,
-    ) -> BytesVariable<11>;
 
     /// Encodes the data hash and height into a tuple.
     /// Spec: https://github.com/celestiaorg/celestia-core/blob/6933af1ead0ddf4a8c7516690e3674c6cdfa7bd8/rpc/core/blocks.go#L325-L334
@@ -75,36 +30,23 @@ pub trait CelestiaCommitment<L: PlonkParameters<D>, const D: usize> {
         start_block: U64Variable,
     ) -> Bytes32Variable;
 
-    /// Prove header chain from current_header to trusted_header & the block heights for the current header and the trusted header.
+    /// Prove header chain from end_header to start_header & the block heights for the current header and the trusted header.
     /// Merkle prove the last block id against the current header, and the data hash for each header except the current header.
-    /// Note: data_hash_proofs and prev_header_proofs should be in order from current_header to trusted_header
+    /// Note: data_hash_proofs and prev_header_proofs should be in order from end_header to start_header
     fn prove_header_chain<const WINDOW_RANGE: usize>(
         &mut self,
-        input: CelestiaHeaderChainProofInputVariable<WINDOW_RANGE>,
+        input: DataCommitmentProofVariable<WINDOW_RANGE>,
     );
 
-    /// Prove the header chain from current_header to trusted_header & compute the data commitment.
+    /// Prove the header chain from end_header to start_header & compute the data commitment.
     fn prove_data_commitment<const WINDOW_RANGE: usize, const NB_LEAVES: usize>(
         &mut self,
-        input: CelestiaHeaderChainProofInputVariable<WINDOW_RANGE>,
-        data_hashes: &ArrayVariable<Bytes32Variable, WINDOW_RANGE>,
+        input: DataCommitmentProofVariable<WINDOW_RANGE>,
     ) -> Bytes32Variable;
 }
 
-impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for CircuitBuilder<L, D> {
+impl<L: PlonkParameters<D>, const D: usize> DataCommitment<L, D> for CircuitBuilder<L, D> {
     type Curve = Ed25519;
-
-    fn encode_marshalled_varint(
-        &mut self,
-        marshalled_varint: &BytesVariable<9>,
-    ) -> BytesVariable<11> {
-        // Prepend the 0x08 byte to the marshalled varint.
-        let mut encoded_marshalled_varint = Vec::new();
-        encoded_marshalled_varint.push(self.constant::<ByteVariable>(0u8));
-        encoded_marshalled_varint.push(self.constant::<ByteVariable>(8u8));
-        encoded_marshalled_varint.extend_from_slice(&marshalled_varint.0);
-        BytesVariable(encoded_marshalled_varint.try_into().unwrap())
-    }
 
     fn encode_data_root_tuple(
         &mut self,
@@ -157,31 +99,34 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
     }
     fn prove_header_chain<const WINDOW_RANGE: usize>(
         &mut self,
-        input: CelestiaHeaderChainProofInputVariable<WINDOW_RANGE>,
+        input: DataCommitmentProofVariable<WINDOW_RANGE>,
     ) {
         // Verify current_block_height - trusted_block_height == WINDOW_RANGE
-        let height_diff = self.sub(input.current_header.height, input.trusted_header.height);
+        let height_diff = self.sub(
+            input.end_header_height_proof.height,
+            input.start_header_height_proof.height,
+        );
         let window_range_target = self.constant::<U64Variable>(WINDOW_RANGE.into());
         self.assert_is_equal(height_diff, window_range_target);
 
         // Verify the current block's height
         self.verify_block_height(
-            input.current_header.header,
-            &input.current_header.header_height_proof.aunts,
-            &input.current_header.height,
-            input.current_header.height_byte_length,
+            input.end_header,
+            &input.end_header_height_proof.proof,
+            &input.end_header_height_proof.height,
+            input.end_header_height_proof.enc_height_byte_length,
         );
 
         // Verify the trusted block's height
         self.verify_block_height(
-            input.trusted_header.header,
-            &input.trusted_header.header_height_proof.aunts,
-            &input.trusted_header.height,
-            input.trusted_header.height_byte_length,
+            input.start_header,
+            &input.start_header_height_proof.proof,
+            &input.start_header_height_proof.height,
+            input.start_header_height_proof.enc_height_byte_length,
         );
 
         // Verify the header chain.
-        let mut curr_header_hash = input.current_header.header;
+        let mut curr_header_hash = input.end_header;
 
         for i in 0..WINDOW_RANGE {
             let data_hash_proof = &input.data_hash_proofs[i];
@@ -207,19 +152,18 @@ impl<L: PlonkParameters<D>, const D: usize> CelestiaCommitment<L, D> for Circuit
 
             curr_header_hash = prev_header_hash;
         }
-        // Verify the last header hash in the chain is the trusted header.
-        self.assert_is_equal(curr_header_hash, input.trusted_header.header);
+        // Verify the last header hash in the chain is the start header.
+        self.assert_is_equal(curr_header_hash, input.start_header);
     }
 
     fn prove_data_commitment<const WINDOW_RANGE: usize, const NB_LEAVES: usize>(
         &mut self,
-        input: CelestiaHeaderChainProofInputVariable<WINDOW_RANGE>,
-        data_hashes: &ArrayVariable<Bytes32Variable, WINDOW_RANGE>,
+        input: DataCommitmentProofVariable<WINDOW_RANGE>,
     ) -> Bytes32Variable {
         // Compute the data commitment.
         let data_commitment = self.get_data_commitment::<WINDOW_RANGE, NB_LEAVES>(
-            data_hashes,
-            input.trusted_header.height,
+            &input.data_hashes,
+            input.start_header_height_proof.height,
         );
         // Verify the header chain.
         self.prove_header_chain::<WINDOW_RANGE>(input);
@@ -237,8 +181,9 @@ pub(crate) mod tests {
     use plonky2x::backend::circuit::DefaultParameters;
 
     use crate::{
-        commitment::CelestiaCommitment,
-        inputs::{generate_data_commitment_inputs, generate_header_chain_inputs},
+        commitment::DataCommitment,
+        inputs::{generate_data_commitment_inputs, generate_expected_data_commitment},
+        variables::DataCommitmentProofVariable,
     };
 
     type L = DefaultParameters;
@@ -257,30 +202,26 @@ pub(crate) mod tests {
         const START_BLOCK: usize = 3800;
         const END_BLOCK: usize = START_BLOCK + WINDOW_SIZE;
 
-        let celestia_data_commitment_var =
-            builder.read::<CelestiaDataCommitmentProofInputVariable<WINDOW_SIZE>>();
+        let data_commitment_var = builder.read::<DataCommitmentProofVariable<WINDOW_SIZE>>();
 
-        let celestia_header_chain_var =
-            builder.read::<CelestiaHeaderChainProofInputVariable<WINDOW_SIZE>>();
+        let expected_data_commitment = builder.read::<Bytes32Variable>();
 
-        let root_hash_target = builder.prove_data_commitment::<WINDOW_SIZE, NUM_LEAVES>(
-            celestia_header_chain_var,
-            &celestia_data_commitment_var.data_hashes,
-        );
-        builder.assert_is_equal(
-            root_hash_target,
-            celestia_data_commitment_var.data_commitment_root,
-        );
+        let root_hash_target =
+            builder.prove_data_commitment::<WINDOW_SIZE, NUM_LEAVES>(data_commitment_var);
+        builder.assert_is_equal(root_hash_target, expected_data_commitment);
 
         let circuit = builder.build();
 
         let mut input = circuit.input();
-        input.write::<CelestiaDataCommitmentProofInputVariable<WINDOW_SIZE>>(
-            generate_data_commitment_inputs::<WINDOW_SIZE, F>(START_BLOCK, END_BLOCK),
-        );
-        input.write::<CelestiaHeaderChainProofInputVariable<WINDOW_SIZE>>(
-            generate_header_chain_inputs::<WINDOW_SIZE, F>(START_BLOCK, END_BLOCK),
-        );
+        input.write::<DataCommitmentProofVariable<WINDOW_SIZE>>(generate_data_commitment_inputs::<
+            WINDOW_SIZE,
+            F,
+        >(START_BLOCK, END_BLOCK));
+
+        input.write::<Bytes32Variable>(generate_expected_data_commitment::<WINDOW_SIZE, F>(
+            START_BLOCK,
+            END_BLOCK,
+        ));
         let (proof, output) = circuit.prove(&input);
         circuit.verify(&proof, &input, &output);
     }
@@ -297,25 +238,28 @@ pub(crate) mod tests {
         const START_BLOCK: usize = 3800;
         const END_BLOCK: usize = START_BLOCK + WINDOW_SIZE;
 
-        let celestia_data_commitment_var =
-            builder.read::<CelestiaDataCommitmentProofInputVariable<WINDOW_SIZE>>();
+        let data_commitment_var = builder.read::<DataCommitmentProofVariable<WINDOW_SIZE>>();
+
+        let expected_data_commitment = builder.read::<Bytes32Variable>();
 
         let start_block = builder.constant::<U64Variable>(START_BLOCK.into());
         let root_hash_target = builder.get_data_commitment::<WINDOW_SIZE, NUM_LEAVES>(
-            &celestia_data_commitment_var.data_hashes,
+            &data_commitment_var.data_hashes,
             start_block,
         );
-        builder.assert_is_equal(
-            root_hash_target,
-            celestia_data_commitment_var.data_commitment_root,
-        );
+        builder.assert_is_equal(root_hash_target, expected_data_commitment);
 
         let circuit = builder.build();
 
         let mut input = circuit.input();
-        input.write::<CelestiaDataCommitmentProofInputVariable<WINDOW_SIZE>>(
-            generate_data_commitment_inputs::<WINDOW_SIZE, F>(START_BLOCK, END_BLOCK),
-        );
+        input.write::<DataCommitmentProofVariable<WINDOW_SIZE>>(generate_data_commitment_inputs::<
+            WINDOW_SIZE,
+            F,
+        >(START_BLOCK, END_BLOCK));
+        input.write::<Bytes32Variable>(generate_expected_data_commitment::<WINDOW_SIZE, F>(
+            START_BLOCK,
+            END_BLOCK,
+        ));
         let (proof, output) = circuit.prove(&input);
         circuit.verify(&proof, &input, &output);
     }
@@ -331,41 +275,21 @@ pub(crate) mod tests {
         const TRUSTED_BLOCK: usize = 3800;
         const CURRENT_BLOCK: usize = TRUSTED_BLOCK + WINDOW_SIZE;
 
-        let celestia_header_chain_var =
-            builder.read::<CelestiaHeaderChainProofInputVariable<WINDOW_SIZE>>();
+        let data_commitment_var = builder.read::<DataCommitmentProofVariable<WINDOW_SIZE>>();
 
-        builder.prove_header_chain::<WINDOW_SIZE>(celestia_header_chain_var);
+        builder.prove_header_chain::<WINDOW_SIZE>(data_commitment_var);
 
         let circuit = builder.build();
 
         let mut input = circuit.input();
-        input.write::<CelestiaHeaderChainProofInputVariable<WINDOW_SIZE>>(
-            generate_header_chain_inputs::<WINDOW_SIZE, F>(TRUSTED_BLOCK, CURRENT_BLOCK),
-        );
+        input.write::<DataCommitmentProofVariable<WINDOW_SIZE>>(generate_data_commitment_inputs::<
+            WINDOW_SIZE,
+            F,
+        >(
+            TRUSTED_BLOCK, CURRENT_BLOCK
+        ));
         let (proof, output) = circuit.prove(&input);
         circuit.verify(&proof, &input, &output);
-    }
-
-    #[test]
-    #[cfg_attr(feature = "ci", ignore)]
-    fn test_encode_varint() {
-        env_logger::try_init().unwrap_or_default();
-
-        let mut builder = CircuitBuilder::<L, D>::new();
-
-        let height = builder.constant::<U64Variable>(3804.into());
-
-        let encoded_height = builder.marshal_int64_varint(&height);
-        let encoded_height = builder.encode_marshalled_varint(&BytesVariable(encoded_height));
-        builder.watch(&encoded_height, "encoded_height");
-
-        let circuit = builder.build();
-
-        let input = circuit.input();
-        let (proof, output) = circuit.prove(&input);
-        circuit.verify(&proof, &input, &output);
-
-        println!("Verified proof");
     }
 
     #[test]
