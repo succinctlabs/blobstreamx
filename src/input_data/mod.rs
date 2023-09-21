@@ -96,9 +96,9 @@ impl InputDataFetcher {
         let proofs = match self.proof_cache.get(&hash) {
             Some(proofs) => proofs.clone(),
             None => {
-                let (hash, proofs) = generate_proofs_from_header(&block_header);
+                let (hash, proofs) = generate_proofs_from_header(block_header);
                 self.proof_cache.insert(hash, proofs.clone());
-                proofs.clone()
+                proofs
             }
         };
         let total = proofs[0].total;
@@ -253,11 +253,13 @@ impl InputDataFetcher {
 }
 
 mod test {
-    use super::*;
 
     // Run with cargo test --lib input_data::test::test_fixture_generation_asdf -- --nocapture
     #[tokio::test]
     async fn test_fixture_generation_asdf() {
+        // TODO: Clippy does not recognize imports in Tokio tests.
+        use crate::input_data::{InputDataFetcher, InputDataMode};
+
         let block_height = 11105u64;
         let mut fetcher = InputDataFetcher::new(InputDataMode::Rpc(
             "http://rpc.testnet.celestia.citizencosmos.space".to_string(),

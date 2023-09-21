@@ -138,6 +138,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[cfg_attr(feature = "ci", ignore)]
     fn test_circuit_function_skip() {
         env::set_var("RUST_LOG", "debug");
         env_logger::try_init().unwrap_or_default();

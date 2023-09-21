@@ -157,9 +157,7 @@ pub trait TendermintVerify<
         validators: &ArrayVariable<ValidatorVariable<Self::Curve>, VALIDATOR_SET_SIZE_MAX>,
         header: &TendermintHashVariable,
         prev_header: &TendermintHashVariable,
-        // data_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
         validator_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
-        // next_validators_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
         prev_header_next_validators_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
         last_block_id_proof: &BlockIDInclusionProofVariable<HEADER_PROOF_DEPTH>,
         round_present: &BoolVariable,
@@ -183,9 +181,7 @@ pub trait TendermintVerify<
         validators: &ArrayVariable<ValidatorVariable<Self::Curve>, VALIDATOR_SET_SIZE_MAX>,
         header: &TendermintHashVariable,
         header_height_proof: &HeightProofVariable,
-        // data_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
         validator_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
-        // next_validators_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
         round_present: &BoolVariable,
         trusted_header: TendermintHashVariable,
         trusted_validator_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
@@ -218,7 +214,7 @@ impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
     ) -> Bytes32Variable {
         self.get_root_from_merkle_proof::<HEADER_PROOF_DEPTH, LEAF_SIZE_BYTES>(
             &MerkleInclusionProofVariable {
-                leaf: leaf.clone(),
+                leaf: *leaf,
                 path_indices: path.clone(),
                 aunts: proof.clone(),
             },
@@ -245,8 +241,8 @@ impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
             // Check if the signed validators are greater than the threshold
             &include_in_check,
             &total_voting_power,
-            &threshold_numerator,
-            &threshold_denominator,
+            threshold_numerator,
+            threshold_denominator,
         );
         let t = self._true();
         self.assert_is_equal(check_voting_power_bool, t);
@@ -778,6 +774,7 @@ pub(crate) mod tests {
     }
 
     #[test]
+    #[cfg_attr(feature = "ci", ignore)]
     fn test_step_with_dummy_sigs() {
         // Testing block 11105 (4 validators, 2 signed)
         // Need to handle empty validators as well
@@ -790,6 +787,7 @@ pub(crate) mod tests {
     }
 
     #[test]
+    #[cfg_attr(feature = "ci", ignore)]
     fn test_step_small() {
         // Testing block 11000
         let block = 11000;
@@ -800,6 +798,7 @@ pub(crate) mod tests {
     }
 
     #[test]
+    #[cfg_attr(feature = "ci", ignore)]
     fn test_step_with_empty() {
         // Testing block 10000
         let block = 10000;
@@ -810,6 +809,7 @@ pub(crate) mod tests {
     }
 
     #[test]
+    #[cfg_attr(feature = "ci", ignore)]
     fn test_step_large() {
         // Testing block 75000
         // 77 validators (128)
@@ -828,6 +828,7 @@ pub(crate) mod tests {
     }
 
     #[test]
+    #[cfg_attr(feature = "ci", ignore)]
     fn test_skip_small() {
         // Testing skip from 11000 to 11105
         let trusted_block = 11000;
@@ -840,6 +841,7 @@ pub(crate) mod tests {
     }
 
     #[test]
+    #[cfg_attr(feature = "ci", ignore)]
     fn test_skip_large() {
         // Testing skip from 60000 to 75000
 

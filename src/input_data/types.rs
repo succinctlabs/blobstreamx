@@ -118,10 +118,10 @@ fn signature_to_value_type<F: RichField>(signature: &Signature) -> SignatureValu
     let sig_r = AffinePoint::new_from_compressed_point(&sig_bytes[0..32]);
     assert!(sig_r.is_valid());
     let sig_s_biguint = BigUint::from_bytes_le(&sig_bytes[32..64]);
-    if sig_s_biguint.to_u32_digits().len() == 0 {
+    if sig_s_biguint.to_u32_digits().is_empty() {
         panic!("sig_s_biguint has 0 limbs which will cause problems down the line")
     }
-    let sig_s = Ed25519Scalar::from_noncanonical_biguint(sig_s_biguint.clone());
+    let sig_s = Ed25519Scalar::from_noncanonical_biguint(sig_s_biguint);
     SignatureValueType::<F> { r: sig_r, s: sig_s }
 }
 
@@ -138,6 +138,7 @@ pub fn get_validators_as_input<const VALIDATOR_SET_SIZE_MAX: usize, F: RichField
     );
     let block_validators = validator_set.validators();
 
+    // Exclude invalid validators (i.e. those that are malformed & are not included in the validator set).
     for i in 0..block.commit.signatures.len() {
         let val_idx = ValidatorIndex::try_from(i).unwrap();
         let validator = Box::new(match validator_set.validator(block_validators[i].address) {
@@ -190,11 +191,10 @@ pub fn get_validators_as_input<const VALIDATOR_SET_SIZE_MAX: usize, F: RichField
 
     // These are empty signatures (not included in val hash)
     for _ in block.commit.signatures.len()..VALIDATOR_SET_SIZE_MAX {
-        let priv_key_bytes = vec![0u8; 32];
+        let priv_key_bytes = [0u8; 32];
         let signing_key =
             private_key::Ed25519::try_from(&priv_key_bytes[..]).expect("failed to create key");
         let signing_key = SigningKey::try_from(signing_key).unwrap();
-        let signing_key = ed25519_consensus::SigningKey::try_from(signing_key).unwrap();
 
         let verification_key = signing_key.verification_key();
         // TODO: Fix empty signatures
@@ -229,6 +229,7 @@ pub fn get_validators_fields_as_input<const VALIDATOR_SET_SIZE_MAX: usize, F: Ri
         trusted_block.validator_set.validators.clone(),
         trusted_block.validator_set.proposer.clone(),
     );
+
     let block_validators = validator_set.validators();
 
     for i in 0..trusted_block.commit.signatures.len() {
@@ -247,11 +248,10 @@ pub fn get_validators_fields_as_input<const VALIDATOR_SET_SIZE_MAX: usize, F: Ri
 
     // These are empty signatures (not included in val hash)
     for _ in trusted_block.commit.signatures.len()..VALIDATOR_SET_SIZE_MAX {
-        let priv_key_bytes = vec![0u8; 32];
+        let priv_key_bytes = [0u8; 32];
         let signing_key =
             private_key::Ed25519::try_from(&priv_key_bytes[..]).expect("failed to create key");
         let signing_key = SigningKey::try_from(signing_key).unwrap();
-        let signing_key = ed25519_consensus::SigningKey::try_from(signing_key).unwrap();
         let verification_key = signing_key.verification_key();
         // TODO: Fix empty signatures
         trusted_validator_fields.push(ValidatorHashField {
@@ -269,14 +269,14 @@ pub fn get_validators_fields_as_input<const VALIDATOR_SET_SIZE_MAX: usize, F: Ri
 }
 
 pub fn update_present_on_trusted_header<F: RichField>(
-    validators: &mut Vec<Validator<C, F>>,
-    target_block: &Box<TempSignedBlock>,
-    trusted_block: &Box<TempSignedBlock>,
+    validators: &mut [Validator<C, F>],
+    target_block: &TempSignedBlock,
+    trusted_block: &TempSignedBlock,
 ) {
     // Parse each block to compute the validators that are the same from block_1 to block_2, and the cumulative voting power of the shared validators
     let mut shared_voting_power = 0;
 
-    let threshold = 1 as f64 / 3 as f64;
+    let threshold = 1_f64 / 3_f64;
 
     let target_block_validator_set = ValidatorSet::new(
         target_block.validator_set.validators.clone(),
@@ -304,14 +304,14 @@ pub fn update_present_on_trusted_header<F: RichField>(
         {
             // Confirm that the validator has signed on block_2
             for sig in target_block.commit.signatures.iter() {
-                if sig.validator_address().is_some() {
-                    if sig.validator_address().unwrap() == block_2_validator.address {
-                        // Add the shared voting power to the validator
-                        shared_voting_power += block_2_validator.power();
-                        // Set the present_on_trusted_header field to true
-                        validators[idx].present_on_trusted_header = true;
-                        println!("added validator: {}", idx);
-                    }
+                if sig.validator_address().is_some()
+                    && sig.validator_address().unwrap() == block_2_validator.address
+                {
+                    // Add the shared voting power to the validator
+                    shared_voting_power += block_2_validator.power();
+                    // Set the present_on_trusted_header field to true
+                    validators[idx].present_on_trusted_header = true;
+                    println!("added validator: {}", idx);
                 }
             }
         }

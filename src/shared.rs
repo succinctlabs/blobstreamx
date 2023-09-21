@@ -74,6 +74,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintHeader<L, D> for CircuitBu
 
         // Calculates the index of the last non-zero septet.
         let mut last_seen_non_zero_septet_idx = self.zero();
+
         for i in 0..VARINT_BYTES_LENGTH_MAX {
             // Ok to cast as BoolVariable since is_zero_septets[i] is 0 or 1 so result is either 0 or 1
             let is_nonzero_septet = BoolVariable(self.sub(one, is_zero_septets[i].0));
@@ -121,7 +122,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintHeader<L, D> for CircuitBu
             );
         }
 
-        return res;
+        res
     }
 
     fn leaf_encode_marshalled_varint(
@@ -148,7 +149,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintHeader<L, D> for CircuitBu
         let block_height_path = vec![false_t, true_t, false_t, false_t];
 
         // Verify the current header height proof against the current header.
-        let encoded_height = self.marshal_int64_varint(&height);
+        let encoded_height = self.marshal_int64_varint(height);
         let encoded_height = self.leaf_encode_marshalled_varint(&BytesVariable(encoded_height));
 
         // Extend encoded_height to 64 bytes for curta_sha256_variable.
@@ -176,7 +177,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintHeader<L, D> for CircuitBu
         );
 
         let computed_root = self.get_root_from_merkle_proof_hashed_leaf::<HEADER_PROOF_DEPTH>(
-            &proof,
+            proof,
             &block_height_path.try_into().unwrap(),
             leaf_hash,
         );
@@ -195,7 +196,7 @@ pub(crate) mod tests {
 
     #[test]
     fn test_marshal_int64_varint() {
-        env_logger::try_init().unwrap();
+        env_logger::try_init().unwrap_or_default();
         // These are test cases generated from `celestia-core`.
         //
         // allZerosPubkey := make(ed25519.PubKey, ed25519.PubKeySize)
@@ -224,9 +225,8 @@ pub(crate) mod tests {
         let mut builder = DefaultBuilder::new();
         let voting_power_variable = builder.read::<U64Variable>();
         let result = builder.marshal_int64_varint(&voting_power_variable);
-        for i in 0..9 {
-            builder.write(result[i]);
-        }
+        builder.write::<BytesVariable<VARINT_BYTES_LENGTH_MAX>>(BytesVariable(result));
+
         let circuit = builder.build();
 
         for test_case in test_cases {
@@ -239,9 +239,10 @@ pub(crate) mod tests {
             println!("Voting Power: {:?}", test_case.0);
             println!("Expected Varint Encoding (Bytes): {:?}", expected_bytes);
 
-            for byte in expected_bytes {
-                let output_byte = output.read::<ByteVariable>();
-                assert_eq!(output_byte, byte);
+            let output_bytes = output.read::<BytesVariable<VARINT_BYTES_LENGTH_MAX>>();
+
+            for i in 0..expected_bytes.len() {
+                assert_eq!(output_bytes[i], expected_bytes[i]);
             }
         }
     }

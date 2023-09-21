@@ -6,7 +6,6 @@
 //! The `pubkey` is encoded as the raw list of bytes used in the public key. The `varint` is
 //! encoded using protobuf's default integer encoding, which consist of 7 bit payloads. You can
 //! read more about them here: https://protobuf.dev/programming-guides/encoding/#varints.
-use curta::math::field::Field;
 use num::BigUint;
 use plonky2::field::types::PrimeField;
 use plonky2x::frontend::ecc::ed25519::curve::curve_types::AffinePoint;
@@ -24,6 +23,7 @@ use plonky2x::prelude::BoolVariable;
 use plonky2x::prelude::Bytes32Variable;
 use plonky2x::prelude::BytesVariable;
 use plonky2x::prelude::CircuitBuilder;
+use plonky2x::prelude::Field;
 use plonky2x::prelude::PlonkParameters;
 use tendermint::merkle::HASH_SIZE;
 
@@ -74,7 +74,7 @@ pub trait TendermintSignature<L: PlonkParameters<D>, const D: usize> {
     fn verify_signatures<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
         // This message should be range-checked before being passed in.
-        validator_active: &Vec<BoolVariable>,
+        validator_active: &[BoolVariable],
         messages: Vec<ValidatorMessageVariable>,
         message_bit_lengths: Vec<U32Variable>,
         eddsa_sig_targets: Vec<EDDSASignatureTarget<Self::Curve>>,
@@ -96,7 +96,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintSignature<L, D> for Circui
         assert!(sig_r.is_valid());
 
         let sig_s_biguint = BigUint::from_bytes_le(&DUMMY_SIGNATURE[32..64]);
-        let sig_s = Ed25519Scalar::from_noncanonical_biguint(sig_s_biguint.clone());
+        let sig_s = Ed25519Scalar::from_noncanonical_biguint(sig_s_biguint);
 
         let pubkey = self.constant::<AffinePointTarget<Self::Curve>>(pub_key_uncompressed);
 
@@ -111,7 +111,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintSignature<L, D> for Circui
         let dummy_msg_length = self.constant::<U32Variable>(DUMMY_MSG_LENGTH_BITS);
 
         DummySignatureTarget {
-            pubkey: pubkey,
+            pubkey,
             signature,
             message,
             message_bit_length: dummy_msg_length,
@@ -153,7 +153,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintSignature<L, D> for Circui
     fn verify_signatures<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
         // This message should be range-checked before being passed in.
-        validator_active: &Vec<BoolVariable>,
+        validator_active: &[BoolVariable],
         messages: Vec<ValidatorMessageVariable>,
         message_bit_lengths: Vec<U32Variable>,
         eddsa_sig_targets: Vec<EDDSASignatureTarget<Self::Curve>>,
@@ -230,7 +230,6 @@ pub(crate) mod tests {
 
     use plonky2x::frontend::ecc::ed25519::curve::curve_types::AffinePoint;
     use plonky2x::frontend::ecc::ed25519::field::ed25519_scalar::Ed25519Scalar;
-    use tendermint::crypto::ed25519::SigningKey;
     use tendermint::private_key;
 
     use crate::input_data::utils::to_be_bits;
@@ -238,10 +237,9 @@ pub(crate) mod tests {
 
     #[test]
     fn test_generate_signature() {
-        let priv_key_bytes = vec![0u8; 32];
+        let priv_key_bytes = [0u8; 32];
         let signing_key =
             private_key::Ed25519::try_from(&priv_key_bytes[..]).expect("failed to create key");
-        let signing_key = SigningKey::try_from(signing_key).unwrap();
         let signing_key = ed25519_consensus::SigningKey::try_from(signing_key).unwrap();
 
         let verification_key = signing_key.verification_key();
@@ -291,11 +289,11 @@ pub(crate) mod tests {
         assert!(sig_r.is_valid());
 
         let sig_s_biguint = BigUint::from_bytes_le(&sig_bytes[32..64]);
-        let sig_s = Ed25519Scalar::from_noncanonical_biguint(sig_s_biguint.clone());
+        let sig_s = Ed25519Scalar::from_noncanonical_biguint(sig_s_biguint);
         let sig = EDDSASignature { r: sig_r, s: sig_s };
 
         assert!(verify_message(
-            &to_be_bits(msg_bytes.clone()),
+            &to_be_bits(msg_bytes),
             &sig,
             &EDDSAPublicKey(pub_key_uncompressed)
         ));
@@ -315,6 +313,7 @@ pub(crate) mod tests {
     }
 
     #[test]
+    #[cfg_attr(feature = "ci", ignore)]
     fn test_verify_round_absent_eddsa_signature() {
         // First signature from block 11000
         let msg = "6c080211f82a00000000000022480a2036f2d954fe1ba37c5036cb3c6b366d0daf68fccbaa370d9490361c51a0a38b61122408011220cddf370e891591c9d912af175c966cd8dfa44b2c517e965416b769eb4b9d5d8d2a0c08f6b097a50610dffbcba90332076d6f6368612d33";
@@ -326,6 +325,7 @@ pub(crate) mod tests {
         verify_eddsa_signature(msg_bytes, pub_key_bytes, sig_bytes)
     }
     #[test]
+    #[cfg_attr(feature = "ci", ignore)]
     fn test_verify_round_present_eddsa_signature() {
         // First signature from block 11105 (round present)
         let msg = "74080211612b00000000000019010000000000000022480a205047a5a855854ca8bc610fb47ee849084c04fe25a2f037a07de6ae343c55216b122408011220cb05d8adc7c24d55f06d3bd0aea50620d3f0d73a9656a9073cc47a959a0961672a0b08acbd97a50610b1a5f31132076d6f6368612d33";
@@ -337,6 +337,7 @@ pub(crate) mod tests {
         verify_eddsa_signature(msg_bytes, pub_key_bytes, sig_bytes)
     }
     #[test]
+    #[cfg_attr(feature = "ci", ignore)]
     fn test_verify_dummy_signature() {
         verify_eddsa_signature(
             DUMMY_MSG.to_vec(),

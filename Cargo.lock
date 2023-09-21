@@ -568,9 +568,9 @@ checksum = "acbf1af155f9b9ef647e42cdc158db4b64a1b61f743629225fde6f3e0be2a7c7"
 
 [[package]]
 name = "const-hex"
-version = "1.8.0"
+version = "1.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "08849ed393c907c90016652a01465a12d86361cd38ad2a7de026c56a520cc259"
+checksum = "aa72a10d0e914cad6bcad4e7409e68d230c1c2db67896e19a37f758b1fcbdab5"
 dependencies = [
  "cfg-if",
  "cpufeatures",
@@ -2764,7 +2764,7 @@ source = "git+https://github.com/mir-protocol/plonky2.git#6618cfad4a4ee0e5fe4fa7
 [[package]]
 name = "plonky2x"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/succinctx.git#11a340b98e9758eeb87ffbb12f4124af3200ee71"
+source = "git+https://github.com/succinctlabs/succinctx.git#11a340b98e9758eeb87ffbb12f4124af3200ee71"
 dependencies = [
  "anyhow",
  "array-macro",
@@ -2802,7 +2802,7 @@ dependencies = [
 [[package]]
 name = "plonky2x-derive"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/succinctx.git#11a340b98e9758eeb87ffbb12f4124af3200ee71"
+source = "git+https://github.com/succinctlabs/succinctx.git#11a340b98e9758eeb87ffbb12f4124af3200ee71"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3493,9 +3493,9 @@ dependencies = [
 
 [[package]]
 name = "sha1"
-version = "0.10.5"
+version = "0.10.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f04293dc80c3993519f2d7f6f511707ee7094fe0c6d3406feb330cdb3540eba3"
+checksum = "e3bf829a2d51ab4a5ddf1352d8470c140cadc8301b2ae1789db023f01cedd6ba"
 dependencies = [
  "cfg-if",
  "cpufeatures",
