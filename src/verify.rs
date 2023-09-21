@@ -658,7 +658,7 @@ pub(crate) mod tests {
     use log;
     use plonky2::timed;
     use plonky2::util::timing::TimingTree;
-    use plonky2x::prelude::DefaultBuilder;
+    use plonky2x::prelude::{DefaultBuilder, DefaultParameters};
     use subtle_encoding::hex;
 
     // TODO: Remove dependency on inputs crate
@@ -670,6 +670,9 @@ pub(crate) mod tests {
         },
     };
 
+    type L = DefaultParameters;
+    const D: usize = 2;
+
     #[test]
     fn test_verify_hash_in_message() {
         // This is a test case generated from block 144094 of Celestia's Mocha 3 testnet
@@ -678,6 +681,7 @@ pub(crate) mod tests {
         // No round exists in present the message that was signed above
 
         env_logger::try_init().unwrap_or_default();
+        const VALIDATOR_SET_SIZE_MAX: usize = 2;
 
         // Define the circuit
         let mut builder = DefaultBuilder::new();
@@ -685,8 +689,16 @@ pub(crate) mod tests {
         let header_hash = builder.read::<TendermintHashVariable>();
         let round_present_in_message = builder.read::<BoolVariable>();
 
-        let verified =
-            builder.verify_hash_in_message(&message, header_hash, round_present_in_message);
+        let verified = <plonky2x::prelude::CircuitBuilder<L, D> as TendermintVerify<
+            L,
+            D,
+            VALIDATOR_SET_SIZE_MAX,
+        >>::verify_hash_in_message(
+            &mut builder,
+            &message,
+            header_hash,
+            round_present_in_message,
+        );
 
         builder.write(verified);
         let circuit = builder.build();
