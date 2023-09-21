@@ -589,21 +589,24 @@ pub fn generate_skip_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
     // Signatures or dummy
     // Need signature to output either verify or no verify (then we can assert that it matches or doesn't match)
     let block_validators = trusted_block.validator_set.validators();
-    block_validators
-        .iter()
-        .take(trusted_block.commit.signatures.len())
-        .filter_map(|v| trusted_block.validator_set.validator(v.address))
-        .for_each(|validator| {
-            let val_bytes = validator.hash_bytes();
-            if let Some(pub_key) = validator.pub_key.ed25519() {
-                trusted_validator_fields.push(ValidatorHashField {
-                    pubkey: pubkey_to_affine_point(&pub_key),
-                    voting_power: validator.power().into(),
-                    validator_byte_length: F::from_canonical_usize(val_bytes.len()),
-                    enabled: true,
-                });
-            }
+    for i in 0..trusted_block.commit.signatures.len() {
+        let validator = Box::new(
+            match trusted_block
+                .validator_set
+                .validator(block_validators[i].address)
+            {
+                Some(validator) => validator,
+                None => continue, // Cannot find matching validator, so we skip the vote
+            },
+        );
+        let val_bytes = validator.hash_bytes();
+        trusted_validator_fields.push(ValidatorHashField {
+            pubkey: pubkey_to_affine_point(&validator.pub_key.ed25519().unwrap()),
+            voting_power: validator.power().into(),
+            validator_byte_length: F::from_canonical_usize(val_bytes.len()),
+            enabled: true,
         });
+    }
 
     // These are empty signatures (not included in val hash)
     for _ in trusted_block.commit.signatures.len()..VALIDATOR_SET_SIZE_MAX {
