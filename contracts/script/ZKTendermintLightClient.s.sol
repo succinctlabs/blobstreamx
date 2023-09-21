@@ -4,24 +4,31 @@ pragma solidity ^0.8.13;
 import "forge-std/Script.sol";
 import {ZKTendermintLightClient} from "../src/ZKTendermintLightClient.sol";
 
-// forge script script/ZKTendermintLightClient.s.sol --verifier etherscan --chain-id 5 --account ded
+// forge script script/ZKTendermintLightClient.s.sol --verifier etherscan --private-key
 contract DeployScript is Script {
     function setUp() public {}
 
     function run() public {
-        vm.broadcast();
+        vm.startBroadcast();
         address gateway = address(0x852a94F8309D445D27222eDb1E92A4E83DdDd2a8);
-        bytes32 functionId = bytes32(hex"01");
-
-        ZKTendermintLightClient lightClient = new ZKTendermintLightClient(
-            gateway
+        bytes32 functionId = bytes32(
+            0x3509161976e479a1e621d680b02824d1806daad1b9ef8a5b935b1c99a8c63ae2
         );
 
-        bytes32 header = hex"A8512F18C34B70E1533CFD5AA04F251FCB0D7BE56EC570051FBAD9BDB9435E6A";
-        uint64 height = 3000;
-        lightClient.setGenesisHeader(height, header);
+        ZKTendermintLightClient lightClient = new ZKTendermintLightClient(
+            0x91f3C102F5EF109004836090a1d9A55cF9c55100
+        );
 
-        lightClient.updateFunctionId("step", functionId);
-        lightClient.requestHeaderStep(height);
+        // ZKTendermintLightClient lightClient = ZKTendermintLightClient(
+        //     0x91f3C102F5EF109004836090a1d9A55cF9c55100
+        // );
+
+        // bytes32 header = hex"A8512F18C34B70E1533CFD5AA04F251FCB0D7BE56EC570051FBAD9BDB9435E6A";
+        // uint64 height = 3000;
+        // lightClient.setGenesisHeader(height, header);
+
+        // lightClient.updateFunctionId("step", functionId);
+
+        // lightClient.requestHeaderStep{value: 0.1 ether}(height);
     }
 }

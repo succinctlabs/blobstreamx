@@ -144,7 +144,7 @@ impl InputDataFetcher {
         let round_present = next_block.commit.round.value() != 0;
 
         let next_block_header = next_block.header.hash();
-        println!("prev_block_hash {:?}", next_block_header);
+        println!("next_block_header {:?}", next_block_header);
 
         let next_block_validators =
             get_validators_as_input::<VALIDATOR_SET_SIZE_MAX, F>(&next_block);

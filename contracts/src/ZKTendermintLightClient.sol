@@ -20,6 +20,7 @@ contract ZKTendermintLightClient {
 
     event HeaderStepRequested(uint64 indexed prevBlock, bytes32 requestId);
     event HeaderStepFulfilled(uint64 indexed nextBlock, bytes32 header);
+    event FunctionId(string name, bytes32 id);
 
     constructor(address _gateway) {
         gateway = _gateway;
@@ -77,7 +78,7 @@ contract ZKTendermintLightClient {
     }
 
     // Needed in the rare case that skip cannot be used--when validator set changes by > 1/3
-    function requestHeaderStep(uint64 _prevBlock) public {
+    function requestHeaderStep(uint64 _prevBlock) external payable {
         bytes32 prevHeader = blockHeightToHeaderHash[_prevBlock];
         if (prevHeader == bytes32(0)) {
             revert("Prev header not found");
@@ -87,7 +88,8 @@ contract ZKTendermintLightClient {
             revert("Function ID for step not found");
         }
         require(_prevBlock + 1 > head); // TODO: do we need this?
-        bytes32 requestId = IFunctionGateway(gateway).request(
+        emit FunctionId("step", id);
+        bytes32 requestId = IFunctionGateway(gateway).request{value: msg.value}(
             id,
             abi.encodePacked(prevHeader, _prevBlock),
             this.callbackHeaderStep.selector,

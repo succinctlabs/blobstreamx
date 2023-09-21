@@ -129,7 +129,7 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize> Circuit for StepCircuit<MAX_VALIDATOR_
 }
 
 fn main() {
-    const MAX_VALIDATOR_SET_SIZE: usize = 4;
+    const MAX_VALIDATOR_SET_SIZE: usize = 128;
     VerifiableFunction::<StepCircuit<MAX_VALIDATOR_SET_SIZE>>::entrypoint();
 }
 
