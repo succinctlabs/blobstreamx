@@ -20,12 +20,10 @@ use plonky2x::frontend::num::nonnative::nonnative::CircuitBuilderNonNative;
 use plonky2x::frontend::num::nonnative::nonnative::NonNativeTarget;
 use plonky2x::frontend::vars::U32Variable;
 use plonky2x::prelude::BoolVariable;
-use plonky2x::prelude::Bytes32Variable;
 use plonky2x::prelude::BytesVariable;
 use plonky2x::prelude::CircuitBuilder;
 use plonky2x::prelude::Field;
 use plonky2x::prelude::PlonkParameters;
-use tendermint::merkle::HASH_SIZE;
 
 use crate::consts::VALIDATOR_MESSAGE_BYTES_LENGTH_MAX;
 use crate::variables::ValidatorMessageVariable;
@@ -178,7 +176,6 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintSignature<L, D> for Circui
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use ethers::types::H256;
     use num::BigUint;
     use plonky2::field::types::Field;
     use plonky2x::frontend::ecc::ed25519::curve::eddsa::{
@@ -193,7 +190,6 @@ pub(crate) mod tests {
     use tendermint::private_key;
 
     use crate::input_data::utils::to_be_bits;
-    use crate::variables::TendermintHashVariable;
 
     #[test]
     fn test_generate_signature() {
