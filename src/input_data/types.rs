@@ -139,7 +139,6 @@ pub fn get_validators_as_input<const VALIDATOR_SET_SIZE_MAX: usize, F: RichField
     let block_validators = validator_set.validators();
 
     // Exclude invalid validators (i.e. those that are malformed & are not included in the validator set).
-
     for i in 0..block.commit.signatures.len() {
         let val_idx = ValidatorIndex::try_from(i).unwrap();
         let validator = Box::new(match validator_set.validator(block_validators[i].address) {
