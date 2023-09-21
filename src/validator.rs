@@ -227,14 +227,10 @@ pub(crate) mod tests {
         let pub_key_bytes = pub_key.to_bytes_le();
         println!("pub_key_bytes: {:?}", pub_key_bytes);
 
-        output_bytes
-            .iter()
-            .enumerate()
-            .take(VALIDATOR_BYTE_LENGTH_MAX)
-            .for_each(|(i, _)| {
-                let expected_value = *expected_marshal.get(i).unwrap_or(&0);
-                assert_eq!(output_bytes[i], expected_value);
-            });
+        for i in 0..VALIDATOR_BYTE_LENGTH_MAX {
+            let expected_value = *expected_marshal.get(i).unwrap_or(&0);
+            assert_eq!(output_bytes[i], expected_value);
+        }
     }
 
     #[test]
