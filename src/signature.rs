@@ -197,15 +197,6 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintSignature<L, D> for Circui
             // TODO: REMOVE THESE CONSTRAINTS AFTER VERIFY_VARIABLE_SIGNATURES_CIRCUIT is ported
             // TODO: Check the endianness of msg if this fails
             let msg_bool_targets = self.to_be_bits(msg);
-            msg_bool_targets
-                .iter()
-                .enumerate()
-                .take(VALIDATOR_MESSAGE_BITS_LENGTH_MAX)
-                .for_each(|(j, _)| {
-                    self.api
-                        .connect(eddsa_target.msgs[i][j].target, msg_bool_targets[j].0 .0);
-                });
-
             for j in 0..VALIDATOR_MESSAGE_BITS_LENGTH_MAX {
                 self.api
                     .connect(eddsa_target.msgs[i][j].target, msg_bool_targets[j].0 .0);
