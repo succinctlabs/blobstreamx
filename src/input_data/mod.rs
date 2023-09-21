@@ -250,6 +250,86 @@ impl InputDataFetcher {
             trusted_block_validator_fields,
         )
     }
+
+    pub async fn get_data_commitment_inputs<
+        const WINDOW_SIZE: usize,
+        const NUM_LEAVES: usize,
+        F: RichField,
+    >(
+        &mut self,
+        start_block_number: u64,
+        start_header_hash: H256,
+        end_block_number: u64,
+        end_header_hash: H256,
+    ) -> (
+        Vec<Validator<Ed25519, F>>,          // validators
+        [u8; 32],                            // target_header
+        bool,                                // round_present
+        HeightProofValueType<F>,             // target_block_height_proof,
+        TempMerkleInclusionProof,            // target_header_validators_hash_proof,
+        [u8; 32],                            // trusted_header
+        TempMerkleInclusionProof,            // trusted_validators_hash_proof
+        Vec<ValidatorHashField<Ed25519, F>>, // trusted_validators_hash_fields
+    ) {
+        let start_block = self.get_block_from_number(start_block_number).await;
+        let computed_start_header_hash = start_block.header.hash();
+        assert_eq!(
+            computed_start_header_hash.as_bytes(),
+            start_header_hash.as_bytes()
+        );
+
+        let end_block = self.get_block_from_number(start_block_number).await;
+        let computed_end_header_hash = start_block.header.hash();
+        assert_eq!(
+            computed_end_header_hash.as_bytes(),
+            end_header_hash.as_bytes()
+        );
+
+        let mut target_block_validators =
+            get_validators_as_input::<VALIDATOR_SET_SIZE_MAX, F>(&target_block);
+        update_present_on_trusted_header(
+            &mut target_block_validators,
+            &target_block,
+            &trusted_block,
+        );
+
+        let temp_target_block_height_proof = self.get_merkle_proof(
+            &target_block.header,
+            BLOCK_HEIGHT_INDEX as u64,
+            target_block.header.height.encode_vec(),
+        );
+
+        let target_block_height_proof = HeightProofValueType::<F> {
+            height: target_block.header.height.value().into(),
+            enc_height_byte_length: target_block.header.height.encode_vec().len() as u32,
+            proof: temp_target_block_height_proof.proof,
+        };
+
+        let target_block_validators_hash_proof = self.get_merkle_proof(
+            &target_block.header,
+            VALIDATORS_HASH_INDEX as u64,
+            target_block.header.validators_hash.encode_vec(),
+        );
+
+        let trusted_block_validator_fields =
+            get_validators_fields_as_input::<VALIDATOR_SET_SIZE_MAX, F>(&trusted_block);
+        let trusted_block_validator_hash_proof = self.get_merkle_proof(
+            &trusted_block.header,
+            VALIDATORS_HASH_INDEX as u64,
+            trusted_block.header.validators_hash.encode_vec(),
+        );
+
+        (
+            target_block_validators,
+            target_block_header.as_bytes().try_into().unwrap(),
+            round_present,
+            target_block_height_proof,
+            target_block_validators_hash_proof,
+            trusted_block_hash.as_bytes().try_into().unwrap(),
+            trusted_block_validator_hash_proof,
+            trusted_block_validator_fields,
+        )
+    }
 }
 
 mod test {

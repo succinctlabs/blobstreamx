@@ -1,6 +1,6 @@
 //! To build the binary:
 //!
-//!     `cargo build --release --bin step`
+//!     `cargo build --release --bin skip`
 //!
 //! To build the circuit:
 //!
