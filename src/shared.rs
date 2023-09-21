@@ -69,17 +69,13 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintHeader<L, D> for CircuitBu
         // Calculates the index of the last non-zero septet.
         let mut last_seen_non_zero_septet_idx = self.zero();
 
-        is_zero_septets
-            .iter()
-            .enumerate()
-            .take(VARINT_BYTES_LENGTH_MAX)
-            .for_each(|(i, is_zero)| {
-                // Ok to cast as BoolVariable since is_zero_septets[i] is 0 or 1 so result is either 0 or 1
-                let is_nonzero_septet = BoolVariable(self.sub(one, is_zero.0));
-                let idx = self.constant::<Variable>(L::Field::from_canonical_usize(i));
-                last_seen_non_zero_septet_idx =
-                    self.select(is_nonzero_septet, idx, last_seen_non_zero_septet_idx);
-            });
+        for i in 0..VARINT_BYTES_LENGTH_MAX {
+            // Ok to cast as BoolVariable since is_zero_septets[i] is 0 or 1 so result is either 0 or 1
+            let is_nonzero_septet = BoolVariable(self.sub(one, is_zero_septets[i].0));
+            let idx = self.constant::<Variable>(L::Field::from_canonical_usize(i));
+            last_seen_non_zero_septet_idx =
+                self.select(is_nonzero_septet, idx, last_seen_non_zero_septet_idx);
+        }
 
         let mut res = [self.zero(); VARINT_BYTES_LENGTH_MAX];
 

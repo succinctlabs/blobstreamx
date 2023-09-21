@@ -148,7 +148,6 @@ pub trait TendermintVerify<
     );
 
     /// Sequentially verify a Tendermint consensus block.
-    #[allow(clippy::too_many_arguments)]
     fn step(
         &mut self,
         validators: &ArrayVariable<ValidatorVariable<Self::Curve>, VALIDATOR_SET_SIZE_MAX>,
@@ -173,7 +172,6 @@ pub trait TendermintVerify<
     );
 
     /// Verify Tendermint block that is non-sequential with the trusted block.
-    #[allow(clippy::too_many_arguments)]
     fn skip(
         &mut self,
         validators: &ArrayVariable<ValidatorVariable<Self::Curve>, VALIDATOR_SET_SIZE_MAX>,
