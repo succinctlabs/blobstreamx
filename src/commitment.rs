@@ -157,7 +157,7 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitment<L, D> for CircuitBuil
 
             curr_header_hash = prev_header_hash;
         }
-        // Verify the last header hash in the chain is the trusted header.
+        // Verify the last header hash in the chain is the start header.
         self.assert_is_equal(curr_header_hash, input.start_header);
     }
 
