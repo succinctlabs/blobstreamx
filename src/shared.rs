@@ -149,7 +149,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintHeader<L, D> for CircuitBu
         let block_height_path = vec![false_t, true_t, false_t, false_t];
 
         // Verify the current header height proof against the current header.
-        let encoded_height = self.marshal_int64_varint(&height);
+        let encoded_height = self.marshal_int64_varint(height);
         let encoded_height = self.leaf_encode_marshalled_varint(&BytesVariable(encoded_height));
 
         // Extend encoded_height to 64 bytes for curta_sha256_variable.
