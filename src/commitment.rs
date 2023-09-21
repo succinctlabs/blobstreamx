@@ -3,10 +3,8 @@ use plonky2x::frontend::ecc::ed25519::curve::curve_types::Curve;
 use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
 
 use plonky2x::frontend::uint::uint64::U64Variable;
-use plonky2x::frontend::vars::{ArrayVariable, Bytes32Variable, EvmVariable, U32Variable};
-use plonky2x::prelude::{
-    BoolVariable, ByteVariable, BytesVariable, CircuitBuilder, CircuitVariable, Variable,
-};
+use plonky2x::frontend::vars::{ArrayVariable, Bytes32Variable, EvmVariable};
+use plonky2x::prelude::{BoolVariable, ByteVariable, BytesVariable, CircuitBuilder};
 use tendermint::merkle::HASH_SIZE;
 
 use crate::consts::{HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES};
