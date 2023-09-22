@@ -16,7 +16,7 @@ use crate::consts::{
 use crate::input_data::types::{get_validators_as_input, get_validators_fields_as_input};
 use crate::variables::HeightProofValueType;
 use crate::verify::{Validator, ValidatorHashField};
-use ethers::types::H256;
+use ethers::types::{H256, U64};
 use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
 use plonky2x::prelude::RichField;
 use tendermint_proto::types::BlockId as RawBlockId;
@@ -44,6 +44,46 @@ impl InputDataFetcher {
 
     pub fn set_save(&mut self, save: bool) {
         self.save = save;
+    }
+
+    pub async fn get_header_from_number(&self, block_number: u64) -> Box<TempSignedBlock> {
+        let fetched_result = match &self.mode {
+            InputDataMode::Rpc(url) => {
+                let query_url = format!(
+                    "{}/signed_block?height={}",
+                    url,
+                    block_number.to_string().as_str()
+                );
+                let res = reqwest::get(query_url).await.unwrap().text().await.unwrap();
+                if self.save {
+                    println!("hi");
+                    let file_name = format!(
+                        "./src/fixtures/updated/{}/signed_block.json",
+                        block_number.to_string().as_str()
+                    );
+                    // Ensure the directory exists
+                    if let Some(parent) = Path::new(&file_name).parent() {
+                        fs::create_dir_all(parent).unwrap();
+                    }
+                    fs::write(file_name.as_str(), res.as_bytes()).expect("Unable to write file");
+                }
+                res
+            }
+            InputDataMode::Fixture => {
+                let file_name = format!(
+                    "./src/fixtures/updated/{}/signed_block.json",
+                    block_number.to_string().as_str()
+                );
+                println!("{:?}", file_name);
+                let file_content = fs::read_to_string(file_name.as_str());
+                println!("Getting fixture");
+                file_content.unwrap()
+            }
+        };
+        let v: SignedBlockResponse =
+            serde_json::from_str(&fetched_result).expect("Failed to parse JSON");
+        let temp_block = v.result;
+        Box::new(temp_block)
     }
 
     pub async fn get_block_from_number(&self, block_number: u64) -> Box<TempSignedBlock> {
@@ -264,9 +304,9 @@ impl InputDataFetcher {
     ) -> (
         Vec<[u8; 32]>,                 // data_hashes
         [u8; 32],                      // end_header
-        TempMerkleInclusionProof,      // end_header_height_proof
+        U64,                           // end_block_height
         [u8; 32],                      // start_header
-        TempMerkleInclusionProof,      // start_header_height_proof
+        U64,                           // start_block_height
         Vec<TempMerkleInclusionProof>, // data_hash_proofs
         Vec<TempMerkleInclusionProof>, // prev_header_proofs
     ) {
@@ -277,18 +317,6 @@ impl InputDataFetcher {
             start_header_hash.as_bytes()
         );
 
-        let temp_start_block_height_proof = self.get_merkle_proof(
-            &start_block.header,
-            BLOCK_HEIGHT_INDEX as u64,
-            start_block.header.height.encode_vec(),
-        );
-
-        let target_block_height_proof = HeightProofValueType::<F> {
-            height: start_block.header.height.value().into(),
-            enc_height_byte_length: start_block.header.height.encode_vec().len() as u32,
-            proof: temp_start_block_height_proof.proof,
-        };
-
         let end_block = self.get_block_from_number(start_block_number).await;
         let computed_end_header_hash = start_block.header.hash();
         assert_eq!(
@@ -296,26 +324,14 @@ impl InputDataFetcher {
             end_header_hash.as_bytes()
         );
 
-        let target_block_validators_hash_proof = self.get_merkle_proof(
-            &target_block.header,
-            VALIDATORS_HASH_INDEX as u64,
-            target_block.header.validators_hash.encode_vec(),
-        );
-
-        let trusted_block_validator_fields =
-            get_validators_fields_as_input::<VALIDATOR_SET_SIZE_MAX, F>(&trusted_block);
-        let trusted_block_validator_hash_proof = self.get_merkle_proof(
-            &trusted_block.header,
-            VALIDATORS_HASH_INDEX as u64,
-            trusted_block.header.validators_hash.encode_vec(),
-        );
+        let (data_hashes, data_hash_proofs, prev_header_proofs) = 
 
         (
-            target_block_validators,
-            target_block_header.as_bytes().try_into().unwrap(),
-            round_present,
-            target_block_height_proof,
-            target_block_validators_hash_proof,
+            ,
+            end_header_hash.as_bytes().try_into().unwrap(),
+            U64::from(end_block_number),
+            start_header_hash.as_bytes().try_into().unwrap(),
+            U64::from(start_block_number),
             trusted_block_hash.as_bytes().try_into().unwrap(),
             trusted_block_validator_hash_proof,
             trusted_block_validator_fields,
