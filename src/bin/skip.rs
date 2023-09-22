@@ -13,8 +13,8 @@
 //! Note that this circuit will not work with field-based io.
 
 use celestia::circuits::{
-    HashInclusionProofVariable, HeightProofVariable, TendermintVerify, ValidatorHashFieldVariable,
-    ValidatorVariable,
+    HashInclusionProofVariable, HeightProofVariable, TendermintVerifyBuilder,
+    ValidatorHashFieldVariable, ValidatorVariable,
 };
 use celestia::constants::HEADER_PROOF_DEPTH;
 use celestia::input_data::{InputDataFetcher, InputDataMode};

@@ -290,7 +290,6 @@ pub(crate) mod tests {
         builder.write(data_root_tuple);
         let circuit = builder.build();
 
-        // Compute the expected outputs for testing.
         let mut expected_data_tuple_root = Vec::new();
         let expected_height = [
             0u8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,

@@ -55,7 +55,8 @@ fn mul_i64_by_u32<F: RichField + Extendable<D>, const D: usize>(
     // NOTE: This will limit the maximum size of numbers to (2^64 - 1) / b
     api.assert_zero_u32(upper_carry);
 
-    // Add the carry from the lower 32 bits of the accumulated voting power to the upper 32 bits of the accumulated voting power
+    // Add the carry from the lower 32 bits of the accumulated voting power to the upper 32 bits of
+    // the accumulated voting power.
     let (upper_sum, upper_carry) = api.add_u32(upper_product, lower_carry);
 
     // Check that we did not overflow when multiplying the upper bits
@@ -94,7 +95,8 @@ fn is_i64_gte<F: RichField + Extendable<D>, const D: usize>(
     let no_underflow_low = api.is_equal(underflow_low.0, zero_u32.0);
 
     // Case 1)
-    // If there was no underflow & a_high - b_high is not equal (i.e. positive), accumulated voting power is greater.
+    // If there was no underflow & a_high - b_high is not equal (i.e. positive), accumulated voting
+    //  power is greater.
     let upper_pass = api.and(upper_not_equal, no_underflow_high);
 
     // Case 2a)
@@ -105,15 +107,16 @@ fn is_i64_gte<F: RichField + Extendable<D>, const D: usize>(
     api.or(upper_pass, lower_pass)
 }
 
-pub trait TendermintVoting {
+pub trait TendermintVotingBuilder {
     type Curve: Curve;
-    // Gets the total voting power by summing the voting power of all validators.
+
+    /// Gets the total voting power by summing the voting power of all validators.
     fn get_total_voting_power<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
         validator_voting_power: &[U64Variable],
     ) -> U64Variable;
 
-    // Checks if accumulated voting power * m > total voting power * n (threshold is n/m)
+    /// Checks if accumulated voting power * m > total voting power * n (threshold is n/m)
     fn voting_power_greater_than_threshold(
         &mut self,
         accumulated_power: &U64Variable,
@@ -122,7 +125,8 @@ pub trait TendermintVoting {
         threshold_denominator: &U32Variable,
     ) -> BoolVariable;
 
-    /// Accumulate voting power from the enabled validators & check that the voting power is greater than 2/3 of the total voting power.
+    /// Accumulate voting power from the enabled validators & check that the voting power is greater
+    ///  than 2/3 of the total voting power.
     fn check_voting_power<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
         validator_voting_power: &[U64Variable],
@@ -133,7 +137,7 @@ pub trait TendermintVoting {
     ) -> BoolVariable;
 }
 
-impl<L: PlonkParameters<D>, const D: usize> TendermintVoting for CircuitBuilder<L, D> {
+impl<L: PlonkParameters<D>, const D: usize> TendermintVotingBuilder for CircuitBuilder<L, D> {
     type Curve = Ed25519;
 
     fn get_total_voting_power<const VALIDATOR_SET_SIZE_MAX: usize>(

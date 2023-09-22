@@ -1,3 +1,5 @@
+//! This file containts methods used for dealing with Tendermint validators within a circuit.
+
 use plonky2x::frontend::ecc::ed25519::curve::curve_types::Curve;
 use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
 use plonky2x::frontend::ecc::ed25519::gadgets::curve::{AffinePointTarget, CircuitBuilderCurve};
@@ -13,7 +15,7 @@ use crate::circuits::{
 };
 use crate::constants::VALIDATOR_BYTE_LENGTH_MAX;
 
-pub trait TendermintValidator<L: PlonkParameters<D>, const D: usize> {
+pub trait TendermintValidatorBuilder<L: PlonkParameters<D>, const D: usize> {
     type Curve: Curve;
 
     /// Serializes the validator public key and voting power to bytes.
@@ -51,7 +53,9 @@ pub trait TendermintValidator<L: PlonkParameters<D>, const D: usize> {
     ) -> TendermintHashVariable;
 }
 
-impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for CircuitBuilder<L, D> {
+impl<L: PlonkParameters<D>, const D: usize> TendermintValidatorBuilder<L, D>
+    for CircuitBuilder<L, D>
+{
     type Curve = Ed25519;
 
     fn marshal_tendermint_validator(
@@ -66,9 +70,9 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for Circui
 
         let compressed_point = self.api.compress_point(pubkey);
 
-        // TODO: in the future compressed_point should probably return a Bytes32Variable
-        // We iterate in reverse order because the marshalling expects little-endian
-        // and the bytes are returned as big-endian.
+        // TODO: in the future compressed_point should probably return a Bytes32Variable. We iterate
+        // in reverse order because the marshalling expects little-endian and the bytes are returned
+        // as big-endian.
         for i in (0..32).rev() {
             let byte_variable = ByteVariable::from_variables_unsafe(
                 &compressed_point.bit_targets[i * 8..(i + 1) * 8]
@@ -78,15 +82,12 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for Circui
             );
             res.push(byte_variable);
         }
-
         res.push(self.constant::<ByteVariable>(16u8));
 
         // The remaining bytes of the serialized validator are the voting power as a "varint".
         let voting_power_serialized = self.marshal_int64_varint(voting_power);
         res.extend_from_slice(&voting_power_serialized);
-
         assert_eq!(res.len(), VALIDATOR_BYTE_LENGTH_MAX);
-
         BytesVariable::<VALIDATOR_BYTE_LENGTH_MAX>(res.try_into().unwrap())
     }
 
@@ -166,7 +167,7 @@ pub(crate) mod tests {
     use tendermint_proto::Protobuf;
 
     use super::*;
-    use crate::circuits::TendermintValidator;
+    use crate::circuits::TendermintValidatorBuilder;
     use crate::constants::{HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES};
     use crate::input_data::tendermint_utils::{
         generate_proofs_from_header, hash_all_leaves, proofs_from_byte_slices,
@@ -189,7 +190,6 @@ pub(crate) mod tests {
         )
         .unwrap();
 
-        // Define the circuit
         let mut builder = DefaultBuilder::new();
         let voting_power_variable = builder.read::<U64Variable>();
         let pub_key = builder.read::<AffinePointTarget<Curve>>();
@@ -205,7 +205,6 @@ pub(crate) mod tests {
         let (_, mut output) = circuit.prove(&input);
         let output_bytes = output.read::<BytesVariable<VALIDATOR_BYTE_LENGTH_MAX>>();
 
-        // Debug print output
         println!("pub_key_uncompressed: {:?}", pub_key_uncompressed);
         println!(
             "pub_key.x: {:?}",
@@ -236,10 +235,8 @@ pub(crate) mod tests {
     #[cfg_attr(feature = "ci", ignore)]
     fn test_hash_validator_leaves() {
         const VALIDATOR_SET_SIZE_MAX: usize = 4;
-
         env_logger::try_init().unwrap_or_default();
 
-        // Define the circuit
         let mut builder = DefaultBuilder::new();
         let messages =
             builder.read::<ArrayVariable<MarshalledValidatorVariable, VALIDATOR_SET_SIZE_MAX>>();
@@ -253,7 +250,12 @@ pub(crate) mod tests {
         builder.write(hashed_leaves);
         let circuit = builder.build();
 
-        let validators: Vec<&str> = vec!["6694200ba0e084f7184255abedc39af04463a4ff11e0e0c1326b1b82ea1de50c6b35cf6efa8f7ed3", "739d312e54353379a852b43de497ca4ec52bb49f59b7294a4d6cf19dd648e16cb530b7a7a1e35875d4ab4d90", "4277f2f871f3e041bcd4643c0cf18e5a931c2bfe121ce8983329a289a2b0d2161745a2ddf99bade9a1", "4277f2f871f3e041bcd4643c0cf18e5a931c2bfe121ce8983329a289a2b0d2161745a2ddf99bade9a1"];
+        let validators: Vec<&str> = vec![
+            "6694200ba0e084f7184255abedc39af04463a4ff11e0e0c1326b1b82ea1de50c6b35cf6efa8f7ed3", 
+            "739d312e54353379a852b43de497ca4ec52bb49f59b7294a4d6cf19dd648e16cb530b7a7a1e35875d4ab4d90", 
+            "4277f2f871f3e041bcd4643c0cf18e5a931c2bfe121ce8983329a289a2b0d2161745a2ddf99bade9a1", 
+            "4277f2f871f3e041bcd4643c0cf18e5a931c2bfe121ce8983329a289a2b0d2161745a2ddf99bade9a1"
+        ];
         let validators_bytes = validators
             .iter()
             .map(|x| hex::decode(x).unwrap())
@@ -295,7 +297,6 @@ pub(crate) mod tests {
     #[cfg_attr(feature = "ci", ignore)]
     fn test_generate_validators_hash() {
         const VALIDATOR_SET_SIZE_MAX: usize = 4;
-
         env_logger::try_init().unwrap_or_default();
 
         // Define the circuit

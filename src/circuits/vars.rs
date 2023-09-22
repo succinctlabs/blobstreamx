@@ -47,27 +47,41 @@ pub struct HeightProofVariable {
 }
 
 // The data commitment inputs as a struct.
-// Note: data_hashes should be in order from start_header to end_header - 1.
+// Note:
 // Note: data_hash_proofs and prev_header_proofs should be in order from end_header to start_header.
 // Note: data_hash_proofs starts at end_header - 1.
 // Note: prev_header_proofs starts at end_header.
 #[derive(Clone, Debug, CircuitVariable)]
 #[value_name(DataCommitmentProofValueType)]
 pub struct DataCommitmentProofVariable<const WINDOW_RANGE: usize> {
+    /// Should be in order from `start_header` to `end_header - 1`.
     pub data_hashes: ArrayVariable<Bytes32Variable, WINDOW_RANGE>,
+
+    /// TODO: add
     pub end_header: Bytes32Variable,
+
+    /// TODO: add
     pub end_header_height_proof: HeightProofVariable,
+
+    /// TODO: add
     pub start_header: Bytes32Variable,
+
+    /// TODO: add
     pub start_header_height_proof: HeightProofVariable,
+
+    /// TODO: add
     pub data_hash_proofs: ArrayVariable<
         MerkleInclusionProofVariable<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES>,
         WINDOW_RANGE,
     >,
+
+    /// TODO: add
     pub prev_header_proofs: ArrayVariable<
         MerkleInclusionProofVariable<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES>,
         WINDOW_RANGE,
     >,
 }
+
 /// The voting power as a list of 2 u32 targets.
 #[derive(Debug, Clone, Copy)]
 pub struct I64Target(pub [U32Target; 2]);
