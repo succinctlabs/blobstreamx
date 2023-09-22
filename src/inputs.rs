@@ -247,17 +247,9 @@ pub fn generate_data_commitment_inputs<const WINDOW_SIZE: usize, F: RichField>(
     DataCommitmentProofValueType {
         data_hashes,
         end_header: H256::from_slice(fixture.end_header.as_bytes()),
-        end_header_height_proof: HeightProofValueType {
-            proof: fixture.end_block_height_proof.proof,
-            height: fixture.end_block.into(),
-            enc_height_byte_length: fixture.encoded_end_height_byte_length,
-        },
+        end_block_height: fixture.end_block.into(),
         start_header: H256::from_slice(fixture.start_header.as_bytes()),
-        start_header_height_proof: HeightProofValueType {
-            proof: fixture.start_block_height_proof.proof,
-            height: fixture.start_block.into(),
-            enc_height_byte_length: fixture.encoded_start_height_byte_length,
-        },
+        start_block_height: fixture.start_block.into(),
         prev_header_proofs,
         data_hash_proofs,
     }

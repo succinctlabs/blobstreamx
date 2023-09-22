@@ -8,7 +8,6 @@ use plonky2x::prelude::{BoolVariable, ByteVariable, BytesVariable, CircuitBuilde
 use tendermint::merkle::HASH_SIZE;
 
 use crate::consts::{HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES};
-use crate::shared::TendermintHeader;
 use crate::variables::DataCommitmentProofVariable;
 
 pub trait DataCommitment<L: PlonkParameters<D>, const D: usize> {
@@ -101,30 +100,6 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitment<L, D> for CircuitBuil
         &mut self,
         input: DataCommitmentProofVariable<WINDOW_RANGE>,
     ) {
-        // Verify current_block_height - trusted_block_height == WINDOW_RANGE
-        let height_diff = self.sub(
-            input.end_header_height_proof.height,
-            input.start_header_height_proof.height,
-        );
-        let window_range_target = self.constant::<U64Variable>(WINDOW_RANGE.into());
-        self.assert_is_equal(height_diff, window_range_target);
-
-        // Verify the current block's height
-        self.verify_block_height(
-            input.end_header,
-            &input.end_header_height_proof.proof,
-            &input.end_header_height_proof.height,
-            input.end_header_height_proof.enc_height_byte_length,
-        );
-
-        // Verify the trusted block's height
-        self.verify_block_height(
-            input.start_header,
-            &input.start_header_height_proof.proof,
-            &input.start_header_height_proof.height,
-            input.start_header_height_proof.enc_height_byte_length,
-        );
-
         // Verify the header chain.
         let mut curr_header_hash = input.end_header;
 
@@ -163,7 +138,7 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitment<L, D> for CircuitBuil
         // Compute the data commitment.
         let data_commitment = self.get_data_commitment::<WINDOW_RANGE, NB_LEAVES>(
             &input.data_hashes,
-            input.start_header_height_proof.height,
+            input.start_block_height,
         );
         // Verify the header chain.
         self.prove_header_chain::<WINDOW_RANGE>(input);
