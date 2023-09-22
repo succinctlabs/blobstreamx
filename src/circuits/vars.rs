@@ -1,16 +1,14 @@
+use plonky2x::frontend::ecc::ed25519::gadgets::curve::AffinePointTarget;
+use plonky2x::frontend::merkle::tree::MerkleInclusionProofVariable;
+use plonky2x::frontend::num::u32::gadgets::arithmetic_u32::U32Target;
+use plonky2x::frontend::uint::uint64::U64Variable;
+use plonky2x::frontend::vars::U32Variable;
 use plonky2x::prelude::{
-    CircuitBuilder, PlonkParameters, RichField, Variable, Witness, WitnessWrite,
-};
-use plonky2x::{
-    frontend::{
-        ecc::ed25519::gadgets::curve::AffinePointTarget,
-        merkle::tree::MerkleInclusionProofVariable, num::u32::gadgets::arithmetic_u32::U32Target,
-        uint::uint64::U64Variable, vars::U32Variable,
-    },
-    prelude::{ArrayVariable, Bytes32Variable, BytesVariable, CircuitVariable},
+    ArrayVariable, Bytes32Variable, BytesVariable, CircuitBuilder, CircuitVariable,
+    PlonkParameters, RichField, Variable, Witness, WitnessWrite,
 };
 
-use crate::consts::{
+use crate::constants::{
     HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES,
     VALIDATOR_BYTE_LENGTH_MAX, VALIDATOR_MESSAGE_BYTES_LENGTH_MAX,
 };
@@ -32,16 +30,19 @@ pub type MarshalledValidatorVariable = BytesVariable<VALIDATOR_BYTE_LENGTH_MAX>;
 /// The message signed by the validator as a variable.
 pub type ValidatorMessageVariable = BytesVariable<VALIDATOR_MESSAGE_BYTES_LENGTH_MAX>;
 
-// A block height proof as a struct.
-// Proof is the block height proof against a header.
-// Height is the block height of the header as a u64.
-// EncHeightByteLength is the length of the protobuf-encoded height as a u32.
+/// A block height proof as a struct.
+
 // TODO: Make this generic for all variable length header proofs.
 #[derive(Clone, Debug, CircuitVariable)]
 #[value_name(HeightProofValueType)]
 pub struct HeightProofVariable {
+    /// Proof is the block height proof against a header.
     pub proof: ArrayVariable<Bytes32Variable, HEADER_PROOF_DEPTH>,
+
+    /// The length of the protobuf-encoded height as a u32.
     pub enc_height_byte_length: U32Variable,
+
+    /// Height is the block height of the header as a u64.
     pub height: U64Variable,
 }
 

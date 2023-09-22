@@ -1,16 +1,17 @@
-use crate::consts::{HEADER_PROOF_DEPTH, PROTOBUF_VARINT_SIZE_BYTES, VARINT_BYTES_LENGTH_MAX};
+//! This file implements methods realted to Tendermint headers inside a circuit.
+
 use plonky2x::frontend::ecc::ed25519::curve::curve_types::Curve;
 use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
 use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::frontend::vars::U32Variable;
-use plonky2x::prelude::Field;
-
 use plonky2x::prelude::{
     ArrayVariable, BoolVariable, ByteVariable, Bytes32Variable, BytesVariable, CircuitBuilder,
-    CircuitVariable, PlonkParameters, Variable,
+    CircuitVariable, Field, PlonkParameters, Variable,
 };
 
-pub trait TendermintHeader<L: PlonkParameters<D>, const D: usize> {
+use crate::constants::{HEADER_PROOF_DEPTH, PROTOBUF_VARINT_SIZE_BYTES, VARINT_BYTES_LENGTH_MAX};
+
+pub trait TendermintHeaderBuilder<L: PlonkParameters<D>, const D: usize> {
     type Curve: Curve;
 
     /// Serializes an int64 as a protobuf varint.
@@ -19,8 +20,9 @@ pub trait TendermintHeader<L: PlonkParameters<D>, const D: usize> {
         num: &U64Variable,
     ) -> [ByteVariable; VARINT_BYTES_LENGTH_MAX];
 
-    /// Encodes the marshalled height into a BytesVariable<11> that can be hashed according to the Tendermint spec.
-    /// Prepends a 0x00 byte for the leaf prefix and a 0x08 byte to the marshalled varint.
+    /// Encodes the marshalled height into a BytesVariable<11> that can be hashed according to the
+    /// Tendermint spec. Prepends a 0x00 byte for the leaf prefix and a 0x08 byte to the marshalled
+    /// varint.
     fn leaf_encode_marshalled_varint(
         &mut self,
         marshalled_varint: &BytesVariable<9>,
@@ -36,7 +38,7 @@ pub trait TendermintHeader<L: PlonkParameters<D>, const D: usize> {
     );
 }
 
-impl<L: PlonkParameters<D>, const D: usize> TendermintHeader<L, D> for CircuitBuilder<L, D> {
+impl<L: PlonkParameters<D>, const D: usize> TendermintHeaderBuilder<L, D> for CircuitBuilder<L, D> {
     type Curve = Ed25519;
 
     fn marshal_int64_varint(
@@ -85,7 +87,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintHeader<L, D> for CircuitBu
 
         let mut res = [self.zero(); VARINT_BYTES_LENGTH_MAX];
 
-        // If the index of a septet is elss than the last non-zero septet, set the most significant
+        // If the index of a septet is else than the last non-zero septet, set the most significant
         // bit of the byte to 1 and copy the septet bits into the lower 7 bits. Otherwise, still
         // copy the bit but the set the most significant bit to zero.
         for i in 0..VARINT_BYTES_LENGTH_MAX {
@@ -103,8 +105,8 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintHeader<L, D> for CircuitBu
                     self.or(is_lt_last_non_zero_septet_idx, is_candidate);
             }
 
-            let mut buffer = [self._false(); 8];
             // Copy septet bits into the buffer.
+            let mut buffer = [self._false(); 8];
             for j in 0..7 {
                 let bit = value_bits[i * 7 + j];
                 buffer[j] = bit;
@@ -186,13 +188,11 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintHeader<L, D> for CircuitBu
     }
 }
 
-// To run tests with logs (i.e. to see proof generation time), set the environment variable `RUST_LOG=debug` before the test command.
-// Alternatively, add env::set_var("RUST_LOG", "debug") to the top of the test.
 #[cfg(test)]
 pub(crate) mod tests {
-    use super::*;
-
     use plonky2x::prelude::DefaultBuilder;
+
+    use super::*;
 
     #[test]
     fn test_marshal_int64_varint() {

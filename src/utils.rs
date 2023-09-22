@@ -1,9 +1,9 @@
-use plonky2::hash::hash_types::RichField;
-
-use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 use std::cell::RefCell;
 use std::rc::Rc;
+
+use plonky2::hash::hash_types::RichField;
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use subtle_encoding::hex;
 /// Source (tendermint-rs): https://github.com/informalsystems/tendermint-rs/blob/e930691a5639ef805c399743ac0ddbba0e9f53da/tendermint/src/merkle.rs#L32
 use tendermint::{
@@ -14,10 +14,9 @@ use tendermint::{
     vote::Power,
     vote::{ValidatorIndex, Vote},
 };
-use tendermint_proto::{
-    types::BlockId as RawBlockId, types::Data as RawData,
-    version::Consensus as RawConsensusVersion, Protobuf,
-};
+use tendermint_proto::types::{BlockId as RawBlockId, Data as RawData};
+use tendermint_proto::version::Consensus as RawConsensusVersion;
+use tendermint_proto::Protobuf;
 
 // TODO: I think we can remove a lot of these methods, as we no longer need them
 // Convert from [BoolTarget; HASH_SIZE_BITS] to [BoolTarget; PROTOBUF_HASH_SIZE_BITS]
@@ -469,16 +468,16 @@ pub fn non_absent_vote(
 pub(crate) mod tests {
     use sha2::Sha256;
     use subtle_encoding::hex;
-    use tendermint_proto::{types::SimpleValidator as RawSimpleValidator, Protobuf};
+    use tendermint::merkle::simple_hash_from_byte_vectors;
+    use tendermint::validator::{Set as ValidatorSet, SimpleValidator};
+    use tendermint::vote::{SignedVote, ValidatorIndex};
+    use tendermint_proto::types::SimpleValidator as RawSimpleValidator;
+    use tendermint_proto::Protobuf;
 
-    use super::{generate_proofs_from_header, TempSignedBlock};
-    use tendermint::{
-        merkle::simple_hash_from_byte_vectors,
-        validator::{Set as ValidatorSet, SimpleValidator},
-        vote::{SignedVote, ValidatorIndex},
+    use super::{
+        generate_proofs_from_header, inner_hash, leaf_hash, non_absent_vote, SignedBlock,
+        TempSignedBlock,
     };
-
-    use super::{inner_hash, leaf_hash, non_absent_vote, SignedBlock};
 
     #[test]
     fn test_validator_inclusion() {
@@ -529,7 +528,7 @@ pub(crate) mod tests {
     fn test_generate_validator_hash_proof() {
         // Generate test cases from Celestia block:
         let temp_block = serde_json::from_str::<TempSignedBlock>(include_str!(
-            "./fixtures/mocha-3/signed_celestia_block.json"
+            "../fixtures/mocha-3/signed_celestia_block.json"
         ))
         .unwrap();
         // Cast to SignedBlock
@@ -564,7 +563,7 @@ pub(crate) mod tests {
         // Generate test cases from Celestia block:
         let temp_block = Box::new(
             serde_json::from_str::<TempSignedBlock>(include_str!(
-                "./fixtures/mocha-3/signed_celestia_block.json"
+                "../fixtures/mocha-3/signed_celestia_block.json"
             ))
             .unwrap(),
         );
@@ -657,7 +656,7 @@ pub(crate) mod tests {
     fn test_verify_validator_hash_from_root_proof() {
         // Generate test cases from Celestia block:
         let block = serde_json::from_str::<tendermint::block::Block>(include_str!(
-            "./fixtures/mocha-3/celestia_block.json"
+            "../fixtures/mocha-3/celestia_block.json"
         ))
         .unwrap();
 

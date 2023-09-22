@@ -1,42 +1,41 @@
-use crate::consts::VALIDATOR_BYTE_LENGTH_MAX;
-use crate::shared::TendermintHeader;
-use crate::variables::{MarshalledValidatorVariable, TendermintHashVariable};
 use plonky2x::frontend::ecc::ed25519::curve::curve_types::Curve;
 use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
 use plonky2x::frontend::ecc::ed25519::gadgets::curve::{AffinePointTarget, CircuitBuilderCurve};
 use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::frontend::vars::U32Variable;
-
 use plonky2x::prelude::{
     BoolVariable, ByteVariable, BytesVariable, CircuitBuilder, CircuitVariable, PlonkParameters,
     Variable,
 };
 
+use crate::circuits::{
+    MarshalledValidatorVariable, TendermintHashVariable, TendermintHeaderBuilder,
+};
+use crate::constants::VALIDATOR_BYTE_LENGTH_MAX;
+
 pub trait TendermintValidator<L: PlonkParameters<D>, const D: usize> {
     type Curve: Curve;
 
     /// Serializes the validator public key and voting power to bytes.
-    /// The protobuf encoding of a Tendermint validator is a deterministic function of the validator's
-    /// public key (32 bytes) and voting power (int64). The encoding is as follows in bytes:
-    /// 10 34 10 32 <pubkey> 16 <varint>
-    /// The `pubkey` is encoded as the raw list of bytes used in the public key. The `varint` is
-    /// encoded using protobuf's default integer encoding, which consist of 7 bit payloads. You can
-    /// read more about them here: https://protobuf.dev/programming-guides/encoding/#varints.  
     fn marshal_tendermint_validator(
         &mut self,
         pubkey: &AffinePointTarget<Self::Curve>,
         voting_power: &U64Variable,
     ) -> MarshalledValidatorVariable;
 
-    /// Hashes validator bytes to get the leaf according to the Tendermint spec. (0x00 || validatorBytes)
-    /// Note: This function differs from leaf_hash_stark because the validator bytes length is variable.
+    /// Hashes validator bytes to get the leaf according to the Tendermint spec:
+    ///
+    ///     (0x00 || validatorBytes)
+    ///
+    /// Note: This function differs from `leaf_hash_stark` because the validator length is variable.
     fn hash_validator_leaf(
         &mut self,
         validator: &MarshalledValidatorVariable,
         validator_byte_length: Variable,
     ) -> TendermintHashVariable;
 
-    /// Hashes multiple validators to get their leaves according to the Tendermint spec using hash_validator_leaf.
+    /// Hashes multiple validators to get their leaves according to the Tendermint spec using
+    /// `hash_validator_leaf`.
     fn hash_validator_leaves<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
         validators: &[MarshalledValidatorVariable],
@@ -102,13 +101,13 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for Circui
         let one = self.one::<Variable>();
         let enc_validator_byte_length = self.add(one, validator_byte_length);
         // TODO: note this is a bit unsafe, so perhaps we should change `curta_sha256_variable` to take in a Variable
-        // instead of a U32Variable
+        // instead of a U32Variable.
         let input_byte_length = U32Variable(enc_validator_byte_length);
 
         let zero = self.zero::<U32Variable>();
         prepended_validator_bytes.resize(64, self.zero::<ByteVariable>());
 
-        // VALIDATOR_BYTE_LENGTH_MAX = 46 so we only need 1 chunk
+        // VALIDATOR_BYTE_LENGTH_MAX = 46 so we only need 1 chunk.
         self.curta_sha256_variable::<1>(&prepended_validator_bytes, zero, input_byte_length)
     }
 
@@ -151,30 +150,30 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for Circui
     }
 }
 
-// To run tests with logs (i.e. to see proof generation time), set the environment variable `RUST_LOG=debug` before the test command.
-// Alternatively, add env::set_var("RUST_LOG", "debug") to the top of the test.
 #[cfg(test)]
 pub(crate) mod tests {
-    use super::*;
-    use crate::consts::{HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES};
-    use crate::input_data::tendermint_utils::{
-        generate_proofs_from_header, hash_all_leaves, proofs_from_byte_slices,
-    };
-    use crate::input_data::utils::{convert_to_h256, get_path_indices};
-    // TODO: Remove dependency on inputs.
-    use crate::inputs::get_signed_block_from_fixture;
-    use crate::validator::TendermintValidator;
     use ethers::types::H256;
     use ethers::utils::hex;
     use itertools::Itertools;
     use plonky2::field::types::PrimeField;
     use plonky2x::frontend::ecc::ed25519::curve::curve_types::AffinePoint;
     use plonky2x::frontend::merkle::tree::{InclusionProof, MerkleInclusionProofVariable};
-    use plonky2x::prelude::Field;
-    use plonky2x::prelude::{ArrayVariable, Bytes32Variable, DefaultBuilder, GoldilocksField};
+    use plonky2x::prelude::{
+        ArrayVariable, Bytes32Variable, DefaultBuilder, Field, GoldilocksField,
+    };
     use sha2::Sha256;
     use tendermint_proto::types::BlockId as RawBlockId;
     use tendermint_proto::Protobuf;
+
+    use super::*;
+    use crate::circuits::TendermintValidator;
+    use crate::constants::{HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES};
+    use crate::input_data::tendermint_utils::{
+        generate_proofs_from_header, hash_all_leaves, proofs_from_byte_slices,
+    };
+    use crate::input_data::utils::{convert_to_h256, get_path_indices};
+    // TODO: Remove dependency on inputs.
+    use crate::inputs::get_signed_block_from_fixture;
 
     type Curve = Ed25519;
 

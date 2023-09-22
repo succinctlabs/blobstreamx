@@ -1,7 +1,29 @@
 use std::fs;
 use std::path::PathBuf;
 
-use crate::consts::{
+use ed25519_consensus::SigningKey;
+use ethers::types::H256;
+use num::BigUint;
+use plonky2x::frontend::ecc::ed25519::curve::curve_types::AffinePoint;
+use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
+use plonky2x::frontend::ecc::ed25519::field::ed25519_scalar::Ed25519Scalar;
+use plonky2x::frontend::ecc::ed25519::gadgets::eddsa::EDDSASignatureTarget;
+use plonky2x::frontend::merkle::tree::InclusionProof;
+use plonky2x::prelude::{CircuitVariable, Field, GoldilocksField, RichField};
+use serde::{Deserialize, Serialize};
+use sha2::Sha256;
+use tendermint::crypto::ed25519::VerificationKey;
+use tendermint::validator::Set as ValidatorSet;
+use tendermint::vote::{SignedVote, ValidatorIndex};
+use tendermint::{private_key, Signature};
+use tendermint_proto::types::BlockId as RawBlockId;
+use tendermint_proto::Protobuf;
+
+use crate::circuits::{
+    BlockIDInclusionProofVariable, DataCommitmentProofValueType, HashInclusionProofVariable,
+    HeightProofValueType, Validator, ValidatorHashField, DUMMY_SIGNATURE,
+};
+use crate::constants::{
     HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES,
     VALIDATOR_MESSAGE_BYTES_LENGTH_MAX,
 };
@@ -13,31 +35,6 @@ use crate::input_data::tendermint_utils::{
 };
 // TODO: Remove dependency on utils.
 use crate::utils::SignedBlock;
-use crate::variables::{DataCommitmentProofValueType, HeightProofValueType};
-use crate::verify::BlockIDInclusionProofVariable;
-use crate::verify::HashInclusionProofVariable;
-use ed25519_consensus::SigningKey;
-use ethers::types::H256;
-use num::BigUint;
-use plonky2x::frontend::ecc::ed25519::curve::curve_types::AffinePoint;
-use plonky2x::frontend::ecc::{
-    ed25519::curve::ed25519::Ed25519, ed25519::field::ed25519_scalar::Ed25519Scalar,
-};
-use plonky2x::prelude::Field;
-
-use crate::signature::DUMMY_SIGNATURE;
-use crate::verify::{Validator, ValidatorHashField};
-use plonky2x::frontend::ecc::ed25519::gadgets::eddsa::EDDSASignatureTarget;
-use plonky2x::frontend::merkle::tree::InclusionProof;
-use plonky2x::prelude::RichField;
-use plonky2x::prelude::{CircuitVariable, GoldilocksField};
-use serde::{Deserialize, Serialize};
-use sha2::Sha256;
-use tendermint::crypto::ed25519::VerificationKey;
-use tendermint::{private_key, Signature};
-use tendermint::{validator::Set as ValidatorSet, vote::SignedVote, vote::ValidatorIndex};
-use tendermint_proto::types::BlockId as RawBlockId;
-use tendermint_proto::Protobuf;
 type F = GoldilocksField;
 type C = Ed25519;
 

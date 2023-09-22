@@ -11,27 +11,23 @@
 //!    `./target/release/circuit_function_evm prove --input-json src/bin/circuit_function_evm_input.json`
 //!
 //! Note that this circuit will not work with field-based io.
-//!
-//!
-//!
+
+use celestia::circuits::{
+    BlockIDInclusionProofVariable, HashInclusionProofVariable, TendermintVerify, ValidatorVariable,
+};
+use celestia::constants::HEADER_PROOF_DEPTH;
+use celestia::input_data::{InputDataFetcher, InputDataMode};
 use plonky2x::backend::circuit::Circuit;
 use plonky2x::backend::function::VerifiableFunction;
+use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
 use plonky2x::frontend::generator::simple::hint::Hint;
 use plonky2x::frontend::uint::uint64::U64Variable;
-use plonky2x::frontend::vars::ValueStream;
+use plonky2x::frontend::vars::{ValueStream, VariableStream};
 use plonky2x::prelude::{
     ArrayVariable, BoolVariable, Bytes32Variable, CircuitBuilder, PlonkParameters,
 };
 use serde::{Deserialize, Serialize};
-use tokio::runtime::Runtime;
-
-use celestia::consts::HEADER_PROOF_DEPTH;
-use celestia::input_data::{InputDataFetcher, InputDataMode};
-use celestia::verify::{
-    BlockIDInclusionProofVariable, HashInclusionProofVariable, TendermintVerify, ValidatorVariable,
-};
-use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
-use plonky2x::frontend::vars::VariableStream; // TODO: re-export this instead of this path
+use tokio::runtime::Runtime; // TODO: re-export this instead of this path
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct StepOffchainInputs<const MAX_VALIDATOR_SET_SIZE: usize> {
     amount: u8,
@@ -117,9 +113,9 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use ethers::types::H256;
     use std::env;
 
+    use ethers::types::H256;
     use plonky2x::prelude::DefaultBuilder;
 
     use super::*;

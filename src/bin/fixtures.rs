@@ -1,34 +1,30 @@
-use celestia::{
-    fixture::{create_block_fixture, create_data_commitment_fixture, generate_val_array},
-    inputs::generate_step_inputs,
-};
+use celestia::fixture::{create_block_fixture, create_data_commitment_fixture, generate_val_array};
+use celestia::inputs::generate_step_inputs;
 use clap::Parser;
 
 #[derive(Parser, Debug)]
 enum Function {
-    /// Calls the generate_val_array function
     GenerateValArray {
-        /// Number of validators to generate test cases for
+        /// Number of validators to generate test cases for.
         #[clap(short, long)]
         validators: usize,
     },
-    /// Calls the create_block_fixture function
     CreateBlockFixture {
-        /// The block number to create a new fixture for
+        /// The block number to create a new fixture for.
         #[clap(short, long)]
         block: usize,
     },
-    /// Calls the create_data_commitment_fixture function
     CreateDataCommitmentFixture {
-        /// The block number range to create a new fixture for
+        /// The start block number to create a new fixture for.
         #[clap(short, long)]
         start_block: usize,
+
+        /// The end block number to create a new fixture for.
         #[clap(short, long)]
         end_block: usize,
     },
-    /// Generates step inputs
     GenerateStepInputs {
-        /// Number of validators to generate test cases for
+        /// Number of validators to generate test cases for.
         #[clap(short, long)]
         block: usize,
     },
@@ -37,7 +33,6 @@ enum Function {
 #[derive(Parser, Debug)]
 #[command(author, version, about)]
 struct Args {
-    /// Script to run
     #[clap(subcommand)]
     function: Function,
 }
@@ -45,7 +40,6 @@ struct Args {
 #[tokio::main]
 async fn main() {
     let args = Args::parse();
-
     match args.function {
         Function::GenerateValArray { validators } => {
             println!("Number of validators: {}", validators);

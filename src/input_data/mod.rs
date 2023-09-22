@@ -2,25 +2,26 @@ pub mod tendermint_utils;
 pub mod types;
 pub mod utils;
 
+use std::collections::HashMap;
+use std::fs;
 use std::path::Path;
-use std::{collections::HashMap, fs};
+
+use ethers::types::H256;
+use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
+use plonky2x::prelude::RichField;
+use tendermint_proto::types::BlockId as RawBlockId;
+use tendermint_proto::Protobuf;
 
 use self::tendermint_utils::{
     generate_proofs_from_header, Hash, Header, Proof, SignedBlockResponse, TempSignedBlock,
 };
 use self::types::{update_present_on_trusted_header, TempMerkleInclusionProof};
 use self::utils::{convert_to_h256, get_path_indices};
-use crate::consts::{
+use crate::circuits::{HeightProofValueType, Validator, ValidatorHashField};
+use crate::constants::{
     BLOCK_HEIGHT_INDEX, LAST_BLOCK_ID_INDEX, NEXT_VALIDATORS_HASH_INDEX, VALIDATORS_HASH_INDEX,
 };
 use crate::input_data::types::{get_validators_as_input, get_validators_fields_as_input};
-use crate::variables::HeightProofValueType;
-use crate::verify::{Validator, ValidatorHashField};
-use ethers::types::H256;
-use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
-use plonky2x::prelude::RichField;
-use tendermint_proto::types::BlockId as RawBlockId;
-use tendermint_proto::Protobuf;
 
 pub enum InputDataMode {
     Rpc(String),

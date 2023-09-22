@@ -1,34 +1,23 @@
-//! The protobuf encoding of a Tendermint validator is a deterministic function of the validator's
-//! public key (32 bytes) and voting power (int64). The encoding is as follows in bytes:
-//
-//!     10 34 10 32 <pubkey> 16 <varint>
-//
-//! The `pubkey` is encoded as the raw list of bytes used in the public key. The `varint` is
-//! encoded using protobuf's default integer encoding, which consist of 7 bit payloads. You can
-//! read more about them here: https://protobuf.dev/programming-guides/encoding/#varints.
+//! Helper methods and structs for Ed25519 signature verification in circuits.
+
 use num::BigUint;
 use plonky2::field::types::PrimeField;
-use plonky2x::frontend::ecc::ed25519::curve::curve_types::AffinePoint;
-use plonky2x::frontend::ecc::ed25519::curve::curve_types::Curve;
+use plonky2x::frontend::ecc::ed25519::curve::curve_types::{AffinePoint, Curve};
 use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
 use plonky2x::frontend::ecc::ed25519::field::ed25519_scalar::Ed25519Scalar;
-use plonky2x::frontend::ecc::ed25519::gadgets::curve::AffinePointTarget;
-use plonky2x::frontend::ecc::ed25519::gadgets::curve::CircuitBuilderCurve;
-use plonky2x::frontend::ecc::ed25519::gadgets::eddsa::verify_variable_signatures_circuit;
-use plonky2x::frontend::ecc::ed25519::gadgets::eddsa::EDDSASignatureTarget;
-use plonky2x::frontend::num::nonnative::nonnative::CircuitBuilderNonNative;
-use plonky2x::frontend::num::nonnative::nonnative::NonNativeTarget;
+use plonky2x::frontend::ecc::ed25519::gadgets::curve::{AffinePointTarget, CircuitBuilderCurve};
+use plonky2x::frontend::ecc::ed25519::gadgets::eddsa::{
+    verify_variable_signatures_circuit, EDDSASignatureTarget,
+};
+use plonky2x::frontend::num::nonnative::nonnative::{CircuitBuilderNonNative, NonNativeTarget};
 use plonky2x::frontend::vars::U32Variable;
-use plonky2x::prelude::BoolVariable;
-use plonky2x::prelude::Bytes32Variable;
-use plonky2x::prelude::BytesVariable;
-use plonky2x::prelude::CircuitBuilder;
-use plonky2x::prelude::Field;
-use plonky2x::prelude::PlonkParameters;
+use plonky2x::prelude::{
+    BoolVariable, Bytes32Variable, BytesVariable, CircuitBuilder, Field, PlonkParameters,
+};
 use tendermint::merkle::HASH_SIZE;
 
-use crate::consts::VALIDATOR_MESSAGE_BYTES_LENGTH_MAX;
-use crate::variables::ValidatorMessageVariable;
+use crate::circuits::ValidatorMessageVariable;
+use crate::constants::VALIDATOR_MESSAGE_BYTES_LENGTH_MAX;
 
 pub struct DummySignatureTarget<C: Curve> {
     // TODO: Change back to EDDSAPublicKeyTarget after type alias on EDDSAPublicKeyTarget
@@ -217,23 +206,22 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintSignature<L, D> for Circui
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use super::*;
     use ethers::types::H256;
     use num::BigUint;
     use plonky2::field::types::Field;
+    use plonky2x::frontend::ecc::ed25519::curve::curve_types::AffinePoint;
     use plonky2x::frontend::ecc::ed25519::curve::eddsa::{
         verify_message, EDDSAPublicKey, EDDSASignature,
     };
+    use plonky2x::frontend::ecc::ed25519::field::ed25519_scalar::Ed25519Scalar;
     use plonky2x::frontend::ecc::ed25519::gadgets::eddsa::EDDSASignatureTargetValue;
     use plonky2x::prelude::{ArrayVariable, DefaultBuilder};
     use subtle_encoding::hex;
-
-    use plonky2x::frontend::ecc::ed25519::curve::curve_types::AffinePoint;
-    use plonky2x::frontend::ecc::ed25519::field::ed25519_scalar::Ed25519Scalar;
     use tendermint::private_key;
 
+    use super::*;
+    use crate::circuits::TendermintHashVariable;
     use crate::input_data::utils::to_be_bits;
-    use crate::variables::TendermintHashVariable;
 
     #[test]
     fn test_generate_signature() {
