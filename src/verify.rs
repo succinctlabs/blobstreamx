@@ -4,7 +4,10 @@ use plonky2x::{
         gadgets::eddsa::EDDSASignatureTarget,
     },
     frontend::uint::uint64::U64Variable,
-    frontend::{merkle::tree::MerkleInclusionProofVariable, vars::U32Variable},
+    frontend::{
+        ecc::ed25519::gadgets::verify::EDDSABatchVerify,
+        merkle::tree::MerkleInclusionProofVariable, vars::U32Variable,
+    },
     prelude::{
         ArrayVariable, BoolVariable, Bytes32Variable, BytesVariable, CircuitBuilder,
         CircuitVariable, PlonkParameters, RichField, Variable, Witness, WitnessWrite,
@@ -13,8 +16,7 @@ use plonky2x::{
 use tendermint::merkle::HASH_SIZE;
 
 use crate::{
-    consts::{HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES},
-    signature::TendermintSignature,
+    consts::{HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES, VALIDATOR_MESSAGE_BYTES_LENGTH_MAX},
     validator::TendermintValidator,
     variables::HeightProofVariable,
     voting::TendermintVoting,
@@ -360,7 +362,7 @@ impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
             .collect();
 
         // Verifies signatures of the validators
-        self.verify_signatures::<VALIDATOR_SET_SIZE_MAX>(
+        self.conditional_batch_eddsa_verify::<VALIDATOR_SET_SIZE_MAX, VALIDATOR_MESSAGE_BYTES_LENGTH_MAX>(
             &validators_signed,
             messages,
             message_bit_lengths,

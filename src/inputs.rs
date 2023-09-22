@@ -20,12 +20,12 @@ use ed25519_consensus::SigningKey;
 use ethers::types::H256;
 use num::BigUint;
 use plonky2x::frontend::ecc::ed25519::curve::curve_types::AffinePoint;
+use plonky2x::frontend::ecc::ed25519::gadgets::verify::DUMMY_SIGNATURE;
 use plonky2x::frontend::ecc::{
     ed25519::curve::ed25519::Ed25519, ed25519::field::ed25519_scalar::Ed25519Scalar,
 };
 use plonky2x::prelude::Field;
 
-use crate::signature::DUMMY_SIGNATURE;
 use crate::verify::{Validator, ValidatorHashField};
 use plonky2x::frontend::ecc::ed25519::gadgets::eddsa::EDDSASignatureTarget;
 use plonky2x::frontend::merkle::tree::InclusionProof;
