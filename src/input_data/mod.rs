@@ -402,7 +402,11 @@ impl InputDataFetcher {
         // Cut off last element of data_hashes
         data_hashes.pop();
 
-        // Cut off first element of prev_header_proofs and reverse
+        // Cut off last element of data_hash_proofs & reverse
+        data_hash_proofs.pop();
+        data_hash_proofs.reverse();
+
+        // Cut off first element of prev_header_proofs & reverse
         prev_header_proofs.reverse();
         prev_header_proofs.pop();
 
