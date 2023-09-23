@@ -47,7 +47,7 @@ impl<const WINDOW_SIZE: usize, const NUM_LEAVES: usize, L: PlonkParameters<D>, c
 
         // TODO: Change back to Fixture mode
         dotenv::dotenv().ok();
-        let url = env::var("RPC_4").expect("RPC_URL not set");
+        let url = env::var("RPC_MOCHA_4").expect("RPC_URL not set");
         let mut data_fetcher = InputDataFetcher::new(InputDataMode::Rpc(url));
         data_fetcher.set_save(true);
 
