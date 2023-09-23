@@ -400,18 +400,18 @@ impl InputDataFetcher {
             prev_header_proofs.push(prev_header_proof);
         }
 
-        // Cut off last element of data_hashes
+        // Remove end_block's data_hash, as data_commitment does not include it.
         data_hashes.pop();
 
-        // Cut off last element of data_hash_proofs & reverse
+        // Remove end_block's data_hash_proof & reverse data_hash_proofs for the commitment circuit.
         data_hash_proofs.pop();
         data_hash_proofs.reverse();
 
-        // Cut off first element of prev_header_proofs & reverse
+        // Remove start_block's prev_header_proof & reverse prev_header_proofs for the commitment circuit.
         prev_header_proofs.reverse();
         prev_header_proofs.pop();
 
-        // TODO: Remove, convert get_merkle_proof
+        // TODO: Remove, convert get_merkle_proof to use InclusionProof.
         let data_hash_proofs_formatted = data_hash_proofs
             .into_iter()
             .map(
