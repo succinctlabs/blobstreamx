@@ -14,7 +14,7 @@
 //!
 //!
 //!
-use std::env;
+// use std::env;
 
 use celestia::commitment::DataCommitment;
 use celestia::input_data::utils::convert_to_h256;
@@ -46,10 +46,11 @@ impl<const WINDOW_SIZE: usize, const NUM_LEAVES: usize, L: PlonkParameters<D>, c
         let end_header_hash = input_stream.read_value::<Bytes32Variable>();
 
         // TODO: Change back to Fixture mode
-        dotenv::dotenv().ok();
-        let url = env::var("RPC_MOCHA_4").expect("RPC_URL not set");
-        let mut data_fetcher = InputDataFetcher::new(InputDataMode::Rpc(url));
-        data_fetcher.set_save(true);
+        // dotenv::dotenv().ok();
+        // let url = env::var("RPC_MOCHA_4").expect("RPC_URL not set");
+        // let mut data_fetcher = InputDataFetcher::new(InputDataMode::Rpc(url));
+        // data_fetcher.set_save(true);
+        let mut data_fetcher = InputDataFetcher::new(InputDataMode::Fixture);
 
         let rt = Runtime::new().expect("failed to create tokio runtime");
         let result = rt.block_on(async {

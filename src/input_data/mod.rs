@@ -4,6 +4,7 @@ pub mod utils;
 
 use std::path::Path;
 use std::{collections::HashMap, fs};
+use subtle_encoding::hex;
 
 use self::tendermint_utils::{
     generate_proofs_from_header, DataCommitmentResponse, Hash, Header, Proof, SignedBlockResponse,
@@ -130,7 +131,11 @@ impl InputDataFetcher {
         };
         let v: DataCommitmentResponse =
             serde_json::from_str(&fetched_result).expect("Failed to parse JSON");
-        v.result.data_commitment
+
+        hex::decode_upper(v.result.data_commitment)
+            .unwrap()
+            .try_into()
+            .unwrap()
     }
 
     pub async fn get_block_from_number(&self, block_number: u64) -> Box<TempSignedBlock> {
@@ -423,6 +428,12 @@ impl InputDataFetcher {
                 },
             )
             .collect_vec();
+
+        println!("data_hashes len {:?}", data_hash_proofs_formatted.len());
+        println!(
+            "prev_header_proofs len {:?}",
+            prev_header_proofs_formatted.len()
+        );
 
         let expected_data_commitment = self
             .get_data_commitment(start_block_number, end_block_number)

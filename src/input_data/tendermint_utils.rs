@@ -45,7 +45,7 @@ pub struct DataCommitmentResponse {
 
 #[derive(Debug, Deserialize)]
 pub struct DataCommitment {
-    pub data_commitment: [u8; 32],
+    pub data_commitment: String,
 }
 
 #[derive(Debug, Deserialize)]
