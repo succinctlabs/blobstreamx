@@ -6,18 +6,23 @@ use std::path::Path;
 use std::{collections::HashMap, fs};
 
 use self::tendermint_utils::{
-    generate_proofs_from_header, Hash, Header, Proof, SignedBlockResponse, TempSignedBlock,
+    generate_proofs_from_header, DataCommitmentResponse, Hash, Header, Proof, SignedBlockResponse,
+    TempSignedBlock,
 };
 use self::types::{update_present_on_trusted_header, TempMerkleInclusionProof};
 use self::utils::{convert_to_h256, get_path_indices};
 use crate::consts::{
-    BLOCK_HEIGHT_INDEX, LAST_BLOCK_ID_INDEX, NEXT_VALIDATORS_HASH_INDEX, VALIDATORS_HASH_INDEX,
+    BLOCK_HEIGHT_INDEX, DATA_HASH_INDEX, HEADER_PROOF_DEPTH, LAST_BLOCK_ID_INDEX,
+    NEXT_VALIDATORS_HASH_INDEX, PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES,
+    VALIDATORS_HASH_INDEX,
 };
 use crate::input_data::types::{get_validators_as_input, get_validators_fields_as_input};
 use crate::variables::HeightProofValueType;
 use crate::verify::{Validator, ValidatorHashField};
 use ethers::types::{H256, U64};
+use itertools::Itertools;
 use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
+use plonky2x::frontend::merkle::tree::InclusionProof;
 use plonky2x::prelude::RichField;
 use tendermint_proto::types::BlockId as RawBlockId;
 use tendermint_proto::Protobuf;
@@ -46,11 +51,12 @@ impl InputDataFetcher {
         self.save = save;
     }
 
-    pub async fn get_header_from_number(&self, block_number: u64) -> Box<TempSignedBlock> {
+    // TODO: This method currently doesn't work with Celestia RPC's, but it should.
+    pub async fn get_header_from_number(&self, block_number: u64) -> Box<Header> {
         let fetched_result = match &self.mode {
             InputDataMode::Rpc(url) => {
                 let query_url = format!(
-                    "{}/signed_block?height={}",
+                    "{}/header?height={}",
                     url,
                     block_number.to_string().as_str()
                 );
@@ -58,7 +64,7 @@ impl InputDataFetcher {
                 if self.save {
                     println!("hi");
                     let file_name = format!(
-                        "./src/fixtures/updated/{}/signed_block.json",
+                        "./src/fixtures/updated/{}/header.json",
                         block_number.to_string().as_str()
                     );
                     // Ensure the directory exists
@@ -71,7 +77,7 @@ impl InputDataFetcher {
             }
             InputDataMode::Fixture => {
                 let file_name = format!(
-                    "./src/fixtures/updated/{}/signed_block.json",
+                    "./src/fixtures/updated/{}/header.json",
                     block_number.to_string().as_str()
                 );
                 println!("{:?}", file_name);
@@ -80,10 +86,51 @@ impl InputDataFetcher {
                 file_content.unwrap()
             }
         };
-        let v: SignedBlockResponse =
+        // TODO: This will need to be updated once Celestia RPC works.
+        let v: Header = serde_json::from_str(&fetched_result).expect("Failed to parse JSON");
+        Box::new(v)
+    }
+
+    pub async fn get_data_commitment(&self, start_block: u64, end_block: u64) -> [u8; 32] {
+        let fetched_result = match &self.mode {
+            InputDataMode::Rpc(url) => {
+                let query_url = format!(
+                    "{}/data_commitment?start={}&end={}",
+                    url,
+                    start_block.to_string().as_str(),
+                    end_block.to_string().as_str()
+                );
+                let res = reqwest::get(query_url).await.unwrap().text().await.unwrap();
+                if self.save {
+                    println!("hi");
+                    let file_name = format!(
+                        "./src/fixtures/updated/{}-{}/data_commitment.json",
+                        start_block.to_string().as_str(),
+                        end_block.to_string().as_str()
+                    );
+                    // Ensure the directory exists
+                    if let Some(parent) = Path::new(&file_name).parent() {
+                        fs::create_dir_all(parent).unwrap();
+                    }
+                    fs::write(file_name.as_str(), res.as_bytes()).expect("Unable to write file");
+                }
+                res
+            }
+            InputDataMode::Fixture => {
+                let file_name = format!(
+                    "./src/fixtures/updated/{}-{}/data_commitment.json",
+                    start_block.to_string().as_str(),
+                    end_block.to_string().as_str()
+                );
+                println!("{:?}", file_name);
+                let file_content = fs::read_to_string(file_name.as_str());
+                println!("Getting fixture");
+                file_content.unwrap()
+            }
+        };
+        let v: DataCommitmentResponse =
             serde_json::from_str(&fetched_result).expect("Failed to parse JSON");
-        let temp_block = v.result;
-        Box::new(temp_block)
+        v.result.data_commitment
     }
 
     pub async fn get_block_from_number(&self, block_number: u64) -> Box<TempSignedBlock> {
@@ -302,13 +349,14 @@ impl InputDataFetcher {
         end_block_number: u64,
         end_header_hash: H256,
     ) -> (
-        Vec<[u8; 32]>,                 // data_hashes
-        [u8; 32],                      // end_header
-        U64,                           // end_block_height
-        [u8; 32],                      // start_header
-        U64,                           // start_block_height
-        Vec<TempMerkleInclusionProof>, // data_hash_proofs
-        Vec<TempMerkleInclusionProof>, // prev_header_proofs
+        Vec<[u8; 32]>,                                                            // data_hashes
+        [u8; 32],                                                                 // start_header
+        U64,      // start_block_height
+        [u8; 32], // end_header
+        U64,      // end_block_height
+        Vec<InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES, F>>, // data_hash_proofs
+        Vec<InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, F>>, // prev_header_proofs
+        [u8; 32], // expected_data_commitment
     ) {
         let start_block = self.get_block_from_number(start_block_number).await;
         let computed_start_header_hash = start_block.header.hash();
@@ -317,24 +365,78 @@ impl InputDataFetcher {
             start_header_hash.as_bytes()
         );
 
-        let end_block = self.get_block_from_number(start_block_number).await;
-        let computed_end_header_hash = start_block.header.hash();
+        let end_block = self.get_block_from_number(end_block_number).await;
+        let computed_end_header_hash = end_block.header.hash();
         assert_eq!(
             computed_end_header_hash.as_bytes(),
             end_header_hash.as_bytes()
         );
 
-        let (data_hashes, data_hash_proofs, prev_header_proofs) = 
+        let mut data_hashes = Vec::new();
+        let mut data_hash_proofs = Vec::new();
+        let mut prev_header_proofs = Vec::new();
+        for i in start_block_number..end_block_number + 1 {
+            let block = self.get_block_from_number(i).await;
+            let data_hash = block.header.data_hash.unwrap();
+            data_hashes.push(data_hash.as_bytes().try_into().unwrap());
+
+            let data_hash_proof = self.get_merkle_proof(
+                &block.header,
+                DATA_HASH_INDEX as u64,
+                block.header.data_hash.unwrap().encode_vec(),
+            );
+            data_hash_proofs.push(data_hash_proof);
+            let prev_header_proof = self.get_merkle_proof(
+                &block.header,
+                LAST_BLOCK_ID_INDEX as u64,
+                Protobuf::<RawBlockId>::encode_vec(block.header.last_block_id.unwrap_or_default()),
+            );
+            prev_header_proofs.push(prev_header_proof);
+        }
+
+        // Cut off last element of data_hashes
+        data_hashes.pop();
+
+        // Cut off first element of prev_header_proofs and reverse
+        prev_header_proofs.reverse();
+        prev_header_proofs.pop();
+
+        // TODO: Remove, convert get_merkle_proof
+        let data_hash_proofs_formatted = data_hash_proofs
+            .into_iter()
+            .map(
+                |proof| InclusionProof::<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES, F> {
+                    aunts: proof.proof,
+                    path_indices: proof.path,
+                    leaf: proof.enc_leaf.try_into().unwrap(),
+                },
+            )
+            .collect_vec();
+
+        let prev_header_proofs_formatted = prev_header_proofs
+            .into_iter()
+            .map(
+                |proof| InclusionProof::<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, F> {
+                    aunts: proof.proof,
+                    path_indices: proof.path,
+                    leaf: proof.enc_leaf.try_into().unwrap(),
+                },
+            )
+            .collect_vec();
+
+        let expected_data_commitment = self
+            .get_data_commitment(start_block_number, end_block_number)
+            .await;
 
         (
-            ,
-            end_header_hash.as_bytes().try_into().unwrap(),
-            U64::from(end_block_number),
+            data_hashes,
             start_header_hash.as_bytes().try_into().unwrap(),
             U64::from(start_block_number),
-            trusted_block_hash.as_bytes().try_into().unwrap(),
-            trusted_block_validator_hash_proof,
-            trusted_block_validator_fields,
+            end_header_hash.as_bytes().try_into().unwrap(),
+            U64::from(end_block_number),
+            data_hash_proofs_formatted,
+            prev_header_proofs_formatted,
+            expected_data_commitment,
         )
     }
 }

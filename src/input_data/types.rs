@@ -220,16 +220,6 @@ pub fn get_validators_as_input<const VALIDATOR_SET_SIZE_MAX: usize, F: RichField
     validators
 }
 
-pub fn get_data_hashes_as_input<F: RichField>(start_block: u64, end_block: u64) -> (Vec<[u8; 32]>) {
-    get_header
-}
-
-pub fn get_data_commitment_proofs_as_input<F: RichField>(
-    start_block: u64,
-    end_block: u64,
-) -> (Vec<TempMerkleInclusionProof>, Vec<TempMerkleInclusionProof>) {
-}
-
 pub fn get_validators_fields_as_input<const VALIDATOR_SET_SIZE_MAX: usize, F: RichField>(
     trusted_block: &TempSignedBlock,
 ) -> Vec<ValidatorHashField<C, F>> {

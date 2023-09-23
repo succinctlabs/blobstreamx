@@ -14,24 +14,22 @@
 //!
 //!
 //!
-use celestia::variables::HeightProofVariable;
+use std::env;
+
+use celestia::commitment::DataCommitment;
+use celestia::input_data::utils::convert_to_h256;
+use celestia::variables::{DataCommitmentProofValueType, DataCommitmentProofVariable};
+use ethers::types::H256;
 use plonky2x::backend::circuit::Circuit;
 use plonky2x::backend::function::VerifiableFunction;
 use plonky2x::frontend::generator::simple::hint::Hint;
 use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::frontend::vars::ValueStream;
-use plonky2x::prelude::{
-    ArrayVariable, BoolVariable, Bytes32Variable, CircuitBuilder, PlonkParameters,
-};
+use plonky2x::prelude::{Bytes32Variable, CircuitBuilder, PlonkParameters};
 use serde::{Deserialize, Serialize};
 use tokio::runtime::Runtime;
 
-use celestia::consts::HEADER_PROOF_DEPTH;
 use celestia::input_data::{InputDataFetcher, InputDataMode};
-use celestia::verify::{
-    HashInclusionProofVariable, TendermintVerify, ValidatorHashFieldVariable, ValidatorVariable,
-};
-use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
 use plonky2x::frontend::vars::VariableStream; // TODO: re-export this instead of this path
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct DataCommitmentOffchainInputs<const WINDOW_SIZE: usize, const NUM_LEAVES: usize> {
@@ -42,136 +40,132 @@ impl<const WINDOW_SIZE: usize, const NUM_LEAVES: usize, L: PlonkParameters<D>, c
     Hint<L, D> for DataCommitmentOffchainInputs<WINDOW_SIZE, NUM_LEAVES>
 {
     fn hint(&self, input_stream: &mut ValueStream<L, D>, output_stream: &mut ValueStream<L, D>) {
-        let trusted_header_hash = input_stream.read_value::<Bytes32Variable>();
-        let trusted_block = input_stream.read_value::<U64Variable>();
-        let target_block = input_stream.read_value::<U64Variable>();
-        let mut data_fetcher = InputDataFetcher::new(InputDataMode::Fixture);
+        let start_block = input_stream.read_value::<U64Variable>();
+        let start_header_hash = input_stream.read_value::<Bytes32Variable>();
+        let end_block = input_stream.read_value::<U64Variable>();
+        let end_header_hash = input_stream.read_value::<Bytes32Variable>();
+
+        // TODO: Change back to Fixture mode
+        dotenv::dotenv().ok();
+        let url = env::var("RPC_4").expect("RPC_URL not set");
+        let mut data_fetcher = InputDataFetcher::new(InputDataMode::Rpc(url));
+        data_fetcher.set_save(true);
+
         let rt = Runtime::new().expect("failed to create tokio runtime");
         let result = rt.block_on(async {
             data_fetcher
-                .get_skip_inputs::<MAX_VALIDATOR_SET_SIZE, L::Field>(
-                    trusted_block.as_u64(),
-                    trusted_header_hash,
-                    target_block.as_u64(),
+                .get_data_commitment_inputs::<WINDOW_SIZE, NUM_LEAVES, L::Field>(
+                    start_block.as_u64(),
+                    start_header_hash,
+                    end_block.as_u64(),
+                    end_header_hash,
                 )
                 .await
         });
-        output_stream
-            .write_value::<ArrayVariable<ValidatorVariable<Ed25519>, MAX_VALIDATOR_SET_SIZE>>(
-                result.0,
-            ); // target_block_validators
-        output_stream.write_value::<Bytes32Variable>(result.1.into()); // target_header
-        output_stream.write_value::<BoolVariable>(result.2); // round_present
-        output_stream.write_value::<HeightProofVariable>(result.3); // block_height_proof
-        output_stream.write_value::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>(
-            result.4.to_hash_value_type(),
-        ); // validators_hash_proof
-        output_stream.write_value::<Bytes32Variable>(result.5.into()); // trusted_header
-        output_stream.write_value::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>(
-            result.6.to_hash_value_type(),
-        ); // trusted_header_validators_hash_proof
-        output_stream.write_value::<ArrayVariable<ValidatorHashFieldVariable<Ed25519>, MAX_VALIDATOR_SET_SIZE>>(
-            result.7
-        ); // trusted_header_validators_hash_fields
+        let data_comm_proof = DataCommitmentProofValueType {
+            data_hashes: convert_to_h256(result.0),
+            start_header: H256(result.1),
+            start_block_height: result.2,
+            end_header: H256(result.3),
+            end_block_height: result.4,
+            data_hash_proofs: result.5,
+            prev_header_proofs: result.6,
+        };
+        output_stream.write_value::<DataCommitmentProofVariable<WINDOW_SIZE>>(data_comm_proof);
+        output_stream.write_value::<Bytes32Variable>(H256(result.7));
     }
 }
 
-struct DataCommitmentCircuit<const MAX_VALIDATOR_SET_SIZE: usize> {
+struct DataCommitmentCircuit<const WINDOW_SIZE: usize, const NUM_LEAVES: usize> {
     _config: usize,
 }
 
-impl<const MAX_VALIDATOR_SET_SIZE: usize> Circuit
-    for DataCommitmentCircuit<MAX_VALIDATOR_SET_SIZE>
+impl<const WINDOW_SIZE: usize, const NUM_LEAVES: usize> Circuit
+    for DataCommitmentCircuit<WINDOW_SIZE, NUM_LEAVES>
 {
     fn define<L: PlonkParameters<D>, const D: usize>(builder: &mut CircuitBuilder<L, D>) {
-        let trusted_header_hash = builder.evm_read::<Bytes32Variable>();
-        let trusted_block = builder.evm_read::<U64Variable>();
-        let target_block = builder.evm_read::<U64Variable>();
+        let start_block_number = builder.evm_read::<U64Variable>();
+        let start_header_hash = builder.evm_read::<Bytes32Variable>();
+        let end_block_number = builder.evm_read::<U64Variable>();
+        let end_header_hash = builder.evm_read::<Bytes32Variable>();
 
         let mut input_stream = VariableStream::new();
-        input_stream.write(&trusted_header_hash);
-        input_stream.write(&trusted_block);
-        input_stream.write(&target_block);
+        input_stream.write(&start_block_number);
+        input_stream.write(&start_header_hash);
+        input_stream.write(&end_block_number);
+        input_stream.write(&end_header_hash);
         let output_stream = builder.hint(
             input_stream,
-            SkipOffchainInputs::<MAX_VALIDATOR_SET_SIZE> { amount: 1u8 },
+            DataCommitmentOffchainInputs::<WINDOW_SIZE, NUM_LEAVES> { amount: 1u8 },
         );
-        let target_block_validators = output_stream
-            .read::<ArrayVariable<ValidatorVariable<Ed25519>, MAX_VALIDATOR_SET_SIZE>>(builder);
-        let target_header = output_stream.read::<Bytes32Variable>(builder);
-        let round_present = output_stream.read::<BoolVariable>(builder);
-        let target_header_block_height_proof = output_stream.read::<HeightProofVariable>(builder);
-        let target_header_validators_hash_proof =
-            output_stream.read::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>(builder);
-        let trusted_header = output_stream.read::<Bytes32Variable>(builder);
-        let trusted_header_validators_hash_proof =
-            output_stream.read::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>(builder);
-        let trusted_header_validators_hash_fields = output_stream
-            .read::<ArrayVariable<ValidatorHashFieldVariable<Ed25519>, MAX_VALIDATOR_SET_SIZE>>(
-                builder,
-            );
+        let data_comm_proof =
+            output_stream.read::<DataCommitmentProofVariable<WINDOW_SIZE>>(builder);
 
-        builder.skip(
-            &target_block_validators,
-            &target_header,
-            &target_header_block_height_proof,
-            &target_header_validators_hash_proof,
-            &round_present,
-            trusted_header,
-            &trusted_header_validators_hash_proof,
-            &trusted_header_validators_hash_fields,
-        );
-        builder.evm_write(target_header);
+        let expected_data_commitment = output_stream.read::<Bytes32Variable>(builder);
+
+        let data_commitment =
+            builder.prove_data_commitment::<WINDOW_SIZE, NUM_LEAVES>(data_comm_proof);
+
+        builder.assert_is_equal(data_commitment, expected_data_commitment);
+
+        builder.evm_write(data_commitment);
     }
 }
 
 fn main() {
-    const MAX_VALIDATOR_SET_SIZE: usize = 128;
-    VerifiableFunction::<SkipCircuit<MAX_VALIDATOR_SET_SIZE>>::entrypoint();
+    const WINDOW_SIZE: usize = 400;
+    const NUM_LEAVES: usize = 512;
+    VerifiableFunction::<DataCommitmentCircuit<WINDOW_SIZE, NUM_LEAVES>>::entrypoint();
 }
 
 #[cfg(test)]
 mod tests {
-    use ethers::types::H256;
     use std::env;
 
     use plonky2x::prelude::DefaultBuilder;
+    use subtle_encoding::hex;
 
     use super::*;
 
     #[test]
     #[cfg_attr(feature = "ci", ignore)]
-    fn test_circuit_function_skip() {
+    fn test_circuit_function_data_commitment() {
         env::set_var("RUST_LOG", "debug");
         env_logger::try_init().unwrap_or_default();
 
-        const MAX_VALIDATOR_SET_SIZE: usize = 16;
+        const WINDOW_SIZE: usize = 4;
+        const NUM_LEAVES: usize = 4;
         let mut builder = DefaultBuilder::new();
 
         log::debug!("Defining circuit");
-        SkipCircuit::<MAX_VALIDATOR_SET_SIZE>::define(&mut builder);
+        DataCommitmentCircuit::<WINDOW_SIZE, NUM_LEAVES>::define(&mut builder);
 
         log::debug!("Building circuit");
         let circuit = builder.build();
         log::debug!("Done building circuit");
 
         let mut input = circuit.input();
-        let trusted_header: [u8; 32] = [
-            101, 148, 196, 246, 245, 248, 99, 125, 20, 181, 200, 0, 157, 159, 211, 222, 105, 149,
-            108, 221, 97, 143, 205, 106, 162, 68, 113, 97, 5, 29, 183, 162,
-        ];
-        let trusted_block = 11000u64;
-        let target_block = 11105u64; // mimics test_skip_small
-        input.evm_write::<Bytes32Variable>(H256::from_slice(trusted_header.as_slice()));
-        input.evm_write::<U64Variable>(trusted_block.into());
-        input.evm_write::<U64Variable>(target_block.into());
+
+        let start_block = 10000u64;
+        let start_header_hash =
+            hex::decode_upper("A0123D5E4B8B8888A61F931EE2252D83568B97C223E0ECA9795B29B8BD8CBA2D")
+                .unwrap();
+        let end_block = start_block + WINDOW_SIZE as u64;
+        let end_header_hash =
+            hex::decode_upper("FCDA37FA6306C77737DD911E6101B612E2DBD837F29ED4F4E1C30919FBAC9D05")
+                .unwrap();
+
+        input.evm_write::<U64Variable>(start_block.into());
+        input.evm_write::<Bytes32Variable>(H256::from_slice(start_header_hash.as_slice()));
+        input.evm_write::<U64Variable>(end_block.into());
+        input.evm_write::<Bytes32Variable>(H256::from_slice(end_header_hash.as_slice()));
 
         log::debug!("Generating proof");
         let (proof, mut output) = circuit.prove(&input);
         log::debug!("Done generating proof");
 
         circuit.verify(&proof, &input, &output);
-        let target_header = output.evm_read::<Bytes32Variable>();
-        println!("target_header {:?}", target_header);
+        let data_commitment = output.evm_read::<Bytes32Variable>();
+        println!("data_commitment {:?}", data_commitment);
     }
 }
