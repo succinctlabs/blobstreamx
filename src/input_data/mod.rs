@@ -381,6 +381,7 @@ impl InputDataFetcher {
         let mut data_hash_proofs = Vec::new();
         let mut prev_header_proofs = Vec::new();
         for i in start_block_number..end_block_number + 1 {
+            // TODO: Replace with get_header_from_number once enabled.
             let block = self.get_block_from_number(i).await;
             let data_hash = block.header.data_hash.unwrap();
             data_hashes.push(data_hash.as_bytes().try_into().unwrap());
