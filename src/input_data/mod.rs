@@ -433,12 +433,6 @@ impl InputDataFetcher {
             )
             .collect_vec();
 
-        println!("data_hashes len {:?}", data_hash_proofs_formatted.len());
-        println!(
-            "prev_header_proofs len {:?}",
-            prev_header_proofs_formatted.len()
-        );
-
         let expected_data_commitment = self
             .get_data_commitment(start_block_number, end_block_number)
             .await;
