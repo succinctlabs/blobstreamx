@@ -2,6 +2,7 @@ pub mod tendermint_utils;
 pub mod types;
 pub mod utils;
 
+use std::env;
 use std::path::Path;
 use std::{collections::HashMap, fs};
 use subtle_encoding::hex;
@@ -102,6 +103,8 @@ impl InputDataFetcher {
     }
 
     pub async fn get_block_from_number(&self, block_number: u64) -> Box<TempSignedBlock> {
+        println!("{:?}", env::current_dir().unwrap().to_str().unwrap());
+
         let fetched_result = match &self.mode {
             InputDataMode::Rpc(url) => {
                 let query_url = format!(

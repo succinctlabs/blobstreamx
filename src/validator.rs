@@ -387,7 +387,7 @@ pub(crate) mod tests {
         let circuit = builder.build();
 
         // Generate test cases from Celestia block:
-        let data_fetcher = InputDataFetcher::new(InputDataMode::Fixture, "".to_string());
+        let data_fetcher = InputDataFetcher::new(InputDataMode::Fixture, "src/".to_string());
 
         let rt = Runtime::new().expect("failed to create tokio runtime");
         let block = rt.block_on(async { data_fetcher.get_block_from_number(10000).await });
