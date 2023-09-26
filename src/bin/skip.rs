@@ -190,7 +190,7 @@ mod tests {
         log::debug!("Done building circuit");
 
         let input = PublicInput::Bytes(input_bytes);
-        let (proof, mut output) = circuit.prove(&input);
+        let (_proof, mut output) = circuit.prove(&input);
         let next_header = output.evm_read::<Bytes32Variable>();
         println!("next_header {:?}", next_header);
     }

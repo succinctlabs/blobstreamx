@@ -440,12 +440,16 @@ mod test {
     #[tokio::test]
     async fn test_fixture_generation_asdf() {
         // TODO: Clippy does not recognize imports in Tokio tests.
-        use crate::input_data::{InputDataFetcher, InputDataMode};
+        use crate::input_data::InputDataFetcher;
+        use std::env;
+
+        env::set_var(
+            "RPC_MOCHA_4",
+            "http://rpc.testnet.celestia.citizencosmos.space",
+        );
 
         let block_height = 11105u64;
-        let mut fetcher = InputDataFetcher::new(InputDataMode::Rpc(
-            "http://rpc.testnet.celestia.citizencosmos.space".to_string(),
-        ));
+        let mut fetcher = InputDataFetcher::new();
         fetcher.set_save(true);
         let _block = fetcher.get_block_from_number(block_height).await;
     }
