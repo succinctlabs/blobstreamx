@@ -27,7 +27,7 @@ use serde::{Deserialize, Serialize};
 use tokio::runtime::Runtime;
 
 use celestia::consts::HEADER_PROOF_DEPTH;
-use celestia::input_data::InputDataFetcher;
+use celestia::input_data::{new_fetcher, InputDataFetcher};
 use celestia::verify::{
     BlockIDInclusionProofVariable, HashInclusionProofVariable, TendermintVerify, ValidatorVariable,
 };
@@ -45,6 +45,7 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize, L: PlonkParameters<D>, const D: usize>
         let prev_header_hash = input_stream.read_value::<Bytes32Variable>();
         let prev_block_number = input_stream.read_value::<U64Variable>();
         let mut data_fetcher = InputDataFetcher::new();
+        let mut fetch = new_fetcher("RPC_MOCHA_4".to_string());
         let rt = Runtime::new().expect("failed to create tokio runtime");
         let result = rt.block_on(async {
             data_fetcher

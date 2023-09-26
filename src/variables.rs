@@ -27,6 +27,7 @@ pub type MarshalledValidatorVariable = BytesVariable<VALIDATOR_BYTE_LENGTH_MAX>;
 
 /// The message signed by the validator as a variable.
 pub type ValidatorMessageVariable = BytesVariable<VALIDATOR_MESSAGE_BYTES_LENGTH_MAX>;
+
 /// The voting power as a list of 2 u32 targets.
 #[derive(Debug, Clone, Copy)]
 pub struct I64Target(pub [U32Target; 2]);

@@ -5,6 +5,7 @@ pub mod utils;
 use std::env;
 use std::path::Path;
 use std::{collections::HashMap, fs};
+use async_trait::async_trait;
 
 use self::tendermint_utils::{
     generate_proofs_from_header, Hash, Header, Proof, SignedBlockResponse, TempSignedBlock,
@@ -17,8 +18,136 @@ use crate::verify::{Validator, ValidatorHashField};
 use ethers::types::H256;
 use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
 use plonky2x::prelude::RichField;
-use tendermint_proto::types::BlockId as RawBlockId;
+use tendermint_proto::types::{BlockId as RawBlockId, Data};
 use tendermint_proto::Protobuf;
+
+#[async_trait]
+pub trait DataFetcher {
+    async fn get_block(&self, block_number: u64) -> Box<TempSignedBlock>;
+    async fn get_block_from_hash(&self, block_hash: H256) -> Box<TempSignedBlock>;
+    async fn get_block_range(
+        &self,
+        start_block_number: u64,
+        end_block_number: u64,
+    ) -> Vec<TempSignedBlock>;
+}
+
+pub fn new_fetcher(chain_id: String) -> Box<dyn DataFetcher> {
+    if cfg!(test) {
+        return Box::new(FixtureDataFetcher {
+            fixture_path: format!("test/fixtures/{}", chain_id),
+        })
+    } else {
+        return Box::new(RpcDataFetcher {
+            url: env::var(format!("RPC_{}", chain_id)).expect("RPC url not set in .env"),
+        })
+    }
+    // TODO: if in a test, return the FixtureDataFetcher with a const fixture path "test/fixtures/{chain_id{"
+    // else, read the RpcDataFetch with the env var "RPC_{chain_id}" url from the .env file and panic if the RPC url is not present
+}
+
+pub struct RpcDataFetcher {
+    pub url: String,
+}
+
+#[async_trait]
+impl DataFetcher for RpcDataFetcher {
+    async fn get_block(&self, block_number: u64) -> Box<TempSignedBlock> {
+        let query_url = format!("{}/block?height={}", self.url, block_number.to_string().as_str());
+        let res = reqwest::get(query_url).await.unwrap().text().await.unwrap();
+        let v: SignedBlockResponse =
+            serde_json::from_str(&res).expect("Failed to parse JSON");
+        let temp_block = v.result;
+        Box::new(temp_block)
+    }
+
+    async fn get_block_from_hash(&self, block_hash: H256) -> Box<TempSignedBlock> {
+        let query_url = format!("{}/block?hash={}", self.url, block_hash);
+        let res = reqwest::get(query_url).await.unwrap().text().await.unwrap();
+        let v: SignedBlockResponse =
+            serde_json::from_str(&res).expect("Failed to parse JSON");
+        let temp_block = v.result;
+        Box::new(temp_block)
+    }
+
+    async fn get_block_range(
+        &self,
+        start_block_number: u64,
+        end_block_number: u64,
+    ) -> Vec<TempSignedBlock> {
+        let mut blocks = Vec::new();
+        for block_number in start_block_number..end_block_number {
+            let block = self.get_block(block_number).await;
+            blocks.push(*block);
+        }
+        blocks
+    }
+}
+
+pub struct FixtureDataFetcher {
+    pub fixture_path: String,
+}
+
+#[async_trait]
+impl DataFetcher for FixtureDataFetcher {
+    async fn get_block(&self, block_number: u64) -> Box<TempSignedBlock> {
+        let file_name = format!(
+            "{}/block_by_number/{}.json",
+            self.fixture_path.as_str(), block_number.to_string().as_str()
+        );
+        let file_content = fs::read_to_string(file_name.as_str());
+        let res = file_content.unwrap();
+        let v: SignedBlockResponse =
+            serde_json::from_str(&res).expect("Failed to parse JSON");
+        let temp_block = v.result;
+        Box::new(temp_block)
+    }
+
+    async fn get_block_from_hash(&self, block_hash: H256) -> Box<TempSignedBlock> {
+        let file_name = format!(
+            "{}/block_by_hash/{}.json",
+            self.fixture_path.as_str(), block_hash.to_string().as_str()
+        );
+        let file_content = fs::read_to_string(file_name.as_str());
+        let res = file_content.unwrap();
+        let v: SignedBlockResponse =
+            serde_json::from_str(&res).expect("Failed to parse JSON");
+        let temp_block = v.result;
+        Box::new(temp_block)
+    }
+
+    async fn get_block_range(
+        &self,
+        start_block_number: u64,
+        end_block_number: u64,
+    ) -> Vec<TempSignedBlock> {
+        let file_name = format!(
+            "{}/block_range/{}_{}.json",
+            self.fixture_path.as_str(),
+            start_block_number.to_string().as_str(),
+            end_block_number.to_string().as_str()
+        );
+        let file_content = fs::read_to_string(file_name.as_str());
+        let res = file_content.unwrap();
+        let blocks: Vec<TempSignedBlock> =
+            serde_json::from_str(&res).expect("Failed to parse JSON");
+        blocks
+    }
+}
+
+impl FixtureDataFetcher {
+    /// Given a base DataFetcher, save the data to the fixture path based on a method and the argumnets
+    /// TODO: is there a clean way to do this with function pointers?
+    // async fn save(base: &dyn DataFetcher, method: "get_block") {
+    //     let block = base.get_block(0).await;
+    //     let file_name = format!("./src/fixtures/updated/{}/{}.json", method, 0);
+    //     // Ensure the directory exists
+    //     if let Some(parent) = Path::new(&file_name).parent() {
+    //         fs::create_dir_all(parent).unwrap();
+    //     }
+    //     fs::write(file_name.as_str(), block.as_bytes()).expect("Unable to write file");
+    // }
+}
 
 pub enum InputDataMode {
     Rpc(String),

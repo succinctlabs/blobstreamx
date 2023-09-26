@@ -24,7 +24,7 @@ use crate::{
 
 #[derive(Debug, Clone, CircuitVariable)]
 #[value_name(Validator)]
-pub struct ValidatorVariable<C: Curve> {
+pub struct ValidatorVariable<C> {
     pub pubkey: EDDSAPublicKeyVariable<C>,
     pub signature: EDDSASignatureTarget<C>,
     pub message: ValidatorMessageVariable,
