@@ -58,8 +58,6 @@ pub struct ValidatorHashFieldVariable<C: Curve> {
 #[value_name(HashInclusionProof)]
 pub struct HashInclusionProofVariable<const HEADER_PROOF_DEPTH: usize> {
     pub enc_leaf: EncTendermintHashVariable,
-    // Path and proof should have a fixed length of HEADER_PROOF_DEPTH.
-    // path: ArrayVariable<BoolVariable, HEADER_PROOF_DEPTH>,
     pub proof: ArrayVariable<TendermintHashVariable, HEADER_PROOF_DEPTH>,
 }
 
@@ -68,8 +66,6 @@ pub struct HashInclusionProofVariable<const HEADER_PROOF_DEPTH: usize> {
 #[value_name(BlockIDInclusionProof)]
 pub struct BlockIDInclusionProofVariable<const HEADER_PROOF_DEPTH: usize> {
     pub enc_leaf: EncBlockIDVariable,
-    // Path and proof should have a fixed length of HEADER_PROOF_DEPTH.
-    // path: ArrayVariable<BoolVariable, HEADER_PROOF_DEPTH>,
     pub proof: ArrayVariable<TendermintHashVariable, HEADER_PROOF_DEPTH>,
 }
 

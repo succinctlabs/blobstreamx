@@ -33,9 +33,7 @@ use celestia::verify::{
 use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
 use plonky2x::frontend::vars::VariableStream; // TODO: re-export this instead of this path
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct StepOffchainInputs<const MAX_VALIDATOR_SET_SIZE: usize> {
-    amount: u8,
-}
+struct StepOffchainInputs<const MAX_VALIDATOR_SET_SIZE: usize> {}
 
 impl<const MAX_VALIDATOR_SET_SIZE: usize, L: PlonkParameters<D>, const D: usize> Hint<L, D>
     for StepOffchainInputs<MAX_VALIDATOR_SET_SIZE>
@@ -84,7 +82,7 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize> Circuit for StepCircuit<MAX_VALIDATOR_
         input_stream.write(&prev_block_number);
         let output_stream = builder.hint(
             input_stream,
-            StepOffchainInputs::<MAX_VALIDATOR_SET_SIZE> { amount: 1u8 },
+            StepOffchainInputs::<MAX_VALIDATOR_SET_SIZE> {},
         );
         let next_header = output_stream.read::<Bytes32Variable>(builder);
         let round_present = output_stream.read::<BoolVariable>(builder);

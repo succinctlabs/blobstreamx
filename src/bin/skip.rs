@@ -1,6 +1,6 @@
 //! To build the binary:
 //!
-//!     `cargo build --release --bin step`
+//!     `cargo build --release --bin skip`
 //!
 //! To build the circuit:
 //!
@@ -34,9 +34,7 @@ use celestia::verify::{
 use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
 use plonky2x::frontend::vars::VariableStream; // TODO: re-export this instead of this path
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct SkipOffchainInputs<const MAX_VALIDATOR_SET_SIZE: usize> {
-    amount: u8,
-}
+struct SkipOffchainInputs<const MAX_VALIDATOR_SET_SIZE: usize> {}
 
 impl<const MAX_VALIDATOR_SET_SIZE: usize, L: PlonkParameters<D>, const D: usize> Hint<L, D>
     for SkipOffchainInputs<MAX_VALIDATOR_SET_SIZE>
@@ -92,7 +90,7 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize> Circuit for SkipCircuit<MAX_VALIDATOR_
         input_stream.write(&target_block);
         let output_stream = builder.hint(
             input_stream,
-            SkipOffchainInputs::<MAX_VALIDATOR_SET_SIZE> { amount: 1u8 },
+            SkipOffchainInputs::<MAX_VALIDATOR_SET_SIZE> {},
         );
         let target_block_validators = output_stream
             .read::<ArrayVariable<ValidatorVariable<Ed25519>, MAX_VALIDATOR_SET_SIZE>>(builder);

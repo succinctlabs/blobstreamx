@@ -39,6 +39,16 @@ where
 }
 
 #[derive(Debug, Deserialize)]
+pub struct DataCommitmentResponse {
+    pub result: DataCommitment,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DataCommitment {
+    pub data_commitment: String,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct SignedBlockResponse {
     pub result: TempSignedBlock,
 }

@@ -52,19 +52,19 @@ pub struct HeightProofVariable {
 // Note: prev_header_proofs starts at end_header.
 #[derive(Clone, Debug, CircuitVariable)]
 #[value_name(DataCommitmentProofValueType)]
-pub struct DataCommitmentProofVariable<const WINDOW_RANGE: usize> {
-    pub data_hashes: ArrayVariable<Bytes32Variable, WINDOW_RANGE>,
+pub struct DataCommitmentProofVariable<const MAX_LEAVES: usize> {
+    pub data_hashes: ArrayVariable<Bytes32Variable, MAX_LEAVES>,
     pub end_header: Bytes32Variable,
-    pub end_header_height_proof: HeightProofVariable,
+    pub end_block_height: U64Variable,
     pub start_header: Bytes32Variable,
-    pub start_header_height_proof: HeightProofVariable,
+    pub start_block_height: U64Variable,
     pub data_hash_proofs: ArrayVariable<
         MerkleInclusionProofVariable<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES>,
-        WINDOW_RANGE,
+        MAX_LEAVES,
     >,
     pub prev_header_proofs: ArrayVariable<
         MerkleInclusionProofVariable<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES>,
-        WINDOW_RANGE,
+        MAX_LEAVES,
     >,
 }
 /// The voting power as a list of 2 u32 targets.

@@ -247,17 +247,9 @@ pub fn generate_data_commitment_inputs<const WINDOW_SIZE: usize, F: RichField>(
     DataCommitmentProofValueType {
         data_hashes,
         end_header: H256::from_slice(fixture.end_header.as_bytes()),
-        end_header_height_proof: HeightProofValueType {
-            proof: fixture.end_block_height_proof.proof,
-            height: fixture.end_block.into(),
-            enc_height_byte_length: fixture.encoded_end_height_byte_length,
-        },
+        end_block_height: fixture.end_block.into(),
         start_header: H256::from_slice(fixture.start_header.as_bytes()),
-        start_header_height_proof: HeightProofValueType {
-            proof: fixture.start_block_height_proof.proof,
-            height: fixture.start_block.into(),
-            enc_height_byte_length: fixture.encoded_start_height_byte_length,
-        },
+        start_block_height: fixture.start_block.into(),
         prev_header_proofs,
         data_hash_proofs,
     }
@@ -626,6 +618,10 @@ pub fn generate_skip_inputs<const VALIDATOR_SET_SIZE_MAX: usize>(
 // Alternatively, add env::set_var("RUST_LOG", "debug") to the top of the test.
 #[cfg(test)]
 pub(crate) mod tests {
+    use std::env;
+
+    use crate::input_data::tendermint_utils::SignedBlockResponse;
+
     use super::*;
 
     #[test]
@@ -646,5 +642,27 @@ pub(crate) mod tests {
         let block = get_signed_block_from_fixture(10000);
         let header_hash = block.header.hash();
         println!("header hash: {}", header_hash);
+    }
+
+    #[tokio::test]
+    #[cfg_attr(feature = "ci", ignore)]
+    async fn test_get_headers() {
+        let start_block = 10000;
+        let end_block = 10004;
+
+        dotenv::dotenv().ok();
+        let url = env::var("RPC_MOCHA_4").expect("RPC_MOCHA_4 must be set");
+
+        let start_url = format!("{}/signed_block?height={}", url.clone(), start_block);
+        let res = reqwest::get(start_url).await.unwrap().text().await.unwrap();
+        let v: SignedBlockResponse = serde_json::from_str(&res).expect("Failed to parse JSON");
+        let temp_block = v.result;
+        println!("start block: {}", temp_block.header.hash());
+
+        let end_url = format!("{}/signed_block?height={}", url.clone(), end_block);
+        let res = reqwest::get(end_url).await.unwrap().text().await.unwrap();
+        let v: SignedBlockResponse = serde_json::from_str(&res).expect("Failed to parse JSON");
+        let temp_block = v.result;
+        println!("start block: {}", temp_block.header.hash());
     }
 }
