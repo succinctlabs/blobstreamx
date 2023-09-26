@@ -59,7 +59,7 @@ contract ZKTendermintLightClient {
             revert("Function ID for skip not found");
         }
         require(_requestedBlock > _trustedBlock);
-        require(_requestedBlock - _trustedBlock <= 10000); // TODO: change this constant
+        require(_requestedBlock - _trustedBlock <= 512); // TODO: change this constant
         require(_requestedBlock > head); // TODO: do we need this?
         bytes32 requestId = IFunctionGateway(gateway).request(
             id,
