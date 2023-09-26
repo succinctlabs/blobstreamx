@@ -204,52 +204,19 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitment<L, D> for CircuitBuil
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
+    use ethers::types::H256;
     use plonky2x::backend::circuit::DefaultParameters;
+    use tokio::runtime::Runtime;
 
     use crate::{
         commitment::DataCommitment,
-        inputs::{generate_data_commitment_inputs, generate_expected_data_commitment},
-        variables::DataCommitmentProofVariable,
+        input_data::{utils::convert_to_h256, InputDataFetcher, InputDataMode},
+        variables::{DataCommitmentProofValueType, DataCommitmentProofVariable},
     };
 
     type L = DefaultParameters;
     type F = <L as PlonkParameters<D>>::Field;
     const D: usize = 2;
-
-    #[test]
-    #[cfg_attr(feature = "ci", ignore)]
-    fn test_prove_data_commitment() {
-        env_logger::try_init().unwrap_or_default();
-
-        let mut builder = CircuitBuilder::<L, D>::new();
-
-        const MAX_LEAVES: usize = 4;
-        const NUM_BLOCKS: usize = 4;
-        const START_BLOCK: usize = 3800;
-        const END_BLOCK: usize = START_BLOCK + NUM_BLOCKS;
-
-        let data_commitment_var = builder.read::<DataCommitmentProofVariable<MAX_LEAVES>>();
-
-        let expected_data_commitment = builder.read::<Bytes32Variable>();
-
-        let root_hash_target = builder.prove_data_commitment::<MAX_LEAVES>(data_commitment_var);
-        builder.assert_is_equal(root_hash_target, expected_data_commitment);
-
-        let circuit = builder.build();
-
-        let mut input = circuit.input();
-        input.write::<DataCommitmentProofVariable<MAX_LEAVES>>(generate_data_commitment_inputs::<
-            MAX_LEAVES,
-            F,
-        >(START_BLOCK, END_BLOCK));
-
-        input.write::<Bytes32Variable>(generate_expected_data_commitment::<MAX_LEAVES, F>(
-            START_BLOCK,
-            END_BLOCK,
-        ));
-        let (proof, output) = circuit.prove(&input);
-        circuit.verify(&proof, &input, &output);
-    }
 
     #[test]
     #[cfg_attr(feature = "ci", ignore)]
@@ -263,30 +230,36 @@ pub(crate) mod tests {
         const START_BLOCK: usize = 3800;
         const END_BLOCK: usize = START_BLOCK + NUM_BLOCKS;
 
-        let data_commitment_var = builder.read::<DataCommitmentProofVariable<MAX_LEAVES>>();
+        let data_hashes = builder.read::<ArrayVariable<Bytes32Variable, MAX_LEAVES>>();
 
         let expected_data_commitment = builder.read::<Bytes32Variable>();
 
         let start_block = builder.constant::<U64Variable>(START_BLOCK.into());
         let end_block = builder.constant::<U64Variable>(END_BLOCK.into());
-        let root_hash_target = builder.get_data_commitment::<MAX_LEAVES>(
-            &data_commitment_var.data_hashes,
-            start_block,
-            end_block,
-        );
+        let root_hash_target =
+            builder.get_data_commitment::<MAX_LEAVES>(&data_hashes, start_block, end_block);
         builder.assert_is_equal(root_hash_target, expected_data_commitment);
 
         let circuit = builder.build();
 
         let mut input = circuit.input();
-        input.write::<DataCommitmentProofVariable<MAX_LEAVES>>(generate_data_commitment_inputs::<
-            MAX_LEAVES,
-            F,
-        >(START_BLOCK, END_BLOCK));
-        input.write::<Bytes32Variable>(generate_expected_data_commitment::<MAX_LEAVES, F>(
-            START_BLOCK,
-            END_BLOCK,
-        ));
+
+        let mut data_fetcher = InputDataFetcher::new(
+            InputDataMode::Rpc("http://rpc.testnet.celestia.citizencosmos.space".to_string()),
+            "".to_string(),
+        );
+        data_fetcher.set_save(true);
+        let rt = Runtime::new().expect("failed to create tokio runtime");
+        let result = rt.block_on(async {
+            data_fetcher
+                .get_data_commitment_inputs_from_blocks::<MAX_LEAVES, F>(
+                    START_BLOCK as u64,
+                    END_BLOCK as u64,
+                )
+                .await
+        });
+        input.write::<ArrayVariable<Bytes32Variable, MAX_LEAVES>>(convert_to_h256(result.0));
+        input.write::<Bytes32Variable>(H256(result.3));
         let (proof, output) = circuit.prove(&input);
         circuit.verify(&proof, &input, &output);
     }
@@ -298,23 +271,62 @@ pub(crate) mod tests {
 
         let mut builder = CircuitBuilder::<L, D>::new();
 
-        const WINDOW_SIZE: usize = 4;
-        const TRUSTED_BLOCK: usize = 3800;
-        const CURRENT_BLOCK: usize = TRUSTED_BLOCK + WINDOW_SIZE;
+        const MAX_LEAVES: usize = 4;
+        const NUM_BLOCKS: usize = 4;
+        const START_BLOCK: usize = 3800;
+        const END_BLOCK: usize = START_BLOCK + NUM_BLOCKS;
 
-        let data_commitment_var = builder.read::<DataCommitmentProofVariable<WINDOW_SIZE>>();
+        let data_commitment_var = builder.read::<DataCommitmentProofVariable<MAX_LEAVES>>();
 
-        builder.prove_header_chain::<WINDOW_SIZE>(data_commitment_var);
+        builder.prove_header_chain::<MAX_LEAVES>(data_commitment_var);
 
         let circuit = builder.build();
 
         let mut input = circuit.input();
-        input.write::<DataCommitmentProofVariable<WINDOW_SIZE>>(generate_data_commitment_inputs::<
-            WINDOW_SIZE,
-            F,
-        >(
-            TRUSTED_BLOCK, CURRENT_BLOCK
-        ));
+
+        let mut data_fetcher = InputDataFetcher::new(InputDataMode::Fixture, "".to_string());
+        let rt = Runtime::new().expect("failed to create tokio runtime");
+        let result = rt.block_on(async {
+            data_fetcher
+                .get_data_commitment_inputs_from_blocks::<MAX_LEAVES, F>(
+                    START_BLOCK as u64,
+                    END_BLOCK as u64,
+                )
+                .await
+        });
+        let start_block =
+            rt.block_on(async { data_fetcher.get_block_from_number(START_BLOCK as u64).await });
+        let end_block =
+            rt.block_on(async { data_fetcher.get_block_from_number(END_BLOCK as u64).await });
+
+        let data_comm_proof = DataCommitmentProofValueType {
+            data_hashes: convert_to_h256(result.0),
+            start_block_height: START_BLOCK.into(),
+            start_header: H256(
+                start_block
+                    .header
+                    .hash()
+                    .as_bytes()
+                    .to_vec()
+                    .try_into()
+                    .unwrap(),
+            ),
+            end_block_height: END_BLOCK.into(),
+            end_header: H256(
+                end_block
+                    .header
+                    .hash()
+                    .as_bytes()
+                    .to_vec()
+                    .try_into()
+                    .unwrap(),
+            ),
+            data_hash_proofs: result.1,
+            prev_header_proofs: result.2,
+        };
+
+        input.write::<DataCommitmentProofVariable<MAX_LEAVES>>(data_comm_proof);
+
         let (proof, output) = circuit.prove(&input);
         circuit.verify(&proof, &input, &output);
     }

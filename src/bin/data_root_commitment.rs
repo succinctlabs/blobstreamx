@@ -41,7 +41,7 @@ impl<const MAX_LEAVES: usize, L: PlonkParameters<D>, const D: usize> Hint<L, D>
         let end_block = input_stream.read_value::<U64Variable>();
         let end_header_hash = input_stream.read_value::<Bytes32Variable>();
 
-        let mut data_fetcher = InputDataFetcher::new(InputDataMode::Fixture);
+        let mut data_fetcher = InputDataFetcher::new(InputDataMode::Fixture, "src/".to_string());
 
         let rt = Runtime::new().expect("failed to create tokio runtime");
         let result = rt.block_on(async {

@@ -36,13 +36,15 @@ pub enum InputDataMode {
 pub struct InputDataFetcher {
     mode: InputDataMode,
     proof_cache: HashMap<Hash, Vec<Proof>>,
+    path_to_fixture: String,
     save: bool,
 }
 
 impl InputDataFetcher {
-    pub fn new(mode: InputDataMode) -> Self {
+    pub fn new(mode: InputDataMode, path_to_fixture: String) -> Self {
         Self {
             mode,
+            path_to_fixture,
             proof_cache: HashMap::new(),
             save: false,
         }
@@ -64,7 +66,8 @@ impl InputDataFetcher {
                 let res = reqwest::get(query_url).await.unwrap().text().await.unwrap();
                 if self.save {
                     let file_name = format!(
-                        "./src/fixtures/updated/{}-{}/data_commitment.json",
+                        "./{}fixtures/updated/{}-{}/data_commitment.json",
+                        self.path_to_fixture,
                         start_block.to_string().as_str(),
                         end_block.to_string().as_str()
                     );
@@ -78,7 +81,8 @@ impl InputDataFetcher {
             }
             InputDataMode::Fixture => {
                 let file_name = format!(
-                    "./src/fixtures/updated/{}-{}/data_commitment.json",
+                    "./{}fixtures/updated/{}-{}/data_commitment.json",
+                    self.path_to_fixture,
                     start_block.to_string().as_str(),
                     end_block.to_string().as_str()
                 );
@@ -108,7 +112,8 @@ impl InputDataFetcher {
                 let res = reqwest::get(query_url).await.unwrap().text().await.unwrap();
                 if self.save {
                     let file_name = format!(
-                        "./src/fixtures/updated/{}/signed_block.json",
+                        "./{}fixtures/updated/{}/signed_block.json",
+                        self.path_to_fixture,
                         block_number.to_string().as_str()
                     );
                     // Ensure the directory exists
@@ -121,7 +126,8 @@ impl InputDataFetcher {
             }
             InputDataMode::Fixture => {
                 let file_name = format!(
-                    "./src/fixtures/updated/{}/signed_block.json",
+                    "./{}fixtures/updated/{}/signed_block.json",
+                    self.path_to_fixture,
                     block_number.to_string().as_str()
                 );
                 println!("{:?}", file_name);
@@ -327,6 +333,23 @@ impl InputDataFetcher {
             end_header_hash.as_bytes()
         );
 
+        self.get_data_commitment_inputs_from_blocks::<MAX_LEAVES, F>(
+            start_block_number,
+            end_block_number,
+        )
+        .await
+    }
+
+    pub async fn get_data_commitment_inputs_from_blocks<const MAX_LEAVES: usize, F: RichField>(
+        &mut self,
+        start_block_number: u64,
+        end_block_number: u64,
+    ) -> (
+        Vec<[u8; 32]>,                                                            // data_hashes
+        Vec<InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES, F>>, // data_hash_proofs
+        Vec<InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, F>>, // prev_header_proofs
+        [u8; 32], // expected_data_commitment
+    ) {
         let mut data_hashes = Vec::new();
         let mut data_hash_proofs = Vec::new();
         let mut prev_header_proofs = Vec::new();
@@ -427,9 +450,10 @@ mod test {
         use crate::input_data::{InputDataFetcher, InputDataMode};
 
         let block_height = 11105u64;
-        let mut fetcher = InputDataFetcher::new(InputDataMode::Rpc(
-            "http://rpc.testnet.celestia.citizencosmos.space".to_string(),
-        ));
+        let mut fetcher = InputDataFetcher::new(
+            InputDataMode::Rpc("http://rpc.testnet.celestia.citizencosmos.space".to_string()),
+            "src/".to_string(),
+        );
         fetcher.set_save(true);
         let _block = fetcher.get_block_from_number(block_height).await;
     }

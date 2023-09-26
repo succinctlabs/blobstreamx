@@ -1,5 +1,6 @@
 use crate::{
-    inputs::{convert_to_h256, get_path_indices, TempMerkleInclusionProof},
+    input_data::types::TempMerkleInclusionProof,
+    input_data::utils::{convert_to_h256, get_path_indices},
     utils::{generate_proofs_from_header, leaf_hash, SignedBlock, TempSignedBlock},
 };
 use ethers::abi::AbiEncode;

@@ -43,7 +43,7 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize, L: PlonkParameters<D>, const D: usize>
         let trusted_header_hash = input_stream.read_value::<Bytes32Variable>();
         let trusted_block = input_stream.read_value::<U64Variable>();
         let target_block = input_stream.read_value::<U64Variable>();
-        let mut data_fetcher = InputDataFetcher::new(InputDataMode::Fixture);
+        let mut data_fetcher = InputDataFetcher::new(InputDataMode::Fixture, "src/".to_string());
         let rt = Runtime::new().expect("failed to create tokio runtime");
         let result = rt.block_on(async {
             data_fetcher
