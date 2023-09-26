@@ -32,14 +32,14 @@ pub trait DataCommitment<L: PlonkParameters<D>, const D: usize> {
 
     /// Prove header chain from end_header to start_header & the block heights for the current header and the trusted header.
     /// Merkle prove the last block id against the current header, and the data hash for each header except the current header.
-    /// prev_header_proofs are against [start_block + 1, end_block], data_hash_proofs are against [start_block, end_block - 1].
+    /// prev_header_proofs are against (start_block + 1, end_block), data_hash_proofs are against (start_block, end_block - 1).
     fn prove_header_chain<const MAX_LEAVES: usize>(
         &mut self,
         input: DataCommitmentProofVariable<MAX_LEAVES>,
     );
 
     /// Prove the header chain from end_header to start_header & compute the data commitment.
-    /// Note: Will only include the first [end_block - start_block] data_hashes.
+    /// Note: Will only include the first (end_block - start_block) data_hashes.
     /// Note: start_block must be < end_block.
     fn prove_data_commitment<const MAX_LEAVES: usize>(
         &mut self,
@@ -106,8 +106,13 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitment<L, D> for CircuitBuil
             is_enabled = self.and(is_enabled, is_not_last_valid_leaf);
         }
 
+        const ENC_DATA_ROOT_TUPLE_SIZE_BYTES: usize = 64;
+
         // Return the root hash.
-        self.compute_root_from_leaves::<MAX_LEAVES, 64>(leaves, leaves_enabled)
+        self.compute_root_from_leaves::<MAX_LEAVES, ENC_DATA_ROOT_TUPLE_SIZE_BYTES>(
+            leaves,
+            leaves_enabled,
+        )
     }
     fn prove_header_chain<const MAX_LEAVES: usize>(
         &mut self,
@@ -117,8 +122,8 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitment<L, D> for CircuitBuil
 
         let num_leaves = self.sub(input.end_block_height, input.start_block_height);
 
-        // Verify the header chain of the first [end_block - start_block] headers.
-        // is_enabled is true for the first [end_block - start_block] headers, and false for the rest.
+        // Verify the header chain of the first (end_block - start_block) headers.
+        // is_enabled is true for the first (end_block - start_block) headers, and false for the rest.
         let mut is_enabled = self.constant::<BoolVariable>(true);
         let mut curr_header = input.start_header;
         for i in 0..MAX_LEAVES {

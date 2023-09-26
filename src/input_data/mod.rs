@@ -353,7 +353,7 @@ impl InputDataFetcher {
         // Remove end_block's data_hash, as data_commitment does not include it.
         data_hashes.pop();
 
-        // Remove end_block's data_hash_proof & reverse data_hash_proofs for the commitment circuit.
+        // Remove end_block's data_hash_proof & as data_commitment does not check it.
         data_hash_proofs.pop();
 
         // Remove start_block's prev_header_proof.
