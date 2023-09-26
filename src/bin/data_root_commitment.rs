@@ -120,7 +120,7 @@ mod tests {
 
     #[test]
     #[cfg_attr(feature = "ci", ignore)]
-    fn test_circuit_function_data_commitment() {
+    fn test_circuit_function_data_commitment_variable_small() {
         env::set_var("RUST_LOG", "debug");
         env_logger::try_init().unwrap_or_default();
 
