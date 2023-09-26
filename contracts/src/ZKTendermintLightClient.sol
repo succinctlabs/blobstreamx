@@ -22,6 +22,11 @@ contract ZKTendermintLightClient {
     event HeaderStepFulfilled(uint64 indexed nextBlock, bytes32 header);
     event FunctionId(string name, bytes32 id);
 
+    modifier onlyGateway() {
+        require(msg.sender == gateway, "Only gateway can call this function");
+        _;
+    }
+
     constructor(address _gateway) {
         gateway = _gateway;
     }
@@ -68,7 +73,7 @@ contract ZKTendermintLightClient {
     function callbackHeaderSkip(
         bytes memory requestResult,
         bytes memory context
-    ) external {
+    ) external onlyGateway {
         uint64 requestedBlock = abi.decode(context, (uint64));
         bytes32 newHeader = abi.decode(requestResult, (bytes32));
         blockHeightToHeaderHash[requestedBlock] = newHeader;
@@ -101,7 +106,7 @@ contract ZKTendermintLightClient {
     function callbackHeaderStep(
         bytes memory requestResult,
         bytes memory context
-    ) external {
+    ) external onlyGateway {
         uint64 prevBlock = abi.decode(context, (uint64));
         bytes32 nextHeader = abi.decode(requestResult, (bytes32));
         uint64 nextBlock = prevBlock + 1;

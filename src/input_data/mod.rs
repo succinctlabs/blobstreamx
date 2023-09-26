@@ -139,12 +139,10 @@ impl InputDataFetcher {
             computed_prev_header_hash.as_bytes(),
             prev_header_hash.as_bytes()
         );
-        println!("prev_block_hash {:?}", computed_prev_header_hash);
         let next_block = self.get_block_from_number(prev_block_number + 1).await;
         let round_present = next_block.commit.round.value() != 0;
 
         let next_block_header = next_block.header.hash();
-        println!("next_block_header {:?}", next_block_header);
 
         let next_block_validators =
             get_validators_as_input::<VALIDATOR_SET_SIZE_MAX, F>(&next_block);
