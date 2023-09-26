@@ -131,39 +131,33 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitment<L, D> for CircuitBuil
             let is_last_valid_leaf = self.is_equal(num_leaves, num_leaves_so_far);
             let is_not_last_valid_leaf = self.not(is_last_valid_leaf);
 
-            let data_hash_proof = &input.data_hash_proofs[i];
-            let prev_header_proof = &input.prev_header_proofs[i];
             // Header hash of block (start + i).
             let data_hash_proof_root = self
                 .get_root_from_merkle_proof::<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES>(
-                    data_hash_proof,
+                    &input.data_hash_proofs[i],
                 );
             // Header hash of block (start + i + 1).
             let prev_header_proof_root = self
                 .get_root_from_merkle_proof::<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES>(
-                    prev_header_proof,
+                    &input.prev_header_proofs[i],
                 );
             // Header hash of block (start + i).
-            let header_hash = prev_header_proof.leaf[2..2 + HASH_SIZE].into();
+            let header_hash = input.prev_header_proofs[i].leaf[2..2 + HASH_SIZE].into();
 
             // Verify the data hash proof against the header hash of block (start + i).
             let is_valid_data_hash = self.is_equal(data_hash_proof_root, header_hash);
-
             // NOT is_enabled || (data_hash_proof_root == header_hash) must be true.
             let data_hash_check = self.or(is_disabled, is_valid_data_hash);
             self.assert_is_equal(data_hash_check, true_var);
 
-            // Check that the prev_header is correct.
-            // 1) Verify the curr_header matches the extracted header_hash.
-            // 2) If is_last_valid_leaf is true, then the root of the prev_header_proof must be the end_header.
-
+            // Verify the header chain.
             // 1) Verify the curr_header matches the extracted header_hash.
             let is_valid_prev_header = self.is_equal(curr_header, header_hash);
             // NOT is_enabled || (curr_header == header_hash) must be true.
             let prev_header_check = self.or(is_disabled, is_valid_prev_header);
             self.assert_is_equal(prev_header_check, true_var);
 
-            // If is_last_valid_leaf is true, then the root of the prev_header_proof must be the end_header.
+            // 2) If is_last_valid_leaf is true, then the root of the prev_header_proof must be the end_header.
             let root_matches_end_header = self.is_equal(prev_header_proof_root, input.end_header);
             // NOT is_valid_leaf || root_matches_end_header must be true.
             let end_header_check = self.or(is_not_last_valid_leaf, root_matches_end_header);
@@ -171,7 +165,6 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitment<L, D> for CircuitBuil
 
             // Move curr_prev_header to prev_header_proof_root.
             curr_header = prev_header_proof_root;
-
             // Set is_enabled to false if this is the last valid leaf.
             is_enabled = self.and(is_enabled, is_not_last_valid_leaf);
         }
