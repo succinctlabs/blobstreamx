@@ -353,10 +353,10 @@ impl InputDataFetcher {
         // Remove end_block's data_hash, as data_commitment does not include it.
         data_hashes.pop();
 
-        // Remove end_block's data_hash_proof & as data_commitment does not check it.
+        // Remove end_block's data_hash_proof, as data_commitment does not check it.
         data_hash_proofs.pop();
 
-        // Remove start_block's prev_header_proof.
+        // Remove start_block's prev_header_proof, as data_commitment does not check it.
         prev_header_proofs = prev_header_proofs[1..].to_vec();
 
         // TODO: Remove, convert get_merkle_proof to use InclusionProof.
