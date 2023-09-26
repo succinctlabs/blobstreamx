@@ -120,8 +120,8 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize> Circuit for SkipCircuit<MAX_VALIDATOR_
         builder.evm_write(target_header);
     }
 
-    fn add_generators<L: PlonkParameters<D>, const D: usize>(
-        generator_registry: &mut plonky2x::prelude::WitnessGeneratorRegistry<L, D>,
+    fn register_generators<L: PlonkParameters<D>, const D: usize>(
+        generator_registry: &mut plonky2x::prelude::HintRegistry<L, D>,
     ) where
         <<L as PlonkParameters<D>>::Config as plonky2::plonk::config::GenericConfig<D>>::Hasher:
             plonky2::plonk::config::AlgebraicHasher<L::Field>,
@@ -143,7 +143,7 @@ mod tests {
 
     use super::*;
     use plonky2x::backend::circuit::PublicInput;
-    use plonky2x::prelude::{DefaultBuilder, GateRegistry, WitnessGeneratorRegistry};
+    use plonky2x::prelude::{DefaultBuilder, GateRegistry, HintRegistry};
 
     #[test]
     #[cfg_attr(feature = "ci", ignore)]
@@ -159,16 +159,16 @@ mod tests {
         let circuit = builder.build();
         log::debug!("Done building circuit");
 
-        let mut generator_registry = WitnessGeneratorRegistry::new();
+        let mut hint_registry = HintRegistry::new();
         let mut gate_registry = GateRegistry::new();
-        SkipCircuit::<MAX_VALIDATOR_SET_SIZE>::add_generators(&mut generator_registry);
-        SkipCircuit::<MAX_VALIDATOR_SET_SIZE>::add_gates(&mut gate_registry);
+        SkipCircuit::<MAX_VALIDATOR_SET_SIZE>::register_generators(&mut hint_registry);
+        SkipCircuit::<MAX_VALIDATOR_SET_SIZE>::register_gates(&mut gate_registry);
 
-        circuit.test_serializers(&gate_registry, &generator_registry);
+        circuit.test_serializers(&gate_registry, &hint_registry);
     }
 
-    // TODO: this test should not run in CI because it uses the RPC instead of a fixture
     #[test]
+    #[cfg_attr(feature = "ci", ignore)]
     fn test_circuit_with_input_bytes() {
         env::set_var("RUST_LOG", "debug");
         env_logger::try_init().unwrap_or_default();

@@ -107,8 +107,8 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize> Circuit for StepCircuit<MAX_VALIDATOR_
         builder.evm_write(next_header);
     }
 
-    fn add_generators<L: PlonkParameters<D>, const D: usize>(
-        generator_registry: &mut plonky2x::prelude::WitnessGeneratorRegistry<L, D>,
+    fn register_generators<L: PlonkParameters<D>, const D: usize>(
+        generator_registry: &mut plonky2x::prelude::HintRegistry<L, D>,
     ) where
         <<L as PlonkParameters<D>>::Config as plonky2::plonk::config::GenericConfig<D>>::Hasher:
             plonky2::plonk::config::AlgebraicHasher<L::Field>,
@@ -127,7 +127,7 @@ mod tests {
     use ethers::types::H256;
     use ethers::utils::hex;
     use plonky2x::backend::circuit::PublicInput;
-    use plonky2x::prelude::{DefaultBuilder, GateRegistry, WitnessGeneratorRegistry};
+    use plonky2x::prelude::{DefaultBuilder, GateRegistry, HintRegistry};
     use std::env;
 
     use super::*;
@@ -146,12 +146,12 @@ mod tests {
         let circuit = builder.build();
         log::debug!("Done building circuit");
 
-        let mut generator_registry = WitnessGeneratorRegistry::new();
+        let mut hint_registry = HintRegistry::new();
         let mut gate_registry = GateRegistry::new();
-        StepCircuit::<MAX_VALIDATOR_SET_SIZE>::add_generators(&mut generator_registry);
-        StepCircuit::<MAX_VALIDATOR_SET_SIZE>::add_gates(&mut gate_registry);
+        StepCircuit::<MAX_VALIDATOR_SET_SIZE>::register_generators(&mut hint_registry);
+        StepCircuit::<MAX_VALIDATOR_SET_SIZE>::register_gates(&mut gate_registry);
 
-        circuit.test_serializers(&gate_registry, &generator_registry);
+        circuit.test_serializers(&gate_registry, &hint_registry);
     }
 
     // TODO: this test should not run in CI because it uses the RPC instead of a fixture

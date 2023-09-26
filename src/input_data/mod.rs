@@ -40,12 +40,18 @@ pub struct InputDataFetcher {
     save: bool,
 }
 
+impl Default for InputDataFetcher {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl InputDataFetcher {
     pub fn new() -> Self {
         dotenv::dotenv().ok();
         let url = env::var("RPC_MOCHA_4").expect("RPC_MOCHA_4 is not set in .env");
 
-        let mode = if url == "" || url == "fixture" {
+        let mode = if url.is_empty() || url == "fixture" {
             println!("Using fixture mode for data fetcher");
             InputDataMode::Fixture
         } else {
