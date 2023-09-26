@@ -21,26 +21,28 @@ pub trait DataCommitment<L: PlonkParameters<D>, const D: usize> {
         height: &U64Variable,
     ) -> BytesVariable<64>;
 
-    /// Compute the data commitment from the data hashes and block heights. WINDOW_RANGE is the number of blocks in the data commitment. NUM_LEAVES is the number of leaves in the tree for the data commitment.
+    /// Compute the data commitment from the data hashes and block heights. MAX_LEAVES is the maximum number of leaves in the tree for the data commitment.
     /// Assumes the data hashes are already proven.
-    fn get_data_commitment<const WINDOW_RANGE: usize, const NB_LEAVES: usize>(
+    fn get_data_commitment<const MAX_LEAVES: usize>(
         &mut self,
-        data_hashes: &ArrayVariable<Bytes32Variable, WINDOW_RANGE>,
+        data_hashes: &ArrayVariable<Bytes32Variable, MAX_LEAVES>,
         start_block: U64Variable,
+        end_block: U64Variable,
     ) -> Bytes32Variable;
 
     /// Prove header chain from end_header to start_header & the block heights for the current header and the trusted header.
     /// Merkle prove the last block id against the current header, and the data hash for each header except the current header.
-    /// Note: data_hash_proofs and prev_header_proofs should be in order from end_header to start_header
-    fn prove_header_chain<const WINDOW_RANGE: usize>(
+    /// prev_header_proofs are against [start_block + 1, end_block], data_hash_proofs are against [start_block, end_block - 1].
+    fn prove_header_chain<const MAX_LEAVES: usize>(
         &mut self,
-        input: DataCommitmentProofVariable<WINDOW_RANGE>,
+        input: DataCommitmentProofVariable<MAX_LEAVES>,
     );
 
     /// Prove the header chain from end_header to start_header & compute the data commitment.
-    fn prove_data_commitment<const WINDOW_RANGE: usize, const NB_LEAVES: usize>(
+    /// Note: Will only include the first [end_block - start_block] data_hashes.
+    fn prove_data_commitment<const MAX_LEAVES: usize>(
         &mut self,
-        input: DataCommitmentProofVariable<WINDOW_RANGE>,
+        input: DataCommitmentProofVariable<MAX_LEAVES>,
     ) -> Bytes32Variable;
 }
 
@@ -73,39 +75,67 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitment<L, D> for CircuitBuil
         BytesVariable::<64>(encoded_tuple.try_into().unwrap())
     }
 
-    fn get_data_commitment<const WINDOW_RANGE: usize, const NB_LEAVES: usize>(
+    fn get_data_commitment<const MAX_LEAVES: usize>(
         &mut self,
-        data_hashes: &ArrayVariable<Bytes32Variable, WINDOW_RANGE>,
+        data_hashes: &ArrayVariable<Bytes32Variable, MAX_LEAVES>,
         start_block: U64Variable,
+        end_block: U64Variable,
     ) -> Bytes32Variable {
         let mut leaves = Vec::new();
 
-        for i in 0..WINDOW_RANGE {
+        for i in 0..MAX_LEAVES {
             let curr_idx = self.constant::<U64Variable>(i.into());
             let block_height = self.add(start_block, curr_idx);
             // Encode the data hash and height into a tuple.
             leaves.push(self.encode_data_root_tuple(&data_hashes[i], &block_height));
         }
 
-        leaves.resize(NB_LEAVES, self.constant::<BytesVariable<64>>([0u8; 64]));
-
         let mut leaves_enabled = Vec::new();
-        leaves_enabled.resize(WINDOW_RANGE, self.constant::<BoolVariable>(true));
-        leaves_enabled.resize(NB_LEAVES, self.constant::<BoolVariable>(false));
+        let is_enabled = self.constant::<BoolVariable>(true);
+        for i in 0..MAX_LEAVES {
+            let idx = self.constant::<U64Variable>(i.into());
+            let curr_height = self.add(start_block, idx);
+            let is_end_height = self.is_equal(curr_height, end_block);
+            let is_not_end_height = self.not(is_end_height);
+            // Set is_enabled to true while the current height is less than the end height.
+            let is_enabled = self.and(is_enabled, is_not_end_height);
+
+            leaves_enabled.push(is_enabled);
+        }
 
         // Return the root hash.
-        self.compute_root_from_leaves::<NB_LEAVES, 64>(leaves, leaves_enabled)
+        self.compute_root_from_leaves::<MAX_LEAVES, 64>(leaves, leaves_enabled)
     }
-    fn prove_header_chain<const WINDOW_RANGE: usize>(
+    fn prove_header_chain<const MAX_LEAVES: usize>(
         &mut self,
-        input: DataCommitmentProofVariable<WINDOW_RANGE>,
+        input: DataCommitmentProofVariable<MAX_LEAVES>,
     ) {
-        // Verify the header chain.
-        let mut curr_header_hash = input.end_header;
+        let true_var = self._true();
+        // Verify prev_header_proofs from end_header -> start_header.
+        // Ignore prev_header_proofs from start_header + MAX_LEAVES -> end_header.
+        // let mut prev_header_proofs = input.prev_header_proofs.as_vec();
+        // prev_header_proofs.reverse();
 
-        for i in 0..WINDOW_RANGE {
+        let num_leaves = self.sub(input.end_block_height, input.start_block_height);
+
+        // Verify data_hash_proofs against extracted header hashes from prev_header_proofs.
+        // Note: Verify the first (end_block - start_block) data_hash_proofs.
+        let mut is_enabled = self.constant::<BoolVariable>(true);
+        let mut curr_prev_header = input.start_header;
+        for i in 0..MAX_LEAVES {
+            let is_disabled = self.not(is_enabled);
+
+            // Number of leaves included in the data hash and prove header chain computation so far (including the current leaf).
+            let num_leaves_so_far = self.constant::<U64Variable>((i + 1).into());
+
+            // If at the last_valid_leaf, flip is_enabled to false and check curr_prev_header against the end_header.
+            let is_last_valid_leaf = self.is_equal(num_leaves, num_leaves_so_far);
+            let is_not_last_valid_leaf = self.not(is_last_valid_leaf);
+
             let data_hash_proof = &input.data_hash_proofs[i];
             let prev_header_proof = &input.prev_header_proofs[i];
+            // Extract the prev header hash from block (start + i + 1), which is the current header hash (start + i).
+            let header_hash = prev_header_proof.leaf[2..2 + HASH_SIZE].into();
 
             let data_hash_proof_root = self
                 .get_root_from_merkle_proof::<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES>(
@@ -116,32 +146,44 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitment<L, D> for CircuitBuil
                     prev_header_proof,
                 );
 
-            // Verify the prev header proof against the current header hash.
-            self.assert_is_equal(prev_header_proof_root, curr_header_hash);
+            // Verify the data hash proof against the current header hash.
+            let is_valid_data_hash = self.is_equal(data_hash_proof_root, header_hash);
+            // NOT is_enabled || (data_hash_proof_root == header_hash) must be true.
+            let data_hash_check = self.or(is_disabled, is_valid_data_hash);
+            self.assert_is_equal(data_hash_check, true_var);
 
-            // Extract the prev header hash from the prev header proof.
-            let prev_header_hash = prev_header_proof.leaf[2..2 + HASH_SIZE].into();
+            // Verify the curr_prev_header matches the extracted curr_header_hash.
+            let is_valid_prev_header = self.is_equal(curr_prev_header, header_hash);
+            // NOT is_enabled || (curr_prev_header == header_hash) must be true.
+            let prev_header_check = self.or(is_disabled, is_valid_prev_header);
+            self.assert_is_equal(prev_header_check, true_var);
 
-            // Verify the data hash proof against the prev header hash.
-            self.assert_is_equal(data_hash_proof_root, prev_header_hash);
+            // If is_last_valid_leaf is true, then the root of the prev_header_proof must be the end_header.
+            let root_matches_end_header = self.is_equal(prev_header_proof_root, input.end_header);
+            // NOT is_valid_leaf || root_matches_end_header must be true.
+            let end_header_check = self.or(root_matches_end_header, is_not_last_valid_leaf);
+            self.assert_is_equal(end_header_check, true_var);
 
-            curr_header_hash = prev_header_hash;
+            // Move curr_prev_header to prev_header_proof_root.
+            curr_prev_header = prev_header_proof_root;
+
+            // Set is_enabled to true while the current height < end height.
+            is_enabled = self.and(is_enabled, is_not_last_valid_leaf);
         }
-        // Verify the last header hash in the chain is the start header.
-        self.assert_is_equal(curr_header_hash, input.start_header);
     }
 
-    fn prove_data_commitment<const WINDOW_RANGE: usize, const NB_LEAVES: usize>(
+    fn prove_data_commitment<const MAX_LEAVES: usize>(
         &mut self,
-        input: DataCommitmentProofVariable<WINDOW_RANGE>,
+        input: DataCommitmentProofVariable<MAX_LEAVES>,
     ) -> Bytes32Variable {
         // Compute the data commitment.
-        let data_commitment = self.get_data_commitment::<WINDOW_RANGE, NB_LEAVES>(
+        let data_commitment = self.get_data_commitment::<MAX_LEAVES>(
             &input.data_hashes,
             input.start_block_height,
+            input.end_block_height,
         );
         // Verify the header chain.
-        self.prove_header_chain::<WINDOW_RANGE>(input);
+        self.prove_header_chain::<MAX_LEAVES>(input);
 
         // Return the data commitment.
         data_commitment
@@ -172,28 +214,27 @@ pub(crate) mod tests {
 
         let mut builder = CircuitBuilder::<L, D>::new();
 
-        const WINDOW_SIZE: usize = 4;
-        const NUM_LEAVES: usize = 4;
+        const MAX_LEAVES: usize = 4;
+        const NUM_BLOCKS: usize = 4;
         const START_BLOCK: usize = 3800;
-        const END_BLOCK: usize = START_BLOCK + WINDOW_SIZE;
+        const END_BLOCK: usize = START_BLOCK + NUM_BLOCKS;
 
-        let data_commitment_var = builder.read::<DataCommitmentProofVariable<WINDOW_SIZE>>();
+        let data_commitment_var = builder.read::<DataCommitmentProofVariable<MAX_LEAVES>>();
 
         let expected_data_commitment = builder.read::<Bytes32Variable>();
 
-        let root_hash_target =
-            builder.prove_data_commitment::<WINDOW_SIZE, NUM_LEAVES>(data_commitment_var);
+        let root_hash_target = builder.prove_data_commitment::<MAX_LEAVES>(data_commitment_var);
         builder.assert_is_equal(root_hash_target, expected_data_commitment);
 
         let circuit = builder.build();
 
         let mut input = circuit.input();
-        input.write::<DataCommitmentProofVariable<WINDOW_SIZE>>(generate_data_commitment_inputs::<
-            WINDOW_SIZE,
+        input.write::<DataCommitmentProofVariable<MAX_LEAVES>>(generate_data_commitment_inputs::<
+            MAX_LEAVES,
             F,
         >(START_BLOCK, END_BLOCK));
 
-        input.write::<Bytes32Variable>(generate_expected_data_commitment::<WINDOW_SIZE, F>(
+        input.write::<Bytes32Variable>(generate_expected_data_commitment::<MAX_LEAVES, F>(
             START_BLOCK,
             END_BLOCK,
         ));
@@ -208,30 +249,32 @@ pub(crate) mod tests {
 
         let mut builder = CircuitBuilder::<L, D>::new();
 
-        const WINDOW_SIZE: usize = 4;
-        const NUM_LEAVES: usize = 4;
+        const MAX_LEAVES: usize = 4;
+        const NUM_BLOCKS: usize = 4;
         const START_BLOCK: usize = 3800;
-        const END_BLOCK: usize = START_BLOCK + WINDOW_SIZE;
+        const END_BLOCK: usize = START_BLOCK + NUM_BLOCKS;
 
-        let data_commitment_var = builder.read::<DataCommitmentProofVariable<WINDOW_SIZE>>();
+        let data_commitment_var = builder.read::<DataCommitmentProofVariable<MAX_LEAVES>>();
 
         let expected_data_commitment = builder.read::<Bytes32Variable>();
 
         let start_block = builder.constant::<U64Variable>(START_BLOCK.into());
-        let root_hash_target = builder.get_data_commitment::<WINDOW_SIZE, NUM_LEAVES>(
+        let end_block = builder.constant::<U64Variable>(END_BLOCK.into());
+        let root_hash_target = builder.get_data_commitment::<MAX_LEAVES>(
             &data_commitment_var.data_hashes,
             start_block,
+            end_block,
         );
         builder.assert_is_equal(root_hash_target, expected_data_commitment);
 
         let circuit = builder.build();
 
         let mut input = circuit.input();
-        input.write::<DataCommitmentProofVariable<WINDOW_SIZE>>(generate_data_commitment_inputs::<
-            WINDOW_SIZE,
+        input.write::<DataCommitmentProofVariable<MAX_LEAVES>>(generate_data_commitment_inputs::<
+            MAX_LEAVES,
             F,
         >(START_BLOCK, END_BLOCK));
-        input.write::<Bytes32Variable>(generate_expected_data_commitment::<WINDOW_SIZE, F>(
+        input.write::<Bytes32Variable>(generate_expected_data_commitment::<MAX_LEAVES, F>(
             START_BLOCK,
             END_BLOCK,
         ));

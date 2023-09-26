@@ -20,7 +20,7 @@ use crate::consts::{
 use crate::input_data::types::{get_validators_as_input, get_validators_fields_as_input};
 use crate::variables::HeightProofValueType;
 use crate::verify::{Validator, ValidatorHashField};
-use ethers::types::{H256, U64};
+use ethers::types::H256;
 use itertools::Itertools;
 use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
 use plonky2x::frontend::merkle::tree::InclusionProof;
@@ -343,11 +343,7 @@ impl InputDataFetcher {
         )
     }
 
-    pub async fn get_data_commitment_inputs<
-        const WINDOW_SIZE: usize,
-        const NUM_LEAVES: usize,
-        F: RichField,
-    >(
+    pub async fn get_data_commitment_inputs<const MAX_LEAVES: usize, F: RichField>(
         &mut self,
         start_block_number: u64,
         start_header_hash: H256,
@@ -355,10 +351,6 @@ impl InputDataFetcher {
         end_header_hash: H256,
     ) -> (
         Vec<[u8; 32]>,                                                            // data_hashes
-        [u8; 32],                                                                 // start_header
-        U64,      // start_block_height
-        [u8; 32], // end_header
-        U64,      // end_block_height
         Vec<InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES, F>>, // data_hash_proofs
         Vec<InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, F>>, // prev_header_proofs
         [u8; 32], // expected_data_commitment
@@ -405,14 +397,12 @@ impl InputDataFetcher {
 
         // Remove end_block's data_hash_proof & reverse data_hash_proofs for the commitment circuit.
         data_hash_proofs.pop();
-        data_hash_proofs.reverse();
 
-        // Remove start_block's prev_header_proof & reverse prev_header_proofs for the commitment circuit.
-        prev_header_proofs.reverse();
-        prev_header_proofs.pop();
+        // Remove start_block's prev_header_proof.
+        prev_header_proofs = prev_header_proofs[1..].to_vec();
 
         // TODO: Remove, convert get_merkle_proof to use InclusionProof.
-        let data_hash_proofs_formatted = data_hash_proofs
+        let mut data_hash_proofs_formatted = data_hash_proofs
             .into_iter()
             .map(
                 |proof| InclusionProof::<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES, F> {
@@ -423,7 +413,7 @@ impl InputDataFetcher {
             )
             .collect_vec();
 
-        let prev_header_proofs_formatted = prev_header_proofs
+        let mut prev_header_proofs_formatted = prev_header_proofs
             .into_iter()
             .map(
                 |proof| InclusionProof::<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, F> {
@@ -434,16 +424,35 @@ impl InputDataFetcher {
             )
             .collect_vec();
 
+        // Extend data_hashes, data_hash_proofs, and prev_header_proofs to MAX_LEAVES.
+        for _ in (end_block_number - start_block_number) as usize..MAX_LEAVES {
+            data_hashes.push([0u8; 32]);
+            data_hash_proofs_formatted.push(InclusionProof::<
+                HEADER_PROOF_DEPTH,
+                PROTOBUF_HASH_SIZE_BYTES,
+                F,
+            > {
+                aunts: [H256::zero(); HEADER_PROOF_DEPTH].to_vec(),
+                path_indices: [false; HEADER_PROOF_DEPTH].to_vec(),
+                leaf: [0u8; PROTOBUF_HASH_SIZE_BYTES],
+            });
+            prev_header_proofs_formatted.push(InclusionProof::<
+                HEADER_PROOF_DEPTH,
+                PROTOBUF_BLOCK_ID_SIZE_BYTES,
+                F,
+            > {
+                aunts: [H256::zero(); HEADER_PROOF_DEPTH].to_vec(),
+                path_indices: [false; HEADER_PROOF_DEPTH].to_vec(),
+                leaf: [0u8; PROTOBUF_BLOCK_ID_SIZE_BYTES],
+            });
+        }
+
         let expected_data_commitment = self
             .get_data_commitment(start_block_number, end_block_number)
             .await;
 
         (
             data_hashes,
-            start_header_hash.as_bytes().try_into().unwrap(),
-            U64::from(start_block_number),
-            end_header_hash.as_bytes().try_into().unwrap(),
-            U64::from(end_block_number),
             data_hash_proofs_formatted,
             prev_header_proofs_formatted,
             expected_data_commitment,

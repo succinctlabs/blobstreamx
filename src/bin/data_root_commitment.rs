@@ -30,12 +30,12 @@ use tokio::runtime::Runtime;
 use celestia::input_data::{InputDataFetcher, InputDataMode};
 use plonky2x::frontend::vars::VariableStream; // TODO: re-export this instead of this path
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct DataCommitmentOffchainInputs<const WINDOW_SIZE: usize, const NUM_LEAVES: usize> {
+struct DataCommitmentOffchainInputs<const MAX_LEAVES: usize> {
     amount: u8,
 }
 
-impl<const WINDOW_SIZE: usize, const NUM_LEAVES: usize, L: PlonkParameters<D>, const D: usize>
-    Hint<L, D> for DataCommitmentOffchainInputs<WINDOW_SIZE, NUM_LEAVES>
+impl<const MAX_LEAVES: usize, L: PlonkParameters<D>, const D: usize> Hint<L, D>
+    for DataCommitmentOffchainInputs<MAX_LEAVES>
 {
     fn hint(&self, input_stream: &mut ValueStream<L, D>, output_stream: &mut ValueStream<L, D>) {
         let start_block = input_stream.read_value::<U64Variable>();
@@ -48,7 +48,7 @@ impl<const WINDOW_SIZE: usize, const NUM_LEAVES: usize, L: PlonkParameters<D>, c
         let rt = Runtime::new().expect("failed to create tokio runtime");
         let result = rt.block_on(async {
             data_fetcher
-                .get_data_commitment_inputs::<WINDOW_SIZE, NUM_LEAVES, L::Field>(
+                .get_data_commitment_inputs::<MAX_LEAVES, L::Field>(
                     start_block.as_u64(),
                     start_header_hash,
                     end_block.as_u64(),
@@ -58,25 +58,23 @@ impl<const WINDOW_SIZE: usize, const NUM_LEAVES: usize, L: PlonkParameters<D>, c
         });
         let data_comm_proof = DataCommitmentProofValueType {
             data_hashes: convert_to_h256(result.0),
-            start_header: H256(result.1),
-            start_block_height: result.2,
-            end_header: H256(result.3),
-            end_block_height: result.4,
-            data_hash_proofs: result.5,
-            prev_header_proofs: result.6,
+            start_block_height: start_block,
+            start_header: start_header_hash,
+            end_block_height: end_block,
+            end_header: end_header_hash,
+            data_hash_proofs: result.1,
+            prev_header_proofs: result.2,
         };
-        output_stream.write_value::<DataCommitmentProofVariable<WINDOW_SIZE>>(data_comm_proof);
-        output_stream.write_value::<Bytes32Variable>(H256(result.7));
+        output_stream.write_value::<DataCommitmentProofVariable<MAX_LEAVES>>(data_comm_proof);
+        output_stream.write_value::<Bytes32Variable>(H256(result.3));
     }
 }
 
-struct DataCommitmentCircuit<const WINDOW_SIZE: usize, const NUM_LEAVES: usize> {
+struct DataCommitmentCircuit<const MAX_LEAVES: usize> {
     _config: usize,
 }
 
-impl<const WINDOW_SIZE: usize, const NUM_LEAVES: usize> Circuit
-    for DataCommitmentCircuit<WINDOW_SIZE, NUM_LEAVES>
-{
+impl<const MAX_LEAVES: usize> Circuit for DataCommitmentCircuit<MAX_LEAVES> {
     fn define<L: PlonkParameters<D>, const D: usize>(builder: &mut CircuitBuilder<L, D>) {
         let start_block_number = builder.evm_read::<U64Variable>();
         let start_header_hash = builder.evm_read::<Bytes32Variable>();
@@ -90,15 +88,14 @@ impl<const WINDOW_SIZE: usize, const NUM_LEAVES: usize> Circuit
         input_stream.write(&end_header_hash);
         let output_stream = builder.hint(
             input_stream,
-            DataCommitmentOffchainInputs::<WINDOW_SIZE, NUM_LEAVES> { amount: 1u8 },
+            DataCommitmentOffchainInputs::<MAX_LEAVES> { amount: 1u8 },
         );
         let data_comm_proof =
-            output_stream.read::<DataCommitmentProofVariable<WINDOW_SIZE>>(builder);
+            output_stream.read::<DataCommitmentProofVariable<MAX_LEAVES>>(builder);
 
         let expected_data_commitment = output_stream.read::<Bytes32Variable>(builder);
 
-        let data_commitment =
-            builder.prove_data_commitment::<WINDOW_SIZE, NUM_LEAVES>(data_comm_proof);
+        let data_commitment = builder.prove_data_commitment::<MAX_LEAVES>(data_comm_proof);
 
         builder.assert_is_equal(data_commitment, expected_data_commitment);
 
@@ -107,9 +104,9 @@ impl<const WINDOW_SIZE: usize, const NUM_LEAVES: usize> Circuit
 }
 
 fn main() {
-    const WINDOW_SIZE: usize = 400;
-    const NUM_LEAVES: usize = 512;
-    VerifiableFunction::<DataCommitmentCircuit<WINDOW_SIZE, NUM_LEAVES>>::entrypoint();
+    // Celestia's maxmimum data commitment size is 1000: https://github.com/celestiaorg/celestia-core/blob/6933af1ead0ddf4a8c7516690e3674c6cdfa7bd8/pkg/consts/consts.go#L44.
+    const MAX_LEAVES: usize = 1024;
+    VerifiableFunction::<DataCommitmentCircuit<MAX_LEAVES>>::entrypoint();
 }
 
 #[cfg(test)]
@@ -127,12 +124,12 @@ mod tests {
         env::set_var("RUST_LOG", "debug");
         env_logger::try_init().unwrap_or_default();
 
-        const WINDOW_SIZE: usize = 4;
-        const NUM_LEAVES: usize = 4;
+        const MAX_LEAVES: usize = 4;
+        const NUM_BLOCKS: usize = 4;
         let mut builder = DefaultBuilder::new();
 
         log::debug!("Defining circuit");
-        DataCommitmentCircuit::<WINDOW_SIZE, NUM_LEAVES>::define(&mut builder);
+        DataCommitmentCircuit::<MAX_LEAVES>::define(&mut builder);
 
         log::debug!("Building circuit");
         let circuit = builder.build();
@@ -144,7 +141,7 @@ mod tests {
         let start_header_hash =
             hex::decode_upper("A0123D5E4B8B8888A61F931EE2252D83568B97C223E0ECA9795B29B8BD8CBA2D")
                 .unwrap();
-        let end_block = start_block + WINDOW_SIZE as u64;
+        let end_block = start_block + NUM_BLOCKS as u64;
         let end_header_hash =
             hex::decode_upper("FCDA37FA6306C77737DD911E6101B612E2DBD837F29ED4F4E1C30919FBAC9D05")
                 .unwrap();
