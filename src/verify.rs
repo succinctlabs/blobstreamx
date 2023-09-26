@@ -35,7 +35,7 @@ pub struct ValidatorVariable<C: Curve> {
     pub pubkey: EDDSAPublicKeyVariable<C>,
     pub signature: EDDSASignatureTarget<C>,
     pub message: ValidatorMessageVariable,
-    pub message_bit_length: Variable,
+    pub message_byte_length: Variable,
     pub voting_power: U64Variable,
     pub validator_byte_length: Variable,
     pub enabled: BoolVariable,
@@ -341,31 +341,40 @@ impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
 
         // TODO: clean up below, it's a bit horrendous
         // Fields used for verifying signatures
-        let validators_signed: Vec<BoolVariable> =
-            validators.as_vec().iter().map(|v| v.signed).collect();
-        let messages: Vec<ValidatorMessageVariable> =
-            validators.as_vec().iter().map(|v| v.message).collect();
-        let message_bit_lengths: Vec<U32Variable> = validators
-            .as_vec()
-            .iter()
-            .map(|v| U32Variable(v.message_bit_length))
-            .collect();
-        let signatures: Vec<EDDSASignatureTarget<Ed25519>> = validators
-            .as_vec()
-            .iter()
-            .map(|v| v.signature.clone())
-            .collect();
-        let pubkeys: Vec<EDDSAPublicKeyVariable<Ed25519>> = validators
-            .as_vec()
-            .iter()
-            .map(|v| v.pubkey.clone())
-            .collect();
+        let validators_signed = ArrayVariable::<BoolVariable, VALIDATOR_SET_SIZE_MAX>::new(
+            validators.as_vec().iter().map(|v| v.signed).collect(),
+        );
+        let messages = ArrayVariable::<ValidatorMessageVariable, VALIDATOR_SET_SIZE_MAX>::new(
+            validators.as_vec().iter().map(|v| v.message).collect(),
+        );
+        let message_byte_lengths = ArrayVariable::<U32Variable, VALIDATOR_SET_SIZE_MAX>::new(
+            validators
+                .as_vec()
+                .iter()
+                .map(|v| U32Variable(v.message_byte_length))
+                .collect(),
+        );
+        let signatures =
+            ArrayVariable::<EDDSASignatureTarget<Ed25519>, VALIDATOR_SET_SIZE_MAX>::new(
+                validators
+                    .as_vec()
+                    .iter()
+                    .map(|v| v.signature.clone())
+                    .collect(),
+            );
+        let pubkeys = ArrayVariable::<EDDSAPublicKeyVariable<Ed25519>, VALIDATOR_SET_SIZE_MAX>::new(
+            validators
+                .as_vec()
+                .iter()
+                .map(|v| v.pubkey.clone())
+                .collect(),
+        );
 
         // Verifies signatures of the validators
         self.conditional_batch_eddsa_verify::<VALIDATOR_SET_SIZE_MAX, VALIDATOR_MESSAGE_BYTES_LENGTH_MAX>(
-            &validators_signed,
+            validators_signed.clone(),
+            message_byte_lengths,
             messages,
-            message_bit_lengths,
             signatures,
             pubkeys,
         );
@@ -410,7 +419,7 @@ impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
             validators.clone(),
             &threshold_numerator,
             &threshold_denominator,
-            validators_signed.clone(),
+            validators_signed.as_vec(),
         );
 
         // Verify that the header is included in each message from a signed validator.

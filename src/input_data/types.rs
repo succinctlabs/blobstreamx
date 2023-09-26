@@ -163,7 +163,7 @@ pub fn get_validators_as_input<const VALIDATOR_SET_SIZE_MAX: usize, F: RichField
                 pubkey: pubkey_to_affine_point(&validator.pub_key.ed25519().unwrap()),
                 signature: signature_to_value_type(&sig.clone()),
                 message: message_padded.try_into().unwrap(),
-                message_bit_length: F::from_canonical_usize(signed_vote.sign_bytes().len() * 8),
+                message_byte_length: F::from_canonical_usize(signed_vote.sign_bytes().len()),
                 voting_power: validator.power().into(),
                 validator_byte_length: F::from_canonical_usize(val_bytes.len()),
                 enabled: true,
@@ -179,7 +179,7 @@ pub fn get_validators_as_input<const VALIDATOR_SET_SIZE_MAX: usize, F: RichField
                 ),
                 // TODO: Replace these with correct outputs
                 message: [0u8; VALIDATOR_MESSAGE_BYTES_LENGTH_MAX],
-                message_bit_length: F::from_canonical_usize(256),
+                message_byte_length: F::from_canonical_usize(32),
                 voting_power: validator.power().into(),
                 validator_byte_length: F::from_canonical_usize(val_bytes.len()),
                 enabled: true,
@@ -208,7 +208,7 @@ pub fn get_validators_as_input<const VALIDATOR_SET_SIZE_MAX: usize, F: RichField
             ),
             // TODO: Replace these with correct outputs
             message: [0u8; VALIDATOR_MESSAGE_BYTES_LENGTH_MAX],
-            message_bit_length: F::from_canonical_usize(256),
+            message_byte_length: F::from_canonical_usize(32),
             voting_power: 0u64.into(),
             validator_byte_length: F::from_canonical_usize(38),
             enabled: false,
