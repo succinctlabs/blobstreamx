@@ -30,9 +30,7 @@ use tokio::runtime::Runtime;
 use celestia::input_data::{InputDataFetcher, InputDataMode};
 use plonky2x::frontend::vars::VariableStream; // TODO: re-export this instead of this path
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct DataCommitmentOffchainInputs<const MAX_LEAVES: usize> {
-    amount: u8,
-}
+struct DataCommitmentOffchainInputs<const MAX_LEAVES: usize> {}
 
 impl<const MAX_LEAVES: usize, L: PlonkParameters<D>, const D: usize> Hint<L, D>
     for DataCommitmentOffchainInputs<MAX_LEAVES>
@@ -88,10 +86,8 @@ impl<const MAX_LEAVES: usize> Circuit for DataCommitmentCircuit<MAX_LEAVES> {
         input_stream.write(&start_header_hash);
         input_stream.write(&end_block_number);
         input_stream.write(&end_header_hash);
-        let output_stream = builder.hint(
-            input_stream,
-            DataCommitmentOffchainInputs::<MAX_LEAVES> { amount: 1u8 },
-        );
+        let output_stream =
+            builder.hint(input_stream, DataCommitmentOffchainInputs::<MAX_LEAVES> {});
         let data_comm_proof =
             output_stream.read::<DataCommitmentProofVariable<MAX_LEAVES>>(builder);
 
