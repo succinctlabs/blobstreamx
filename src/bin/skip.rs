@@ -17,7 +17,7 @@
 use celestia::variables::HeightProofVariable;
 use plonky2x::backend::circuit::Circuit;
 use plonky2x::backend::function::VerifiableFunction;
-use plonky2x::frontend::generator::simple::hint::Hint;
+use plonky2x::frontend::hint::simple::hint::Hint;
 use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::frontend::vars::ValueStream;
 use plonky2x::prelude::{
