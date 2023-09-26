@@ -124,7 +124,8 @@ mod tests {
         env::set_var("RUST_LOG", "debug");
         env_logger::try_init().unwrap_or_default();
 
-        const MAX_LEAVES: usize = 4;
+        // Test variable length NUM_BLOCKS.
+        const MAX_LEAVES: usize = 8;
         const NUM_BLOCKS: usize = 4;
         let mut builder = DefaultBuilder::new();
 

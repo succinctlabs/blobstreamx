@@ -40,6 +40,7 @@ pub trait DataCommitment<L: PlonkParameters<D>, const D: usize> {
 
     /// Prove the header chain from end_header to start_header & compute the data commitment.
     /// Note: Will only include the first [end_block - start_block] data_hashes.
+    /// Note: start_block must be < end_block.
     fn prove_data_commitment<const MAX_LEAVES: usize>(
         &mut self,
         input: DataCommitmentProofVariable<MAX_LEAVES>,
@@ -81,6 +82,7 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitment<L, D> for CircuitBuil
         start_block: U64Variable,
         end_block: U64Variable,
     ) -> Bytes32Variable {
+        let num_leaves = self.sub(end_block, start_block);
         let mut leaves = Vec::new();
 
         for i in 0..MAX_LEAVES {
@@ -91,16 +93,17 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitment<L, D> for CircuitBuil
         }
 
         let mut leaves_enabled = Vec::new();
-        let is_enabled = self.constant::<BoolVariable>(true);
+        let mut is_enabled = self.constant::<BoolVariable>(true);
         for i in 0..MAX_LEAVES {
-            let idx = self.constant::<U64Variable>(i.into());
-            let curr_height = self.add(start_block, idx);
-            let is_end_height = self.is_equal(curr_height, end_block);
-            let is_not_end_height = self.not(is_end_height);
-            // Set is_enabled to true while the current height is less than the end height.
-            let is_enabled = self.and(is_enabled, is_not_end_height);
-
             leaves_enabled.push(is_enabled);
+
+            // Number of leaves included in the data commitment so far (including this leaf).
+            let num_leaves_so_far = self.constant::<U64Variable>((i + 1).into());
+            // If at the last_valid_leaf, must flip is_enabled to false.
+            let is_last_valid_leaf = self.is_equal(num_leaves, num_leaves_so_far);
+            let is_not_last_valid_leaf = self.not(is_last_valid_leaf);
+
+            is_enabled = self.and(is_enabled, is_not_last_valid_leaf);
         }
 
         // Return the root hash.
@@ -130,6 +133,7 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitment<L, D> for CircuitBuil
 
             // If at the last_valid_leaf, flip is_enabled to false and check curr_prev_header against the end_header.
             let is_last_valid_leaf = self.is_equal(num_leaves, num_leaves_so_far);
+            self.watch(&is_last_valid_leaf, "is_last_valid_leaf");
             let is_not_last_valid_leaf = self.not(is_last_valid_leaf);
 
             let data_hash_proof = &input.data_hash_proofs[i];
@@ -176,6 +180,11 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitment<L, D> for CircuitBuil
         &mut self,
         input: DataCommitmentProofVariable<MAX_LEAVES>,
     ) -> Bytes32Variable {
+        let false_var = self._false();
+        // Assert start_block < end_block.
+        let start_end_equal = self.is_equal(input.start_block_height, input.end_block_height);
+        self.assert_is_equal(start_end_equal, false_var);
+
         // Compute the data commitment.
         let data_commitment = self.get_data_commitment::<MAX_LEAVES>(
             &input.data_hashes,
