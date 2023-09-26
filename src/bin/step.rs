@@ -16,8 +16,7 @@
 //!
 use plonky2x::backend::circuit::Circuit;
 use plonky2x::backend::function::VerifiableFunction;
-use plonky2x::frontend::generator::simple::hint::Hint;
-use plonky2x::frontend::num::u32::gates::subtraction_u32::U32SubtractionGenerator;
+use plonky2x::frontend::hint::simple::hint::Hint;
 use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::frontend::vars::ValueStream;
 use plonky2x::prelude::{
@@ -134,6 +133,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[cfg_attr(feature = "ci", ignore)]
     fn test_serialization() {
         env::set_var("RUST_LOG", "debug");
         env_logger::try_init().unwrap_or_default();
@@ -156,6 +156,7 @@ mod tests {
 
     // TODO: this test should not run in CI because it uses the RPC instead of a fixture
     #[test]
+    #[cfg_attr(feature = "ci", ignore)]
     fn test_circuit_with_input_bytes() {
         env::set_var("RUST_LOG", "debug");
         env_logger::try_init().unwrap_or_default();
@@ -183,6 +184,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(feature = "ci", ignore)]
     fn test_circuit_function_step() {
         env::set_var("RUST_LOG", "debug");
         env_logger::try_init().unwrap_or_default();

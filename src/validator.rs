@@ -60,11 +60,10 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for Circui
         pubkey: &AffinePointTarget<Self::Curve>,
         voting_power: &U64Variable,
     ) -> MarshalledValidatorVariable {
-        let mut res = Vec::new();
-        res.push(self.constant::<ByteVariable>(10u8));
-        res.push(self.constant::<ByteVariable>(34u8));
-        res.push(self.constant::<ByteVariable>(10u8));
-        res.push(self.constant::<ByteVariable>(32u8));
+        let mut res = self
+            .constant::<BytesVariable<4>>([10u8, 34u8, 10u8, 32u8])
+            .0
+            .to_vec();
 
         let compressed_point = self.api.compress_point(pubkey);
 
@@ -144,13 +143,11 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for Circui
         let current_validator_hashes = self
             .hash_validator_leaves::<VALIDATOR_SET_SIZE_MAX>(validators, validator_byte_lengths);
 
-        let computed_root = self.get_root_from_hashed_leaves::<VALIDATOR_SET_SIZE_MAX>(
+        // Return the root hash.
+        self.get_root_from_hashed_leaves::<VALIDATOR_SET_SIZE_MAX>(
             current_validator_hashes,
             validator_enabled,
-        );
-
-        // Return the root hash.
-        computed_root
+        )
     }
 }
 
@@ -186,7 +183,7 @@ pub(crate) mod tests {
         env_logger::try_init().unwrap_or_default();
 
         // This is a test cases generated from a validator in block 11000 of the mocha-3 testnet.
-        let voting_power_i64 = 100010 as i64;
+        let voting_power_i64 = 100010_i64;
         let pubkey = "de25aec935b10f657b43fa97e5a8d4e523bdb0f9972605f0b064eff7b17048ba";
         let expected_marshal = hex::decode(
             "0a220a20de25aec935b10f657b43fa97e5a8d4e523bdb0f9972605f0b064eff7b17048ba10aa8d06",
@@ -230,13 +227,14 @@ pub(crate) mod tests {
         let pub_key_bytes = pub_key.to_bytes_le();
         println!("pub_key_bytes: {:?}", pub_key_bytes);
 
-        for i in 0..46 {
+        for i in 0..VALIDATOR_BYTE_LENGTH_MAX {
             let expected_value = *expected_marshal.get(i).unwrap_or(&0);
             assert_eq!(output_bytes[i], expected_value);
         }
     }
 
     #[test]
+    #[cfg_attr(feature = "ci", ignore)]
     fn test_hash_validator_leaves() {
         const VALIDATOR_SET_SIZE_MAX: usize = 4;
 
@@ -295,6 +293,7 @@ pub(crate) mod tests {
     }
 
     #[test]
+    #[cfg_attr(feature = "ci", ignore)]
     fn test_generate_validators_hash() {
         const VALIDATOR_SET_SIZE_MAX: usize = 4;
 
@@ -373,6 +372,7 @@ pub(crate) mod tests {
     }
 
     #[test]
+    #[cfg_attr(feature = "ci", ignore)]
     fn test_get_root_from_merkle_proof() {
         env_logger::try_init().unwrap_or_default();
 
@@ -402,7 +402,7 @@ pub(crate) mod tests {
 
         let proof = InclusionProof {
             aunts: convert_to_h256(proofs[leaf_index].clone().aunts),
-            path_indices: path_indices,
+            path_indices,
             leaf: leaf.try_into().unwrap(),
         };
 

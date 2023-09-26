@@ -4,22 +4,29 @@ use plonky2x::{
         gadgets::eddsa::EDDSASignatureTarget,
     },
     frontend::uint::uint64::U64Variable,
-    frontend::{merkle::tree::MerkleInclusionProofVariable, vars::U32Variable},
+    frontend::{
+        ecc::ed25519::gadgets::verify::EDDSABatchVerify,
+        merkle::tree::MerkleInclusionProofVariable, vars::U32Variable,
+    },
     prelude::{
         ArrayVariable, BoolVariable, Bytes32Variable, BytesVariable, CircuitBuilder,
         CircuitVariable, PlonkParameters, RichField, Variable, Witness, WitnessWrite,
     },
 };
+use tendermint::merkle::HASH_SIZE;
 
-use crate::variables::{
-    EDDSAPublicKeyVariable, EncBlockIDVariable, EncTendermintHashVariable,
-    MarshalledValidatorVariable, TendermintHashVariable, ValidatorMessageVariable,
+use crate::{
+    consts::{HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES, VALIDATOR_MESSAGE_BYTES_LENGTH_MAX},
+    validator::TendermintValidator,
+    variables::HeightProofVariable,
+    voting::TendermintVoting,
 };
 use crate::{
-    consts::{HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES},
-    signature::TendermintSignature,
-    validator::TendermintValidator,
-    voting::TendermintVoting,
+    shared::TendermintHeader,
+    variables::{
+        EDDSAPublicKeyVariable, EncBlockIDVariable, EncTendermintHashVariable,
+        MarshalledValidatorVariable, TendermintHashVariable, ValidatorMessageVariable,
+    },
 };
 
 #[derive(Debug, Clone, CircuitVariable)]
@@ -28,7 +35,7 @@ pub struct ValidatorVariable<C: Curve> {
     pub pubkey: EDDSAPublicKeyVariable<C>,
     pub signature: EDDSASignatureTarget<C>,
     pub message: ValidatorMessageVariable,
-    pub message_bit_length: Variable,
+    pub message_byte_length: Variable,
     pub voting_power: U64Variable,
     pub validator_byte_length: Variable,
     pub enabled: BoolVariable,
@@ -51,8 +58,6 @@ pub struct ValidatorHashFieldVariable<C: Curve> {
 #[value_name(HashInclusionProof)]
 pub struct HashInclusionProofVariable<const HEADER_PROOF_DEPTH: usize> {
     pub enc_leaf: EncTendermintHashVariable,
-    // Path and proof should have a fixed length of HEADER_PROOF_DEPTH.
-    // path: ArrayVariable<BoolVariable, HEADER_PROOF_DEPTH>,
     pub proof: ArrayVariable<TendermintHashVariable, HEADER_PROOF_DEPTH>,
 }
 
@@ -61,8 +66,6 @@ pub struct HashInclusionProofVariable<const HEADER_PROOF_DEPTH: usize> {
 #[value_name(BlockIDInclusionProof)]
 pub struct BlockIDInclusionProofVariable<const HEADER_PROOF_DEPTH: usize> {
     pub enc_leaf: EncBlockIDVariable,
-    // Path and proof should have a fixed length of HEADER_PROOF_DEPTH.
-    // path: ArrayVariable<BoolVariable, HEADER_PROOF_DEPTH>,
     pub proof: ArrayVariable<TendermintHashVariable, HEADER_PROOF_DEPTH>,
 }
 
@@ -119,18 +122,27 @@ pub trait TendermintVerify<
         proof: &ArrayVariable<TendermintHashVariable, HEADER_PROOF_DEPTH>,
     ) -> Bytes32Variable;
 
+    /// Extract the header hash from the signed message from a validator.
+    fn verify_hash_in_message(
+        &mut self,
+        message: &ValidatorMessageVariable,
+        header_hash: Bytes32Variable,
+        // Should be the same for all validators
+        round_present_in_message: BoolVariable,
+    ) -> BoolVariable;
+
     /// Verify the header hash of the previous block matches the current block's parent hash.
     fn verify_prev_header_in_header(
         &mut self,
         header: &TendermintHashVariable,
-        prev_header: &TendermintHashVariable,
+        prev_header: TendermintHashVariable,
         last_block_id_proof: &BlockIDInclusionProofVariable<HEADER_PROOF_DEPTH>,
     );
 
     /// Verify the next validators hash in the previous block matches the current block's validators hash.
     fn verify_prev_header_next_validators_hash(
         &mut self,
-        validators_hash: &TendermintHashVariable,
+        validators_hash: TendermintHashVariable,
         prev_header: &TendermintHashVariable,
         prev_header_next_validators_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
     );
@@ -152,9 +164,7 @@ pub trait TendermintVerify<
         validators: &ArrayVariable<ValidatorVariable<Self::Curve>, VALIDATOR_SET_SIZE_MAX>,
         header: &TendermintHashVariable,
         prev_header: &TendermintHashVariable,
-        // data_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
         validator_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
-        // next_validators_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
         prev_header_next_validators_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
         last_block_id_proof: &BlockIDInclusionProofVariable<HEADER_PROOF_DEPTH>,
         round_present: &BoolVariable,
@@ -177,9 +187,8 @@ pub trait TendermintVerify<
         &mut self,
         validators: &ArrayVariable<ValidatorVariable<Self::Curve>, VALIDATOR_SET_SIZE_MAX>,
         header: &TendermintHashVariable,
-        // data_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
+        header_height_proof: &HeightProofVariable,
         validator_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
-        // next_validators_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
         round_present: &BoolVariable,
         trusted_header: TendermintHashVariable,
         trusted_validator_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
@@ -212,11 +221,42 @@ impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
     ) -> Bytes32Variable {
         self.get_root_from_merkle_proof::<HEADER_PROOF_DEPTH, LEAF_SIZE_BYTES>(
             &MerkleInclusionProofVariable {
-                leaf: leaf.clone(),
+                leaf: *leaf,
                 path_indices: path.clone(),
                 aunts: proof.clone(),
             },
         )
+    }
+
+    fn verify_hash_in_message(
+        &mut self,
+        message: &ValidatorMessageVariable,
+        header_hash: Bytes32Variable,
+        // Should be the same for all validators
+        round_present_in_message: BoolVariable,
+    ) -> BoolVariable {
+        // Logic:
+        //      Verify that header_hash is equal to the hash in the message at the correct index.
+        //      If the round is missing, then the hash starts at index 16.
+        //      If the round is present, then the hash starts at index 25.
+
+        const MISSING_ROUND_START_IDX: usize = 16;
+
+        const INCLUDING_ROUND_START_IDX: usize = 25;
+
+        let round_missing_header: Bytes32Variable =
+            message[MISSING_ROUND_START_IDX..MISSING_ROUND_START_IDX + HASH_SIZE].into();
+
+        let round_present_header: Bytes32Variable =
+            message[INCLUDING_ROUND_START_IDX..INCLUDING_ROUND_START_IDX + HASH_SIZE].into();
+
+        let computed_header = self.select(
+            round_present_in_message,
+            round_present_header,
+            round_missing_header,
+        );
+
+        self.is_equal(computed_header, header_hash)
     }
 
     fn assert_voting_check(
@@ -239,8 +279,8 @@ impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
             // Check if the signed validators are greater than the threshold
             &include_in_check,
             &total_voting_power,
-            &threshold_numerator,
-            &threshold_denominator,
+            threshold_numerator,
+            threshold_denominator,
         );
         let t = self._true();
         self.assert_is_equal(check_voting_power_bool, t);
@@ -265,14 +305,11 @@ impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
             L,
             D,
             VALIDATOR_SET_SIZE_MAX,
-        >>::verify_prev_header_in_header(self, header, prev_header, last_block_id_proof);
+        >>::verify_prev_header_in_header(self, header, *prev_header, last_block_id_proof);
 
         // Extract the validators hash from the validator hash proof
-        const HASH_START_BYTE: usize = 2;
-        let validators_hash = self
-            .extract_hash_from_protobuf::<HASH_START_BYTE, PROTOBUF_HASH_SIZE_BYTES>(
-                &validator_hash_proof.enc_leaf,
-            );
+        let validators_hash: Bytes32Variable =
+            validator_hash_proof.enc_leaf[2..2 + HASH_SIZE].into();
 
         // Verify the next validators hash in the previous block matches the current validators hash
         // FIXME: why is Rust compiler being weird
@@ -282,7 +319,7 @@ impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
             VALIDATOR_SET_SIZE_MAX,
         >>::verify_prev_header_next_validators_hash(
             self,
-            &validators_hash,
+            validators_hash,
             prev_header,
             prev_header_next_validators_hash_proof,
         );
@@ -300,31 +337,40 @@ impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
 
         // TODO: clean up below, it's a bit horrendous
         // Fields used for verifying signatures
-        let validators_signed: Vec<BoolVariable> =
-            validators.as_vec().iter().map(|v| v.signed).collect();
-        let messages: Vec<ValidatorMessageVariable> =
-            validators.as_vec().iter().map(|v| v.message).collect();
-        let message_bit_lengths: Vec<U32Variable> = validators
-            .as_vec()
-            .iter()
-            .map(|v| U32Variable(v.message_bit_length))
-            .collect();
-        let signatures: Vec<EDDSASignatureTarget<Ed25519>> = validators
-            .as_vec()
-            .iter()
-            .map(|v| v.signature.clone())
-            .collect();
-        let pubkeys: Vec<EDDSAPublicKeyVariable<Ed25519>> = validators
-            .as_vec()
-            .iter()
-            .map(|v| v.pubkey.clone())
-            .collect();
+        let validators_signed = ArrayVariable::<BoolVariable, VALIDATOR_SET_SIZE_MAX>::new(
+            validators.as_vec().iter().map(|v| v.signed).collect(),
+        );
+        let messages = ArrayVariable::<ValidatorMessageVariable, VALIDATOR_SET_SIZE_MAX>::new(
+            validators.as_vec().iter().map(|v| v.message).collect(),
+        );
+        let message_byte_lengths = ArrayVariable::<U32Variable, VALIDATOR_SET_SIZE_MAX>::new(
+            validators
+                .as_vec()
+                .iter()
+                .map(|v| U32Variable(v.message_byte_length))
+                .collect(),
+        );
+        let signatures =
+            ArrayVariable::<EDDSASignatureTarget<Ed25519>, VALIDATOR_SET_SIZE_MAX>::new(
+                validators
+                    .as_vec()
+                    .iter()
+                    .map(|v| v.signature.clone())
+                    .collect(),
+            );
+        let pubkeys = ArrayVariable::<EDDSAPublicKeyVariable<Ed25519>, VALIDATOR_SET_SIZE_MAX>::new(
+            validators
+                .as_vec()
+                .iter()
+                .map(|v| v.pubkey.clone())
+                .collect(),
+        );
 
         // Verifies signatures of the validators
-        self.verify_signatures::<VALIDATOR_SET_SIZE_MAX>(
-            &validators_signed,
+        self.conditional_batch_eddsa_verify::<VALIDATOR_SET_SIZE_MAX, VALIDATOR_MESSAGE_BYTES_LENGTH_MAX>(
+            validators_signed.clone(),
+            message_byte_lengths,
             messages,
-            message_bit_lengths,
             signatures,
             pubkeys,
         );
@@ -350,13 +396,9 @@ impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
             validators_enabled,
         );
 
-        /// Start of the hash in protobuf encoded validator hash & last block id
-        const HASH_START_BYTE: usize = 2;
         // Assert that computed validator hash matches expected validator hash
-        let extracted_hash = self
-            .extract_hash_from_protobuf::<HASH_START_BYTE, PROTOBUF_HASH_SIZE_BYTES>(
-                &validator_hash_proof.enc_leaf,
-            );
+        let extracted_hash: Bytes32Variable =
+            validator_hash_proof.enc_leaf[2..2 + HASH_SIZE].into();
 
         self.assert_is_equal(extracted_hash, validators_hash_target);
 
@@ -373,7 +415,7 @@ impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
             validators.clone(),
             &threshold_numerator,
             &threshold_denominator,
-            validators_signed.clone(),
+            validators_signed.as_vec(),
         );
 
         // Verify that the header is included in each message from a signed validator.
@@ -385,8 +427,13 @@ impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
 
             // Verify that the header is in the message in the correct location.
             // If a validator is signed, then the header should be in its signed message.
-            let hash_in_message =
-                self.verify_hash_in_message(&validators[i].message, *header, *round_present);
+            let hash_in_message = <plonky2x::prelude::CircuitBuilder<L, D> as TendermintVerify<
+                L,
+                D,
+                VALIDATOR_SET_SIZE_MAX,
+            >>::verify_hash_in_message(
+                self, &validators[i].message, *header, *round_present
+            );
             let hash_in_message_and_signed = self.and(hash_in_message, validators[i].signed);
             self.assert_is_equal(hash_in_message_and_signed, validators_signed[i]);
         }
@@ -412,12 +459,9 @@ impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
     fn verify_prev_header_in_header(
         &mut self,
         header: &TendermintHashVariable,
-        prev_header: &TendermintHashVariable,
+        prev_header: TendermintHashVariable,
         last_block_id_proof: &BlockIDInclusionProofVariable<HEADER_PROOF_DEPTH>,
     ) {
-        /// Start of the hash in protobuf in last block id
-        const HASH_START_BYTE: usize = 2;
-
         let last_block_id_path = vec![self._false(), self._false(), self._true(), self._false()];
         let header_from_last_block_id_proof =
             <plonky2x::prelude::CircuitBuilder<L, D> as TendermintVerify<
@@ -434,16 +478,14 @@ impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
         self.assert_is_equal(header_from_last_block_id_proof, *header);
 
         // Extract prev header hash from the encoded leaf (starts at second byte)
-        let extracted_prev_header_hash = self
-            .extract_hash_from_protobuf::<HASH_START_BYTE, PROTOBUF_BLOCK_ID_SIZE_BYTES>(
-                &last_block_id_proof.enc_leaf,
-            );
-        self.assert_is_equal(*prev_header, extracted_prev_header_hash);
+        let extracted_prev_header_hash: Bytes32Variable =
+            last_block_id_proof.enc_leaf[2..2 + HASH_SIZE].into();
+        self.assert_is_equal(prev_header, extracted_prev_header_hash);
     }
 
     fn verify_prev_header_next_validators_hash(
         &mut self,
-        validators_hash: &TendermintHashVariable,
+        validators_hash: TendermintHashVariable,
         prev_header: &TendermintHashVariable,
         prev_header_next_validators_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
     ) {
@@ -462,22 +504,18 @@ impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
         // Confirms the prev_header computed from the proof of {next_validators_hash} matches the prev_header
         self.assert_is_equal(header_from_next_validators_root_proof, *prev_header);
 
-        /// Start of the hash in protobuf in next_validators_hash
-        const HASH_START_BYTE: usize = 2;
-
         // Extract prev header hash from the encoded leaf (starts at second byte)
-        let extracted_next_validators_hash = self
-            .extract_hash_from_protobuf::<HASH_START_BYTE, PROTOBUF_HASH_SIZE_BYTES>(
-                &prev_header_next_validators_hash_proof.enc_leaf,
-            );
+        let extracted_next_validators_hash =
+            prev_header_next_validators_hash_proof.enc_leaf[2..2 + HASH_SIZE].into();
         // Confirms the current validatorsHash matches the nextValidatorsHash of the prev_header
-        self.assert_is_equal(*validators_hash, extracted_next_validators_hash);
+        self.assert_is_equal(validators_hash, extracted_next_validators_hash);
     }
 
     fn skip(
         &mut self,
         validators: &ArrayVariable<ValidatorVariable<Self::Curve>, VALIDATOR_SET_SIZE_MAX>,
         header: &TendermintHashVariable,
+        header_height_proof: &HeightProofVariable,
         validator_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
         round_present: &BoolVariable,
         trusted_header: TendermintHashVariable,
@@ -495,6 +533,13 @@ impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
         );
 
         self.verify_header(validators, header, validator_hash_proof, round_present);
+
+        self.verify_block_height(
+            *header,
+            &header_height_proof.proof,
+            &header_height_proof.height,
+            header_height_proof.enc_height_byte_length,
+        )
     }
 
     fn verify_trusted_validators(
@@ -553,12 +598,8 @@ impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
             trusted_validators_enabled,
         );
 
-        const HASH_START_BYTE: usize = 2;
         // Assert the computed validator hash matches the expected validator hash
-        let extracted_hash = self
-            .extract_hash_from_protobuf::<HASH_START_BYTE, PROTOBUF_HASH_SIZE_BYTES>(
-                &trusted_validator_hash_proof.enc_leaf,
-            );
+        let extracted_hash = trusted_validator_hash_proof.enc_leaf[2..2 + HASH_SIZE].into();
 
         self.assert_is_equal(validators_hash_target, extracted_hash);
 
@@ -620,15 +661,69 @@ impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
+    use ethers::types::H256;
     use log;
     use plonky2::timed;
     use plonky2::util::timing::TimingTree;
-    use plonky2x::prelude::DefaultBuilder;
+    use plonky2x::prelude::{DefaultBuilder, DefaultParameters};
+    use subtle_encoding::hex;
 
     // TODO: Remove dependency on inputs crate
-    use crate::inputs::{
-        generate_skip_inputs, generate_step_inputs, CelestiaSkipBlockProof, CelestiaStepBlockProof,
+    use crate::{
+        consts::VALIDATOR_MESSAGE_BYTES_LENGTH_MAX,
+        inputs::{
+            generate_skip_inputs, generate_step_inputs, CelestiaSkipBlockProof,
+            CelestiaStepBlockProof,
+        },
     };
+
+    type L = DefaultParameters;
+    const D: usize = 2;
+
+    #[test]
+    fn test_verify_hash_in_message() {
+        // This is a test case generated from block 144094 of Celestia's Mocha 3 testnet
+        // Block Hash: 8909e1b73b7d987e95a7541d96ed484c17a4b0411e98ee4b7c890ad21302ff8c (needs to be lower case)
+        // Signed Message (from the last validator): 6b080211de3202000000000022480a208909e1b73b7d987e95a7541d96ed484c17a4b0411e98ee4b7c890ad21302ff8c12240801122061263df4855e55fcab7aab0a53ee32cf4f29a1101b56de4a9d249d44e4cf96282a0b089dce84a60610ebb7a81932076d6f6368612d33
+        // No round exists in present the message that was signed above
+
+        env_logger::try_init().unwrap_or_default();
+        const VALIDATOR_SET_SIZE_MAX: usize = 2;
+
+        // Define the circuit
+        let mut builder = DefaultBuilder::new();
+        let message = builder.read::<ValidatorMessageVariable>();
+        let header_hash = builder.read::<TendermintHashVariable>();
+        let round_present_in_message = builder.read::<BoolVariable>();
+
+        let verified = <plonky2x::prelude::CircuitBuilder<L, D> as TendermintVerify<
+            L,
+            D,
+            VALIDATOR_SET_SIZE_MAX,
+        >>::verify_hash_in_message(
+            &mut builder,
+            &message,
+            header_hash,
+            round_present_in_message,
+        );
+
+        builder.write(verified);
+        let circuit = builder.build();
+
+        let header_hash =
+            hex::decode("8909e1b73b7d987e95a7541d96ed484c17a4b0411e98ee4b7c890ad21302ff8c")
+                .unwrap();
+        let header_hash_h256 = H256::from_slice(&header_hash);
+        let mut signed_message = hex::decode("6b080211de3202000000000022480a208909e1b73b7d987e95a7541d96ed484c17a4b0411e98ee4b7c890ad21302ff8c12240801122061263df4855e55fcab7aab0a53ee32cf4f29a1101b56de4a9d249d44e4cf96282a0b089dce84a60610ebb7a81932076d6f6368612d33").unwrap();
+        signed_message.resize(VALIDATOR_MESSAGE_BYTES_LENGTH_MAX, 0u8);
+        let mut input = circuit.input();
+        input.write::<ValidatorMessageVariable>(signed_message.try_into().unwrap());
+        input.write::<TendermintHashVariable>(header_hash_h256);
+        input.write::<BoolVariable>(false);
+        let (_, mut output) = circuit.prove(&input);
+        let verified = output.read::<BoolVariable>();
+        assert!(verified);
+    }
 
     fn test_step_template<const VALIDATOR_SET_SIZE_MAX: usize>(block: usize) {
         env_logger::try_init().unwrap_or_default();
@@ -728,8 +823,10 @@ pub(crate) mod tests {
         let mut builder = DefaultBuilder::new();
         let validators =
             builder.read::<ArrayVariable<ValidatorVariable<Curve>, VALIDATOR_SET_SIZE_MAX>>();
+
         let header = builder.read::<TendermintHashVariable>();
 
+        let header_height_proof = builder.read::<HeightProofVariable>();
         let validator_hash_proof = builder.read::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>();
 
         let round_present = builder.read::<BoolVariable>();
@@ -742,6 +839,7 @@ pub(crate) mod tests {
         builder.skip(
             &validators,
             &header,
+            &header_height_proof,
             &validator_hash_proof,
             &round_present,
             trusted_header,
@@ -759,6 +857,7 @@ pub(crate) mod tests {
         );
         input.write::<TendermintHashVariable>(celestia_skip_block_proof.base.header);
 
+        input.write::<HeightProofVariable>(celestia_skip_block_proof.block_height_proof);
         input.write::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>(
             celestia_skip_block_proof.base.validator_hash_proof.into(),
         );
@@ -781,6 +880,7 @@ pub(crate) mod tests {
     }
 
     #[test]
+    #[cfg_attr(feature = "ci", ignore)]
     fn test_step_with_dummy_sigs() {
         // Testing block 11105 (4 validators, 2 signed)
         // Need to handle empty validators as well
@@ -793,6 +893,7 @@ pub(crate) mod tests {
     }
 
     #[test]
+    #[cfg_attr(feature = "ci", ignore)]
     fn test_step_small() {
         // Testing block 11000
         let block = 11000;
@@ -803,6 +904,7 @@ pub(crate) mod tests {
     }
 
     #[test]
+    #[cfg_attr(feature = "ci", ignore)]
     fn test_step_with_empty() {
         // Testing block 10000
         let block = 10000;
@@ -813,6 +915,7 @@ pub(crate) mod tests {
     }
 
     #[test]
+    #[cfg_attr(feature = "ci", ignore)]
     fn test_step_large() {
         // Testing block 75000
         // 77 validators (128)
@@ -831,6 +934,7 @@ pub(crate) mod tests {
     }
 
     #[test]
+    #[cfg_attr(feature = "ci", ignore)]
     fn test_skip_small() {
         // Testing skip from 11000 to 11105
         let trusted_block = 11000;
@@ -843,6 +947,7 @@ pub(crate) mod tests {
     }
 
     #[test]
+    #[cfg_attr(feature = "ci", ignore)]
     fn test_skip_large() {
         // Testing skip from 60000 to 75000
 

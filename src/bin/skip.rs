@@ -1,6 +1,6 @@
 //! To build the binary:
 //!
-//!     `cargo build --release --bin step`
+//!     `cargo build --release --bin skip`
 //!
 //! To build the circuit:
 //!
@@ -14,9 +14,10 @@
 //!
 //!
 //!
+use celestia::variables::HeightProofVariable;
 use plonky2x::backend::circuit::Circuit;
 use plonky2x::backend::function::VerifiableFunction;
-use plonky2x::frontend::generator::simple::hint::Hint;
+use plonky2x::frontend::hint::simple::hint::Hint;
 use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::frontend::vars::ValueStream;
 use plonky2x::prelude::{
@@ -33,9 +34,7 @@ use celestia::verify::{
 use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
 use plonky2x::frontend::vars::VariableStream; // TODO: re-export this instead of this path
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct SkipOffchainInputs<const MAX_VALIDATOR_SET_SIZE: usize> {
-    amount: u8,
-}
+struct SkipOffchainInputs<const MAX_VALIDATOR_SET_SIZE: usize> {}
 
 impl<const MAX_VALIDATOR_SET_SIZE: usize, L: PlonkParameters<D>, const D: usize> Hint<L, D>
     for SkipOffchainInputs<MAX_VALIDATOR_SET_SIZE>
@@ -58,19 +57,20 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize, L: PlonkParameters<D>, const D: usize>
         output_stream
             .write_value::<ArrayVariable<ValidatorVariable<Ed25519>, MAX_VALIDATOR_SET_SIZE>>(
                 result.0,
-            );
+            ); // target_block_validators
         output_stream.write_value::<Bytes32Variable>(result.1.into()); // target_header
         output_stream.write_value::<BoolVariable>(result.2); // round_present
+        output_stream.write_value::<HeightProofVariable>(result.3); // block_height_proof
         output_stream.write_value::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>(
-            result.3.to_hash_value_type(),
-        );
-        output_stream.write_value::<Bytes32Variable>(result.4.into()); // trusted_header
+            result.4.to_hash_value_type(),
+        ); // validators_hash_proof
+        output_stream.write_value::<Bytes32Variable>(result.5.into()); // trusted_header
         output_stream.write_value::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>(
-            result.5.to_hash_value_type(),
-        );
+            result.6.to_hash_value_type(),
+        ); // trusted_header_validators_hash_proof
         output_stream.write_value::<ArrayVariable<ValidatorHashFieldVariable<Ed25519>, MAX_VALIDATOR_SET_SIZE>>(
-            result.6
-        );
+            result.7
+        ); // trusted_header_validators_hash_fields
     }
 }
 
@@ -90,12 +90,13 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize> Circuit for SkipCircuit<MAX_VALIDATOR_
         input_stream.write(&target_block);
         let output_stream = builder.hint(
             input_stream,
-            SkipOffchainInputs::<MAX_VALIDATOR_SET_SIZE> { amount: 1u8 },
+            SkipOffchainInputs::<MAX_VALIDATOR_SET_SIZE> {},
         );
         let target_block_validators = output_stream
             .read::<ArrayVariable<ValidatorVariable<Ed25519>, MAX_VALIDATOR_SET_SIZE>>(builder);
         let target_header = output_stream.read::<Bytes32Variable>(builder);
         let round_present = output_stream.read::<BoolVariable>(builder);
+        let target_header_block_height_proof = output_stream.read::<HeightProofVariable>(builder);
         let target_header_validators_hash_proof =
             output_stream.read::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>(builder);
         let trusted_header = output_stream.read::<Bytes32Variable>(builder);
@@ -109,6 +110,7 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize> Circuit for SkipCircuit<MAX_VALIDATOR_
         builder.skip(
             &target_block_validators,
             &target_header,
+            &target_header_block_height_proof,
             &target_header_validators_hash_proof,
             &round_present,
             trusted_header,
@@ -129,8 +131,7 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize> Circuit for SkipCircuit<MAX_VALIDATOR_
 }
 
 fn main() {
-    // Will only work with blocks that have max 4 validators, this is useful for end-to-end testing on the platform quickly
-    const MAX_VALIDATOR_SET_SIZE: usize = 4;
+    const MAX_VALIDATOR_SET_SIZE: usize = 128;
     VerifiableFunction::<SkipCircuit<MAX_VALIDATOR_SET_SIZE>>::entrypoint();
 }
 
@@ -145,7 +146,8 @@ mod tests {
     use plonky2x::prelude::{DefaultBuilder, GateRegistry, WitnessGeneratorRegistry};
 
     #[test]
-    fn test_serialization() {
+    #[cfg_attr(feature = "ci", ignore)]
+    fn test_circuit_function_skip() {
         env::set_var("RUST_LOG", "debug");
         env_logger::try_init().unwrap_or_default();
 

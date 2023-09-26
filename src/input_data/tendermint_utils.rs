@@ -39,6 +39,16 @@ where
 }
 
 #[derive(Debug, Deserialize)]
+pub struct DataCommitmentResponse {
+    pub result: DataCommitment,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DataCommitment {
+    pub data_commitment: String,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct SignedBlockResponse {
     pub result: TempSignedBlock,
 }
@@ -183,11 +193,7 @@ impl ProofNode {
     }
 }
 
-pub fn compute_hash_from_proof(
-    enc_leaf: &Vec<u8>,
-    path: &Vec<bool>,
-    aunts: &Vec<Hash>,
-) -> Option<Hash> {
+pub fn compute_hash_from_proof(enc_leaf: &[u8], path: &Vec<bool>, aunts: &[Hash]) -> Option<Hash> {
     let mut hash_so_far = leaf_hash::<Sha256>(enc_leaf);
     for i in 0..path.len() {
         hash_so_far = if path[i] {
@@ -244,13 +250,7 @@ pub fn compute_hash_from_aunts(
                 leaf_hash,
                 inner_hashes[..inner_hashes.len() - 1].to_vec(),
             );
-            match right_hash {
-                None => None,
-                Some(hash) => Some(inner_hash::<Sha256>(
-                    inner_hashes[inner_hashes.len() - 1],
-                    hash,
-                )),
-            }
+            right_hash.map(|hash| inner_hash::<Sha256>(inner_hashes[inner_hashes.len() - 1], hash))
         }
     }
 }

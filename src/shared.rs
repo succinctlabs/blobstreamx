@@ -1,4 +1,3 @@
-use crate::commitment::CelestiaCommitment;
 use crate::consts::{HEADER_PROOF_DEPTH, PROTOBUF_VARINT_SIZE_BYTES, VARINT_BYTES_LENGTH_MAX};
 use plonky2x::frontend::ecc::ed25519::curve::curve_types::Curve;
 use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
@@ -19,6 +18,13 @@ pub trait TendermintHeader<L: PlonkParameters<D>, const D: usize> {
         &mut self,
         num: &U64Variable,
     ) -> [ByteVariable; VARINT_BYTES_LENGTH_MAX];
+
+    /// Encodes the marshalled height into a BytesVariable<11> that can be hashed according to the Tendermint spec.
+    /// Prepends a 0x00 byte for the leaf prefix and a 0x08 byte to the marshalled varint.
+    fn leaf_encode_marshalled_varint(
+        &mut self,
+        marshalled_varint: &BytesVariable<9>,
+    ) -> BytesVariable<11>;
 
     /// Verifies the block height against the header.
     fn verify_block_height(
@@ -68,6 +74,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintHeader<L, D> for CircuitBu
 
         // Calculates the index of the last non-zero septet.
         let mut last_seen_non_zero_septet_idx = self.zero();
+
         for i in 0..VARINT_BYTES_LENGTH_MAX {
             // Ok to cast as BoolVariable since is_zero_septets[i] is 0 or 1 so result is either 0 or 1
             let is_nonzero_septet = BoolVariable(self.sub(one, is_zero_septets[i].0));
@@ -115,7 +122,18 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintHeader<L, D> for CircuitBu
             );
         }
 
-        return res;
+        res
+    }
+
+    fn leaf_encode_marshalled_varint(
+        &mut self,
+        marshalled_varint: &BytesVariable<9>,
+    ) -> BytesVariable<11> {
+        // Prepends a 0x00 byte for the leaf prefix then a 0x08 byte for the protobuf varint encoding to the marshalled varint.
+        let mut encoded_marshalled_varint =
+            self.constant::<BytesVariable<2>>([0x00, 0x08]).0.to_vec();
+        encoded_marshalled_varint.extend_from_slice(&marshalled_varint.0);
+        BytesVariable(encoded_marshalled_varint.try_into().unwrap())
     }
 
     /// Verifies the block height against the header.
@@ -131,8 +149,8 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintHeader<L, D> for CircuitBu
         let block_height_path = vec![false_t, true_t, false_t, false_t];
 
         // Verify the current header height proof against the current header.
-        let encoded_height = self.marshal_int64_varint(&height);
-        let encoded_height = self.encode_marshalled_varint(&BytesVariable(encoded_height));
+        let encoded_height = self.marshal_int64_varint(height);
+        let encoded_height = self.leaf_encode_marshalled_varint(&BytesVariable(encoded_height));
 
         // Extend encoded_height to 64 bytes for curta_sha256_variable.
         let mut encoded_height_extended = Vec::new();
@@ -159,7 +177,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintHeader<L, D> for CircuitBu
         );
 
         let computed_root = self.get_root_from_merkle_proof_hashed_leaf::<HEADER_PROOF_DEPTH>(
-            &proof,
+            proof,
             &block_height_path.try_into().unwrap(),
             leaf_hash,
         );
@@ -178,7 +196,7 @@ pub(crate) mod tests {
 
     #[test]
     fn test_marshal_int64_varint() {
-        env_logger::try_init().unwrap();
+        env_logger::try_init().unwrap_or_default();
         // These are test cases generated from `celestia-core`.
         //
         // allZerosPubkey := make(ed25519.PubKey, ed25519.PubKeySize)
@@ -207,9 +225,8 @@ pub(crate) mod tests {
         let mut builder = DefaultBuilder::new();
         let voting_power_variable = builder.read::<U64Variable>();
         let result = builder.marshal_int64_varint(&voting_power_variable);
-        for i in 0..9 {
-            builder.write(result[i]);
-        }
+        builder.write::<BytesVariable<VARINT_BYTES_LENGTH_MAX>>(BytesVariable(result));
+
         let circuit = builder.build();
 
         for test_case in test_cases {
@@ -222,10 +239,32 @@ pub(crate) mod tests {
             println!("Voting Power: {:?}", test_case.0);
             println!("Expected Varint Encoding (Bytes): {:?}", expected_bytes);
 
-            for byte in expected_bytes {
-                let output_byte = output.read::<ByteVariable>();
-                assert_eq!(output_byte, byte);
+            let output_bytes = output.read::<BytesVariable<VARINT_BYTES_LENGTH_MAX>>();
+
+            for i in 0..expected_bytes.len() {
+                assert_eq!(output_bytes[i], expected_bytes[i]);
             }
         }
+    }
+
+    #[test]
+    fn test_encode_varint() {
+        env_logger::try_init().unwrap_or_default();
+
+        let mut builder = DefaultBuilder::new();
+
+        let height = builder.constant::<U64Variable>(3804.into());
+
+        let encoded_height = builder.marshal_int64_varint(&height);
+        let encoded_height = builder.leaf_encode_marshalled_varint(&BytesVariable(encoded_height));
+        builder.watch(&encoded_height, "encoded_height");
+
+        let circuit = builder.build();
+
+        let input = circuit.input();
+        let (proof, output) = circuit.prove(&input);
+        circuit.verify(&proof, &input, &output);
+
+        println!("Verified proof");
     }
 }
