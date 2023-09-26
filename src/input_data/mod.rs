@@ -52,46 +52,6 @@ impl InputDataFetcher {
         self.save = save;
     }
 
-    // TODO: This method currently doesn't work with Celestia RPC's, but it should.
-    pub async fn get_header_from_number(&self, block_number: u64) -> Box<Header> {
-        let fetched_result = match &self.mode {
-            InputDataMode::Rpc(url) => {
-                let query_url = format!(
-                    "{}/header?height={}",
-                    url,
-                    block_number.to_string().as_str()
-                );
-                let res = reqwest::get(query_url).await.unwrap().text().await.unwrap();
-                if self.save {
-                    println!("hi");
-                    let file_name = format!(
-                        "./src/fixtures/updated/{}/header.json",
-                        block_number.to_string().as_str()
-                    );
-                    // Ensure the directory exists
-                    if let Some(parent) = Path::new(&file_name).parent() {
-                        fs::create_dir_all(parent).unwrap();
-                    }
-                    fs::write(file_name.as_str(), res.as_bytes()).expect("Unable to write file");
-                }
-                res
-            }
-            InputDataMode::Fixture => {
-                let file_name = format!(
-                    "./src/fixtures/updated/{}/header.json",
-                    block_number.to_string().as_str()
-                );
-                println!("{:?}", file_name);
-                let file_content = fs::read_to_string(file_name.as_str());
-                println!("Getting fixture");
-                file_content.unwrap()
-            }
-        };
-        // TODO: This will need to be updated once Celestia RPC works.
-        let v: Header = serde_json::from_str(&fetched_result).expect("Failed to parse JSON");
-        Box::new(v)
-    }
-
     pub async fn get_data_commitment(&self, start_block: u64, end_block: u64) -> [u8; 32] {
         let fetched_result = match &self.mode {
             InputDataMode::Rpc(url) => {
@@ -103,7 +63,6 @@ impl InputDataFetcher {
                 );
                 let res = reqwest::get(query_url).await.unwrap().text().await.unwrap();
                 if self.save {
-                    println!("hi");
                     let file_name = format!(
                         "./src/fixtures/updated/{}-{}/data_commitment.json",
                         start_block.to_string().as_str(),
@@ -148,7 +107,6 @@ impl InputDataFetcher {
                 );
                 let res = reqwest::get(query_url).await.unwrap().text().await.unwrap();
                 if self.save {
-                    println!("hi");
                     let file_name = format!(
                         "./src/fixtures/updated/{}/signed_block.json",
                         block_number.to_string().as_str()
@@ -373,7 +331,7 @@ impl InputDataFetcher {
         let mut data_hash_proofs = Vec::new();
         let mut prev_header_proofs = Vec::new();
         for i in start_block_number..end_block_number + 1 {
-            // TODO: Replace with get_header_from_number once enabled.
+            // TODO: Replace with get_header_from_number once Celestia re-enables the /header endpoint.
             let block = self.get_block_from_number(i).await;
             let data_hash = block.header.data_hash.unwrap();
             data_hashes.push(data_hash.as_bytes().try_into().unwrap());

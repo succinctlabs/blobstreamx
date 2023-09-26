@@ -65,7 +65,9 @@ impl<const MAX_LEAVES: usize, L: PlonkParameters<D>, const D: usize> Hint<L, D>
             data_hash_proofs: result.1,
             prev_header_proofs: result.2,
         };
+        // Write the inputs to the data commitment circuit.
         output_stream.write_value::<DataCommitmentProofVariable<MAX_LEAVES>>(data_comm_proof);
+        // Write the expected data commitment.
         output_stream.write_value::<Bytes32Variable>(H256(result.3));
     }
 }
