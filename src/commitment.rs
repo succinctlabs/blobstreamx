@@ -114,63 +114,65 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitment<L, D> for CircuitBuil
         input: DataCommitmentProofVariable<MAX_LEAVES>,
     ) {
         let true_var = self._true();
-        // Verify prev_header_proofs from end_header -> start_header.
-        // Ignore prev_header_proofs from start_header + MAX_LEAVES -> end_header.
-        // let mut prev_header_proofs = input.prev_header_proofs.as_vec();
-        // prev_header_proofs.reverse();
 
         let num_leaves = self.sub(input.end_block_height, input.start_block_height);
 
-        // Verify data_hash_proofs against extracted header hashes from prev_header_proofs.
-        // Note: Verify the first (end_block - start_block) data_hash_proofs.
+        // Verify the header chain of the first [end_block - start_block] headers.
+        // is_enabled is true for the first [end_block - start_block] headers, and false for the rest.
         let mut is_enabled = self.constant::<BoolVariable>(true);
-        let mut curr_prev_header = input.start_header;
+        let mut curr_header = input.start_header;
         for i in 0..MAX_LEAVES {
             let is_disabled = self.not(is_enabled);
 
             // Number of leaves included in the data hash and prove header chain computation so far (including the current leaf).
             let num_leaves_so_far = self.constant::<U64Variable>((i + 1).into());
 
-            // If at the last_valid_leaf, flip is_enabled to false and check curr_prev_header against the end_header.
+            // If at the last_valid_leaf, flip is_enabled to false and verify end_header's prev_header is curr_header.
             let is_last_valid_leaf = self.is_equal(num_leaves, num_leaves_so_far);
             let is_not_last_valid_leaf = self.not(is_last_valid_leaf);
 
             let data_hash_proof = &input.data_hash_proofs[i];
             let prev_header_proof = &input.prev_header_proofs[i];
-            // Extract the prev header hash from block (start + i + 1), which is the current header hash (start + i).
-            let header_hash = prev_header_proof.leaf[2..2 + HASH_SIZE].into();
-
+            // Header hash of block (start + i).
             let data_hash_proof_root = self
                 .get_root_from_merkle_proof::<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES>(
                     data_hash_proof,
                 );
+            // Header hash of block (start + i + 1).
             let prev_header_proof_root = self
                 .get_root_from_merkle_proof::<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES>(
                     prev_header_proof,
                 );
+            // Header hash of block (start + i).
+            let header_hash = prev_header_proof.leaf[2..2 + HASH_SIZE].into();
 
-            // Verify the data hash proof against the current header hash.
+            // Verify the data hash proof against the header hash of block (start + i).
             let is_valid_data_hash = self.is_equal(data_hash_proof_root, header_hash);
+
             // NOT is_enabled || (data_hash_proof_root == header_hash) must be true.
             let data_hash_check = self.or(is_disabled, is_valid_data_hash);
             self.assert_is_equal(data_hash_check, true_var);
 
-            // Verify the curr_prev_header matches the extracted curr_header_hash.
-            let is_valid_prev_header = self.is_equal(curr_prev_header, header_hash);
-            // NOT is_enabled || (curr_prev_header == header_hash) must be true.
+            // Check that the prev_header is correct.
+            // 1) Verify the curr_header matches the extracted header_hash.
+            // 2) If is_last_valid_leaf is true, then the root of the prev_header_proof must be the end_header.
+
+            // 1) Verify the curr_header matches the extracted header_hash.
+            let is_valid_prev_header = self.is_equal(curr_header, header_hash);
+            // NOT is_enabled || (curr_header == header_hash) must be true.
             let prev_header_check = self.or(is_disabled, is_valid_prev_header);
             self.assert_is_equal(prev_header_check, true_var);
 
             // If is_last_valid_leaf is true, then the root of the prev_header_proof must be the end_header.
             let root_matches_end_header = self.is_equal(prev_header_proof_root, input.end_header);
             // NOT is_valid_leaf || root_matches_end_header must be true.
-            let end_header_check = self.or(root_matches_end_header, is_not_last_valid_leaf);
+            let end_header_check = self.or(is_not_last_valid_leaf, root_matches_end_header);
             self.assert_is_equal(end_header_check, true_var);
 
             // Move curr_prev_header to prev_header_proof_root.
-            curr_prev_header = prev_header_proof_root;
+            curr_header = prev_header_proof_root;
 
-            // Set is_enabled to true while the current height < end height.
+            // Set is_enabled to false if this is the last valid leaf.
             is_enabled = self.and(is_enabled, is_not_last_valid_leaf);
         }
     }
