@@ -7,7 +7,10 @@ use plonky2x::frontend::vars::{ArrayVariable, Bytes32Variable, EvmVariable};
 use plonky2x::prelude::{BoolVariable, ByteVariable, BytesVariable, CircuitBuilder};
 use tendermint::merkle::HASH_SIZE;
 
-use crate::consts::{HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES};
+use crate::consts::{
+    ENC_DATA_ROOT_TUPLE_SIZE_BYTES, HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES,
+    PROTOBUF_HASH_SIZE_BYTES,
+};
 use crate::variables::DataCommitmentProofVariable;
 
 pub trait DataCommitment<L: PlonkParameters<D>, const D: usize> {
@@ -19,7 +22,7 @@ pub trait DataCommitment<L: PlonkParameters<D>, const D: usize> {
         &mut self,
         data_hash: &Bytes32Variable,
         height: &U64Variable,
-    ) -> BytesVariable<64>;
+    ) -> BytesVariable<ENC_DATA_ROOT_TUPLE_SIZE_BYTES>;
 
     /// Compute the data commitment from the data hashes and block heights. MAX_LEAVES is the maximum number of leaves in the tree for the data commitment.
     /// Assumes the data hashes are already proven.
@@ -54,7 +57,7 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitment<L, D> for CircuitBuil
         &mut self,
         data_hash: &Bytes32Variable,
         height: &U64Variable,
-    ) -> BytesVariable<64> {
+    ) -> BytesVariable<ENC_DATA_ROOT_TUPLE_SIZE_BYTES> {
         let mut encoded_tuple = Vec::new();
 
         // Encode the height.
@@ -73,7 +76,7 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitment<L, D> for CircuitBuil
         encoded_tuple.extend(data_hash.as_bytes().to_vec());
 
         // Convert Vec<ByteVariable> to BytesVariable<64>.
-        BytesVariable::<64>(encoded_tuple.try_into().unwrap())
+        BytesVariable::<ENC_DATA_ROOT_TUPLE_SIZE_BYTES>(encoded_tuple.try_into().unwrap())
     }
 
     fn get_data_commitment<const MAX_LEAVES: usize>(
@@ -105,8 +108,6 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitment<L, D> for CircuitBuil
 
             is_enabled = self.and(is_enabled, is_not_last_valid_leaf);
         }
-
-        const ENC_DATA_ROOT_TUPLE_SIZE_BYTES: usize = 64;
 
         // Return the root hash.
         self.compute_root_from_leaves::<MAX_LEAVES, ENC_DATA_ROOT_TUPLE_SIZE_BYTES>(
@@ -355,7 +356,8 @@ pub(crate) mod tests {
         let (proof, mut output) = circuit.prove(&input);
         circuit.verify(&proof, &input, &output);
 
-        let data_root_tuple_value = output.read::<ArrayVariable<ByteVariable, 64>>();
+        let data_root_tuple_value =
+            output.read::<ArrayVariable<ByteVariable, ENC_DATA_ROOT_TUPLE_SIZE_BYTES>>();
         assert_eq!(data_root_tuple_value, expected_data_tuple_root);
 
         println!("Verified proof");

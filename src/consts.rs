@@ -39,6 +39,9 @@ pub const VARINT_BYTES_LENGTH_MAX: usize = 9;
 // The maximum number of bytes in a validator message (CanonicalVote toSignBytes).
 pub const VALIDATOR_MESSAGE_BYTES_LENGTH_MAX: usize = 124;
 
+// The number of bytes in an encoded data root tuple.
+pub const ENC_DATA_ROOT_TUPLE_SIZE_BYTES: usize = 64;
+
 // Header indexes for the Merkle tree.
 pub const BLOCK_HEIGHT_INDEX: usize = 2;
 pub const LAST_BLOCK_ID_INDEX: usize = 4;
