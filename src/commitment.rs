@@ -133,7 +133,6 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitment<L, D> for CircuitBuil
 
             // If at the last_valid_leaf, flip is_enabled to false and check curr_prev_header against the end_header.
             let is_last_valid_leaf = self.is_equal(num_leaves, num_leaves_so_far);
-            self.watch(&is_last_valid_leaf, "is_last_valid_leaf");
             let is_not_last_valid_leaf = self.not(is_last_valid_leaf);
 
             let data_hash_proof = &input.data_hash_proofs[i];
