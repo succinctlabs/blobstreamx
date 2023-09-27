@@ -4,12 +4,14 @@
 * TODO: Upstream to tendermint-rs
 */
 
-use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 use std::cell::RefCell;
 use std::rc::Rc;
+
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use subtle_encoding::hex;
-pub use tendermint::{block::Header, merkle::Hash};
+pub use tendermint::block::Header;
+pub use tendermint::merkle::Hash;
 /// Source (tendermint-rs): https://github.com/informalsystems/tendermint-rs/blob/e930691a5639ef805c399743ac0ddbba0e9f53da/tendermint/src/merkle.rs#L32
 use tendermint::{
     block::{Commit, CommitSig},
@@ -18,10 +20,9 @@ use tendermint::{
     vote::Power,
     vote::{ValidatorIndex, Vote},
 };
-use tendermint_proto::{
-    types::BlockId as RawBlockId, types::Data as RawData,
-    version::Consensus as RawConsensusVersion, Protobuf,
-};
+use tendermint_proto::types::{BlockId as RawBlockId, Data as RawData};
+use tendermint_proto::version::Consensus as RawConsensusVersion;
+use tendermint_proto::Protobuf;
 
 /// Compute leaf hashes for arbitrary byte vectors.
 /// The leaves of the tree are the bytes of the given byte vectors in

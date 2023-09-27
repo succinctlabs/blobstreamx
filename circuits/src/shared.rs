@@ -1,14 +1,13 @@
-use crate::consts::{HEADER_PROOF_DEPTH, PROTOBUF_VARINT_SIZE_BYTES, VARINT_BYTES_LENGTH_MAX};
 use plonky2x::frontend::ecc::ed25519::curve::curve_types::Curve;
 use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
 use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::frontend::vars::U32Variable;
-use plonky2x::prelude::Field;
-
 use plonky2x::prelude::{
     ArrayVariable, BoolVariable, ByteVariable, Bytes32Variable, BytesVariable, CircuitBuilder,
-    CircuitVariable, PlonkParameters, Variable,
+    CircuitVariable, Field, PlonkParameters, Variable,
 };
+
+use crate::consts::{HEADER_PROOF_DEPTH, PROTOBUF_VARINT_SIZE_BYTES, VARINT_BYTES_LENGTH_MAX};
 
 pub trait TendermintHeader<L: PlonkParameters<D>, const D: usize> {
     type Curve: Curve;
@@ -190,9 +189,9 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintHeader<L, D> for CircuitBu
 // Alternatively, add env::set_var("RUST_LOG", "debug") to the top of the test.
 #[cfg(test)]
 pub(crate) mod tests {
-    use super::*;
-
     use plonky2x::prelude::DefaultBuilder;
+
+    use super::*;
 
     #[test]
     fn test_marshal_int64_varint() {

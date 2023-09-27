@@ -1,7 +1,6 @@
 use plonky2x::backend::circuit::PlonkParameters;
 use plonky2x::frontend::ecc::ed25519::curve::curve_types::Curve;
 use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
-
 use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::frontend::vars::{ArrayVariable, Bytes32Variable, EvmVariable};
 use plonky2x::prelude::{BoolVariable, ByteVariable, BytesVariable, CircuitBuilder};
@@ -203,14 +202,12 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitment<L, D> for CircuitBuil
 // Alternatively, add env::set_var("RUST_LOG", "debug") to the top of the test.
 #[cfg(test)]
 pub(crate) mod tests {
-    use super::*;
     use plonky2x::backend::circuit::DefaultParameters;
 
-    use crate::{
-        commitment::DataCommitment,
-        inputs::{generate_data_commitment_inputs, generate_expected_data_commitment},
-        variables::DataCommitmentProofVariable,
-    };
+    use super::*;
+    use crate::commitment::DataCommitment;
+    use crate::inputs::{generate_data_commitment_inputs, generate_expected_data_commitment};
+    use crate::variables::DataCommitmentProofVariable;
 
     type L = DefaultParameters;
     type F = <L as PlonkParameters<D>>::Field;

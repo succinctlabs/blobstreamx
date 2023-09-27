@@ -16,19 +16,17 @@
 //!
 use celestia::commitment::DataCommitment;
 use celestia::input_data::utils::convert_to_h256;
+use celestia::input_data::InputDataFetcher;
 use celestia::variables::{DataCommitmentProofValueType, DataCommitmentProofVariable};
 use ethers::types::H256;
 use plonky2x::backend::circuit::Circuit;
 use plonky2x::backend::function::VerifiableFunction;
 use plonky2x::frontend::hint::simple::hint::Hint;
 use plonky2x::frontend::uint::uint64::U64Variable;
-use plonky2x::frontend::vars::ValueStream;
+use plonky2x::frontend::vars::{ValueStream, VariableStream};
 use plonky2x::prelude::{Bytes32Variable, CircuitBuilder, PlonkParameters};
 use serde::{Deserialize, Serialize};
-use tokio::runtime::Runtime;
-
-use celestia::input_data::InputDataFetcher;
-use plonky2x::frontend::vars::VariableStream; // TODO: re-export this instead of this path
+use tokio::runtime::Runtime; // TODO: re-export this instead of this path
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct DataCommitmentOffchainInputs<const MAX_LEAVES: usize> {}
 
