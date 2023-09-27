@@ -53,16 +53,16 @@ pub trait DataFetcher {
 pub fn new_fetcher(chain_id: String) -> Box<dyn DataFetcher> {
     if cfg!(test) {
         Box::new(FixtureDataFetcher {
-            fixture_path: format!("test/fixtures/{}", chain_id),
+            fixture_path: format!("/fixtures/{}", chain_id),
         })
     } else {
         Box::new(RpcDataFetcher {
             url: env::var(format!("RPC_{}", chain_id)).expect("RPC url not set in .env"),
             save: false,
-            save_fixture_path: format!("test/fixtures/{}", chain_id),
+            save_fixture_path: format!("/fixtures/{}", chain_id),
         })
     }
-    // TODO: if in a test, return the FixtureDataFetcher with a const fixture path "test/fixtures/{chain_id{"
+    // TODO: if in a test, return the FixtureDataFetcher
     // else, read the RpcDataFetch with the env var "RPC_{chain_id}" url from the .env file and panic if the RPC url is not present
 }
 
@@ -72,7 +72,11 @@ pub struct RpcDataFetcher {
     pub save_fixture_path: String,
 }
 
-impl RpcDataFetcher {}
+impl RpcDataFetcher {
+    pub fn set_save(&mut self, save: bool) {
+        self.save = save;
+    }
+}
 
 #[async_trait]
 impl DataFetcher for RpcDataFetcher {
