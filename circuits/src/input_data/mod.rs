@@ -63,7 +63,7 @@ impl InputDataFetcher {
         Self {
             mode,
             proof_cache: HashMap::new(),
-            save: false,
+            save: true,
         }
     }
 

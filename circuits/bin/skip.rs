@@ -194,14 +194,15 @@ mod tests {
         println!("next_header {:?}", next_header);
     }
 
-    #[test]
-    #[cfg_attr(feature = "ci", ignore)]
-    fn test_circuit_function_skip_fixture() {
+    fn test_skip_template<const MAX_VALIDATOR_SET_SIZE: usize>(
+        trusted_header: [u8; 32],
+        trusted_block: u64,
+        target_block: u64,
+    ) {
         env::set_var("RUST_LOG", "debug");
         env_logger::try_init().unwrap_or_default();
-        env::set_var("RPC_MOCHA_4", "fixture"); // Use fixture during testing
+        // env::set_var("RPC_MOCHA_4", "fixture"); // Use fixture during testing
 
-        const MAX_VALIDATOR_SET_SIZE: usize = 16;
         let mut builder = DefaultBuilder::new();
 
         log::debug!("Defining circuit");
@@ -212,12 +213,6 @@ mod tests {
         log::debug!("Done building circuit");
 
         let mut input = circuit.input();
-        let trusted_header: [u8; 32] = [
-            101, 148, 196, 246, 245, 248, 99, 125, 20, 181, 200, 0, 157, 159, 211, 222, 105, 149,
-            108, 221, 97, 143, 205, 106, 162, 68, 113, 97, 5, 29, 183, 162,
-        ];
-        let trusted_block = 11000u64;
-        let target_block = 11105u64; // mimics test_skip_small
         input.evm_write::<Bytes32Variable>(H256::from_slice(trusted_header.as_slice()));
         input.evm_write::<U64Variable>(trusted_block.into());
         input.evm_write::<U64Variable>(target_block.into());
@@ -229,5 +224,33 @@ mod tests {
         circuit.verify(&proof, &input, &output);
         let target_header = output.evm_read::<Bytes32Variable>();
         println!("target_header {:?}", target_header);
+    }
+
+    #[test]
+    #[cfg_attr(feature = "ci", ignore)]
+    fn test_skip_small() {
+        const MAX_VALIDATOR_SET_SIZE: usize = 4;
+        let trusted_header: [u8; 32] =
+            hex::decode("A0123D5E4B8B8888A61F931EE2252D83568B97C223E0ECA9795B29B8BD8CBA2D")
+                .unwrap()
+                .try_into()
+                .unwrap();
+        let trusted_height = 10000u64;
+        let target_block = 10500u64;
+        test_skip_template::<MAX_VALIDATOR_SET_SIZE>(trusted_header, trusted_height, target_block)
+    }
+
+    #[test]
+    #[cfg_attr(feature = "ci", ignore)]
+    fn test_skip_large() {
+        const MAX_VALIDATOR_SET_SIZE: usize = 128;
+        let trusted_header: [u8; 32] =
+            hex::decode("935786C7F889013D6B0D8DE8B11286DDB8DDE476A312FC5578FDC53985DC3035")
+                .unwrap()
+                .try_into()
+                .unwrap();
+        let trusted_height = 15000u64;
+        let target_block = 50000u64;
+        test_skip_template::<MAX_VALIDATOR_SET_SIZE>(trusted_header, trusted_height, target_block)
     }
 }
