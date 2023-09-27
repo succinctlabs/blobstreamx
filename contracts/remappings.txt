@@ -1,1 +1,2 @@
 @succinctx/=lib/succinctx/contracts/src/
+@qgb/=lib/quantum-gravity-bridge/src/

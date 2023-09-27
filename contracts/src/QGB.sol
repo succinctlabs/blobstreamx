@@ -3,6 +3,8 @@ pragma solidity ^0.8.13;
 
 import "./IZKTendermintLightClient.sol";
 import "@succinctx/interfaces/IFunctionGateway.sol";
+import "@qgb/DataRootTuple.sol";
+import "@qgb/lib/tree/binary/BinaryMerkleTree.sol";
 
 contract QGB {
     address public gateway;
@@ -99,7 +101,7 @@ contract QGB {
         uint256 endBlock,
         DataRootTuple memory _tuple,
         BinaryMerkleProof memory _proof
-    ) external view override returns (bool) {
+    ) external view returns (bool) {
         // Tuple must have been committed before.
         if (endBlock > latestBlock) {
             return false;
