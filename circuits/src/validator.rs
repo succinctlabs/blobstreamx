@@ -167,6 +167,7 @@ pub(crate) mod tests {
     use sha2::Sha256;
     use tendermint_proto::types::BlockId as RawBlockId;
     use tendermint_proto::Protobuf;
+    use tokio::runtime::Runtime;
 
     use super::*;
     use crate::consts::{HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES};
@@ -174,8 +175,8 @@ pub(crate) mod tests {
         generate_proofs_from_header, hash_all_leaves, proofs_from_byte_slices,
     };
     use crate::input_data::utils::{convert_to_h256, get_path_indices};
+    use crate::input_data::InputDataFetcher;
     // TODO: Remove dependency on inputs.
-    use crate::inputs::get_signed_block_from_fixture;
     use crate::validator::TendermintValidator;
 
     type Curve = Ed25519;
@@ -388,7 +389,12 @@ pub(crate) mod tests {
         let circuit = builder.build();
 
         // Generate test cases from Celestia block:
-        let block = get_signed_block_from_fixture(10000);
+        let input_data_fetcher = InputDataFetcher::new();
+        // TODO: env::set_var("RPC_MOCHA_4", "fixture"); // Use fixture during testing
+
+        let rt = Runtime::new().expect("failed to create tokio runtime");
+        // TODO: Fetch from header
+        let block = rt.block_on(async { input_data_fetcher.get_block_from_number(10000u64).await });
 
         let (root, proofs) = generate_proofs_from_header(&block.header);
 
