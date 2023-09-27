@@ -1,13 +1,11 @@
+use plonky2x::frontend::ecc::ed25519::gadgets::curve::AffinePointTarget;
+use plonky2x::frontend::merkle::tree::MerkleInclusionProofVariable;
+use plonky2x::frontend::num::u32::gadgets::arithmetic_u32::U32Target;
+use plonky2x::frontend::uint::uint64::U64Variable;
+use plonky2x::frontend::vars::U32Variable;
 use plonky2x::prelude::{
-    CircuitBuilder, PlonkParameters, RichField, Variable, Witness, WitnessWrite,
-};
-use plonky2x::{
-    frontend::{
-        ecc::ed25519::gadgets::curve::AffinePointTarget,
-        merkle::tree::MerkleInclusionProofVariable, num::u32::gadgets::arithmetic_u32::U32Target,
-        uint::uint64::U64Variable, vars::U32Variable,
-    },
-    prelude::{ArrayVariable, Bytes32Variable, BytesVariable, CircuitVariable},
+    ArrayVariable, Bytes32Variable, BytesVariable, CircuitBuilder, CircuitVariable,
+    PlonkParameters, RichField, Variable, Witness, WitnessWrite,
 };
 
 use crate::consts::{

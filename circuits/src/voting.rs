@@ -6,7 +6,6 @@
 //! The `pubkey` is encoded as the raw list of bytes used in the public key. The `varint` is
 //! encoded using protobuf's default integer encoding, which consist of 7 bit payloads. You can
 //! read more about them here: https://protobuf.dev/programming-guides/encoding/#varints.
-use crate::variables::I64Target;
 use plonky2::field::extension::Extendable;
 use plonky2::hash::hash_types::RichField;
 use plonky2::iop::target::BoolTarget;
@@ -17,6 +16,8 @@ use plonky2x::frontend::num::u32::gadgets::arithmetic_u32::{CircuitBuilderU32, U
 use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::frontend::vars::U32Variable;
 use plonky2x::prelude::{BoolVariable, CircuitBuilder, PlonkParameters, Variable};
+
+use crate::variables::I64Target;
 
 // TODO: remove all of this, it's all legacy
 
@@ -276,8 +277,9 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVoting for CircuitBuilder<
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use super::*;
     use plonky2x::prelude::DefaultBuilder;
+
+    use super::*;
 
     const VALIDATOR_SET_SIZE_MAX: usize = 4;
 

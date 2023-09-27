@@ -1,33 +1,26 @@
-use plonky2x::{
-    frontend::ecc::ed25519::{
-        curve::{curve_types::Curve, ed25519::Ed25519},
-        gadgets::eddsa::EDDSASignatureTarget,
-    },
-    frontend::uint::uint64::U64Variable,
-    frontend::{
-        ecc::ed25519::gadgets::verify::EDDSABatchVerify,
-        merkle::tree::MerkleInclusionProofVariable, vars::U32Variable,
-    },
-    prelude::{
-        ArrayVariable, BoolVariable, Bytes32Variable, BytesVariable, CircuitBuilder,
-        CircuitVariable, PlonkParameters, RichField, Variable, Witness, WitnessWrite,
-    },
+use plonky2x::frontend::ecc::ed25519::curve::curve_types::Curve;
+use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
+use plonky2x::frontend::ecc::ed25519::gadgets::eddsa::EDDSASignatureTarget;
+use plonky2x::frontend::ecc::ed25519::gadgets::verify::EDDSABatchVerify;
+use plonky2x::frontend::merkle::tree::MerkleInclusionProofVariable;
+use plonky2x::frontend::uint::uint64::U64Variable;
+use plonky2x::frontend::vars::U32Variable;
+use plonky2x::prelude::{
+    ArrayVariable, BoolVariable, Bytes32Variable, BytesVariable, CircuitBuilder, CircuitVariable,
+    PlonkParameters, RichField, Variable, Witness, WitnessWrite,
 };
 use tendermint::merkle::HASH_SIZE;
 
-use crate::{
-    consts::{HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES, VALIDATOR_MESSAGE_BYTES_LENGTH_MAX},
-    validator::TendermintValidator,
-    variables::HeightProofVariable,
-    voting::TendermintVoting,
+use crate::consts::{
+    HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES, VALIDATOR_MESSAGE_BYTES_LENGTH_MAX,
 };
-use crate::{
-    shared::TendermintHeader,
-    variables::{
-        EDDSAPublicKeyVariable, EncBlockIDVariable, EncTendermintHashVariable,
-        MarshalledValidatorVariable, TendermintHashVariable, ValidatorMessageVariable,
-    },
+use crate::shared::TendermintHeader;
+use crate::validator::TendermintValidator;
+use crate::variables::{
+    EDDSAPublicKeyVariable, EncBlockIDVariable, EncTendermintHashVariable, HeightProofVariable,
+    MarshalledValidatorVariable, TendermintHashVariable, ValidatorMessageVariable,
 };
+use crate::voting::TendermintVoting;
 
 #[derive(Debug, Clone, CircuitVariable)]
 #[value_name(Validator)]
@@ -660,7 +653,6 @@ impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
 // Alternatively, add env::set_var("RUST_LOG", "debug") to the top of the test.
 #[cfg(test)]
 pub(crate) mod tests {
-    use super::*;
     use ethers::types::H256;
     use log;
     use plonky2::timed;
@@ -668,6 +660,7 @@ pub(crate) mod tests {
     use plonky2x::prelude::{DefaultBuilder, DefaultParameters};
     use subtle_encoding::hex;
 
+    use super::*;
     // TODO: Remove dependency on inputs crate
     use crate::{
         consts::VALIDATOR_MESSAGE_BYTES_LENGTH_MAX,

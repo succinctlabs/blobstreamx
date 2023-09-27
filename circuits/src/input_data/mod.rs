@@ -2,10 +2,18 @@ pub mod tendermint_utils;
 pub mod types;
 pub mod utils;
 
-use std::env;
+use std::collections::HashMap;
 use std::path::Path;
-use std::{collections::HashMap, fs};
+use std::{env, fs};
+
+use ethers::types::H256;
+use itertools::Itertools;
+use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
+use plonky2x::frontend::merkle::tree::InclusionProof;
+use plonky2x::prelude::RichField;
 use subtle_encoding::hex;
+use tendermint_proto::types::BlockId as RawBlockId;
+use tendermint_proto::Protobuf;
 
 use self::tendermint_utils::{
     generate_proofs_from_header, DataCommitmentResponse, Hash, Header, Proof, SignedBlockResponse,
@@ -21,13 +29,6 @@ use crate::consts::{
 use crate::input_data::types::{get_validators_as_input, get_validators_fields_as_input};
 use crate::variables::HeightProofValueType;
 use crate::verify::{Validator, ValidatorHashField};
-use ethers::types::H256;
-use itertools::Itertools;
-use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
-use plonky2x::frontend::merkle::tree::InclusionProof;
-use plonky2x::prelude::RichField;
-use tendermint_proto::types::BlockId as RawBlockId;
-use tendermint_proto::Protobuf;
 
 pub enum InputDataMode {
     Rpc(String),
@@ -440,8 +441,9 @@ mod test {
     #[tokio::test]
     async fn test_fixture_generation_asdf() {
         // TODO: Clippy does not recognize imports in Tokio tests.
-        use crate::input_data::InputDataFetcher;
         use std::env;
+
+        use crate::input_data::InputDataFetcher;
 
         env::set_var(
             "RPC_MOCHA_4",

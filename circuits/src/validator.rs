@@ -1,16 +1,16 @@
-use crate::consts::VALIDATOR_BYTE_LENGTH_MAX;
-use crate::shared::TendermintHeader;
-use crate::variables::{MarshalledValidatorVariable, TendermintHashVariable};
 use plonky2x::frontend::ecc::ed25519::curve::curve_types::Curve;
 use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
 use plonky2x::frontend::ecc::ed25519::gadgets::curve::{AffinePointTarget, CircuitBuilderCurve};
 use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::frontend::vars::U32Variable;
-
 use plonky2x::prelude::{
     BoolVariable, ByteVariable, BytesVariable, CircuitBuilder, CircuitVariable, PlonkParameters,
     Variable,
 };
+
+use crate::consts::VALIDATOR_BYTE_LENGTH_MAX;
+use crate::shared::TendermintHeader;
+use crate::variables::{MarshalledValidatorVariable, TendermintHashVariable};
 
 pub trait TendermintValidator<L: PlonkParameters<D>, const D: usize> {
     type Curve: Curve;
@@ -155,6 +155,19 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for Circui
 // Alternatively, add env::set_var("RUST_LOG", "debug") to the top of the test.
 #[cfg(test)]
 pub(crate) mod tests {
+    use ethers::types::H256;
+    use ethers::utils::hex;
+    use itertools::Itertools;
+    use plonky2::field::types::PrimeField;
+    use plonky2x::frontend::ecc::ed25519::curve::curve_types::AffinePoint;
+    use plonky2x::frontend::merkle::tree::{InclusionProof, MerkleInclusionProofVariable};
+    use plonky2x::prelude::{
+        ArrayVariable, Bytes32Variable, DefaultBuilder, Field, GoldilocksField,
+    };
+    use sha2::Sha256;
+    use tendermint_proto::types::BlockId as RawBlockId;
+    use tendermint_proto::Protobuf;
+
     use super::*;
     use crate::consts::{HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES};
     use crate::input_data::tendermint_utils::{
@@ -164,17 +177,6 @@ pub(crate) mod tests {
     // TODO: Remove dependency on inputs.
     use crate::inputs::get_signed_block_from_fixture;
     use crate::validator::TendermintValidator;
-    use ethers::types::H256;
-    use ethers::utils::hex;
-    use itertools::Itertools;
-    use plonky2::field::types::PrimeField;
-    use plonky2x::frontend::ecc::ed25519::curve::curve_types::AffinePoint;
-    use plonky2x::frontend::merkle::tree::{InclusionProof, MerkleInclusionProofVariable};
-    use plonky2x::prelude::Field;
-    use plonky2x::prelude::{ArrayVariable, Bytes32Variable, DefaultBuilder, GoldilocksField};
-    use sha2::Sha256;
-    use tendermint_proto::types::BlockId as RawBlockId;
-    use tendermint_proto::Protobuf;
 
     type Curve = Ed25519;
 

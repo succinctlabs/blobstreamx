@@ -1,22 +1,22 @@
-use crate::{
-    inputs::{convert_to_h256, get_path_indices, TempMerkleInclusionProof},
-    utils::{generate_proofs_from_header, leaf_hash, SignedBlock, TempSignedBlock},
-};
+use std::env;
+use std::fs::{self, File};
+use std::io::Write;
+use std::path::Path;
+
 use ethers::abi::AbiEncode;
 use rand::Rng;
 use reqwest::Error;
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
-use std::{
-    env,
-    fs::{self, File},
-    io::Write,
-    path::Path,
-};
 use subtle_encoding::hex;
-use tendermint::{merkle::simple_hash_from_byte_vectors, validator::Set as ValidatorSet, Hash};
+use tendermint::merkle::simple_hash_from_byte_vectors;
+use tendermint::validator::Set as ValidatorSet;
+use tendermint::Hash;
 use tendermint_proto::types::BlockId as RawBlockId;
 use tendermint_proto::Protobuf;
+
+use crate::inputs::{convert_to_h256, get_path_indices, TempMerkleInclusionProof};
+use crate::utils::{generate_proofs_from_header, leaf_hash, SignedBlock, TempSignedBlock};
 #[derive(Debug, Deserialize)]
 struct SignedBlockResponse {
     result: TempSignedBlock,
@@ -415,10 +415,10 @@ async fn write_block_fixture(block_number: usize) -> Result<(), Error> {
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use crate::input_data::tendermint_utils::{leaf_hash, proofs_from_byte_slices};
+    use sha2::Sha256;
 
     use super::*;
-    use sha2::Sha256;
+    use crate::input_data::tendermint_utils::{leaf_hash, proofs_from_byte_slices};
 
     #[test]
     fn test_encoding() {
