@@ -145,9 +145,7 @@ pub trait TendermintVerify<
         &mut self,
         validators: &ArrayVariable<ValidatorVariable<Self::Curve>, VALIDATOR_SET_SIZE_MAX>,
         header: &TendermintHashVariable,
-        // data_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
         validator_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
-        // next_validators_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
         round_present: &BoolVariable,
     );
 
@@ -392,6 +390,8 @@ impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
         // Assert that computed validator hash matches expected validator hash
         let extracted_hash: Bytes32Variable =
             validator_hash_proof.enc_leaf[2..2 + HASH_SIZE].into();
+
+        self.watch(&extracted_hash, "extracted_hash");
 
         self.assert_is_equal(extracted_hash, validators_hash_target);
 
@@ -654,21 +654,12 @@ impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
 #[cfg(test)]
 pub(crate) mod tests {
     use ethers::types::H256;
-    use log;
-    use plonky2::timed;
-    use plonky2::util::timing::TimingTree;
     use plonky2x::prelude::{DefaultBuilder, DefaultParameters};
     use subtle_encoding::hex;
 
     use super::*;
     // TODO: Remove dependency on inputs crate
-    use crate::{
-        consts::VALIDATOR_MESSAGE_BYTES_LENGTH_MAX,
-        inputs::{
-            generate_skip_inputs, generate_step_inputs, CelestiaSkipBlockProof,
-            CelestiaStepBlockProof,
-        },
-    };
+    use crate::consts::VALIDATOR_MESSAGE_BYTES_LENGTH_MAX;
 
     type L = DefaultParameters;
     const D: usize = 2;

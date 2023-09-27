@@ -236,8 +236,8 @@ mod tests {
                 .try_into()
                 .unwrap();
         let trusted_height = 10000u64;
-        let target_block = 10500u64;
-        test_skip_template::<MAX_VALIDATOR_SET_SIZE>(trusted_header, trusted_height, target_block)
+        let target_height = 10500u64;
+        test_skip_template::<MAX_VALIDATOR_SET_SIZE>(trusted_header, trusted_height, target_height)
     }
 
     #[test]

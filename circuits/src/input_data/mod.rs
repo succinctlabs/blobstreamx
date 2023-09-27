@@ -83,7 +83,7 @@ impl InputDataFetcher {
                 let res = reqwest::get(query_url).await.unwrap().text().await.unwrap();
                 if self.save {
                     let file_name = format!(
-                        "./src/fixtures/updated/{}-{}/data_commitment.json",
+                        "./fixtures/updated/{}-{}/data_commitment.json",
                         start_block.to_string().as_str(),
                         end_block.to_string().as_str()
                     );
@@ -97,7 +97,7 @@ impl InputDataFetcher {
             }
             InputDataMode::Fixture => {
                 let file_name = format!(
-                    "./src/fixtures/updated/{}-{}/data_commitment.json",
+                    "./fixtures/updated/{}-{}/data_commitment.json",
                     start_block.to_string().as_str(),
                     end_block.to_string().as_str()
                 );
@@ -127,7 +127,7 @@ impl InputDataFetcher {
                 let res = reqwest::get(query_url).await.unwrap().text().await.unwrap();
                 if self.save {
                     let file_name = format!(
-                        "./src/fixtures/updated/{}/signed_block.json",
+                        "./fixtures/updated/{}/signed_block.json",
                         block_number.to_string().as_str()
                     );
                     // Ensure the directory exists
@@ -140,7 +140,7 @@ impl InputDataFetcher {
             }
             InputDataMode::Fixture => {
                 let file_name = format!(
-                    "./src/fixtures/updated/{}/signed_block.json",
+                    "./fixtures/updated/{}/signed_block.json",
                     block_number.to_string().as_str()
                 );
                 println!("{:?}", file_name);
