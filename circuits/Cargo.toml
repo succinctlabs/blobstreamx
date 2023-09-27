@@ -15,8 +15,8 @@ name = "skip"
 path = "bin/skip.rs"
 
 [[bin]]
-name = "data_root_commitment"
-path = "bin/data_root_commitment.rs"
+name = "data_commitment"
+path = "bin/data_commitment.rs"
 
 [features]
 ci = []
