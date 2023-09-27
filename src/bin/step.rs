@@ -122,13 +122,10 @@ mod tests {
 
     use super::*;
 
-    #[test]
-    #[cfg_attr(feature = "ci", ignore)]
-    fn test_circuit_function_step() {
+    fn test_step_template<const MAX_VALIDATOR_SET_SIZE: usize>(block_number: u64) {
         env::set_var("RUST_LOG", "debug");
         env_logger::try_init().unwrap_or_default();
 
-        const MAX_VALIDATOR_SET_SIZE: usize = 8;
         let mut builder = DefaultBuilder::new();
 
         log::debug!("Defining circuit");
@@ -139,12 +136,13 @@ mod tests {
         log::debug!("Done building circuit");
 
         let mut input = circuit.input();
-        let header: [u8; 32] = [
-            101, 148, 196, 246, 245, 248, 99, 125, 20, 181, 200, 0, 157, 159, 211, 222, 105, 149,
-            108, 221, 97, 143, 205, 106, 162, 68, 113, 97, 5, 29, 183, 162,
-        ];
-        input.evm_write::<Bytes32Variable>(H256::from_slice(header.as_slice()));
-        input.evm_write::<U64Variable>(11000u64.into());
+
+        let data_fetcher = InputDataFetcher::new(InputDataMode::Fixture, "".to_string());
+        let rt = Runtime::new().expect("failed to create tokio runtime");
+        let block = rt.block_on(async { data_fetcher.get_block_from_number(block_number).await });
+
+        input.evm_write::<Bytes32Variable>(H256::from_slice(block.header.hash().as_bytes()));
+        input.evm_write::<U64Variable>(block_number.into());
 
         log::debug!("Generating proof");
         let (proof, mut output) = circuit.prove(&input);
@@ -153,5 +151,29 @@ mod tests {
         circuit.verify(&proof, &input, &output);
         let next_header = output.evm_read::<Bytes32Variable>();
         println!("next_header {:?}", next_header);
+    }
+
+    #[test]
+    #[cfg_attr(feature = "ci", ignore)]
+    fn test_circuit_function_step_small() {
+        env::set_var("RUST_LOG", "debug");
+        env_logger::try_init().unwrap_or_default();
+
+        const MAX_VALIDATOR_SET_SIZE: usize = 8;
+        let block_number = 11000u64;
+
+        test_step_template::<MAX_VALIDATOR_SET_SIZE>(block_number);
+    }
+
+    #[test]
+    #[cfg_attr(feature = "ci", ignore)]
+    fn test_circuit_function_step_small() {
+        env::set_var("RUST_LOG", "debug");
+        env_logger::try_init().unwrap_or_default();
+
+        const MAX_VALIDATOR_SET_SIZE: usize = 8;
+        let block_number = 11000u64;
+
+        test_step_template::<MAX_VALIDATOR_SET_SIZE>(block_number);
     }
 }

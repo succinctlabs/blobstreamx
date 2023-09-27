@@ -244,10 +244,7 @@ pub(crate) mod tests {
 
         let mut input = circuit.input();
 
-        let mut data_fetcher = InputDataFetcher::new(
-            InputDataMode::Rpc("http://rpc.testnet.celestia.citizencosmos.space".to_string()),
-            "src/".to_string(),
-        );
+        let mut data_fetcher = InputDataFetcher::new(InputDataMode::Fixture, "src/".to_string());
         data_fetcher.set_save(true);
         let rt = Runtime::new().expect("failed to create tokio runtime");
         let result = rt.block_on(async {
