@@ -1,5 +1,25 @@
 {
-    "preset": "plonky2",
-    "build_command": "mkdir -p build && RUST_LOG=debug cargo run --package celestia --bin step --release build && mv ./target/release/step ./build/step",
-    "prove_command": "RUST_LOG=info ./build/step prove-wrapped --input-json input.json --wrapper-path /verifier-build"
+    "entrypoints": [
+        {
+            "name": "step",
+            "framework": "plonky2",
+            "baseDir": ".",
+            "build_command": "mkdir -p build && RUST_LOG=debug cargo run --package celestia --bin step --release build && mv ./target/release/step ./build/step",
+            "prove_command": "RUST_LOG=info ./build/step prove-wrapped --input-json input.json --wrapper-path /verifier-build"
+        },
+        {
+            "name": "skip",
+            "framework": "plonky2",
+            "baseDir": ".",
+            "build_command": "mkdir -p build && RUST_LOG=debug cargo run --package celestia --bin skip --release build && mv ./target/release/skip ./build/skip",
+            "prove_command": "RUST_LOG=info ./build/skip prove-wrapped --input-json input.json --wrapper-path /verifier-build"
+        },
+        {
+            "name": "data-commitment",
+            "framework": "plonky2",
+            "baseDir": ".",
+            "build_command": "mkdir -p build && RUST_LOG=debug cargo run --package celestia --bin data_commitment --release build && mv ./target/release/data_commitment ./build/data_commitment",
+            "prove_command": "RUST_LOG=info ./build/data_commitment prove-wrapped --input-json input.json --wrapper-path /verifier-build"
+        }
+    ]
 }
