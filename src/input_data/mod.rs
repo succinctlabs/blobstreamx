@@ -2,6 +2,7 @@ pub mod tendermint_utils;
 pub mod types;
 pub mod utils;
 
+use std::env;
 use std::path::Path;
 use std::{collections::HashMap, fs};
 use subtle_encoding::hex;
@@ -39,8 +40,25 @@ pub struct InputDataFetcher {
     save: bool,
 }
 
+impl Default for InputDataFetcher {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl InputDataFetcher {
-    pub fn new(mode: InputDataMode) -> Self {
+    pub fn new() -> Self {
+        dotenv::dotenv().ok();
+        let url = env::var("RPC_MOCHA_4").expect("RPC_MOCHA_4 is not set in .env");
+
+        let mode = if url.is_empty() || url == "fixture" {
+            println!("Using fixture mode for data fetcher");
+            InputDataMode::Fixture
+        } else {
+            println!("Using rpc mode for data fetch with rpc {:?}", url.as_str());
+            InputDataMode::Rpc(url.clone())
+        };
+
         Self {
             mode,
             proof_cache: HashMap::new(),
@@ -180,12 +198,10 @@ impl InputDataFetcher {
             computed_prev_header_hash.as_bytes(),
             prev_header_hash.as_bytes()
         );
-        println!("prev_block_hash {:?}", computed_prev_header_hash);
         let next_block = self.get_block_from_number(prev_block_number + 1).await;
         let round_present = next_block.commit.round.value() != 0;
 
         let next_block_header = next_block.header.hash();
-        println!("prev_block_hash {:?}", next_block_header);
 
         let next_block_validators =
             get_validators_as_input::<VALIDATOR_SET_SIZE_MAX, F>(&next_block);
@@ -424,12 +440,16 @@ mod test {
     #[tokio::test]
     async fn test_fixture_generation_asdf() {
         // TODO: Clippy does not recognize imports in Tokio tests.
-        use crate::input_data::{InputDataFetcher, InputDataMode};
+        use crate::input_data::InputDataFetcher;
+        use std::env;
+
+        env::set_var(
+            "RPC_MOCHA_4",
+            "http://rpc.testnet.celestia.citizencosmos.space",
+        );
 
         let block_height = 11105u64;
-        let mut fetcher = InputDataFetcher::new(InputDataMode::Rpc(
-            "http://rpc.testnet.celestia.citizencosmos.space".to_string(),
-        ));
+        let mut fetcher = InputDataFetcher::new();
         fetcher.set_save(true);
         let _block = fetcher.get_block_from_number(block_height).await;
     }

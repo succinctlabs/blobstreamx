@@ -27,7 +27,7 @@ use plonky2x::prelude::{Bytes32Variable, CircuitBuilder, PlonkParameters};
 use serde::{Deserialize, Serialize};
 use tokio::runtime::Runtime;
 
-use celestia::input_data::{InputDataFetcher, InputDataMode};
+use celestia::input_data::InputDataFetcher;
 use plonky2x::frontend::vars::VariableStream; // TODO: re-export this instead of this path
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct DataCommitmentOffchainInputs<const MAX_LEAVES: usize> {}
@@ -41,7 +41,7 @@ impl<const MAX_LEAVES: usize, L: PlonkParameters<D>, const D: usize> Hint<L, D>
         let end_block = input_stream.read_value::<U64Variable>();
         let end_header_hash = input_stream.read_value::<Bytes32Variable>();
 
-        let mut data_fetcher = InputDataFetcher::new(InputDataMode::Fixture);
+        let mut data_fetcher = InputDataFetcher::new();
 
         let rt = Runtime::new().expect("failed to create tokio runtime");
         let result = rt.block_on(async {

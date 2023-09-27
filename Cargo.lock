@@ -317,7 +317,7 @@ version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f5353f36341f7451062466f0b755b96ac3a9547e4d7f6b70d603fc721a7d7896"
 dependencies = [
- "sha2 0.10.7",
+ "sha2 0.10.8",
  "tinyvec",
 ]
 
@@ -432,7 +432,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
- "sha2 0.10.7",
+ "sha2 0.10.8",
  "subtle-encoding",
  "tendermint",
  "tendermint-proto",
@@ -520,7 +520,7 @@ dependencies = [
  "hmac",
  "k256",
  "serde",
- "sha2 0.10.7",
+ "sha2 0.10.8",
  "thiserror",
 ]
 
@@ -536,7 +536,7 @@ dependencies = [
  "once_cell",
  "pbkdf2 0.12.2",
  "rand",
- "sha2 0.10.7",
+ "sha2 0.10.8",
  "thiserror",
 ]
 
@@ -555,7 +555,7 @@ dependencies = [
  "ripemd",
  "serde",
  "serde_derive",
- "sha2 0.10.7",
+ "sha2 0.10.8",
  "sha3",
  "thiserror",
 ]
@@ -719,7 +719,7 @@ dependencies = [
 [[package]]
 name = "curta"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/curta.git#ce8933133509ee0ea8b9ef357058b54bbb66a080"
+source = "git+https://github.com/succinctlabs/curta.git#cb93984477c3d716b2417e7ce7dc71979d75e9d8"
 dependencies = [
  "anyhow",
  "bincode",
@@ -1080,7 +1080,7 @@ dependencies = [
  "scrypt",
  "serde",
  "serde_json",
- "sha2 0.10.7",
+ "sha2 0.10.8",
  "sha3",
  "thiserror",
  "uuid 0.8.2",
@@ -1344,7 +1344,7 @@ dependencies = [
  "eth-keystore",
  "ethers-core",
  "rand",
- "sha2 0.10.7",
+ "sha2 0.10.8",
  "thiserror",
  "tracing",
 ]
@@ -2039,6 +2039,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "af150ab688ff2122fcef229be89cb50dd66af9e01a4ff320cc137eecc9bacc38"
 
 [[package]]
+name = "jemalloc-sys"
+version = "0.5.4+5.3.0-patched"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ac6c1946e1cea1788cbfde01c993b52a10e2da07f4bac608228d1bed20bfebf2"
+dependencies = [
+ "cc",
+ "libc",
+]
+
+[[package]]
+name = "jemallocator"
+version = "0.5.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a0de374a9f8e63150e6f5e8a60cc14c668226d7a347d8aee1a45766e3c4dd3bc"
+dependencies = [
+ "jemalloc-sys",
+ "libc",
+]
+
+[[package]]
 name = "jobserver"
 version = "0.1.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2080,7 +2100,7 @@ dependencies = [
  "ecdsa",
  "elliptic-curve",
  "once_cell",
- "sha2 0.10.7",
+ "sha2 0.10.8",
  "signature",
 ]
 
@@ -2548,7 +2568,7 @@ dependencies = [
  "digest 0.10.7",
  "hmac",
  "password-hash",
- "sha2 0.10.7",
+ "sha2 0.10.8",
 ]
 
 [[package]]
@@ -2704,7 +2724,7 @@ checksum = "4503fa043bf02cee09a9582e9554b4c6403b2ef55e4612e96561d294419429f8"
 [[package]]
 name = "plonky2"
 version = "0.1.4"
-source = "git+https://github.com/mir-protocol/plonky2.git#a24cd4f309d868ba595cb53744f5706fb74c1a7f"
+source = "git+https://github.com/mir-protocol/plonky2.git#acc659da07edb31237358b5794bb362c067e2cb4"
 dependencies = [
  "ahash",
  "anyhow",
@@ -2728,7 +2748,7 @@ dependencies = [
 [[package]]
 name = "plonky2_field"
 version = "0.1.1"
-source = "git+https://github.com/mir-protocol/plonky2.git#a24cd4f309d868ba595cb53744f5706fb74c1a7f"
+source = "git+https://github.com/mir-protocol/plonky2.git#acc659da07edb31237358b5794bb362c067e2cb4"
 dependencies = [
  "anyhow",
  "itertools 0.11.0",
@@ -2752,7 +2772,7 @@ dependencies = [
 [[package]]
 name = "plonky2_maybe_rayon"
 version = "0.1.1"
-source = "git+https://github.com/mir-protocol/plonky2.git#a24cd4f309d868ba595cb53744f5706fb74c1a7f"
+source = "git+https://github.com/mir-protocol/plonky2.git#acc659da07edb31237358b5794bb362c067e2cb4"
 dependencies = [
  "rayon",
 ]
@@ -2760,12 +2780,12 @@ dependencies = [
 [[package]]
 name = "plonky2_util"
 version = "0.1.1"
-source = "git+https://github.com/mir-protocol/plonky2.git#a24cd4f309d868ba595cb53744f5706fb74c1a7f"
+source = "git+https://github.com/mir-protocol/plonky2.git#acc659da07edb31237358b5794bb362c067e2cb4"
 
 [[package]]
 name = "plonky2x"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git#62780e925bfc3c6cef094d6a1f08aa3cf187de18"
+source = "git+https://github.com/succinctlabs/succinctx.git#9940c829baed721502e4b2ec6c24916cc7aec2a3"
 dependencies = [
  "anyhow",
  "array-macro",
@@ -2784,6 +2804,7 @@ dependencies = [
  "futures",
  "hex",
  "itertools 0.10.5",
+ "jemallocator",
  "lazy_static",
  "log",
  "num",
@@ -2796,7 +2817,7 @@ dependencies = [
  "serde_json",
  "serde_plain",
  "serde_with",
- "sha2 0.10.7",
+ "sha2 0.10.8",
  "tokio",
  "tracing",
  "uuid 1.4.1",
@@ -2805,7 +2826,7 @@ dependencies = [
 [[package]]
 name = "plonky2x-derive"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git#62780e925bfc3c6cef094d6a1f08aa3cf187de18"
+source = "git+https://github.com/succinctlabs/succinctx.git#9940c829baed721502e4b2ec6c24916cc7aec2a3"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3303,7 +3324,7 @@ dependencies = [
  "hmac",
  "pbkdf2 0.11.0",
  "salsa20",
- "sha2 0.10.7",
+ "sha2 0.10.8",
 ]
 
 [[package]]
@@ -3510,9 +3531,9 @@ dependencies = [
 
 [[package]]
 name = "sha2"
-version = "0.10.7"
+version = "0.10.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "479fb9d862239e610720565ca91403019f2f00410f1864c5aa7479b950a76ed8"
+checksum = "793db75ad2bcafc3ffa7c68b215fee268f537982cd901d132f89c6343f3a3dc8"
 dependencies = [
  "cfg-if",
  "cpufeatures",
@@ -3713,7 +3734,7 @@ dependencies = [
  "semver",
  "serde",
  "serde_json",
- "sha2 0.10.7",
+ "sha2 0.10.8",
  "thiserror",
  "url",
  "zip",
@@ -3780,7 +3801,7 @@ dependencies = [
  "serde_bytes",
  "serde_json",
  "serde_repr",
- "sha2 0.10.7",
+ "sha2 0.10.8",
  "signature",
  "subtle",
  "subtle-encoding",

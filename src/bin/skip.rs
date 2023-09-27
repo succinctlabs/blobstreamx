@@ -27,7 +27,7 @@ use serde::{Deserialize, Serialize};
 use tokio::runtime::Runtime;
 
 use celestia::consts::HEADER_PROOF_DEPTH;
-use celestia::input_data::{InputDataFetcher, InputDataMode};
+use celestia::input_data::InputDataFetcher;
 use celestia::verify::{
     HashInclusionProofVariable, TendermintVerify, ValidatorHashFieldVariable, ValidatorVariable,
 };
@@ -43,7 +43,7 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize, L: PlonkParameters<D>, const D: usize>
         let trusted_header_hash = input_stream.read_value::<Bytes32Variable>();
         let trusted_block = input_stream.read_value::<U64Variable>();
         let target_block = input_stream.read_value::<U64Variable>();
-        let mut data_fetcher = InputDataFetcher::new(InputDataMode::Fixture);
+        let mut data_fetcher = InputDataFetcher::new();
         let rt = Runtime::new().expect("failed to create tokio runtime");
         let result = rt.block_on(async {
             data_fetcher
@@ -119,6 +119,15 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize> Circuit for SkipCircuit<MAX_VALIDATOR_
         );
         builder.evm_write(target_header);
     }
+
+    fn register_generators<L: PlonkParameters<D>, const D: usize>(
+        generator_registry: &mut plonky2x::prelude::HintRegistry<L, D>,
+    ) where
+        <<L as PlonkParameters<D>>::Config as plonky2::plonk::config::GenericConfig<D>>::Hasher:
+            plonky2::plonk::config::AlgebraicHasher<L::Field>,
+    {
+        generator_registry.register_hint::<SkipOffchainInputs<MAX_VALIDATOR_SET_SIZE>>();
+    }
 }
 
 fn main() {
@@ -129,17 +138,69 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use ethers::types::H256;
+    use ethers::utils::hex;
     use std::env;
 
-    use plonky2x::prelude::DefaultBuilder;
-
     use super::*;
+    use plonky2x::backend::circuit::PublicInput;
+    use plonky2x::prelude::{DefaultBuilder, GateRegistry, HintRegistry};
 
     #[test]
     #[cfg_attr(feature = "ci", ignore)]
     fn test_circuit_function_skip() {
         env::set_var("RUST_LOG", "debug");
         env_logger::try_init().unwrap_or_default();
+
+        const MAX_VALIDATOR_SET_SIZE: usize = 2;
+        let mut builder = DefaultBuilder::new();
+
+        log::debug!("Defining circuit");
+        SkipCircuit::<MAX_VALIDATOR_SET_SIZE>::define(&mut builder);
+        let circuit = builder.build();
+        log::debug!("Done building circuit");
+
+        let mut hint_registry = HintRegistry::new();
+        let mut gate_registry = GateRegistry::new();
+        SkipCircuit::<MAX_VALIDATOR_SET_SIZE>::register_generators(&mut hint_registry);
+        SkipCircuit::<MAX_VALIDATOR_SET_SIZE>::register_gates(&mut gate_registry);
+
+        circuit.test_serializers(&gate_registry, &hint_registry);
+    }
+
+    #[test]
+    #[cfg_attr(feature = "ci", ignore)]
+    fn test_circuit_with_input_bytes() {
+        env::set_var("RUST_LOG", "debug");
+        env_logger::try_init().unwrap_or_default();
+
+        const MAX_VALIDATOR_SET_SIZE: usize = 4;
+        // This is from block 3000 with requested block 3100
+        let input_bytes = hex::decode(
+            "a8512f18c34b70e1533cfd5aa04f251fcb0d7be56ec570051fbad9bdb9435e6a0000000000000bb80000000000000c1c",
+        )
+        .unwrap();
+
+        let mut builder = DefaultBuilder::new();
+
+        log::debug!("Defining circuit");
+        SkipCircuit::<MAX_VALIDATOR_SET_SIZE>::define(&mut builder);
+
+        log::debug!("Building circuit");
+        let circuit = builder.build();
+        log::debug!("Done building circuit");
+
+        let input = PublicInput::Bytes(input_bytes);
+        let (_proof, mut output) = circuit.prove(&input);
+        let next_header = output.evm_read::<Bytes32Variable>();
+        println!("next_header {:?}", next_header);
+    }
+
+    #[test]
+    #[cfg_attr(feature = "ci", ignore)]
+    fn test_circuit_function_skip_fixture() {
+        env::set_var("RUST_LOG", "debug");
+        env_logger::try_init().unwrap_or_default();
+        env::set_var("RPC_MOCHA_4", "fixture"); // Use fixture during testing
 
         const MAX_VALIDATOR_SET_SIZE: usize = 16;
         let mut builder = DefaultBuilder::new();
