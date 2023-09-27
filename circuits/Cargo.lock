@@ -719,7 +719,7 @@ dependencies = [
 [[package]]
 name = "curta"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/curta.git#022f37684e9b0ff5632a5cf92d55071097a9a6c0"
+source = "git+https://github.com/succinctlabs/curta.git#cb93984477c3d716b2417e7ce7dc71979d75e9d8"
 dependencies = [
  "anyhow",
  "bincode",
@@ -2785,7 +2785,7 @@ source = "git+https://github.com/mir-protocol/plonky2.git#acc659da07edb31237358b
 [[package]]
 name = "plonky2x"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git#baa4fc5bc08f33bc12d1fd55a49d7885d9324e1a"
+source = "git+https://github.com/succinctlabs/succinctx.git#9940c829baed721502e4b2ec6c24916cc7aec2a3"
 dependencies = [
  "anyhow",
  "array-macro",
@@ -2796,7 +2796,6 @@ dependencies = [
  "clap",
  "curta",
  "curve25519-dalek",
- "digest 0.10.7",
  "dotenv",
  "ed25519-consensus",
  "env_logger",
@@ -2819,7 +2818,6 @@ dependencies = [
  "serde_plain",
  "serde_with",
  "sha2 0.10.8",
- "sha256",
  "tokio",
  "tracing",
  "uuid 1.4.1",
@@ -2828,7 +2826,7 @@ dependencies = [
 [[package]]
 name = "plonky2x-derive"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git#baa4fc5bc08f33bc12d1fd55a49d7885d9324e1a"
+source = "git+https://github.com/succinctlabs/succinctx.git#9940c829baed721502e4b2ec6c24916cc7aec2a3"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3540,19 +3538,6 @@ dependencies = [
  "cfg-if",
  "cpufeatures",
  "digest 0.10.7",
-]
-
-[[package]]
-name = "sha256"
-version = "1.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7895c8ae88588ccead14ff438b939b0c569cd619116f14b4d13fdff7b8333386"
-dependencies = [
- "async-trait",
- "bytes",
- "hex",
- "sha2 0.10.8",
- "tokio",
 ]
 
 [[package]]
