@@ -97,11 +97,21 @@ impl<const MAX_LEAVES: usize> Circuit for DataCommitmentCircuit<MAX_LEAVES> {
 
         builder.evm_write(data_commitment);
     }
+
+    fn register_generators<L: PlonkParameters<D>, const D: usize>(
+        generator_registry: &mut plonky2x::prelude::HintRegistry<L, D>,
+    ) where
+        <<L as PlonkParameters<D>>::Config as plonky2::plonk::config::GenericConfig<D>>::Hasher:
+            plonky2::plonk::config::AlgebraicHasher<L::Field>,
+    {
+        generator_registry.register_hint::<DataCommitmentOffchainInputs<MAX_LEAVES>>();
+    }
 }
 
 fn main() {
     // Celestia's maxmimum data commitment size is 1000: https://github.com/celestiaorg/celestia-core/blob/6933af1ead0ddf4a8c7516690e3674c6cdfa7bd8/pkg/consts/consts.go#L44.
-    const MAX_LEAVES: usize = 1024;
+    // const MAX_LEAVES: usize = 1024;
+    const MAX_LEAVES: usize = 4;
     VerifiableFunction::<DataCommitmentCircuit<MAX_LEAVES>>::entrypoint();
 }
 
@@ -109,10 +119,32 @@ fn main() {
 mod tests {
     use std::env;
 
-    use plonky2x::prelude::DefaultBuilder;
+    use plonky2x::prelude::{DefaultBuilder, GateRegistry, HintRegistry};
     use subtle_encoding::hex;
 
     use super::*;
+
+    #[test]
+    #[cfg_attr(feature = "ci", ignore)]
+    fn test_data_commitment_serialization() {
+        env::set_var("RUST_LOG", "debug");
+        env_logger::try_init().unwrap_or_default();
+
+        const MAX_LEAVES: usize = 2;
+        let mut builder = DefaultBuilder::new();
+
+        log::debug!("Defining circuit");
+        DataCommitmentCircuit::<MAX_LEAVES>::define(&mut builder);
+        let circuit = builder.build();
+        log::debug!("Done building circuit");
+
+        let mut hint_registry = HintRegistry::new();
+        let mut gate_registry = GateRegistry::new();
+        DataCommitmentCircuit::<MAX_LEAVES>::register_generators(&mut hint_registry);
+        DataCommitmentCircuit::<MAX_LEAVES>::register_gates(&mut gate_registry);
+
+        circuit.test_serializers(&gate_registry, &hint_registry);
+    }
 
     #[test]
     #[cfg_attr(feature = "ci", ignore)]
