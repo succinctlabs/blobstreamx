@@ -14,24 +14,22 @@
 //!
 //!
 //!
-use plonky2x::backend::circuit::Circuit;
-use plonky2x::backend::function::VerifiableFunction;
-use plonky2x::frontend::hint::simple::hint::Hint;
-use plonky2x::frontend::uint::uint64::U64Variable;
-use plonky2x::frontend::vars::ValueStream;
-use plonky2x::prelude::{
-    ArrayVariable, BoolVariable, Bytes32Variable, CircuitBuilder, PlonkParameters,
-};
-use serde::{Deserialize, Serialize};
-use tokio::runtime::Runtime;
-
 use celestia::consts::HEADER_PROOF_DEPTH;
 use celestia::input_data::InputDataFetcher;
 use celestia::verify::{
     BlockIDInclusionProofVariable, HashInclusionProofVariable, TendermintVerify, ValidatorVariable,
 };
+use plonky2x::backend::circuit::Circuit;
+use plonky2x::backend::function::VerifiableFunction;
 use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
-use plonky2x::frontend::vars::VariableStream; // TODO: re-export this instead of this path
+use plonky2x::frontend::hint::simple::hint::Hint;
+use plonky2x::frontend::uint::uint64::U64Variable;
+use plonky2x::frontend::vars::{ValueStream, VariableStream};
+use plonky2x::prelude::{
+    ArrayVariable, BoolVariable, Bytes32Variable, CircuitBuilder, PlonkParameters,
+};
+use serde::{Deserialize, Serialize};
+use tokio::runtime::Runtime; // TODO: re-export this instead of this path
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct StepOffchainInputs<const MAX_VALIDATOR_SET_SIZE: usize> {}
 
@@ -124,11 +122,12 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
+    use std::env;
+
     use ethers::types::H256;
     use ethers::utils::hex;
     use plonky2x::backend::circuit::PublicInput;
     use plonky2x::prelude::{DefaultBuilder, GateRegistry, HintRegistry};
-    use std::env;
 
     use super::*;
 
