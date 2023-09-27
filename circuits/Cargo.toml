@@ -6,6 +6,18 @@ edition = "2021"
 [lib]
 
 
+[[bin]]
+name = "step"
+path = "bin/step.rs"
+
+[[bin]]
+name = "skip"
+path = "bin/skip.rs"
+
+[[bin]]
+name = "data_root_commitment"
+path = "bin/data_root_commitment.rs"
+
 [features]
 ci = []
 
