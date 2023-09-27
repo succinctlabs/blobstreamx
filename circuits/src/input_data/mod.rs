@@ -34,56 +34,7 @@ use crate::verify::{Validator, ValidatorHashField};
 #[async_trait]
 pub trait DataFetcher {
     async fn get_block(&self, block_number: u64) -> Box<TempSignedBlock>;
-    async fn get_header_range(&self, start_block_number: u64, end_block_number: u64)
-        -> Vec<Header>;
-    async fn get_data_commitment(&self, start_block_number: u64, end_block_number: u64) -> H256;
-}
-
-pub fn new_fetcher(chain_id: String) -> Box<dyn DataFetcher> {
-    if cfg!(test) {
-        Box::new(FixtureDataFetcher {
-            fixture_path: format!("test/fixtures/{}", chain_id),
-        })
-    } else {
-        Box::new(RpcDataFetcher {
-            url: env::var(format!("RPC_{}", chain_id)).expect("RPC url not set in .env"),
-        })
-    }
-    // TODO: if in a test, return the FixtureDataFetcher with a const fixture path "test/fixtures/{chain_id{"
-    // else, read the RpcDataFetch with the env var "RPC_{chain_id}" url from the .env file and panic if the RPC url is not present
-}
-
-pub struct RpcDataFetcher {
-    pub url: String,
-}
-
-impl RpcDataFetcher {
-    async fn get_header(&self, block_number: u64) -> Header {
-        let query_url = format!(
-            "{}/header?height={}",
-            self.url,
-            block_number.to_string().as_str()
-        );
-        let res = reqwest::get(query_url).await.unwrap().text().await.unwrap();
-        let v: HeaderResponse = serde_json::from_str(&res).expect("Failed to parse JSON");
-        v.result
-    }
-}
-
-#[async_trait]
-impl DataFetcher for RpcDataFetcher {
-    async fn get_block(&self, block_number: u64) -> Box<TempSignedBlock> {
-        let query_url = format!(
-            "{}/block?height={}",
-            self.url,
-            block_number.to_string().as_str()
-        );
-        let res = reqwest::get(query_url).await.unwrap().text().await.unwrap();
-        let v: SignedBlockResponse = serde_json::from_str(&res).expect("Failed to parse JSON");
-        let temp_block = v.result;
-        Box::new(temp_block)
-    }
-
+    async fn get_header(&self, block_number: u64) -> Header;
     async fn get_header_range(
         &self,
         start_block_number: u64,
@@ -96,6 +47,81 @@ impl DataFetcher for RpcDataFetcher {
         }
         headers
     }
+    async fn get_data_commitment(&self, start_block_number: u64, end_block_number: u64) -> H256;
+}
+
+pub fn new_fetcher(chain_id: String) -> Box<dyn DataFetcher> {
+    if cfg!(test) {
+        Box::new(FixtureDataFetcher {
+            fixture_path: format!("test/fixtures/{}", chain_id),
+        })
+    } else {
+        Box::new(RpcDataFetcher {
+            url: env::var(format!("RPC_{}", chain_id)).expect("RPC url not set in .env"),
+            save: false,
+            save_fixture_path: format!("test/fixtures/{}", chain_id),
+        })
+    }
+    // TODO: if in a test, return the FixtureDataFetcher with a const fixture path "test/fixtures/{chain_id{"
+    // else, read the RpcDataFetch with the env var "RPC_{chain_id}" url from the .env file and panic if the RPC url is not present
+}
+
+pub struct RpcDataFetcher {
+    pub url: String,
+    pub save: bool,
+    pub save_fixture_path: String,
+}
+
+impl RpcDataFetcher {}
+
+#[async_trait]
+impl DataFetcher for RpcDataFetcher {
+    async fn get_block(&self, block_number: u64) -> Box<TempSignedBlock> {
+        let query_url = format!(
+            "{}/block?height={}",
+            self.url,
+            block_number.to_string().as_str()
+        );
+        let res = reqwest::get(query_url).await.unwrap().text().await.unwrap();
+        if self.save {
+            let file_name = format!(
+                "{}/block/{}.json",
+                self.save_fixture_path.as_str(),
+                block_number.to_string().as_str()
+            );
+            // Ensure the directory exists
+            if let Some(parent) = Path::new(&file_name).parent() {
+                fs::create_dir_all(parent).unwrap();
+            }
+            fs::write(file_name.as_str(), res.as_bytes()).expect("Unable to write file");
+        }
+        let v: SignedBlockResponse = serde_json::from_str(&res).expect("Failed to parse JSON");
+        let temp_block = v.result;
+        Box::new(temp_block)
+    }
+
+    async fn get_header(&self, block_number: u64) -> Header {
+        let query_url = format!(
+            "{}/header?height={}",
+            self.url,
+            block_number.to_string().as_str()
+        );
+        let res = reqwest::get(query_url).await.unwrap().text().await.unwrap();
+        if self.save {
+            let file_name = format!(
+                "{}/header/{}.json",
+                self.save_fixture_path.as_str(),
+                block_number.to_string().as_str()
+            );
+            // Ensure the directory exists
+            if let Some(parent) = Path::new(&file_name).parent() {
+                fs::create_dir_all(parent).unwrap();
+            }
+            fs::write(file_name.as_str(), res.as_bytes()).expect("Unable to write file");
+        }
+        let v: HeaderResponse = serde_json::from_str(&res).expect("Failed to parse JSON");
+        v.result
+    }
 
     async fn get_data_commitment(&self, start_block_number: u64, end_block_number: u64) -> H256 {
         let query_url = format!(
@@ -105,6 +131,19 @@ impl DataFetcher for RpcDataFetcher {
             end_block_number.to_string().as_str()
         );
         let res = reqwest::get(query_url).await.unwrap().text().await.unwrap();
+        if self.save {
+            let file_name = format!(
+                "{}/data_commitment/{}_{}.json",
+                self.save_fixture_path.as_str(),
+                start_block_number.to_string().as_str(),
+                end_block_number.to_string().as_str(),
+            );
+            // Ensure the directory exists
+            if let Some(parent) = Path::new(&file_name).parent() {
+                fs::create_dir_all(parent).unwrap();
+            }
+            fs::write(file_name.as_str(), res.as_bytes()).expect("Unable to write file");
+        }
         let v: DataCommitmentResponse = serde_json::from_str(&res).expect("Failed to parse JSON");
         H256::from_slice(
             hex::decode_upper(v.result.data_commitment)
@@ -133,64 +172,16 @@ impl DataFetcher for FixtureDataFetcher {
         Box::new(temp_block)
     }
 
-    async fn get_header_range(
-        &self,
-        start_block_number: u64,
-        end_block_number: u64,
-    ) -> Vec<Header> {
+    async fn get_header(&self, block_number: u64) -> Header {
         let file_name = format!(
-            "{}/header_range/{}_{}.json",
+            "{}/header/{}.json",
             self.fixture_path.as_str(),
-            start_block_number.to_string().as_str(),
-            end_block_number.to_string().as_str()
+            block_number.to_string().as_str()
         );
         let file_content = fs::read_to_string(file_name.as_str());
         let res = file_content.unwrap();
-        let headers: Vec<Header> = serde_json::from_str(&res).expect("Failed to parse JSON");
-        headers
-    }
-
-    async fn get_data_commitment(&self, start_block_number: u64, end_block_number: u64) -> H256 {
-        let file_name = format!(
-            "{}/data_commitment/{}_{}.json",
-            self.fixture_path.as_str(),
-            start_block_number.to_string().as_str(),
-            end_block_number.to_string().as_str(),
-        );
-        let file_content = fs::read_to_string(file_name.as_str());
-        let res = file_content.unwrap();
-        let v: DataCommitmentResponse = serde_json::from_str(&res).expect("Failed to parse JSON");
-        H256::from_slice(
-            hex::decode_upper(v.result.data_commitment)
-                .unwrap()
-                .as_slice(),
-        )
-    }
-}
-
-pub struct SaveDataFetcher {
-    // Note: This can't be Box<dyn DataFetcher> because it might be self-referential (infinite save depth).
-    pub data_fetcher: RpcDataFetcher,
-    pub save_fixture_path: String,
-}
-
-#[async_trait]
-impl DataFetcher for SaveDataFetcher {
-    async fn get_block(&self, block_number: u64) -> Box<TempSignedBlock> {
-        self.data_fetcher.get_block(block_number).await
-    }
-
-    async fn get_header_range(
-        &self,
-        start_block_number: u64,
-        end_block_number: u64,
-    ) -> Vec<Header> {
-        let headers = self
-            .data_fetcher
-            .get_header_range(start_block_number, end_block_number)
-            .await;
-
-        headers
+        let v: HeaderResponse = serde_json::from_str(&res).expect("Failed to parse JSON");
+        v.result
     }
 
     async fn get_data_commitment(&self, start_block_number: u64, end_block_number: u64) -> H256 {
