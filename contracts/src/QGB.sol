@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import "./ZKTendermintLightClient.sol";
+import "./IZKTendermintLightClient.sol";
+import "@succinctx/interfaces/IFunctionGateway.sol";
 
 contract QGB {
     address public gateway;
+    IZKTendermintLightClient public tendermintLightClient;
+
     mapping(string => bytes32) public functionNameToId;
     bytes32 public functionId;
 
@@ -13,17 +16,45 @@ contract QGB {
     uint64 latestBlock;
     uint64 DATA_COMMITMENT_MAX = 1000;
 
+    event DataCommitmentRequested(
+        uint64 indexed startBlock,
+        uint64 indexed targetBlock,
+        bytes32 requestId
+    );
+
+    event DataCommitmentFulfilled(
+        uint64 indexed startBlock,
+        uint64 indexed targetBlock,
+        bytes32 dataCommitment
+    );
+
     modifier onlyGateway() {
         require(msg.sender == gateway, "Only gateway can call this function");
         _;
     }
 
+    function updateGateway(address _gateway) external {
+        gateway = _gateway;
+    }
+
+    function updateTendermintLightClient(
+        address _tendermintLightClient
+    ) external {
+        tendermintLightClient = IZKTendermintLightClient(
+            _tendermintLightClient
+        );
+    }
+
+    function updateFunctionId(bytes32 _functionId) external {
+        functionId = _functionId;
+    }
+
     function requestDataCommitment(uint64 targetBlock) external {
-        bytes32 trustedHeader = blockHeightToHeaderHash[latestBlock];
-        if (trustedHeader == bytes32(0)) {
+        bytes32 latestHeader = tendermintLightClient.getHeaderHash(latestBlock);
+        if (latestHeader == bytes32(0)) {
             revert("Trusted header not found");
         }
-        bytes32 targetHeader = blockHeightToHeaderHash[targetBlock];
+        bytes32 targetHeader = tendermintLightClient.getHeaderHash(targetBlock);
         if (targetHeader == bytes32(0)) {
             revert("Target header not found");
         }
@@ -37,14 +68,14 @@ contract QGB {
             id,
             abi.encodePacked(
                 latestBlock,
-                trustedHeader,
+                latestHeader,
                 targetBlock,
                 targetHeader
             ),
             this.callbackCommitment.selector,
-            abi.encode(startBlock, targetBlock)
+            abi.encode(latestBlock, targetBlock)
         );
-        emit DataCommitmentRequested(_trustedBlock, _requestedBlock, requestId);
+        emit DataCommitmentRequested(latestBlock, targetBlock, requestId);
     }
 
     function callbackCommitment(
@@ -66,8 +97,26 @@ contract QGB {
     function verifyMerkleProof(
         uint256 startBlock,
         uint256 endBlock,
-        bytes32[] memory proof
-    ) {
-        // TODO: existing proof verification code
+        DataRootTuple memory _tuple,
+        BinaryMerkleProof memory _proof
+    ) external view override returns (bool) {
+        // Tuple must have been committed before.
+        if (endBlock > latestBlock) {
+            return false;
+        }
+
+        // Load the tuple root at the given index from storage.
+        bytes32 root = dataCommitments[
+            keccak256(abi.encode(startBlock, endBlock))
+        ];
+
+        // Verify the proof.
+        bool isProofValid = BinaryMerkleTree.verify(
+            root,
+            _proof,
+            abi.encode(_tuple)
+        );
+
+        return isProofValid;
     }
 }
