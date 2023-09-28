@@ -202,6 +202,8 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitment<L, D> for CircuitBuil
 // Alternatively, add env::set_var("RUST_LOG", "debug") to the top of the test.
 #[cfg(test)]
 pub(crate) mod tests {
+    use std::env;
+
     use ethers::types::H256;
     use plonky2x::backend::circuit::DefaultParameters;
     use tokio::runtime::Runtime;
@@ -222,7 +224,7 @@ pub(crate) mod tests {
     ) -> (DataCommitmentProofValueType<MAX_LEAVES, F>, H256) {
         // Input data fetcher
         let mut input_data_fetcher = InputDataFetcher::new();
-        // TODO: env::set_var("RPC_MOCHA_4", "fixture"); // Use fixture during testing
+        env::set_var("RPC_MOCHA_4", "fixture"); // Use fixture during testing
 
         let rt = Runtime::new().expect("failed to create tokio runtime");
 
