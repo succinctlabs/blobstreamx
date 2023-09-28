@@ -13,7 +13,7 @@ contract DeployScript is Script {
         vm.startBroadcast();
         address gateway = address(0x852a94F8309D445D27222eDb1E92A4E83DdDd2a8);
         bytes32 functionId = bytes32(
-            0x3509161976e479a1e621d680b02824d1806daad1b9ef8a5b935b1c99a8c63ae2
+            0x3f56e1405a9adc8c0f2a95d7723e42ea9afe05e2a30ac588289d8e26183a08bf
         );
 
         // ZKTendermintLightClient lightClient = new ZKTendermintLightClient(

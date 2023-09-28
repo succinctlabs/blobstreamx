@@ -26,16 +26,19 @@ contract DeployScript is Script {
 
         qgb.updateTendermintLightClient(lightClient);
 
-        // qgb.updateFunctionId(functionId);
+        qgb.updateFunctionId(functionId);
 
         // Use the below to interact with an already deployed ZK light client
-        // ZKTendermintLightClient lightClient = ZKTendermintLightClient(...);
 
-        // uint64 latestBlock = 3000;
-        // qgb.setLatestBlock(latestBlock);
+        uint64 latestBlock = 3000;
+        qgb.setLatestBlock(latestBlock);
 
         uint64 targetBlock = 3001;
 
         qgb.requestDataCommitment{value: 0.1 ether}(targetBlock);
+
+        // console.logBytes32(
+        //     qgb.dataCommitments(keccak256(abi.encode(3000, 3001)))
+        // );
     }
 }
