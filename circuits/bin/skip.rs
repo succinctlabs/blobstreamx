@@ -129,7 +129,8 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize> Circuit for SkipCircuit<MAX_VALIDATOR_
 }
 
 fn main() {
-    const MAX_VALIDATOR_SET_SIZE: usize = 128;
+    // const MAX_VALIDATOR_SET_SIZE: usize = 128;
+    const MAX_VALIDATOR_SET_SIZE: usize = 4;
     VerifiableFunction::<SkipCircuit<MAX_VALIDATOR_SET_SIZE>>::entrypoint();
 }
 
