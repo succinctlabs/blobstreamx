@@ -656,7 +656,6 @@ pub(crate) mod tests {
     use subtle_encoding::hex;
 
     use super::*;
-    // TODO: Remove dependency on inputs crate
     use crate::consts::VALIDATOR_MESSAGE_BYTES_LENGTH_MAX;
 
     type L = DefaultParameters;

@@ -298,7 +298,7 @@ pub fn update_present_on_trusted_header<F: RichField>(
     let start_block_num_validators = start_block_validators.len();
 
     // Exit if we have already reached the threshold
-    // TODO: We might need to add checks to make this more resilient
+    // TODO: Confirm this is resilient by testing many different cases.
     while target_block_total_voting_power as f64 * threshold > shared_voting_power as f64
         && start_block_idx < start_block_num_validators
     {
