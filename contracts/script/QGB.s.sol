@@ -22,15 +22,15 @@ contract DeployScript is Script {
         );
 
         // // Connect to QGB
-        QGB qgb = QGB(0x509C89afeB01D87613ECDBc77Ec19556f7F64D2C);
+        QGB qgb = QGB(0x54bE03e367d27255d7196095C4832d17Af95851f);
 
-        qgb.updateFunctionId(functionId);
+        // qgb.updateFunctionId(functionId);
 
         // Use the below to interact with an already deployed ZK light client
         // ZKTendermintLightClient lightClient = ZKTendermintLightClient(...);
 
-        uint64 latestBlock = 3000;
-        qgb.setLatestBlock(latestBlock);
+        // uint64 latestBlock = 3000;
+        // qgb.setLatestBlock(latestBlock);
 
         uint64 targetBlock = 3001;
 

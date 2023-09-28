@@ -41,10 +41,6 @@ contract QGB {
         );
     }
 
-    function getGateway() external view returns (address) {
-        return gateway;
-    }
-
     function updateGateway(address _gateway) external {
         gateway = _gateway;
     }
