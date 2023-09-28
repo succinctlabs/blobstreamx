@@ -114,15 +114,15 @@ mod tests {
 
     use super::*;
 
-    #[test]
-    #[cfg_attr(feature = "ci", ignore)]
-    fn test_data_commitment_small() {
+    fn test_data_commitment_template<const MAX_LEAVES: usize>(
+        start_block: usize,
+        start_header_hash: [u8; 32],
+        end_block: usize,
+        end_header_hash: [u8; 32],
+    ) {
         env::set_var("RUST_LOG", "debug");
         env_logger::try_init().unwrap_or_default();
 
-        // Test variable length NUM_BLOCKS.
-        const MAX_LEAVES: usize = 8;
-        const NUM_BLOCKS: usize = 4;
         let mut builder = DefaultBuilder::new();
 
         log::debug!("Defining circuit");
@@ -133,15 +133,6 @@ mod tests {
         log::debug!("Done building circuit");
 
         let mut input = circuit.input();
-
-        let start_block = 10000u64;
-        let start_header_hash =
-            hex::decode_upper("A0123D5E4B8B8888A61F931EE2252D83568B97C223E0ECA9795B29B8BD8CBA2D")
-                .unwrap();
-        let end_block = start_block + NUM_BLOCKS as u64;
-        let end_header_hash =
-            hex::decode_upper("FCDA37FA6306C77737DD911E6101B612E2DBD837F29ED4F4E1C30919FBAC9D05")
-                .unwrap();
 
         input.evm_write::<U64Variable>(start_block.into());
         input.evm_write::<Bytes32Variable>(H256::from_slice(start_header_hash.as_slice()));
@@ -155,5 +146,53 @@ mod tests {
         circuit.verify(&proof, &input, &output);
         let data_commitment = output.evm_read::<Bytes32Variable>();
         println!("data_commitment {:?}", data_commitment);
+    }
+
+    #[test]
+    #[cfg_attr(feature = "ci", ignore)]
+    fn test_data_commitment_small() {
+        // Test variable length NUM_BLOCKS.
+        const MAX_LEAVES: usize = 8;
+        const NUM_BLOCKS: usize = 4;
+
+        let start_block = 10000u64;
+        let start_header_hash =
+            hex::decode_upper("A0123D5E4B8B8888A61F931EE2252D83568B97C223E0ECA9795B29B8BD8CBA2D")
+                .unwrap();
+        let end_block = start_block + NUM_BLOCKS as u64;
+        let end_header_hash =
+            hex::decode_upper("FCDA37FA6306C77737DD911E6101B612E2DBD837F29ED4F4E1C30919FBAC9D05")
+                .unwrap();
+
+        test_data_commitment_template::<MAX_LEAVES>(
+            start_block as usize,
+            start_header_hash.as_slice().try_into().unwrap(),
+            end_block as usize,
+            end_header_hash.as_slice().try_into().unwrap(),
+        );
+    }
+
+    #[test]
+    #[cfg_attr(feature = "ci", ignore)]
+    fn test_data_commitment_large() {
+        // Test variable length NUM_BLOCKS.
+        const MAX_LEAVES: usize = 1024;
+        const NUM_BLOCKS: usize = 4;
+
+        let start_block = 10000u64;
+        let start_header_hash =
+            hex::decode_upper("A0123D5E4B8B8888A61F931EE2252D83568B97C223E0ECA9795B29B8BD8CBA2D")
+                .unwrap();
+        let end_block = start_block + NUM_BLOCKS as u64;
+        let end_header_hash =
+            hex::decode_upper("FCDA37FA6306C77737DD911E6101B612E2DBD837F29ED4F4E1C30919FBAC9D05")
+                .unwrap();
+
+        test_data_commitment_template::<MAX_LEAVES>(
+            start_block as usize,
+            start_header_hash.as_slice().try_into().unwrap(),
+            end_block as usize,
+            end_header_hash.as_slice().try_into().unwrap(),
+        );
     }
 }
