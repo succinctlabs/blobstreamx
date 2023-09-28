@@ -9,7 +9,11 @@ contract QGBTest is Test {
     QGB public qgb;
 
     function setUp() public {
-        qgb = new QGB();
+        address gateway = address(0x852a94F8309D445D27222eDb1E92A4E83DdDd2a8);
+        ZKTendermintLightClient lightClient = new ZKTendermintLightClient(
+            gateway
+        );
+        qgb = new QGB(gateway, address(lightClient));
     }
 
     function testGetEncodePackedDataCommitment() public view {

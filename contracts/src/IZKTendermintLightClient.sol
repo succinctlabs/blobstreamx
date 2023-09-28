@@ -31,7 +31,7 @@ interface IZKTendermintLightClient {
     function requestHeaderSkip(
         uint64 _trustedBlock,
         uint64 _requestedBlock
-    ) external;
+    ) external payable;
 
     function callbackHeaderSkip(
         bytes memory requestResult,

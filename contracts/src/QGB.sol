@@ -10,12 +10,11 @@ contract QGB {
     address public gateway;
     IZKTendermintLightClient public tendermintLightClient;
 
-    mapping(string => bytes32) public functionNameToId;
     bytes32 public functionId;
 
     mapping(bytes32 => bytes32) public dataCommitments;
 
-    uint64 latestBlock;
+    uint64 public latestBlock;
     uint64 DATA_COMMITMENT_MAX = 1000;
 
     event DataCommitmentRequested(
@@ -35,8 +34,23 @@ contract QGB {
         _;
     }
 
+    constructor(address _gateway, address _tendermintLightClient) {
+        gateway = _gateway;
+        tendermintLightClient = IZKTendermintLightClient(
+            _tendermintLightClient
+        );
+    }
+
+    function getGateway() external view returns (address) {
+        return gateway;
+    }
+
     function updateGateway(address _gateway) external {
         gateway = _gateway;
+    }
+
+    function setLatestBlock(uint64 _latestBlock) external {
+        latestBlock = _latestBlock;
     }
 
     function updateTendermintLightClient(
@@ -51,7 +65,7 @@ contract QGB {
         functionId = _functionId;
     }
 
-    function requestDataCommitment(uint64 targetBlock) external {
+    function requestDataCommitment(uint64 targetBlock) external payable {
         bytes32 latestHeader = tendermintLightClient.getHeaderHash(latestBlock);
         if (latestHeader == bytes32(0)) {
             revert("Trusted header not found");
@@ -60,14 +74,13 @@ contract QGB {
         if (targetHeader == bytes32(0)) {
             revert("Target header not found");
         }
-        bytes32 id = functionNameToId["data_commitment"];
-        if (id == bytes32(0)) {
+        if (functionId == bytes32(0)) {
             revert("Function ID for data_commitment not found");
         }
         require(targetBlock > latestBlock);
         require(targetBlock - latestBlock <= DATA_COMMITMENT_MAX); // TODO: change this constant
-        bytes32 requestId = IFunctionGateway(gateway).request(
-            id,
+        bytes32 requestId = IFunctionGateway(gateway).request{value: msg.value}(
+            functionId,
             abi.encodePacked(
                 latestBlock,
                 latestHeader,

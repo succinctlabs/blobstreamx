@@ -54,7 +54,7 @@ contract ZKTendermintLightClient is IZKTendermintLightClient {
     function requestHeaderSkip(
         uint64 _trustedBlock,
         uint64 _requestedBlock
-    ) external {
+    ) external payable {
         bytes32 trustedHeader = blockHeightToHeaderHash[_trustedBlock];
         if (trustedHeader == bytes32(0)) {
             revert("Trusted header not found");
@@ -66,7 +66,7 @@ contract ZKTendermintLightClient is IZKTendermintLightClient {
         require(_requestedBlock > _trustedBlock);
         require(_requestedBlock - _trustedBlock <= 512); // TODO: change this constant
         require(_requestedBlock > head); // TODO: do we need this?
-        bytes32 requestId = IFunctionGateway(gateway).request(
+        bytes32 requestId = IFunctionGateway(gateway).request{value: msg.value}(
             id,
             abi.encodePacked(trustedHeader, _trustedBlock, _requestedBlock),
             this.callbackHeaderSkip.selector,
