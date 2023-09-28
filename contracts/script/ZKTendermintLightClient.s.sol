@@ -22,7 +22,7 @@ contract DeployScript is Script {
 
         // Use the below to interact with an already deployed ZK light client
         ZKTendermintLightClient lightClient = ZKTendermintLightClient(
-            0x91f3C102F5EF109004836090a1d9A55cF9c55100
+            0xB1cdc97E3C9fC29a30da31e49B4e2304b011d631
         );
 
         bytes32 header = hex"A8512F18C34B70E1533CFD5AA04F251FCB0D7BE56EC570051FBAD9BDB9435E6A";

@@ -18,11 +18,13 @@ contract DeployScript is Script {
         );
 
         address lightClient = address(
-            0x91f3C102F5EF109004836090a1d9A55cF9c55100
+            0xB1cdc97E3C9fC29a30da31e49B4e2304b011d631
         );
 
         // // Connect to QGB
         QGB qgb = QGB(0x54bE03e367d27255d7196095C4832d17Af95851f);
+
+        qgb.updateTendermintLightClient(lightClient);
 
         // qgb.updateFunctionId(functionId);
 
