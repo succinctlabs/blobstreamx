@@ -41,6 +41,13 @@ contract QGB {
         );
     }
 
+    function getDataCommitment(
+        uint64 startBlock,
+        uint64 endBlock
+    ) external view returns (bytes32) {
+        return dataCommitments[keccak256(abi.encode(startBlock, endBlock))];
+    }
+
     function updateGateway(address _gateway) external {
         gateway = _gateway;
     }
