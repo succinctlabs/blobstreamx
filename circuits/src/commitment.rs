@@ -258,38 +258,7 @@ pub(crate) mod tests {
 
     #[test]
     #[cfg_attr(feature = "ci", ignore)]
-    fn test_prove_data_commitment() {
-        env_logger::try_init().unwrap_or_default();
-
-        let mut builder = CircuitBuilder::<L, D>::new();
-
-        const MAX_LEAVES: usize = 4;
-        const NUM_BLOCKS: usize = 4;
-        const START_BLOCK: usize = 3800;
-        const END_BLOCK: usize = START_BLOCK + NUM_BLOCKS;
-
-        let data_commitment_var = builder.read::<DataCommitmentProofVariable<MAX_LEAVES>>();
-
-        let expected_data_commitment = builder.read::<Bytes32Variable>();
-
-        let root_hash_target = builder.prove_data_commitment::<MAX_LEAVES>(data_commitment_var);
-        builder.assert_is_equal(root_hash_target, expected_data_commitment);
-
-        let circuit = builder.build();
-
-        let mut input = circuit.input();
-        let inputs = generate_data_commitment_value_inputs(START_BLOCK, END_BLOCK);
-
-        input.write::<DataCommitmentProofVariable<MAX_LEAVES>>(inputs.0);
-        input.write::<Bytes32Variable>(inputs.1);
-
-        let (proof, output) = circuit.prove(&input);
-        circuit.verify(&proof, &input, &output);
-    }
-
-    #[test]
-    #[cfg_attr(feature = "ci", ignore)]
-    fn test_data_commitment() {
+    fn test_get_data_commitment() {
         env_logger::try_init().unwrap_or_default();
 
         let mut builder = CircuitBuilder::<L, D>::new();

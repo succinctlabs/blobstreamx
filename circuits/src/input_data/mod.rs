@@ -16,8 +16,8 @@ use tendermint_proto::types::BlockId as RawBlockId;
 use tendermint_proto::Protobuf;
 
 use self::tendermint_utils::{
-    generate_proofs_from_header, DataCommitmentResponse, Hash, Header, Proof, SignedBlockResponse,
-    TempSignedBlock,
+    generate_proofs_from_header, DataCommitmentResponse, Hash, Header, HeaderResponse, Proof,
+    SignedBlockResponse, TempSignedBlock,
 };
 use self::types::{update_present_on_trusted_header, TempMerkleInclusionProof};
 use self::utils::{convert_to_h256, get_path_indices};
@@ -39,6 +39,7 @@ pub struct InputDataFetcher {
     mode: InputDataMode,
     proof_cache: HashMap<Hash, Vec<Proof>>,
     save: bool,
+    fixture_path: String,
 }
 
 impl Default for InputDataFetcher {
@@ -64,6 +65,7 @@ impl InputDataFetcher {
             mode,
             proof_cache: HashMap::new(),
             save: true,
+            fixture_path: "./fixtures/updated".to_string(),
         }
     }
 
@@ -83,7 +85,8 @@ impl InputDataFetcher {
                 let res = reqwest::get(query_url).await.unwrap().text().await.unwrap();
                 if self.save {
                     let file_name = format!(
-                        "./fixtures/updated/{}-{}/data_commitment.json",
+                        "{}/{}-{}/data_commitment.json",
+                        self.fixture_path,
                         start_block.to_string().as_str(),
                         end_block.to_string().as_str()
                     );
@@ -97,7 +100,8 @@ impl InputDataFetcher {
             }
             InputDataMode::Fixture => {
                 let file_name = format!(
-                    "./fixtures/updated/{}-{}/data_commitment.json",
+                    "{}/{}-{}/data_commitment.json",
+                    self.fixture_path,
                     start_block.to_string().as_str(),
                     end_block.to_string().as_str()
                 );
@@ -127,7 +131,8 @@ impl InputDataFetcher {
                 let res = reqwest::get(query_url).await.unwrap().text().await.unwrap();
                 if self.save {
                     let file_name = format!(
-                        "./fixtures/updated/{}/signed_block.json",
+                        "{}/{}/signed_block.json",
+                        self.fixture_path,
                         block_number.to_string().as_str()
                     );
                     // Ensure the directory exists
@@ -140,7 +145,8 @@ impl InputDataFetcher {
             }
             InputDataMode::Fixture => {
                 let file_name = format!(
-                    "./fixtures/updated/{}/signed_block.json",
+                    "{}/{}/signed_block.json",
+                    self.fixture_path,
                     block_number.to_string().as_str()
                 );
                 println!("{:?}", file_name);
@@ -153,6 +159,46 @@ impl InputDataFetcher {
             serde_json::from_str(&fetched_result).expect("Failed to parse JSON");
         let temp_block = v.result;
         Box::new(temp_block)
+    }
+
+    pub async fn get_header_from_number(&self, block_number: u64) -> Header {
+        let fetched_result = match &self.mode {
+            InputDataMode::Rpc(url) => {
+                let query_url = format!(
+                    "{}/header?height={}",
+                    url,
+                    block_number.to_string().as_str()
+                );
+                let res = reqwest::get(query_url).await.unwrap().text().await.unwrap();
+                if self.save {
+                    let file_name = format!(
+                        "{}/{}/header.json",
+                        self.fixture_path,
+                        block_number.to_string().as_str()
+                    );
+                    // Ensure the directory exists
+                    if let Some(parent) = Path::new(&file_name).parent() {
+                        fs::create_dir_all(parent).unwrap();
+                    }
+                    fs::write(file_name.as_str(), res.as_bytes()).expect("Unable to write file");
+                }
+                res
+            }
+            InputDataMode::Fixture => {
+                let file_name = format!(
+                    "{}/{}/header.json",
+                    self.fixture_path,
+                    block_number.to_string().as_str()
+                );
+                println!("{:?}", file_name);
+                let file_content = fs::read_to_string(file_name.as_str());
+                println!("Getting fixture");
+                file_content.unwrap()
+            }
+        };
+        let v: HeaderResponse =
+            serde_json::from_str(&fetched_result).expect("Failed to parse JSON");
+        v.result.header
     }
 
     pub fn get_merkle_proof(
@@ -330,15 +376,15 @@ impl InputDataFetcher {
         Vec<InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, F>>, // prev_header_proofs
         [u8; 32], // expected_data_commitment
     ) {
-        let start_block = self.get_block_from_number(start_block_number).await;
-        let computed_start_header_hash = start_block.header.hash();
+        let start_header = self.get_header_from_number(start_block_number).await;
+        let computed_start_header_hash = start_header.hash();
         assert_eq!(
             computed_start_header_hash.as_bytes(),
             start_header_hash.as_bytes()
         );
 
-        let end_block = self.get_block_from_number(end_block_number).await;
-        let computed_end_header_hash = end_block.header.hash();
+        let end_header = self.get_header_from_number(end_block_number).await;
+        let computed_end_header_hash = end_header.hash();
         assert_eq!(
             computed_end_header_hash.as_bytes(),
             end_header_hash.as_bytes()
@@ -349,20 +395,20 @@ impl InputDataFetcher {
         let mut prev_header_proofs = Vec::new();
         for i in start_block_number..end_block_number + 1 {
             // TODO: Replace with get_header_from_number once Celestia re-enables the /header endpoint.
-            let block = self.get_block_from_number(i).await;
-            let data_hash = block.header.data_hash.unwrap();
+            let header = self.get_header_from_number(i).await;
+            let data_hash = header.data_hash.unwrap();
             data_hashes.push(data_hash.as_bytes().try_into().unwrap());
 
             let data_hash_proof = self.get_merkle_proof(
-                &block.header,
+                &header,
                 DATA_HASH_INDEX as u64,
-                block.header.data_hash.unwrap().encode_vec(),
+                header.data_hash.unwrap().encode_vec(),
             );
             data_hash_proofs.push(data_hash_proof);
             let prev_header_proof = self.get_merkle_proof(
-                &block.header,
+                &header,
                 LAST_BLOCK_ID_INDEX as u64,
-                Protobuf::<RawBlockId>::encode_vec(block.header.last_block_id.unwrap_or_default()),
+                Protobuf::<RawBlockId>::encode_vec(header.last_block_id.unwrap_or_default()),
             );
             prev_header_proofs.push(prev_header_proof);
         }
