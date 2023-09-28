@@ -21,8 +21,8 @@ contract DeployScript is Script {
             0xB1cdc97E3C9fC29a30da31e49B4e2304b011d631
         );
 
-        // // Connect to QGB
-        QGB qgb = QGB(0x54bE03e367d27255d7196095C4832d17Af95851f);
+        // Connect to QGB
+        QGB qgb = QGB(0x7eE75Da23875893FFB4f6F26458629C244e61e49);
 
         qgb.updateTendermintLightClient(lightClient);
 
@@ -37,8 +37,6 @@ contract DeployScript is Script {
 
         qgb.requestDataCommitment{value: 0.1 ether}(targetBlock);
 
-        // console.logBytes32(
-        //     qgb.dataCommitments(keccak256(abi.encode(3000, 3001)))
-        // );
+        console.logBytes32(qgb.getDataCommitment(latestBlock, targetBlock));
     }
 }
