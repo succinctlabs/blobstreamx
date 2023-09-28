@@ -391,8 +391,6 @@ impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
         let extracted_hash: Bytes32Variable =
             validator_hash_proof.enc_leaf[2..2 + HASH_SIZE].into();
 
-        self.watch(&extracted_hash, "extracted_hash");
-
         self.assert_is_equal(extracted_hash, validators_hash_target);
 
         // Assert the accumulated voting power is greater than the threshold

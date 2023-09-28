@@ -228,12 +228,11 @@ pub(crate) mod tests {
 
         let rt = Runtime::new().expect("failed to create tokio runtime");
 
-        // TODO: Fetch headers instead of blocks
-        let start_block =
-            rt.block_on(input_data_fetcher.get_block_from_number(start_height as u64));
-        let start_header_hash = H256::from_slice(start_block.header.hash().as_bytes());
-        let end_block = rt.block_on(input_data_fetcher.get_block_from_number(end_height as u64));
-        let end_header_hash = H256::from_slice(end_block.header.hash().as_bytes());
+        let start_header =
+            rt.block_on(input_data_fetcher.get_header_from_number(start_height as u64));
+        let start_header_hash = H256::from_slice(start_header.hash().as_bytes());
+        let end_header = rt.block_on(input_data_fetcher.get_header_from_number(end_height as u64));
+        let end_header_hash = H256::from_slice(end_header.hash().as_bytes());
 
         let result = rt.block_on({
             input_data_fetcher.get_data_commitment_inputs::<MAX_LEAVES, F>(
@@ -267,7 +266,7 @@ pub(crate) mod tests {
 
         const MAX_LEAVES: usize = 4;
         const NUM_BLOCKS: usize = 4;
-        const START_BLOCK: usize = 3800;
+        const START_BLOCK: usize = 10000;
         const END_BLOCK: usize = START_BLOCK + NUM_BLOCKS;
 
         let data_commitment_var = builder.read::<DataCommitmentProofVariable<MAX_LEAVES>>();
