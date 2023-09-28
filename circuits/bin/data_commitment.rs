@@ -1,6 +1,6 @@
 //! To build the binary:
 //!
-//!     `cargo build --release --bin data_root_commitment`
+//!     `cargo build --release --bin data_commitment`
 //!
 //! To build the circuit:
 //!
@@ -97,6 +97,15 @@ impl<const MAX_LEAVES: usize> Circuit for DataCommitmentCircuit<MAX_LEAVES> {
 
         builder.evm_write(data_commitment);
     }
+
+    fn register_generators<L: PlonkParameters<D>, const D: usize>(
+        generator_registry: &mut plonky2x::prelude::HintRegistry<L, D>,
+    ) where
+        <<L as PlonkParameters<D>>::Config as plonky2::plonk::config::GenericConfig<D>>::Hasher:
+            plonky2::plonk::config::AlgebraicHasher<L::Field>,
+    {
+        generator_registry.register_hint::<DataCommitmentOffchainInputs<MAX_LEAVES>>();
+    }
 }
 
 fn main() {
@@ -109,10 +118,32 @@ fn main() {
 mod tests {
     use std::env;
 
-    use plonky2x::prelude::DefaultBuilder;
+    use plonky2x::prelude::{DefaultBuilder, GateRegistry, HintRegistry};
     use subtle_encoding::hex;
 
     use super::*;
+
+    #[test]
+    #[cfg_attr(feature = "ci", ignore)]
+    fn test_circuit_function_data_commitment() {
+        env::set_var("RUST_LOG", "debug");
+        env_logger::try_init().unwrap_or_default();
+
+        const MAX_LEAVES: usize = 2;
+        let mut builder = DefaultBuilder::new();
+
+        log::debug!("Defining circuit");
+        DataCommitmentCircuit::<MAX_LEAVES>::define(&mut builder);
+        let circuit = builder.build();
+        log::debug!("Done building circuit");
+
+        let mut hint_registry = HintRegistry::new();
+        let mut gate_registry = GateRegistry::new();
+        DataCommitmentCircuit::<MAX_LEAVES>::register_generators(&mut hint_registry);
+        DataCommitmentCircuit::<MAX_LEAVES>::register_gates(&mut gate_registry);
+
+        circuit.test_serializers(&gate_registry, &hint_registry);
+    }
 
     fn test_data_commitment_template<const MAX_LEAVES: usize>(
         start_block: usize,
