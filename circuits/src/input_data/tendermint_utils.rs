@@ -54,6 +54,16 @@ pub struct SignedBlockResponse {
     pub result: TempSignedBlock,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct HeaderResponse {
+    pub result: WrappedHeader,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct WrappedHeader {
+    pub header: Header,
+}
+
 // Note: Implementations of ValidatorSet and SignedBlock differ in tendermint-rs and comet-bft
 // Note: Following PR needs to be merged in tendermint-rs to remove TempValidatorSet and TempSignedBlock: https://github.com/informalsystems/tendermint-rs/pull/1340
 /// Validator set contains a vector of validators

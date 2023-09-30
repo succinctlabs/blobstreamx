@@ -133,7 +133,7 @@ mod tests {
 
     #[test]
     #[cfg_attr(feature = "ci", ignore)]
-    fn test_serialization() {
+    fn test_step_serialization() {
         env::set_var("RUST_LOG", "debug");
         env_logger::try_init().unwrap_or_default();
 
@@ -156,7 +156,7 @@ mod tests {
     // TODO: this test should not run in CI because it uses the RPC instead of a fixture
     #[test]
     #[cfg_attr(feature = "ci", ignore)]
-    fn test_circuit_with_input_bytes() {
+    fn test_step_circuit_with_input_bytes() {
         env::set_var("RUST_LOG", "debug");
         env_logger::try_init().unwrap_or_default();
 
@@ -182,14 +182,14 @@ mod tests {
         println!("next_header {:?}", next_header);
     }
 
-    #[test]
-    #[cfg_attr(feature = "ci", ignore)]
-    fn test_circuit_function_step() {
+    fn test_step_template<const MAX_VALIDATOR_SET_SIZE: usize>(
+        block_height: u64,
+        header: [u8; 32],
+    ) {
         env::set_var("RUST_LOG", "debug");
         env_logger::try_init().unwrap_or_default();
         env::set_var("RPC_MOCHA_4", "fixture"); // Use fixture during testing
 
-        const MAX_VALIDATOR_SET_SIZE: usize = 8;
         let mut builder = DefaultBuilder::new();
 
         log::debug!("Defining circuit");
@@ -200,12 +200,8 @@ mod tests {
         log::debug!("Done building circuit");
 
         let mut input = circuit.input();
-        let header: [u8; 32] = [
-            101, 148, 196, 246, 245, 248, 99, 125, 20, 181, 200, 0, 157, 159, 211, 222, 105, 149,
-            108, 221, 97, 143, 205, 106, 162, 68, 113, 97, 5, 29, 183, 162,
-        ];
         input.evm_write::<Bytes32Variable>(H256::from_slice(header.as_slice()));
-        input.evm_write::<U64Variable>(11000u64.into());
+        input.evm_write::<U64Variable>(block_height.into());
 
         log::debug!("Generating proof");
         let (proof, mut output) = circuit.prove(&input);
@@ -214,5 +210,44 @@ mod tests {
         circuit.verify(&proof, &input, &output);
         let next_header = output.evm_read::<Bytes32Variable>();
         println!("next_header {:?}", next_header);
+    }
+
+    #[test]
+    #[cfg_attr(feature = "ci", ignore)]
+    fn test_step_small() {
+        const MAX_VALIDATOR_SET_SIZE: usize = 2;
+        let header: [u8; 32] =
+            hex::decode("A0123D5E4B8B8888A61F931EE2252D83568B97C223E0ECA9795B29B8BD8CBA2D")
+                .unwrap()
+                .try_into()
+                .unwrap();
+        let height = 10000u64;
+        test_step_template::<MAX_VALIDATOR_SET_SIZE>(height, header);
+    }
+
+    #[test]
+    #[cfg_attr(feature = "ci", ignore)]
+    fn test_step_with_dummy() {
+        const MAX_VALIDATOR_SET_SIZE: usize = 4;
+        let header: [u8; 32] =
+            hex::decode("E2BA1B86926925A69C2FCC32E5178E7E6653D386C956BB975142FA73211A9444")
+                .unwrap()
+                .try_into()
+                .unwrap();
+        let height = 10500u64;
+        test_step_template::<MAX_VALIDATOR_SET_SIZE>(height, header);
+    }
+
+    #[test]
+    #[cfg_attr(feature = "ci", ignore)]
+    fn test_step_large() {
+        const MAX_VALIDATOR_SET_SIZE: usize = 128;
+        let header: [u8; 32] =
+            hex::decode("DA1C195D8A0E74E50A8C6ABE24B63024F9865624609726C9954D713E21509E27")
+                .unwrap()
+                .try_into()
+                .unwrap();
+        let height = 157000u64;
+        test_step_template::<MAX_VALIDATOR_SET_SIZE>(height, header);
     }
 }
