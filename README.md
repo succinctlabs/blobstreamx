@@ -1,17 +1,8 @@
 # zkqgb
-<<<<<<< HEAD
 
-## Fixtures
+## Test
+### data_commitment
 
-Generating celestia consensus signatures
-```
-cargo run get-celestia-consensus-signatures
-```
+### step
 
-
-Generating validator hashes
-```
-cargo run generate-val-array --validators {number of validators}
-```
-=======
->>>>>>> origin/main
+### skip
