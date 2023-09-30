@@ -14,6 +14,8 @@
 //!
 //!
 //!
+use std::env;
+
 use celestia::commitment::DataCommitment;
 use celestia::input_data::utils::convert_to_h256;
 use celestia::input_data::InputDataFetcher;
@@ -110,9 +112,20 @@ impl<const MAX_LEAVES: usize> Circuit for DataCommitmentCircuit<MAX_LEAVES> {
 
 fn main() {
     // Celestia's maxmimum data commitment size is 1000: https://github.com/celestiaorg/celestia-core/blob/6933af1ead0ddf4a8c7516690e3674c6cdfa7bd8/pkg/consts/consts.go#L44.
-    // const MAX_LEAVES: usize = 1024;
-    const MAX_LEAVES: usize = 4;
-    VerifiableFunction::<DataCommitmentCircuit<MAX_LEAVES>>::entrypoint();
+    let env_max_leaves = env::var("MAX_LEAVES").unwrap_or(0.to_string());
+
+    if env_max_leaves == 1024.to_string() {
+        const MAX_LEAVES: usize = 1024;
+        VerifiableFunction::<DataCommitmentCircuit<MAX_LEAVES>>::entrypoint();
+    } else if env_max_leaves == 256.to_string() {
+        const MAX_LEAVES: usize = 256;
+        VerifiableFunction::<DataCommitmentCircuit<MAX_LEAVES>>::entrypoint();
+    } else if env_max_leaves == 4.to_string() {
+        const MAX_LEAVES: usize = 4;
+        VerifiableFunction::<DataCommitmentCircuit<MAX_LEAVES>>::entrypoint();
+    } else {
+        panic!("MAX_LEAVES must be set to 1024, 256, or 4");
+    }
 }
 
 #[cfg(test)]

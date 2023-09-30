@@ -5,8 +5,7 @@ import "forge-std/Script.sol";
 import {IZKTendermintLightClient} from "../src/IZKTendermintLightClient.sol";
 import {QGB} from "../src/QGB.sol";
 
-// forge script script/ZKTendermintLightClient.s.sol --verifier etherscan --private-key
-// forge verify-contract <address> ZKTendermintLightClient --chain 5 --etherscan-api-key ${ETHERSCAN_API_KEY} --constructor-args "0x000000000000000000000000852a94f8309d445d27222edb1e92a4e83dddd2a8"
+// forge script script/QGB.s.sol --verifier etherscan --private-key
 contract DeployScript is Script {
     function setUp() public {}
 
