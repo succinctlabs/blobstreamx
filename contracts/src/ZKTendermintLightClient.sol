@@ -2,25 +2,14 @@
 pragma solidity ^0.8.13;
 
 import {IFunctionGateway} from "@succinctx/interfaces/IFunctionGateway.sol";
+import {IZKTendermintLightClient} from "./IZKTendermintLightClient.sol";
 
-contract ZKTendermintLightClient {
+contract ZKTendermintLightClient is IZKTendermintLightClient {
     address public gateway;
     mapping(string => bytes32) public functionNameToId;
-    bytes32 public functionId;
 
     mapping(uint64 => bytes32) public blockHeightToHeaderHash;
     uint64 head;
-
-    event HeaderSkipRequested(
-        uint64 indexed trustedBlock,
-        uint64 indexed requestedBlock,
-        bytes32 requestId
-    );
-    event HeaderSkipFulfilled(uint64 indexed requestedBlock, bytes32 header);
-
-    event HeaderStepRequested(uint64 indexed prevBlock, bytes32 requestId);
-    event HeaderStepFulfilled(uint64 indexed nextBlock, bytes32 header);
-    event FunctionId(string name, bytes32 id);
 
     modifier onlyGateway() {
         require(msg.sender == gateway, "Only gateway can call this function");
@@ -29,6 +18,22 @@ contract ZKTendermintLightClient {
 
     constructor(address _gateway) {
         gateway = _gateway;
+    }
+
+    function getGateway() external view returns (address) {
+        return gateway;
+    }
+
+    function getFunctionId(string memory name) external view returns (bytes32) {
+        return functionNameToId[name];
+    }
+
+    function getHeaderHash(uint64 height) external view returns (bytes32) {
+        return blockHeightToHeaderHash[height];
+    }
+
+    function getHead() external view returns (uint64) {
+        return head;
     }
 
     function updateGateway(address _gateway) external {
@@ -49,7 +54,7 @@ contract ZKTendermintLightClient {
     function requestHeaderSkip(
         uint64 _trustedBlock,
         uint64 _requestedBlock
-    ) external {
+    ) external payable {
         bytes32 trustedHeader = blockHeightToHeaderHash[_trustedBlock];
         if (trustedHeader == bytes32(0)) {
             revert("Trusted header not found");
@@ -61,7 +66,7 @@ contract ZKTendermintLightClient {
         require(_requestedBlock > _trustedBlock);
         require(_requestedBlock - _trustedBlock <= 512); // TODO: change this constant
         require(_requestedBlock > head); // TODO: do we need this?
-        bytes32 requestId = IFunctionGateway(gateway).request(
+        bytes32 requestId = IFunctionGateway(gateway).request{value: msg.value}(
             id,
             abi.encodePacked(trustedHeader, _trustedBlock, _requestedBlock),
             this.callbackHeaderSkip.selector,
