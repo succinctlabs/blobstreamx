@@ -390,8 +390,8 @@ pub(crate) mod tests {
         let circuit = builder.build();
 
         // Generate test cases from Celestia block:
-        let input_data_fetcher = InputDataFetcher::new();
         env::set_var("RPC_MOCHA_4", "fixture"); // Use fixture during testing
+        let input_data_fetcher = InputDataFetcher::new();
 
         let rt = Runtime::new().expect("failed to create tokio runtime");
         let header =

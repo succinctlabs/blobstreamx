@@ -64,7 +64,7 @@ impl InputDataFetcher {
         Self {
             mode,
             proof_cache: HashMap::new(),
-            save: true,
+            save: false,
             fixture_path: "./fixtures/mocha-4".to_string(),
         }
     }
@@ -74,6 +74,12 @@ impl InputDataFetcher {
     }
 
     pub async fn get_data_commitment(&self, start_block: u64, end_block: u64) -> [u8; 32] {
+        let file_name = format!(
+            "{}/{}-{}/data_commitment.json",
+            self.fixture_path,
+            start_block.to_string().as_str(),
+            end_block.to_string().as_str()
+        );
         let fetched_result = match &self.mode {
             InputDataMode::Rpc(url) => {
                 let query_url = format!(
@@ -84,12 +90,6 @@ impl InputDataFetcher {
                 );
                 let res = reqwest::get(query_url).await.unwrap().text().await.unwrap();
                 if self.save {
-                    let file_name = format!(
-                        "{}/{}-{}/data_commitment.json",
-                        self.fixture_path,
-                        start_block.to_string().as_str(),
-                        end_block.to_string().as_str()
-                    );
                     // Ensure the directory exists
                     if let Some(parent) = Path::new(&file_name).parent() {
                         fs::create_dir_all(parent).unwrap();
@@ -99,15 +99,8 @@ impl InputDataFetcher {
                 res
             }
             InputDataMode::Fixture => {
-                let file_name = format!(
-                    "{}/{}-{}/data_commitment.json",
-                    self.fixture_path,
-                    start_block.to_string().as_str(),
-                    end_block.to_string().as_str()
-                );
-                println!("{:?}", file_name);
                 let file_content = fs::read_to_string(file_name.as_str());
-                println!("Getting fixture");
+                println!("Retrieving fixture");
                 file_content.unwrap()
             }
         };
@@ -121,6 +114,11 @@ impl InputDataFetcher {
     }
 
     pub async fn get_block_from_number(&self, block_number: u64) -> Box<TempSignedBlock> {
+        let file_name = format!(
+            "{}/{}/signed_block.json",
+            self.fixture_path,
+            block_number.to_string().as_str()
+        );
         let fetched_result = match &self.mode {
             InputDataMode::Rpc(url) => {
                 let query_url = format!(
@@ -130,11 +128,6 @@ impl InputDataFetcher {
                 );
                 let res = reqwest::get(query_url).await.unwrap().text().await.unwrap();
                 if self.save {
-                    let file_name = format!(
-                        "{}/{}/signed_block.json",
-                        self.fixture_path,
-                        block_number.to_string().as_str()
-                    );
                     // Ensure the directory exists
                     if let Some(parent) = Path::new(&file_name).parent() {
                         fs::create_dir_all(parent).unwrap();
@@ -144,14 +137,8 @@ impl InputDataFetcher {
                 res
             }
             InputDataMode::Fixture => {
-                let file_name = format!(
-                    "{}/{}/signed_block.json",
-                    self.fixture_path,
-                    block_number.to_string().as_str()
-                );
-                println!("{:?}", file_name);
                 let file_content = fs::read_to_string(file_name.as_str());
-                println!("Getting fixture");
+                println!("Retrieving fixture");
                 file_content.unwrap()
             }
         };
@@ -162,6 +149,11 @@ impl InputDataFetcher {
     }
 
     pub async fn get_header_from_number(&self, block_number: u64) -> Header {
+        let file_name = format!(
+            "{}/{}/header.json",
+            self.fixture_path,
+            block_number.to_string().as_str()
+        );
         let fetched_result = match &self.mode {
             InputDataMode::Rpc(url) => {
                 let query_url = format!(
@@ -171,11 +163,6 @@ impl InputDataFetcher {
                 );
                 let res = reqwest::get(query_url).await.unwrap().text().await.unwrap();
                 if self.save {
-                    let file_name = format!(
-                        "{}/{}/header.json",
-                        self.fixture_path,
-                        block_number.to_string().as_str()
-                    );
                     // Ensure the directory exists
                     if let Some(parent) = Path::new(&file_name).parent() {
                         fs::create_dir_all(parent).unwrap();
@@ -185,14 +172,8 @@ impl InputDataFetcher {
                 res
             }
             InputDataMode::Fixture => {
-                let file_name = format!(
-                    "{}/{}/header.json",
-                    self.fixture_path,
-                    block_number.to_string().as_str()
-                );
-                println!("{:?}", file_name);
                 let file_content = fs::read_to_string(file_name.as_str());
-                println!("Getting fixture");
+                println!("Retrieving fixture");
                 file_content.unwrap()
             }
         };

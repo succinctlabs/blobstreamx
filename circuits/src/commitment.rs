@@ -223,24 +223,29 @@ pub(crate) mod tests {
         end_height: usize,
     ) -> (DataCommitmentProofValueType<MAX_LEAVES, F>, H256) {
         // Input data fetcher
-        let mut input_data_fetcher = InputDataFetcher::new();
         env::set_var("RPC_MOCHA_4", "fixture"); // Use fixture during testing
+        let mut input_data_fetcher = InputDataFetcher::new();
 
         let rt = Runtime::new().expect("failed to create tokio runtime");
 
-        let start_header =
-            rt.block_on(input_data_fetcher.get_header_from_number(start_height as u64));
-        let start_header_hash = H256::from_slice(start_header.hash().as_bytes());
-        let end_header = rt.block_on(input_data_fetcher.get_header_from_number(end_height as u64));
-        let end_header_hash = H256::from_slice(end_header.hash().as_bytes());
-
-        let result = rt.block_on({
-            input_data_fetcher.get_data_commitment_inputs::<MAX_LEAVES, F>(
-                start_height as u64,
-                start_header_hash,
-                end_height as u64,
-                end_header_hash,
-            )
+        let (result, start_header_hash, end_header_hash) = rt.block_on(async {
+            let start_header = input_data_fetcher
+                .get_header_from_number(start_height as u64)
+                .await;
+            let start_header_hash = H256::from_slice(start_header.hash().as_bytes());
+            let end_header = input_data_fetcher
+                .get_header_from_number(end_height as u64)
+                .await;
+            let end_header_hash = H256::from_slice(end_header.hash().as_bytes());
+            let result = input_data_fetcher
+                .get_data_commitment_inputs::<MAX_LEAVES, F>(
+                    start_height as u64,
+                    start_header_hash,
+                    end_height as u64,
+                    end_header_hash,
+                )
+                .await;
+            (result, start_header_hash, end_header_hash)
         });
 
         (
