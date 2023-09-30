@@ -165,7 +165,6 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintHeader<L, D> for CircuitBu
         // Add 1 to the encoded height byte length to account for the 0x00 byte.
         let one_u32 = self.constant::<U32Variable>(1);
         let encoded_height_byte_length = self.add(encoded_height_byte_length, one_u32);
-        self.watch(&encoded_height_byte_length, "encoded_height_byte_length");
 
         // Only one chunk is needed for the encoded height.
         const MAX_NUM_CHUNKS: usize = 1;

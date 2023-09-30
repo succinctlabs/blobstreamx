@@ -155,6 +155,8 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for Circui
 // Alternatively, add env::set_var("RUST_LOG", "debug") to the top of the test.
 #[cfg(test)]
 pub(crate) mod tests {
+    use std::env;
+
     use ethers::types::H256;
     use ethers::utils::hex;
     use itertools::Itertools;
@@ -167,6 +169,7 @@ pub(crate) mod tests {
     use sha2::Sha256;
     use tendermint_proto::types::BlockId as RawBlockId;
     use tendermint_proto::Protobuf;
+    use tokio::runtime::Runtime;
 
     use super::*;
     use crate::consts::{HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES};
@@ -174,8 +177,7 @@ pub(crate) mod tests {
         generate_proofs_from_header, hash_all_leaves, proofs_from_byte_slices,
     };
     use crate::input_data::utils::{convert_to_h256, get_path_indices};
-    // TODO: Remove dependency on inputs.
-    use crate::inputs::get_signed_block_from_fixture;
+    use crate::input_data::InputDataFetcher;
     use crate::validator::TendermintValidator;
 
     type Curve = Ed25519;
@@ -388,17 +390,21 @@ pub(crate) mod tests {
         let circuit = builder.build();
 
         // Generate test cases from Celestia block:
-        let block = get_signed_block_from_fixture(10000);
+        env::set_var("RPC_MOCHA_4", "fixture"); // Use fixture during testing
+        let input_data_fetcher = InputDataFetcher::new();
 
-        let (root, proofs) = generate_proofs_from_header(&block.header);
+        let rt = Runtime::new().expect("failed to create tokio runtime");
+        let header =
+            rt.block_on(async { input_data_fetcher.get_header_from_number(10000u64).await });
 
-        // Can test with leaf_index 4, 6, 7 or 8 (last_block_id_hash, data_hash, validators_hash, next_validators_hash)
-        // TODO: Once Curta runOnce is fixed, we can test all leaf indices in separate test cases
+        let (root, proofs) = generate_proofs_from_header(&header);
+
+        // Can test with leaf_index 2, 4, 6, 7 or 8 (height, last_block_id_hash, data_hash, validators_hash, next_validators_hash)
+        // TODO: Add tests for all leaf indices that are used.
         let leaf_index = 4;
 
         // Note: Must convert to protobuf encoding (get_proofs_from_header is a good reference)
-        let leaf =
-            Protobuf::<RawBlockId>::encode_vec(block.header.last_block_id.unwrap_or_default());
+        let leaf = Protobuf::<RawBlockId>::encode_vec(header.last_block_id.unwrap_or_default());
 
         let path_indices = get_path_indices(leaf_index as u64, proofs[0].total);
 

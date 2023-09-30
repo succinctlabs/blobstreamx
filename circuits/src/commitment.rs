@@ -202,62 +202,75 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitment<L, D> for CircuitBuil
 // Alternatively, add env::set_var("RUST_LOG", "debug") to the top of the test.
 #[cfg(test)]
 pub(crate) mod tests {
+    use std::env;
+
+    use ethers::types::H256;
     use plonky2x::backend::circuit::DefaultParameters;
+    use tokio::runtime::Runtime;
 
     use super::*;
     use crate::commitment::DataCommitment;
-    use crate::inputs::{generate_data_commitment_inputs, generate_expected_data_commitment};
-    use crate::variables::DataCommitmentProofVariable;
+    use crate::input_data::utils::convert_to_h256;
+    use crate::input_data::InputDataFetcher;
+    use crate::variables::{DataCommitmentProofValueType, DataCommitmentProofVariable};
 
     type L = DefaultParameters;
     type F = <L as PlonkParameters<D>>::Field;
     const D: usize = 2;
 
-    #[test]
-    #[cfg_attr(feature = "ci", ignore)]
-    fn test_prove_data_commitment() {
-        env_logger::try_init().unwrap_or_default();
+    fn generate_data_commitment_value_inputs<const MAX_LEAVES: usize>(
+        start_height: usize,
+        end_height: usize,
+    ) -> (DataCommitmentProofValueType<MAX_LEAVES, F>, H256) {
+        env::set_var("RPC_MOCHA_4", "fixture"); // Use fixture during testing
+        let mut input_data_fetcher = InputDataFetcher::new();
 
-        let mut builder = CircuitBuilder::<L, D>::new();
+        let rt = Runtime::new().expect("failed to create tokio runtime");
 
-        const MAX_LEAVES: usize = 4;
-        const NUM_BLOCKS: usize = 4;
-        const START_BLOCK: usize = 3800;
-        const END_BLOCK: usize = START_BLOCK + NUM_BLOCKS;
+        let (result, start_header_hash, end_header_hash) = rt.block_on(async {
+            let start_header = input_data_fetcher
+                .get_header_from_number(start_height as u64)
+                .await;
+            let start_header_hash = H256::from_slice(start_header.hash().as_bytes());
+            let end_header = input_data_fetcher
+                .get_header_from_number(end_height as u64)
+                .await;
+            let end_header_hash = H256::from_slice(end_header.hash().as_bytes());
+            let result = input_data_fetcher
+                .get_data_commitment_inputs::<MAX_LEAVES, F>(
+                    start_height as u64,
+                    start_header_hash,
+                    end_height as u64,
+                    end_header_hash,
+                )
+                .await;
+            (result, start_header_hash, end_header_hash)
+        });
 
-        let data_commitment_var = builder.read::<DataCommitmentProofVariable<MAX_LEAVES>>();
-
-        let expected_data_commitment = builder.read::<Bytes32Variable>();
-
-        let root_hash_target = builder.prove_data_commitment::<MAX_LEAVES>(data_commitment_var);
-        builder.assert_is_equal(root_hash_target, expected_data_commitment);
-
-        let circuit = builder.build();
-
-        let mut input = circuit.input();
-        input.write::<DataCommitmentProofVariable<MAX_LEAVES>>(generate_data_commitment_inputs::<
-            MAX_LEAVES,
-            F,
-        >(START_BLOCK, END_BLOCK));
-
-        input.write::<Bytes32Variable>(generate_expected_data_commitment::<MAX_LEAVES, F>(
-            START_BLOCK,
-            END_BLOCK,
-        ));
-        let (proof, output) = circuit.prove(&input);
-        circuit.verify(&proof, &input, &output);
+        (
+            DataCommitmentProofValueType {
+                data_hashes: convert_to_h256(result.0),
+                start_block_height: (start_height as u64).into(),
+                start_header: start_header_hash,
+                end_block_height: (end_height as u64).into(),
+                end_header: end_header_hash,
+                data_hash_proofs: result.1,
+                prev_header_proofs: result.2,
+            },
+            H256(result.3),
+        )
     }
 
     #[test]
     #[cfg_attr(feature = "ci", ignore)]
-    fn test_data_commitment() {
+    fn test_get_data_commitment() {
         env_logger::try_init().unwrap_or_default();
 
         let mut builder = CircuitBuilder::<L, D>::new();
 
         const MAX_LEAVES: usize = 4;
         const NUM_BLOCKS: usize = 4;
-        const START_BLOCK: usize = 3800;
+        const START_BLOCK: usize = 10000;
         const END_BLOCK: usize = START_BLOCK + NUM_BLOCKS;
 
         let data_commitment_var = builder.read::<DataCommitmentProofVariable<MAX_LEAVES>>();
@@ -276,14 +289,10 @@ pub(crate) mod tests {
         let circuit = builder.build();
 
         let mut input = circuit.input();
-        input.write::<DataCommitmentProofVariable<MAX_LEAVES>>(generate_data_commitment_inputs::<
-            MAX_LEAVES,
-            F,
-        >(START_BLOCK, END_BLOCK));
-        input.write::<Bytes32Variable>(generate_expected_data_commitment::<MAX_LEAVES, F>(
-            START_BLOCK,
-            END_BLOCK,
-        ));
+
+        let inputs = generate_data_commitment_value_inputs(START_BLOCK, END_BLOCK);
+        input.write::<DataCommitmentProofVariable<MAX_LEAVES>>(inputs.0);
+        input.write::<Bytes32Variable>(inputs.1);
         let (proof, output) = circuit.prove(&input);
         circuit.verify(&proof, &input, &output);
     }
@@ -295,23 +304,22 @@ pub(crate) mod tests {
 
         let mut builder = CircuitBuilder::<L, D>::new();
 
-        const WINDOW_SIZE: usize = 4;
-        const TRUSTED_BLOCK: usize = 3800;
-        const CURRENT_BLOCK: usize = TRUSTED_BLOCK + WINDOW_SIZE;
+        const MAX_LEAVES: usize = 4;
+        const START_BLOCK: usize = 10000;
+        const END_BLOCK: usize = START_BLOCK + MAX_LEAVES;
 
-        let data_commitment_var = builder.read::<DataCommitmentProofVariable<WINDOW_SIZE>>();
+        let data_commitment_var = builder.read::<DataCommitmentProofVariable<MAX_LEAVES>>();
 
-        builder.prove_header_chain::<WINDOW_SIZE>(data_commitment_var);
+        builder.prove_header_chain::<MAX_LEAVES>(data_commitment_var);
 
         let circuit = builder.build();
 
         let mut input = circuit.input();
-        input.write::<DataCommitmentProofVariable<WINDOW_SIZE>>(generate_data_commitment_inputs::<
-            WINDOW_SIZE,
-            F,
-        >(
-            TRUSTED_BLOCK, CURRENT_BLOCK
-        ));
+
+        // Generate test cases from Celestia blocks:
+        input.write::<DataCommitmentProofVariable<MAX_LEAVES>>(
+            generate_data_commitment_value_inputs(START_BLOCK, END_BLOCK).0,
+        );
         let (proof, output) = circuit.prove(&input);
         circuit.verify(&proof, &input, &output);
     }
