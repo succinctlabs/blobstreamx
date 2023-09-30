@@ -222,7 +222,6 @@ pub(crate) mod tests {
         start_height: usize,
         end_height: usize,
     ) -> (DataCommitmentProofValueType<MAX_LEAVES, F>, H256) {
-        // Input data fetcher
         env::set_var("RPC_MOCHA_4", "fixture"); // Use fixture during testing
         let mut input_data_fetcher = InputDataFetcher::new();
 
