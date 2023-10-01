@@ -12,8 +12,12 @@ contract DeployScript is Script {
     function run() public {
         vm.startBroadcast();
         address gateway = address(0x852a94F8309D445D27222eDb1E92A4E83DdDd2a8);
-        bytes32 functionId = bytes32(
-            0x3f56e1405a9adc8c0f2a95d7723e42ea9afe05e2a30ac588289d8e26183a08bf
+        bytes32 stepFunctionId = bytes32(
+            0xc188574800992a29257de0cf6fc55a8eff0bf9b86333b7a2789f4542f5e7e071
+        );
+
+        bytes32 skipFunctionId = bytes32(
+            0x20b1560241b2a398700f1611af4a6bafb09d3d609a554a4cff90c933807e8070
         );
 
         // Use the below to interact with an already deployed ZK light client
@@ -21,12 +25,16 @@ contract DeployScript is Script {
             0xB1cdc97E3C9fC29a30da31e49B4e2304b011d631
         );
 
-        bytes32 header = hex"A8512F18C34B70E1533CFD5AA04F251FCB0D7BE56EC570051FBAD9BDB9435E6A";
-        uint64 height = 3000;
+        bytes32 header = hex"0C1D96912ACE4102C620EC6223E4A457D01ABC9CEC70B7149A10410472D6D60E";
+        uint64 height = 100000;
         lightClient.setGenesisHeader(height, header);
 
-        lightClient.updateFunctionId("step", functionId);
+        lightClient.updateFunctionId("step", stepFunctionId);
+        lightClient.updateFunctionId("skip", skipFunctionId);
 
         lightClient.requestHeaderStep{value: 0.1 ether}(height);
+
+        uint64 skipHeight = 100100;
+        lightClient.requestHeaderSkip{value: 0.1 ether}(height, skipHeight);
     }
 }
