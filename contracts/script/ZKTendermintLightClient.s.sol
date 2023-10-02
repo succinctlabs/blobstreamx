@@ -25,16 +25,16 @@ contract DeployScript is Script {
             0xB1cdc97E3C9fC29a30da31e49B4e2304b011d631
         );
 
-        bytes32 header = hex"0C1D96912ACE4102C620EC6223E4A457D01ABC9CEC70B7149A10410472D6D60E";
-        uint64 height = 100000;
-        lightClient.setGenesisHeader(height, header);
+        // bytes32 header = hex"0C1D96912ACE4102C620EC6223E4A457D01ABC9CEC70B7149A10410472D6D60E";
+        // lightClient.setGenesisHeader(height, header);
+        uint64 height = 100100;
 
         lightClient.updateFunctionId("step", stepFunctionId);
         lightClient.updateFunctionId("skip", skipFunctionId);
 
         lightClient.requestHeaderStep{value: 0.1 ether}(height);
 
-        uint64 skipHeight = 100100;
+        uint64 skipHeight = 100200;
         lightClient.requestHeaderSkip{value: 0.1 ether}(height, skipHeight);
     }
 }

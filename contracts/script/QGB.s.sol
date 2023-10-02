@@ -25,7 +25,7 @@ contract DeployScript is Script {
 
         qgb.updateTendermintLightClient(lightClient);
 
-        bytes32 header = hex"074D02645AA741D7533A2966FDAACCC37F0CABBFB808EF5FDF8B012719A96475";
+        bytes32 header = hex"400773BF4613E2F0311DD382DB3B2278B6442560A7AD6627984799D2FC4F0DF9";
 
         IZKTendermintLightClient(lightClient).setGenesisHeader(100100, header);
 
