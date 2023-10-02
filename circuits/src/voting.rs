@@ -1,11 +1,7 @@
-//! The protobuf encoding of a Tendermint validator is a deterministic function of the validator's
-//! public key (32 bytes) and voting power (int64). The encoding is as follows in bytes:
-//
-//!     10 34 10 32 <pubkey> 16 <varint>
-//
-//! The `pubkey` is encoded as the raw list of bytes used in the public key. The `varint` is
-//! encoded using protobuf's default integer encoding, which consist of 7 bit payloads. You can
-//! read more about them here: https://protobuf.dev/programming-guides/encoding/#varints.
+//! Celestia's MaxTotalVotingPower = int64(math.MaxInt64) / 8
+//! https://github.com/celestiaorg/celestia-core/blob/37f950717381e8d8f6393437624652693e4775b8/types/validator_set.go#L25
+//! When summing the voting power of all validators, the total voting power will not overflow a u64.
+//! When multiplying the total voting power by a small factor c < 16, the result will not overflow a u64.
 use plonky2x::frontend::ecc::ed25519::curve::curve_types::Curve;
 use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
 use plonky2x::frontend::uint::uint64::U64Variable;
@@ -18,7 +14,7 @@ pub trait TendermintVoting {
         validator_voting_power: &[U64Variable],
     ) -> U64Variable;
 
-    // Checks if accumulated voting power * m > total voting power * n (threshold is n/m)
+    // Check if accumulated voting power > total voting power * (n / m).
     fn voting_power_greater_than_threshold(
         &mut self,
         accumulated_power: &U64Variable,
@@ -27,7 +23,7 @@ pub trait TendermintVoting {
         threshold_denominator: &U64Variable,
     ) -> BoolVariable;
 
-    /// Accumulate voting power from the enabled validators & check that the voting power is greater than 2/3 of the total voting power.
+    /// Accumulate voting power from the enabled validators & check the voting power is greater than 2/3 of the total voting power.
     fn check_voting_power<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
         validator_voting_power: &[U64Variable],
@@ -45,8 +41,6 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVoting for CircuitBuilder<
         &mut self,
         validator_voting_power: &[U64Variable],
     ) -> U64Variable {
-        // Total will not overflow as MaxTotalVotingPower = int64(math.MaxInt64) / 8
-        // https://github.com/celestiaorg/celestia-core/blob/37f950717381e8d8f6393437624652693e4775b8/types/validator_set.go#L25
         let mut total = self.constant::<U64Variable>(0.into());
         for i in 0..validator_voting_power.len() {
             total = self.add(total, validator_voting_power[i])
@@ -61,16 +55,13 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVoting for CircuitBuilder<
         threshold_numerator: &U64Variable,
         threshold_denominator: &U64Variable,
     ) -> BoolVariable {
-        // Note: MaxTotalVotingPower = int64(math.MaxInt64) / 8
-        // Threshold is n/m * total_voting_power
-        // Multiplying by a small factor (specifically, c<16) will never overflow.
-
-        // Compute accumulated_voting_power * m
+        // Compute accumulated_voting_power * m.
         let scaled_accumulated = self.mul(*accumulated_power, *threshold_denominator);
 
-        // Compute total_vp * n
+        // Compute total_vp * n.
         let scaled_threshold = self.mul(*total_voting_power, *threshold_numerator);
 
+        // Check if accumulated_voting_power > total_vp * (n / m).
         self.le(scaled_threshold, scaled_accumulated)
     }
 
@@ -86,7 +77,6 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVoting for CircuitBuilder<
         // Accumulate the voting power from the enabled validators.
         let mut accumulated_voting_power = self.constant::<U64Variable>(0.into());
 
-        // Note: MaxTotalVotingPower = int64(math.MaxInt64) / 8
         for i in 0..VALIDATOR_SET_SIZE_MAX {
             // If the validator is enabled, add their voting power to the accumulated voting power.
             let select_voting_power =
@@ -94,7 +84,6 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVoting for CircuitBuilder<
             accumulated_voting_power = self.add(accumulated_voting_power, select_voting_power);
         }
 
-        // Note: Because the threshold is n/m, max I64 should be range checked to be < 2^63 / m
         self.voting_power_greater_than_threshold(
             &accumulated_voting_power,
             total_voting_power,
@@ -157,7 +146,6 @@ pub(crate) mod tests {
 
         let circuit = builder.build();
 
-        // These test cases should pass
         for test_case in test_cases {
             let mut input = circuit.input();
 
@@ -166,6 +154,7 @@ pub(crate) mod tests {
                 let voting_power = test_case.0[i];
                 total_vp += voting_power;
                 input.write::<U64Variable>((voting_power as u64).into());
+                // If test_case.1[i] == 1, the test should pass.
                 input.write::<BoolVariable>(test_case.1[i] == 1);
             }
             input.write::<U64Variable>((total_vp as u64).into());
