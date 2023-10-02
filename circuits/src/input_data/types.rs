@@ -28,8 +28,7 @@ type C = Ed25519;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TempMerkleInclusionProof {
     pub enc_leaf: Vec<u8>,
-    // Path and proof should have a fixed length of HEADER_PROOF_DEPTH.
-    pub path: Vec<bool>,
+    // Proof should have a fixed length of HEADER_PROOF_DEPTH.
     pub proof: Vec<H256>,
 }
 

@@ -202,7 +202,6 @@ impl InputDataFetcher {
         // before returning
         TempMerkleInclusionProof {
             enc_leaf: encoded_leaf,
-            path: get_path_indices(index, total),
             proof: convert_to_h256(proofs[index as usize].aunts.clone()),
         }
     }
