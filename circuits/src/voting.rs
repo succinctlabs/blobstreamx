@@ -1,5 +1,5 @@
-//! Celestia's MaxTotalVotingPower = int64(math.MaxInt64) / 8
-//! https://github.com/celestiaorg/celestia-core/blob/37f950717381e8d8f6393437624652693e4775b8/types/validator_set.go#L25
+//! CometBFT's MaxTotalVotingPower = int64(math.MaxInt64) / 8
+//! https://github.com/cometbft/cometbft/blob/eb51aa722e75939157a788ebe0f6b62aeffd0e5d/types/validator_set.go#L25
 //! When summing the voting power of all validators, the total voting power will not overflow a u64.
 //! When multiplying the total voting power by a small factor c < 16, the result will not overflow a u64.
 use plonky2x::frontend::ecc::ed25519::curve::curve_types::Curve;
@@ -14,7 +14,7 @@ pub trait TendermintVoting {
         validator_voting_power: &[U64Variable],
     ) -> U64Variable;
 
-    // Check if accumulated voting power > total voting power * (n / m).
+    // Check if accumulated voting power > total voting power * (threshold_numerator / threshold_denominator).
     fn voting_power_greater_than_threshold(
         &mut self,
         accumulated_power: &U64Variable,
@@ -41,6 +41,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVoting for CircuitBuilder<
         &mut self,
         validator_voting_power: &[U64Variable],
     ) -> U64Variable {
+        // TODO: Implement add_many_u32 gate in plonky2x.
         let mut total = self.constant::<U64Variable>(0.into());
         for i in 0..validator_voting_power.len() {
             total = self.add(total, validator_voting_power[i])
@@ -55,13 +56,13 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVoting for CircuitBuilder<
         threshold_numerator: &U64Variable,
         threshold_denominator: &U64Variable,
     ) -> BoolVariable {
-        // Compute accumulated_voting_power * m.
+        // Compute accumulated_voting_power * threshold_denominator.
         let scaled_accumulated = self.mul(*accumulated_power, *threshold_denominator);
 
-        // Compute total_vp * n.
+        // Compute total_vp * threshold_numerator.
         let scaled_threshold = self.mul(*total_voting_power, *threshold_numerator);
 
-        // Check if accumulated_voting_power > total_vp * (n / m).
+        // Check if accumulated_voting_power > total_vp * (threshold_numerator / threshold_denominator).
         self.le(scaled_threshold, scaled_accumulated)
     }
 
