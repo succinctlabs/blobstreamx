@@ -48,9 +48,9 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize, L: PlonkParameters<D>, const D: usize>
         let result = rt.block_on(async {
             data_fetcher
                 .get_skip_inputs::<MAX_VALIDATOR_SET_SIZE, L::Field>(
-                    trusted_block.as_u64(),
+                    trusted_block,
                     trusted_header_hash,
-                    target_block.as_u64(),
+                    target_block,
                 )
                 .await
         });
@@ -225,8 +225,8 @@ mod tests {
 
         let mut input = circuit.input();
         input.evm_write::<Bytes32Variable>(H256::from_slice(trusted_header.as_slice()));
-        input.evm_write::<U64Variable>(trusted_block.into());
-        input.evm_write::<U64Variable>(target_block.into());
+        input.evm_write::<U64Variable>(trusted_block);
+        input.evm_write::<U64Variable>(target_block);
 
         log::debug!("Generating proof");
         let (proof, mut output) = circuit.prove(&input);
