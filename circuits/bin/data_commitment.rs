@@ -249,15 +249,6 @@ mod tests {
         const MAX_LEAVES: usize = 256;
         const NUM_BLOCKS: usize = 100;
 
-        // let start_block = 100000u64;
-        // let start_header_hash =
-        //     hex::decode_upper("0C1D96912ACE4102C620EC6223E4A457D01ABC9CEC70B7149A10410472D6D60E")
-        //         .unwrap();
-        // let end_block = start_block + NUM_BLOCKS as u64;
-        // let end_header_hash =
-        //     hex::decode_upper("074D02645AA741D7533A2966FDAACCC37F0CABBFB808EF5FDF8B012719A96475")
-        //         .unwrap();
-
         let start_block = 100000u64;
         let start_header_hash =
             hex::decode_upper("0C1D96912ACE4102C620EC6223E4A457D01ABC9CEC70B7149A10410472D6D60E")

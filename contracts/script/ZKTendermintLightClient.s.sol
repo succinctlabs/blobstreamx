@@ -25,8 +25,11 @@ contract DeployScript is Script {
             0xB1cdc97E3C9fC29a30da31e49B4e2304b011d631
         );
 
+        // TODO: Add back in when testing a new skip or step.
+        // uint64 height = 100100;
         // bytes32 header = hex"0C1D96912ACE4102C620EC6223E4A457D01ABC9CEC70B7149A10410472D6D60E";
         // lightClient.setGenesisHeader(height, header);
+
         uint64 height = 100100;
 
         lightClient.updateFunctionId("step", stepFunctionId);
