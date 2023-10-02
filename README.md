@@ -1,6 +1,9 @@
 # zkqgb
 Implementation of zero-knowledge proof circuits for Tendermint and QGB to verify Celestia's consensus protocol and data commitments.
 
+## Circuit Release
+The circuit release is available on the Succinct platform [here](https://alpha.succinct.xyz/succinctlabs/zkqgb/releases).
+
 ## QGB
 ### Testnet
 Goerli Contract: [0x7eE75Da23875893FFB4f6F26458629C244e61e49](https://goerli.etherscan.io/address/0x7eE75Da23875893FFB4f6F26458629C244e61e49)
