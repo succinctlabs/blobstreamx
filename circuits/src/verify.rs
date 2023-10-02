@@ -193,8 +193,8 @@ pub trait TendermintVerify<
     fn assert_voting_check(
         &mut self,
         validators: ArrayVariable<ValidatorVariable<Self::Curve>, VALIDATOR_SET_SIZE_MAX>,
-        threshold_numerator: &U32Variable,
-        threshold_denominator: &U32Variable,
+        threshold_numerator: &U64Variable,
+        threshold_denominator: &U64Variable,
         include_in_check: Vec<BoolVariable>, // TODO: this should be an array var of the same size
     );
 }
@@ -253,8 +253,8 @@ impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
     fn assert_voting_check(
         &mut self,
         validators: ArrayVariable<ValidatorVariable<Self::Curve>, VALIDATOR_SET_SIZE_MAX>,
-        threshold_numerator: &U32Variable,
-        threshold_denominator: &U32Variable,
+        threshold_numerator: &U64Variable,
+        threshold_denominator: &U64Variable,
         include_in_check: Vec<BoolVariable>,
     ) {
         assert_eq!(validators.as_vec().len(), include_in_check.len());
@@ -394,8 +394,8 @@ impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
         self.assert_is_equal(extracted_hash, validators_hash_target);
 
         // Assert the accumulated voting power is greater than the threshold
-        let threshold_numerator = self.constant::<U32Variable>(2u32);
-        let threshold_denominator = self.constant::<U32Variable>(3u32);
+        let threshold_numerator = self.constant::<U64Variable>(2.into());
+        let threshold_denominator = self.constant::<U64Variable>(3.into());
         // TODO: why is rust compiler being so weird
         <plonky2x::prelude::CircuitBuilder<L, D> as TendermintVerify<
             L,
@@ -631,8 +631,8 @@ impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
             .collect();
 
         // Assert validators from the trusted block comprise at least 1/3 of the total voting power.
-        let threshold_numerator = self.constant::<U32Variable>(1);
-        let threshold_denominator = self.constant::<U32Variable>(3);
+        let threshold_numerator = self.constant::<U64Variable>(1.into());
+        let threshold_denominator = self.constant::<U64Variable>(3.into());
         <plonky2x::prelude::CircuitBuilder<L, D> as TendermintVerify<
             L,
             D,
