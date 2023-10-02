@@ -21,5 +21,5 @@ Goerli Contract: [0xB1cdc97E3C9fC29a30da31e49B4e2304b011d631](https://goerli.eth
 Deployed for a maximum validator set size of 128 validators.
 
 ### Performance
-Step with 128 validators: 958s (~16 minutes)
+Step with 128 validators: 717s (~12 minutes)
 Skip with 128 validators: 927s (~15 minutes) 
