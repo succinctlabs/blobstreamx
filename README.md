@@ -8,7 +8,7 @@ The circuit release is available on the Succinct platform [here](https://alpha.s
 ### Testnet
 Goerli Contract: [0x7eE75Da23875893FFB4f6F26458629C244e61e49](https://goerli.etherscan.io/address/0x7eE75Da23875893FFB4f6F26458629C244e61e49)
 
-Currently deployed for a maximum data commitment size of 256 blocks.
+Deployed for a maximum data commitment size of 256 blocks.
 
 ### Performance
 256 blocks: 251s (~4 minutes)
