@@ -229,7 +229,7 @@ pub(crate) mod tests {
 
         for test_case in test_cases {
             let mut input = circuit.input();
-            input.write::<U64Variable>((test_case.0 as u64).into());
+            input.write::<U64Variable>(test_case.0 as u64);
             let (_, mut output) = circuit.prove(&input);
 
             let expected_bytes = test_case.1;
@@ -251,7 +251,7 @@ pub(crate) mod tests {
 
         let mut builder = DefaultBuilder::new();
 
-        let height = builder.constant::<U64Variable>(3804.into());
+        let height = builder.constant::<U64Variable>(3804);
 
         let encoded_height = builder.marshal_int64_varint(&height);
         let encoded_height = builder.leaf_encode_marshalled_varint(&BytesVariable(encoded_height));

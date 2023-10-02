@@ -203,7 +203,7 @@ pub(crate) mod tests {
         let circuit = builder.build();
 
         let mut input = circuit.input();
-        input.write::<U64Variable>((voting_power_i64 as u64).into());
+        input.write::<U64Variable>(voting_power_i64 as u64);
         let pub_key_uncompressed: AffinePoint<Curve> =
             AffinePoint::new_from_compressed_point(&hex::decode(pubkey).unwrap());
         input.write::<AffinePointTarget<Curve>>(pub_key_uncompressed);
