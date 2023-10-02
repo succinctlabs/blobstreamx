@@ -394,8 +394,8 @@ impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
         self.assert_is_equal(extracted_hash, validators_hash_target);
 
         // Assert the accumulated voting power is greater than the threshold
-        let threshold_numerator = self.constant::<U64Variable>(2.into());
-        let threshold_denominator = self.constant::<U64Variable>(3.into());
+        let threshold_numerator = self.constant::<U64Variable>(2);
+        let threshold_denominator = self.constant::<U64Variable>(3);
         // TODO: why is rust compiler being so weird
         <plonky2x::prelude::CircuitBuilder<L, D> as TendermintVerify<
             L,
@@ -631,8 +631,8 @@ impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
             .collect();
 
         // Assert validators from the trusted block comprise at least 1/3 of the total voting power.
-        let threshold_numerator = self.constant::<U64Variable>(1.into());
-        let threshold_denominator = self.constant::<U64Variable>(3.into());
+        let threshold_numerator = self.constant::<U64Variable>(1);
+        let threshold_denominator = self.constant::<U64Variable>(3);
         <plonky2x::prelude::CircuitBuilder<L, D> as TendermintVerify<
             L,
             D,

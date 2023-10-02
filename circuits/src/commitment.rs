@@ -88,7 +88,7 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitment<L, D> for CircuitBuil
         let mut leaves = Vec::new();
 
         for i in 0..MAX_LEAVES {
-            let curr_idx = self.constant::<U64Variable>(i.into());
+            let curr_idx = self.constant::<U64Variable>(i as u64);
             let block_height = self.add(start_block, curr_idx);
             // Encode the data hash and height into a tuple.
             leaves.push(self.encode_data_root_tuple(&data_hashes[i], &block_height));
@@ -100,7 +100,7 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitment<L, D> for CircuitBuil
             leaves_enabled.push(is_enabled);
 
             // Number of leaves included in the data commitment so far (including this leaf).
-            let num_leaves_so_far = self.constant::<U64Variable>((i + 1).into());
+            let num_leaves_so_far = self.constant::<U64Variable>((i + 1) as u64);
             // If at the last_valid_leaf, must flip is_enabled to false.
             let is_last_valid_leaf = self.is_equal(num_leaves, num_leaves_so_far);
             let is_not_last_valid_leaf = self.not(is_last_valid_leaf);
@@ -130,7 +130,7 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitment<L, D> for CircuitBuil
             let is_disabled = self.not(is_enabled);
 
             // Number of leaves included in the data hash and prove header chain computation so far (including the current leaf).
-            let num_leaves_so_far = self.constant::<U64Variable>((i + 1).into());
+            let num_leaves_so_far = self.constant::<U64Variable>((i + 1) as u64);
 
             // If at the last_valid_leaf, flip is_enabled to false and verify end_header's prev_header is curr_header.
             let is_last_valid_leaf = self.is_equal(num_leaves, num_leaves_so_far);
@@ -147,17 +147,17 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitment<L, D> for CircuitBuil
                     &input.prev_header_proofs[i],
                 );
             // Header hash of block (start + i).
-            let header_hash = input.prev_header_proofs[i].leaf[2..2 + HASH_SIZE].into();
+            let header_hash = &input.prev_header_proofs[i].leaf[2..2 + HASH_SIZE];
 
             // Verify the data hash proof against the header hash of block (start + i).
-            let is_valid_data_hash = self.is_equal(data_hash_proof_root, header_hash);
+            let is_valid_data_hash = self.is_equal(data_hash_proof_root, header_hash.into());
             // NOT is_enabled || (data_hash_proof_root == header_hash) must be true.
             let data_hash_check = self.or(is_disabled, is_valid_data_hash);
             self.assert_is_equal(data_hash_check, true_var);
 
             // Verify the header chain.
             // 1) Verify the curr_header matches the extracted header_hash.
-            let is_valid_prev_header = self.is_equal(curr_header, header_hash);
+            let is_valid_prev_header = self.is_equal(curr_header, header_hash.into());
             // NOT is_enabled || (curr_header == header_hash) must be true.
             let prev_header_check = self.or(is_disabled, is_valid_prev_header);
             self.assert_is_equal(prev_header_check, true_var);
@@ -250,9 +250,9 @@ pub(crate) mod tests {
         (
             DataCommitmentProofValueType {
                 data_hashes: convert_to_h256(result.0),
-                start_block_height: (start_height as u64).into(),
+                start_block_height: (start_height as u64),
                 start_header: start_header_hash,
-                end_block_height: (end_height as u64).into(),
+                end_block_height: (end_height as u64),
                 end_header: end_header_hash,
                 data_hash_proofs: result.1,
                 prev_header_proofs: result.2,
@@ -277,8 +277,8 @@ pub(crate) mod tests {
 
         let expected_data_commitment = builder.read::<Bytes32Variable>();
 
-        let start_block = builder.constant::<U64Variable>(START_BLOCK.into());
-        let end_block = builder.constant::<U64Variable>(END_BLOCK.into());
+        let start_block = builder.constant::<U64Variable>(START_BLOCK as u64);
+        let end_block = builder.constant::<U64Variable>(END_BLOCK as u64);
         let root_hash_target = builder.get_data_commitment::<MAX_LEAVES>(
             &data_commitment_var.data_hashes,
             start_block,
@@ -333,7 +333,7 @@ pub(crate) mod tests {
         let data_hash =
             builder.constant::<Bytes32Variable>(ethers::types::H256::from_slice(&[255u8; 32]));
         builder.watch(&data_hash, "data_hash");
-        let height = builder.constant::<U64Variable>(256.into());
+        let height = builder.constant::<U64Variable>(256);
         builder.watch(&height, "height");
         let data_root_tuple = builder.encode_data_root_tuple(&data_hash, &height);
         builder.watch(&data_root_tuple, "data_root_tuple");

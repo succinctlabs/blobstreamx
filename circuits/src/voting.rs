@@ -42,7 +42,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVoting for CircuitBuilder<
         validator_voting_power: &[U64Variable],
     ) -> U64Variable {
         // TODO: Implement add_many_u32 gate in plonky2x.
-        let mut total = self.constant::<U64Variable>(0.into());
+        let mut total = self.constant::<U64Variable>(0);
         for i in 0..validator_voting_power.len() {
             total = self.add(total, validator_voting_power[i])
         }
@@ -63,7 +63,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVoting for CircuitBuilder<
         let scaled_threshold = self.mul(*total_voting_power, *threshold_numerator);
 
         // Check if accumulated_voting_power > total_vp * (threshold_numerator / threshold_denominator).
-        self.le(scaled_threshold, scaled_accumulated)
+        self.lte(scaled_threshold, scaled_accumulated)
     }
 
     fn check_voting_power<const VALIDATOR_SET_SIZE_MAX: usize>(
@@ -74,9 +74,9 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVoting for CircuitBuilder<
         threshold_numerator: &U64Variable,
         threshold_denominator: &U64Variable,
     ) -> BoolVariable {
-        let zero = self.constant::<U64Variable>(0.into());
+        let zero = self.constant::<U64Variable>(0);
         // Accumulate the voting power from the enabled validators.
-        let mut accumulated_voting_power = self.constant::<U64Variable>(0.into());
+        let mut accumulated_voting_power = self.constant::<U64Variable>(0);
 
         for i in 0..VALIDATOR_SET_SIZE_MAX {
             // If the validator is enabled, add their voting power to the accumulated voting power.
@@ -154,13 +154,13 @@ pub(crate) mod tests {
             for i in 0..VALIDATOR_SET_SIZE_MAX {
                 let voting_power = test_case.0[i];
                 total_vp += voting_power;
-                input.write::<U64Variable>((voting_power as u64).into());
+                input.write::<U64Variable>(voting_power as u64);
                 // If test_case.1[i] == 1, the test should pass.
                 input.write::<BoolVariable>(test_case.1[i] == 1);
             }
-            input.write::<U64Variable>((total_vp as u64).into());
-            input.write::<U64Variable>(2.into());
-            input.write::<U64Variable>(3.into());
+            input.write::<U64Variable>(total_vp as u64);
+            input.write::<U64Variable>(2);
+            input.write::<U64Variable>(3);
 
             let (_, mut output) = circuit.prove(&input);
             assert_eq!(output.read::<BoolVariable>(), test_case.2);
