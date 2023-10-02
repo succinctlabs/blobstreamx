@@ -16,7 +16,6 @@
 //!
 use std::env;
 
-use celestia::consts::HEADER_PROOF_DEPTH;
 use celestia::input_data::InputDataFetcher;
 use celestia::variables::HeightProofVariable;
 use celestia::verify::{
@@ -61,13 +60,9 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize, L: PlonkParameters<D>, const D: usize>
         output_stream.write_value::<Bytes32Variable>(result.1.into()); // target_header
         output_stream.write_value::<BoolVariable>(result.2); // round_present
         output_stream.write_value::<HeightProofVariable>(result.3); // block_height_proof
-        output_stream.write_value::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>(
-            result.4.to_hash_value_type(),
-        ); // validators_hash_proof
+        output_stream.write_value::<HashInclusionProofVariable>(result.4.to_hash_value_type()); // validators_hash_proof
         output_stream.write_value::<Bytes32Variable>(result.5.into()); // trusted_header
-        output_stream.write_value::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>(
-            result.6.to_hash_value_type(),
-        ); // trusted_header_validators_hash_proof
+        output_stream.write_value::<HashInclusionProofVariable>(result.6.to_hash_value_type()); // trusted_header_validators_hash_proof
         output_stream.write_value::<ArrayVariable<ValidatorHashFieldVariable<Ed25519>, MAX_VALIDATOR_SET_SIZE>>(
             result.7
         ); // trusted_header_validators_hash_fields
@@ -98,10 +93,10 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize> Circuit for SkipCircuit<MAX_VALIDATOR_
         let round_present = output_stream.read::<BoolVariable>(builder);
         let target_header_block_height_proof = output_stream.read::<HeightProofVariable>(builder);
         let target_header_validators_hash_proof =
-            output_stream.read::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>(builder);
+            output_stream.read::<HashInclusionProofVariable>(builder);
         let trusted_header = output_stream.read::<Bytes32Variable>(builder);
         let trusted_header_validators_hash_proof =
-            output_stream.read::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>(builder);
+            output_stream.read::<HashInclusionProofVariable>(builder);
         let trusted_header_validators_hash_fields = output_stream
             .read::<ArrayVariable<ValidatorHashFieldVariable<Ed25519>, MAX_VALIDATOR_SET_SIZE>>(
                 builder,

@@ -20,7 +20,7 @@ use self::tendermint_utils::{
     SignedBlockResponse, TempSignedBlock,
 };
 use self::types::{update_present_on_trusted_header, TempMerkleInclusionProof};
-use self::utils::{convert_to_h256, get_path_indices};
+use self::utils::convert_to_h256;
 use crate::consts::{
     BLOCK_HEIGHT_INDEX, DATA_HASH_INDEX, HEADER_PROOF_DEPTH, LAST_BLOCK_ID_INDEX,
     NEXT_VALIDATORS_HASH_INDEX, PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES,
@@ -197,7 +197,6 @@ impl InputDataFetcher {
                 proofs
             }
         };
-        let total = proofs[0].total;
         // TODO: check that the markle proof is valid
         // before returning
         TempMerkleInclusionProof {
@@ -406,8 +405,7 @@ impl InputDataFetcher {
             .into_iter()
             .map(
                 |proof| InclusionProof::<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES, F> {
-                    aunts: proof.proof,
-                    path_indices: proof.path,
+                    proof: proof.proof,
                     leaf: proof.enc_leaf.try_into().unwrap(),
                 },
             )
@@ -417,8 +415,7 @@ impl InputDataFetcher {
             .into_iter()
             .map(
                 |proof| InclusionProof::<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, F> {
-                    aunts: proof.proof,
-                    path_indices: proof.path,
+                    proof: proof.proof,
                     leaf: proof.enc_leaf.try_into().unwrap(),
                 },
             )
@@ -432,8 +429,7 @@ impl InputDataFetcher {
                 PROTOBUF_HASH_SIZE_BYTES,
                 F,
             > {
-                aunts: [H256::zero(); HEADER_PROOF_DEPTH].to_vec(),
-                path_indices: [false; HEADER_PROOF_DEPTH].to_vec(),
+                proof: [H256::zero(); HEADER_PROOF_DEPTH].to_vec(),
                 leaf: [0u8; PROTOBUF_HASH_SIZE_BYTES],
             });
             prev_header_proofs_formatted.push(InclusionProof::<
@@ -441,8 +437,7 @@ impl InputDataFetcher {
                 PROTOBUF_BLOCK_ID_SIZE_BYTES,
                 F,
             > {
-                aunts: [H256::zero(); HEADER_PROOF_DEPTH].to_vec(),
-                path_indices: [false; HEADER_PROOF_DEPTH].to_vec(),
+                proof: [H256::zero(); HEADER_PROOF_DEPTH].to_vec(),
                 leaf: [0u8; PROTOBUF_BLOCK_ID_SIZE_BYTES],
             });
         }

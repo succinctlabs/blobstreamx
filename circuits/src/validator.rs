@@ -385,7 +385,8 @@ pub(crate) mod tests {
         let proof = builder
             .read::<MerkleInclusionProofVariable<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES>>(
             );
-        let root = builder.get_root_from_merkle_proof(&proof);
+        let path_indices = builder.read::<ArrayVariable<BoolVariable, HEADER_PROOF_DEPTH>>();
+        let root = builder.get_root_from_merkle_proof(&proof, &path_indices);
         builder.write(root);
         let circuit = builder.build();
 
@@ -409,8 +410,7 @@ pub(crate) mod tests {
         let path_indices = get_path_indices(leaf_index as u64, proofs[0].total);
 
         let proof = InclusionProof {
-            aunts: convert_to_h256(proofs[leaf_index].clone().aunts),
-            path_indices,
+            proof: convert_to_h256(proofs[leaf_index].clone().aunts),
             leaf: leaf.try_into().unwrap(),
         };
 
@@ -418,6 +418,7 @@ pub(crate) mod tests {
         input.write::<MerkleInclusionProofVariable<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES>>(
             proof,
         );
+        input.write::<ArrayVariable<BoolVariable, HEADER_PROOF_DEPTH>>(path_indices);
         let (_, mut output) = circuit.prove(&input);
         let computed_root = output.read::<Bytes32Variable>();
 

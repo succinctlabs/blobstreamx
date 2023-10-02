@@ -119,8 +119,12 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitment<L, D> for CircuitBuil
         input: DataCommitmentProofVariable<MAX_LEAVES>,
     ) {
         let true_var = self._true();
-
         let num_leaves = self.sub(input.end_block_height, input.start_block_height);
+
+        let data_hash_path =
+            self.constant::<ArrayVariable<BoolVariable, 4>>(vec![false, true, true, false]);
+        let last_block_id_path =
+            self.constant::<ArrayVariable<BoolVariable, 4>>(vec![false, false, true, false]);
 
         // Verify the header chain of the first (end_block - start_block) headers.
         // is_enabled is true for the first (end_block - start_block) headers, and false for the rest.
@@ -140,11 +144,13 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitment<L, D> for CircuitBuil
             let data_hash_proof_root = self
                 .get_root_from_merkle_proof::<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES>(
                     &input.data_hash_proofs[i],
+                    &data_hash_path.clone(),
                 );
             // Header hash of block (start + i + 1).
             let prev_header_proof_root = self
                 .get_root_from_merkle_proof::<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES>(
                     &input.prev_header_proofs[i],
+                    &last_block_id_path.clone(),
                 );
             // Header hash of block (start + i).
             let header_hash = &input.prev_header_proofs[i].leaf[2..2 + HASH_SIZE];
