@@ -100,12 +100,7 @@ pub struct BaseBlockProofVariable<
     round_present: BoolVariable,
 }
 
-pub trait TendermintVerify<
-    L: PlonkParameters<D>,
-    const D: usize,
-    const VALIDATOR_SET_SIZE_MAX: usize,
->
-{
+pub trait TendermintVerify<L: PlonkParameters<D>, const D: usize> {
     type Curve: Curve;
 
     fn get_root<const LEAF_SIZE_BYTES: usize>(
@@ -141,7 +136,7 @@ pub trait TendermintVerify<
     );
 
     /// Verify a Tendermint consensus block.
-    fn verify_header(
+    fn verify_header<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
         validators: &ArrayVariable<ValidatorVariable<Self::Curve>, VALIDATOR_SET_SIZE_MAX>,
         header: &TendermintHashVariable,
@@ -150,7 +145,7 @@ pub trait TendermintVerify<
     );
 
     /// Sequentially verify a Tendermint consensus block.
-    fn step(
+    fn step<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
         validators: &ArrayVariable<ValidatorVariable<Self::Curve>, VALIDATOR_SET_SIZE_MAX>,
         header: &TendermintHashVariable,
@@ -162,7 +157,7 @@ pub trait TendermintVerify<
     );
 
     /// Verify the trusted validators have signed the trusted header.
-    fn verify_trusted_validators(
+    fn verify_trusted_validators<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
         validators: &ArrayVariable<ValidatorVariable<Self::Curve>, VALIDATOR_SET_SIZE_MAX>,
         trusted_header: TendermintHashVariable,
@@ -174,7 +169,7 @@ pub trait TendermintVerify<
     );
 
     /// Verify Tendermint block that is non-sequential with the trusted block.
-    fn skip(
+    fn skip<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
         validators: &ArrayVariable<ValidatorVariable<Self::Curve>, VALIDATOR_SET_SIZE_MAX>,
         header: &TendermintHashVariable,
@@ -190,18 +185,16 @@ pub trait TendermintVerify<
     );
 
     // Assert the voting power of the signed validators is greater than the threshold.
-    fn assert_voting_check(
+    fn assert_voting_check<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
         validators: ArrayVariable<ValidatorVariable<Self::Curve>, VALIDATOR_SET_SIZE_MAX>,
-        threshold_numerator: &U32Variable,
-        threshold_denominator: &U32Variable,
+        threshold_numerator: &U64Variable,
+        threshold_denominator: &U64Variable,
         include_in_check: Vec<BoolVariable>, // TODO: this should be an array var of the same size
     );
 }
 
-impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
-    TendermintVerify<L, D, VALIDATOR_SET_SIZE_MAX> for CircuitBuilder<L, D>
-{
+impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBuilder<L, D> {
     type Curve = Ed25519;
 
     fn get_root<const LEAF_SIZE_BYTES: usize>(
@@ -250,11 +243,11 @@ impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
         self.is_equal(computed_header, header_hash)
     }
 
-    fn assert_voting_check(
+    fn assert_voting_check<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
         validators: ArrayVariable<ValidatorVariable<Self::Curve>, VALIDATOR_SET_SIZE_MAX>,
-        threshold_numerator: &U32Variable,
-        threshold_denominator: &U32Variable,
+        threshold_numerator: &U64Variable,
+        threshold_denominator: &U64Variable,
         include_in_check: Vec<BoolVariable>,
     ) {
         assert_eq!(validators.as_vec().len(), include_in_check.len());
@@ -277,7 +270,7 @@ impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
         self.assert_is_equal(check_voting_power_bool, t);
     }
 
-    fn step(
+    fn step<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
         validators: &ArrayVariable<ValidatorVariable<Self::Curve>, VALIDATOR_SET_SIZE_MAX>,
         header: &TendermintHashVariable,
@@ -292,11 +285,7 @@ impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
 
         // Verify the previous header hash in the block matches the previous header hash in the last block ID.
         // FIXME: why is Rust compiler being weird
-        <plonky2x::prelude::CircuitBuilder<L, D> as TendermintVerify<
-            L,
-            D,
-            VALIDATOR_SET_SIZE_MAX,
-        >>::verify_prev_header_in_header(self, header, *prev_header, last_block_id_proof);
+        self.verify_prev_header_in_header(header, *prev_header, last_block_id_proof);
 
         // Extract the validators hash from the validator hash proof
         let validators_hash: Bytes32Variable =
@@ -304,19 +293,14 @@ impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
 
         // Verify the next validators hash in the previous block matches the current validators hash
         // FIXME: why is Rust compiler being weird
-        <plonky2x::prelude::CircuitBuilder<L, D> as TendermintVerify<
-            L,
-            D,
-            VALIDATOR_SET_SIZE_MAX,
-        >>::verify_prev_header_next_validators_hash(
-            self,
+        self.verify_prev_header_next_validators_hash(
             validators_hash,
             prev_header,
             prev_header_next_validators_hash_proof,
         );
     }
 
-    fn verify_header(
+    fn verify_header<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
         validators: &ArrayVariable<ValidatorVariable<Self::Curve>, VALIDATOR_SET_SIZE_MAX>,
         header: &TendermintHashVariable,
@@ -394,15 +378,10 @@ impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
         self.assert_is_equal(extracted_hash, validators_hash_target);
 
         // Assert the accumulated voting power is greater than the threshold
-        let threshold_numerator = self.constant::<U32Variable>(2u32);
-        let threshold_denominator = self.constant::<U32Variable>(3u32);
+        let threshold_numerator = self.constant::<U64Variable>(2);
+        let threshold_denominator = self.constant::<U64Variable>(3);
         // TODO: why is rust compiler being so weird
-        <plonky2x::prelude::CircuitBuilder<L, D> as TendermintVerify<
-            L,
-            D,
-            VALIDATOR_SET_SIZE_MAX,
-        >>::assert_voting_check(
-            self,
+        self.assert_voting_check(
             validators.clone(),
             &threshold_numerator,
             &threshold_denominator,
@@ -418,13 +397,8 @@ impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
 
             // Verify that the header is in the message in the correct location.
             // If a validator is signed, then the header should be in its signed message.
-            let hash_in_message = <plonky2x::prelude::CircuitBuilder<L, D> as TendermintVerify<
-                L,
-                D,
-                VALIDATOR_SET_SIZE_MAX,
-            >>::verify_hash_in_message(
-                self, &validators[i].message, *header, *round_present
-            );
+            let hash_in_message =
+                self.verify_hash_in_message(&validators[i].message, *header, *round_present);
             let hash_in_message_and_signed = self.and(hash_in_message, validators[i].signed);
             self.assert_is_equal(hash_in_message_and_signed, validators_signed[i]);
         }
@@ -432,17 +406,11 @@ impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
         // Note: Hardcode the path for each of the leaf proofs (otherwise you can prove arbitrary data in the header)
         let val_hash_path = vec![true_t, true_t, true_t, false_t];
 
-        let header_from_validator_root_proof =
-            <plonky2x::prelude::CircuitBuilder<L, D> as TendermintVerify<
-                L,
-                D,
-                VALIDATOR_SET_SIZE_MAX,
-            >>::get_root::<34>(
-                self,
-                &validator_hash_proof.enc_leaf,
-                &val_hash_path.try_into().unwrap(),
-                &validator_hash_proof.proof,
-            );
+        let header_from_validator_root_proof = self.get_root::<34>(
+            &validator_hash_proof.enc_leaf,
+            &val_hash_path.try_into().unwrap(),
+            &validator_hash_proof.proof,
+        );
 
         self.assert_is_equal(*header, header_from_validator_root_proof);
     }
@@ -454,17 +422,11 @@ impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
         last_block_id_proof: &BlockIDInclusionProofVariable<HEADER_PROOF_DEPTH>,
     ) {
         let last_block_id_path = vec![self._false(), self._false(), self._true(), self._false()];
-        let header_from_last_block_id_proof =
-            <plonky2x::prelude::CircuitBuilder<L, D> as TendermintVerify<
-                L,
-                D,
-                VALIDATOR_SET_SIZE_MAX,
-            >>::get_root::<72>(
-                self,
-                &last_block_id_proof.enc_leaf,
-                &last_block_id_path.try_into().unwrap(),
-                &last_block_id_proof.proof,
-            );
+        let header_from_last_block_id_proof = self.get_root::<72>(
+            &last_block_id_proof.enc_leaf,
+            &last_block_id_path.try_into().unwrap(),
+            &last_block_id_proof.proof,
+        );
         // TODO: add back a comment here I think
         self.assert_is_equal(header_from_last_block_id_proof, *header);
 
@@ -481,17 +443,11 @@ impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
         prev_header_next_validators_hash_proof: &HashInclusionProofVariable<HEADER_PROOF_DEPTH>,
     ) {
         let next_val_hash_path = vec![self._false(), self._false(), self._false(), self._true()];
-        let header_from_next_validators_root_proof =
-            <plonky2x::prelude::CircuitBuilder<L, D> as TendermintVerify<
-                L,
-                D,
-                VALIDATOR_SET_SIZE_MAX,
-            >>::get_root::<34>(
-                self,
-                &prev_header_next_validators_hash_proof.enc_leaf,
-                &next_val_hash_path.try_into().unwrap(),
-                &prev_header_next_validators_hash_proof.proof,
-            );
+        let header_from_next_validators_root_proof = self.get_root::<34>(
+            &prev_header_next_validators_hash_proof.enc_leaf,
+            &next_val_hash_path.try_into().unwrap(),
+            &prev_header_next_validators_hash_proof.proof,
+        );
         // Confirms the prev_header computed from the proof of {next_validators_hash} matches the prev_header
         self.assert_is_equal(header_from_next_validators_root_proof, *prev_header);
 
@@ -502,7 +458,7 @@ impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
         self.assert_is_equal(validators_hash, extracted_next_validators_hash);
     }
 
-    fn skip(
+    fn skip<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
         validators: &ArrayVariable<ValidatorVariable<Self::Curve>, VALIDATOR_SET_SIZE_MAX>,
         header: &TendermintHashVariable,
@@ -533,7 +489,7 @@ impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
         )
     }
 
-    fn verify_trusted_validators(
+    fn verify_trusted_validators<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
         validators: &ArrayVariable<ValidatorVariable<Self::Curve>, VALIDATOR_SET_SIZE_MAX>,
         trusted_header: TendermintHashVariable,
@@ -549,17 +505,11 @@ impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
 
         // Get the header from the validator hash merkle proof
         let val_hash_path = vec![true_t, true_t, true_t, false_t];
-        let header_from_validator_root_proof =
-            <plonky2x::prelude::CircuitBuilder<L, D> as TendermintVerify<
-                L,
-                D,
-                VALIDATOR_SET_SIZE_MAX,
-            >>::get_root::<PROTOBUF_HASH_SIZE_BYTES>(
-                self,
-                &trusted_validator_hash_proof.enc_leaf,
-                &val_hash_path.try_into().unwrap(),
-                &trusted_validator_hash_proof.proof,
-            );
+        let header_from_validator_root_proof = self.get_root::<PROTOBUF_HASH_SIZE_BYTES>(
+            &trusted_validator_hash_proof.enc_leaf,
+            &val_hash_path.try_into().unwrap(),
+            &trusted_validator_hash_proof.proof,
+        );
         // Confirm the validator hash proof matches the trusted header
         self.assert_is_equal(header_from_validator_root_proof, trusted_header);
 
@@ -631,14 +581,9 @@ impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
             .collect();
 
         // Assert validators from the trusted block comprise at least 1/3 of the total voting power.
-        let threshold_numerator = self.constant::<U32Variable>(1);
-        let threshold_denominator = self.constant::<U32Variable>(3);
-        <plonky2x::prelude::CircuitBuilder<L, D> as TendermintVerify<
-            L,
-            D,
-            VALIDATOR_SET_SIZE_MAX,
-        >>::assert_voting_check(
-            self,
+        let threshold_numerator = self.constant::<U64Variable>(1);
+        let threshold_denominator = self.constant::<U64Variable>(3);
+        self.assert_voting_check(
             validators.clone(),
             &threshold_numerator,
             &threshold_denominator,
@@ -652,14 +597,11 @@ impl<L: PlonkParameters<D>, const D: usize, const VALIDATOR_SET_SIZE_MAX: usize>
 #[cfg(test)]
 pub(crate) mod tests {
     use ethers::types::H256;
-    use plonky2x::prelude::{DefaultBuilder, DefaultParameters};
+    use plonky2x::prelude::DefaultBuilder;
     use subtle_encoding::hex;
 
     use super::*;
     use crate::consts::VALIDATOR_MESSAGE_BYTES_LENGTH_MAX;
-
-    type L = DefaultParameters;
-    const D: usize = 2;
 
     #[test]
     fn test_verify_hash_in_message() {
@@ -669,7 +611,6 @@ pub(crate) mod tests {
         // No round exists in present the message that was signed above
 
         env_logger::try_init().unwrap_or_default();
-        const VALIDATOR_SET_SIZE_MAX: usize = 2;
 
         // Define the circuit
         let mut builder = DefaultBuilder::new();
@@ -677,16 +618,8 @@ pub(crate) mod tests {
         let header_hash = builder.read::<TendermintHashVariable>();
         let round_present_in_message = builder.read::<BoolVariable>();
 
-        let verified = <plonky2x::prelude::CircuitBuilder<L, D> as TendermintVerify<
-            L,
-            D,
-            VALIDATOR_SET_SIZE_MAX,
-        >>::verify_hash_in_message(
-            &mut builder,
-            &message,
-            header_hash,
-            round_present_in_message,
-        );
+        let verified =
+            builder.verify_hash_in_message(&message, header_hash, round_present_in_message);
 
         builder.write(verified);
         let circuit = builder.build();

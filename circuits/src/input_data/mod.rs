@@ -313,7 +313,7 @@ impl InputDataFetcher {
         );
 
         let target_block_height_proof = HeightProofValueType::<F> {
-            height: target_block.header.height.value().into(),
+            height: target_block.header.height.value(),
             enc_height_byte_length: target_block.header.height.encode_vec().len() as u32,
             proof: temp_target_block_height_proof.proof,
         };

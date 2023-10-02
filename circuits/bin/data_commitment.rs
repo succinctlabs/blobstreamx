@@ -47,9 +47,9 @@ impl<const MAX_LEAVES: usize, L: PlonkParameters<D>, const D: usize> Hint<L, D>
         let result = rt.block_on(async {
             data_fetcher
                 .get_data_commitment_inputs::<MAX_LEAVES, L::Field>(
-                    start_block.as_u64(),
+                    start_block,
                     start_header_hash,
-                    end_block.as_u64(),
+                    end_block,
                     end_header_hash,
                 )
                 .await
@@ -180,9 +180,9 @@ mod tests {
 
         let mut input = circuit.input();
 
-        input.evm_write::<U64Variable>(start_block.into());
+        input.evm_write::<U64Variable>(start_block as u64);
         input.evm_write::<Bytes32Variable>(H256::from_slice(start_header_hash.as_slice()));
-        input.evm_write::<U64Variable>(end_block.into());
+        input.evm_write::<U64Variable>(end_block as u64);
         input.evm_write::<Bytes32Variable>(H256::from_slice(end_header_hash.as_slice()));
 
         log::debug!("Generating proof");

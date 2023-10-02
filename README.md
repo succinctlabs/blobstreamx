@@ -12,6 +12,7 @@ Deployed for a maximum data commitment size of 256 blocks.
 
 ### Performance
 256 blocks: 251s (~4 minutes)
+
 1024 blocks: 1121s (~18 minutes)
 
 ## Tendermint Light Client
@@ -22,4 +23,5 @@ Deployed for a maximum validator set size of 128 validators.
 
 ### Performance
 Step with 128 validators: 717s (~12 minutes)
+
 Skip with 128 validators: 927s (~15 minutes) 
