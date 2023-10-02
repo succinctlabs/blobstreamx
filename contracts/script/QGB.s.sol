@@ -13,7 +13,7 @@ contract DeployScript is Script {
         vm.startBroadcast();
         address gateway = address(0x852a94F8309D445D27222eDb1E92A4E83DdDd2a8);
         bytes32 functionId = bytes32(
-            0x4dce2e99c5a52c3a4ef59d96e721ed12027d994a9f1ce7b00c17588644aaa413
+            0x3de611e319d93f624334f05e6b2c35830aa785576074520f32544694a5680727
         );
 
         address lightClient = address(
@@ -25,14 +25,20 @@ contract DeployScript is Script {
 
         qgb.updateTendermintLightClient(lightClient);
 
+        bytes32 header = hex"400773BF4613E2F0311DD382DB3B2278B6442560A7AD6627984799D2FC4F0DF9";
+
+        IZKTendermintLightClient(lightClient).setGenesisHeader(100100, header);
+
         qgb.updateFunctionId(functionId);
 
         // Use the below to interact with an already deployed ZK light client
 
-        uint64 latestBlock = 3000;
+        uint64 latestBlock = 100000;
         qgb.setLatestBlock(latestBlock);
 
-        uint64 targetBlock = 3001;
+        uint64 targetBlock = 100100;
+
+        // Both latestBlock and targetBlock must be set in QGB
 
         qgb.requestDataCommitment{value: 0.1 ether}(targetBlock);
 
