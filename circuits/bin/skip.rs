@@ -60,9 +60,9 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize, L: PlonkParameters<D>, const D: usize>
         output_stream.write_value::<Bytes32Variable>(result.1.into()); // target_header
         output_stream.write_value::<BoolVariable>(result.2); // round_present
         output_stream.write_value::<HeightProofVariable>(result.3); // block_height_proof
-        output_stream.write_value::<HashInclusionProofVariable>(result.4.to_hash_value_type()); // validators_hash_proof
+        output_stream.write_value::<HashInclusionProofVariable>(result.4); // validators_hash_proof
         output_stream.write_value::<Bytes32Variable>(result.5.into()); // trusted_header
-        output_stream.write_value::<HashInclusionProofVariable>(result.6.to_hash_value_type()); // trusted_header_validators_hash_proof
+        output_stream.write_value::<HashInclusionProofVariable>(result.6); // trusted_header_validators_hash_proof
         output_stream.write_value::<ArrayVariable<ValidatorHashFieldVariable<Ed25519>, MAX_VALIDATOR_SET_SIZE>>(
             result.7
         ); // trusted_header_validators_hash_fields

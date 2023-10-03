@@ -56,10 +56,9 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize, L: PlonkParameters<D>, const D: usize>
             .write_value::<ArrayVariable<ValidatorVariable<Ed25519>, MAX_VALIDATOR_SET_SIZE>>(
                 result.2,
             );
-        output_stream.write_value::<HashInclusionProofVariable>(result.3.to_hash_value_type());
-        output_stream
-            .write_value::<BlockIDInclusionProofVariable>(result.4.to_block_id_value_type());
-        output_stream.write_value::<HashInclusionProofVariable>(result.5.to_hash_value_type());
+        output_stream.write_value::<HashInclusionProofVariable>(result.3);
+        output_stream.write_value::<BlockIDInclusionProofVariable>(result.4);
+        output_stream.write_value::<HashInclusionProofVariable>(result.5);
     }
 }
 

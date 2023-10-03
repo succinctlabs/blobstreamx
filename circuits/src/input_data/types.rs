@@ -1,24 +1,18 @@
 use ed25519_consensus::SigningKey;
-use ethers::types::H256;
 use num::BigUint;
 use plonky2x::frontend::ecc::ed25519::curve::curve_types::AffinePoint;
 use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
 use plonky2x::frontend::ecc::ed25519::field::ed25519_scalar::Ed25519Scalar;
 use plonky2x::frontend::ecc::ed25519::gadgets::eddsa::EDDSASignatureTarget;
 use plonky2x::frontend::ecc::ed25519::gadgets::verify::DUMMY_SIGNATURE;
-use plonky2x::frontend::merkle::tree::InclusionProof;
 use plonky2x::prelude::{CircuitVariable, Field, RichField};
-use serde::{Deserialize, Serialize};
 use tendermint::crypto::ed25519::VerificationKey;
 use tendermint::validator::Set as ValidatorSet;
 use tendermint::vote::{SignedVote, ValidatorIndex};
 use tendermint::{private_key, Signature};
 
 use super::tendermint_utils::{non_absent_vote, TempSignedBlock};
-use crate::consts::{
-    HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES,
-    VALIDATOR_MESSAGE_BYTES_LENGTH_MAX,
-};
+use crate::consts::VALIDATOR_MESSAGE_BYTES_LENGTH_MAX;
 use crate::verify::{Validator, ValidatorHashField};
 
 type C = Ed25519;
