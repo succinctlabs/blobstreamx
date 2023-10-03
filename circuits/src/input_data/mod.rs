@@ -19,7 +19,7 @@ use self::tendermint_utils::{
     generate_proofs_from_header, DataCommitmentResponse, Hash, Header, HeaderResponse, Proof,
     SignedBlockResponse, TempSignedBlock,
 };
-use self::types::{update_present_on_trusted_header, TempMerkleInclusionProof};
+use self::types::update_present_on_trusted_header;
 use self::utils::convert_to_h256;
 use crate::consts::{
     BLOCK_HEIGHT_INDEX, DATA_HASH_INDEX, HEADER_PROOF_DEPTH, LAST_BLOCK_ID_INDEX,
@@ -187,7 +187,7 @@ impl InputDataFetcher {
         block_header: &Header,
         index: u64,
         encoded_leaf: Vec<u8>,
-    ) -> TempMerkleInclusionProof {
+    ) -> (Vec<u8>, Vec<H256>) {
         let hash: Hash = block_header.hash().as_bytes().try_into().unwrap();
         let proofs = match self.proof_cache.get(&hash) {
             Some(proofs) => proofs.clone(),
@@ -197,11 +197,20 @@ impl InputDataFetcher {
                 proofs
             }
         };
-        // TODO: check that the markle proof is valid
-        // before returning
-        TempMerkleInclusionProof {
-            enc_leaf: encoded_leaf,
-            proof: convert_to_h256(proofs[index as usize].aunts.clone()),
+        let proof = proofs[index as usize].clone();
+        (encoded_leaf, convert_to_h256(proof.aunts))
+    }
+
+    pub fn get_inclusion_proof<const LEAF_SIZE_BYTES: usize, F: RichField>(
+        &mut self,
+        block_header: &Header,
+        index: u64,
+        encoded_leaf: Vec<u8>,
+    ) -> InclusionProof<HEADER_PROOF_DEPTH, LEAF_SIZE_BYTES, F> {
+        let (leaf, proof) = self.get_merkle_proof(block_header, index, encoded_leaf);
+        InclusionProof {
+            leaf: leaf.try_into().unwrap(),
+            proof,
         }
     }
 
@@ -213,9 +222,9 @@ impl InputDataFetcher {
         [u8; 32],
         bool,
         Vec<Validator<Ed25519, F>>,
-        TempMerkleInclusionProof,
-        TempMerkleInclusionProof,
-        TempMerkleInclusionProof,
+        InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES, F>,
+        InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, F>,
+        InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES, F>,
     ) {
         println!("Getting step inputs");
         let prev_block = self.get_block_from_number(prev_block_number).await;
@@ -237,7 +246,7 @@ impl InputDataFetcher {
             "validator set size needs to be the provided validator_set_size_max"
         );
 
-        let next_block_validators_hash_proof = self.get_merkle_proof(
+        let next_block_validators_hash_proof = self.get_inclusion_proof(
             &next_block.header,
             VALIDATORS_HASH_INDEX as u64,
             next_block.header.validators_hash.encode_vec(),
@@ -252,13 +261,13 @@ impl InputDataFetcher {
             &encoded_last_block_id[2..34],
             "prev header hash doesn't pass sanity check"
         );
-        let next_block_last_block_id_proof = self.get_merkle_proof(
+        let next_block_last_block_id_proof = self.get_inclusion_proof(
             &next_block.header,
             LAST_BLOCK_ID_INDEX as u64,
             encoded_last_block_id,
         );
 
-        let prev_block_next_validators_hash_proof = self.get_merkle_proof(
+        let prev_block_next_validators_hash_proof = self.get_inclusion_proof(
             &prev_block.header,
             NEXT_VALIDATORS_HASH_INDEX as u64,
             prev_block.header.next_validators_hash.encode_vec(),
@@ -279,13 +288,13 @@ impl InputDataFetcher {
         trusted_block_hash: H256,
         target_block_number: u64,
     ) -> (
-        Vec<Validator<Ed25519, F>>,          // validators
-        [u8; 32],                            // target_header
-        bool,                                // round_present
-        HeightProofValueType<F>,             // target_block_height_proof,
-        TempMerkleInclusionProof,            // target_header_validators_hash_proof,
-        [u8; 32],                            // trusted_header
-        TempMerkleInclusionProof,            // trusted_validators_hash_proof
+        Vec<Validator<Ed25519, F>>, // validators
+        [u8; 32],                   // target_header
+        bool,                       // round_present
+        HeightProofValueType<F>,    // target_block_height_proof,
+        InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES, F>, // target_header_validators_hash_proof,
+        [u8; 32],                                                        // trusted_header
+        InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES, F>, // trusted_validators_hash_proof
         Vec<ValidatorHashField<Ed25519, F>>, // trusted_validators_hash_fields
     ) {
         let trusted_block = self.get_block_from_number(trusted_block_number).await;
@@ -314,10 +323,10 @@ impl InputDataFetcher {
         let target_block_height_proof = HeightProofValueType::<F> {
             height: target_block.header.height.value(),
             enc_height_byte_length: target_block.header.height.encode_vec().len() as u32,
-            proof: temp_target_block_height_proof.proof,
+            proof: temp_target_block_height_proof.1,
         };
 
-        let target_block_validators_hash_proof = self.get_merkle_proof(
+        let target_block_validators_hash_proof = self.get_inclusion_proof(
             &target_block.header,
             VALIDATORS_HASH_INDEX as u64,
             target_block.header.validators_hash.encode_vec(),
@@ -325,7 +334,7 @@ impl InputDataFetcher {
 
         let trusted_block_validator_fields =
             get_validators_fields_as_input::<VALIDATOR_SET_SIZE_MAX, F>(&trusted_block);
-        let trusted_block_validator_hash_proof = self.get_merkle_proof(
+        let trusted_block_validator_hash_proof = self.get_inclusion_proof(
             &trusted_block.header,
             VALIDATORS_HASH_INDEX as u64,
             trusted_block.header.validators_hash.encode_vec(),
@@ -377,13 +386,13 @@ impl InputDataFetcher {
             let data_hash = header.data_hash.unwrap();
             data_hashes.push(data_hash.as_bytes().try_into().unwrap());
 
-            let data_hash_proof = self.get_merkle_proof(
+            let data_hash_proof = self.get_inclusion_proof::<PROTOBUF_HASH_SIZE_BYTES, F>(
                 &header,
                 DATA_HASH_INDEX as u64,
                 header.data_hash.unwrap().encode_vec(),
             );
             data_hash_proofs.push(data_hash_proof);
-            let prev_header_proof = self.get_merkle_proof(
+            let prev_header_proof = self.get_inclusion_proof::<PROTOBUF_BLOCK_ID_SIZE_BYTES, F>(
                 &header,
                 LAST_BLOCK_ID_INDEX as u64,
                 Protobuf::<RawBlockId>::encode_vec(header.last_block_id.unwrap_or_default()),
@@ -400,13 +409,12 @@ impl InputDataFetcher {
         // Remove start_block's prev_header_proof, as data_commitment does not check it.
         prev_header_proofs = prev_header_proofs[1..].to_vec();
 
-        // TODO: Remove, convert get_merkle_proof to use InclusionProof.
         let mut data_hash_proofs_formatted = data_hash_proofs
             .into_iter()
             .map(
                 |proof| InclusionProof::<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES, F> {
                     proof: proof.proof,
-                    leaf: proof.enc_leaf.try_into().unwrap(),
+                    leaf: proof.leaf,
                 },
             )
             .collect_vec();
@@ -416,7 +424,7 @@ impl InputDataFetcher {
             .map(
                 |proof| InclusionProof::<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, F> {
                     proof: proof.proof,
-                    leaf: proof.enc_leaf.try_into().unwrap(),
+                    leaf: proof.leaf,
                 },
             )
             .collect_vec();

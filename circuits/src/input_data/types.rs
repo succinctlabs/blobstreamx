@@ -23,48 +23,6 @@ use crate::verify::{Validator, ValidatorHashField};
 
 type C = Ed25519;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TempMerkleInclusionProof {
-    pub enc_leaf: Vec<u8>,
-    // Proof should have a fixed length of HEADER_PROOF_DEPTH.
-    pub proof: Vec<H256>,
-}
-
-impl TempMerkleInclusionProof {
-    pub fn to_hash_value_type<F: RichField>(
-        &self,
-    ) -> InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES, F> {
-        if self.proof.len() != HEADER_PROOF_DEPTH {
-            panic!("path length does not match");
-        }
-        if self.enc_leaf.len() != PROTOBUF_HASH_SIZE_BYTES {
-            panic!("enc_leaf length does not match");
-        }
-        let leaf_as_fixed: [u8; PROTOBUF_HASH_SIZE_BYTES] = self.enc_leaf[..].try_into().unwrap();
-        InclusionProof {
-            leaf: leaf_as_fixed,
-            proof: self.proof.clone(),
-        }
-    }
-
-    pub fn to_block_id_value_type<F: RichField>(
-        &self,
-    ) -> InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, F> {
-        if self.proof.len() != HEADER_PROOF_DEPTH {
-            panic!("path length does not match");
-        }
-        if self.enc_leaf.len() != PROTOBUF_BLOCK_ID_SIZE_BYTES {
-            panic!("enc_leaf length does not match");
-        }
-        let leaf_as_fixed: [u8; PROTOBUF_BLOCK_ID_SIZE_BYTES] =
-            self.enc_leaf[..].try_into().unwrap();
-        InclusionProof {
-            leaf: leaf_as_fixed,
-            proof: self.proof.clone(),
-        }
-    }
-}
-
 fn pubkey_to_affine_point(pubkey: &VerificationKey) -> AffinePoint<C> {
     let pubkey_bytes = pubkey.as_bytes();
     AffinePoint::new_from_compressed_point(pubkey_bytes)

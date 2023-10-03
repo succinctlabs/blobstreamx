@@ -568,9 +568,9 @@ checksum = "acbf1af155f9b9ef647e42cdc158db4b64a1b61f743629225fde6f3e0be2a7c7"
 
 [[package]]
 name = "const-hex"
-version = "1.9.0"
+version = "1.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aa72a10d0e914cad6bcad4e7409e68d230c1c2db67896e19a37f758b1fcbdab5"
+checksum = "c37be52ef5e3b394db27a2341010685ad5103c72ac15ce2e9420a7e8f93f342c"
 dependencies = [
  "cfg-if",
  "cpufeatures",
@@ -719,7 +719,7 @@ dependencies = [
 [[package]]
 name = "curta"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/curta.git#7f295d5652ab1781fbf5156a886c32781e1d6c6d"
+source = "git+https://github.com/succinctlabs/curta.git#a1a5339b02cee0c9ce6f99da4b98e7903edac24d"
 dependencies = [
  "anyhow",
  "bincode",
@@ -2785,6 +2785,7 @@ source = "git+https://github.com/mir-protocol/plonky2.git#cd36e96cb844f3042aa7ac
 [[package]]
 name = "plonky2x"
 version = "0.1.0"
+source = "git+https://github.com/succinctlabs/succinctx.git#361acbea23bf397fa1d38cdae2c66961285b4334"
 dependencies = [
  "anyhow",
  "array-macro",
@@ -2827,6 +2828,7 @@ dependencies = [
 [[package]]
 name = "plonky2x-derive"
 version = "0.1.0"
+source = "git+https://github.com/succinctlabs/succinctx.git#361acbea23bf397fa1d38cdae2c66961285b4334"
 dependencies = [
  "proc-macro2",
  "quote",
