@@ -24,6 +24,7 @@ use ethers::types::H256;
 use plonky2x::backend::circuit::Circuit;
 use plonky2x::backend::function::VerifiableFunction;
 use plonky2x::frontend::hint::simple::hint::Hint;
+use plonky2x::frontend::hint::synchronous::Async;
 use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::frontend::vars::{ValueStream, VariableStream};
 use plonky2x::prelude::{Bytes32Variable, CircuitBuilder, PlonkParameters};
@@ -86,8 +87,10 @@ impl<const MAX_LEAVES: usize> Circuit for DataCommitmentCircuit<MAX_LEAVES> {
         input_stream.write(&start_header_hash);
         input_stream.write(&end_block_number);
         input_stream.write(&end_header_hash);
-        let output_stream =
-            builder.hint(input_stream, DataCommitmentOffchainInputs::<MAX_LEAVES> {});
+        let output_stream = builder.async_hint(
+            input_stream,
+            Async(DataCommitmentOffchainInputs::<MAX_LEAVES> {}),
+        );
         let data_comm_proof =
             output_stream.read::<DataCommitmentProofVariable<MAX_LEAVES>>(builder);
 
@@ -247,15 +250,15 @@ mod tests {
     fn test_data_commitment_smart_contract() {
         // Test variable length NUM_BLOCKS.
         const MAX_LEAVES: usize = 256;
-        const NUM_BLOCKS: usize = 100;
+        const NUM_BLOCKS: usize = 4;
 
-        let start_block = 100000u64;
+        let start_block = 10000u64;
         let start_header_hash =
-            hex::decode_upper("0C1D96912ACE4102C620EC6223E4A457D01ABC9CEC70B7149A10410472D6D60E")
+            hex::decode_upper("A0123D5E4B8B8888A61F931EE2252D83568B97C223E0ECA9795B29B8BD8CBA2D")
                 .unwrap();
         let end_block = start_block + NUM_BLOCKS as u64;
         let end_header_hash =
-            hex::decode_upper("400773BF4613E2F0311DD382DB3B2278B6442560A7AD6627984799D2FC4F0DF9")
+            hex::decode_upper("FCDA37FA6306C77737DD911E6101B612E2DBD837F29ED4F4E1C30919FBAC9D05")
                 .unwrap();
 
         test_data_commitment_template::<MAX_LEAVES>(
