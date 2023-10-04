@@ -8,8 +8,8 @@ use plonky2x::frontend::merkle::tree::MerkleInclusionProofVariable;
 use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::frontend::vars::U32Variable;
 use plonky2x::prelude::{
-    ArrayVariable, Bytes32Variable, BytesVariable, CircuitBuilder, CircuitVariable, Field,
-    PlonkParameters, RichField, Variable, Witness, WitnessWrite,
+    ArrayVariable, BoolVariable, Bytes32Variable, BytesVariable, CircuitBuilder, CircuitVariable,
+    Field, PlonkParameters, RichField, Variable, Witness, WitnessWrite,
 };
 use tendermint::crypto::ed25519::VerificationKey;
 use tendermint::{private_key, Signature};
@@ -63,7 +63,8 @@ pub type ValidatorMessageVariable = BytesVariable<VALIDATOR_MESSAGE_BYTES_LENGTH
 // Proof is the block height proof against a header.
 // Height is the block height of the header as a u64.
 // EncHeightByteLength is the length of the protobuf-encoded height as a u32.
-// TODO: Make this generic for all variable length header proofs.
+// The reason we cannot use a MerkleInclusionProofVariable is the height is not fixed length
+// and the encoding of the height is not fixed length.
 #[derive(Clone, Debug, CircuitVariable)]
 #[value_name(HeightProofValueType)]
 pub struct HeightProofVariable {
@@ -71,6 +72,13 @@ pub struct HeightProofVariable {
     pub enc_height_byte_length: U32Variable,
     pub height: U64Variable,
 }
+
+/// The protobuf-encoded leaf (a hash), and it's corresponding proof and path indices against the header.
+pub type HashInclusionProofVariable =
+    MerkleInclusionProofVariable<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES>;
+
+pub type BlockIDInclusionProofVariable =
+    MerkleInclusionProofVariable<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES>;
 
 // The data commitment inputs as a struct.
 // Note: data_hashes should be in order from start_header to end_header - 1.
@@ -93,4 +101,28 @@ pub struct DataCommitmentProofVariable<const MAX_LEAVES: usize> {
         MerkleInclusionProofVariable<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES>,
         MAX_LEAVES,
     >,
+}
+
+#[derive(Debug, Clone, CircuitVariable)]
+#[value_name(Validator)]
+pub struct ValidatorVariable {
+    pub pubkey: EDDSAPublicKeyVariable,
+    pub signature: EDDSASignatureVariable,
+    pub message: ValidatorMessageVariable,
+    pub message_byte_length: Variable,
+    pub voting_power: U64Variable,
+    pub validator_byte_length: Variable,
+    pub enabled: BoolVariable,
+    pub signed: BoolVariable,
+    // Only used in skip circuit
+    pub present_on_trusted_header: BoolVariable,
+}
+
+#[derive(Debug, Clone, CircuitVariable)]
+#[value_name(ValidatorHashField)]
+pub struct ValidatorHashFieldVariable {
+    pub pubkey: EDDSAPublicKeyVariable,
+    pub voting_power: U64Variable,
+    pub validator_byte_length: Variable,
+    pub enabled: BoolVariable,
 }

@@ -17,10 +17,8 @@
 use std::env;
 
 use celestia::input_data::InputDataFetcher;
-use celestia::variables::HeightProofVariable;
-use celestia::verify::{
-    HashInclusionProofVariable, TendermintVerify, ValidatorHashFieldVariable, ValidatorVariable,
-};
+use celestia::variables::*;
+use celestia::verify::TendermintVerify;
 use plonky2x::backend::circuit::Circuit;
 use plonky2x::backend::function::VerifiableFunction;
 use plonky2x::frontend::hint::simple::hint::Hint;

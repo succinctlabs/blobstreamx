@@ -14,42 +14,8 @@ use crate::consts::{
 };
 use crate::shared::TendermintHeader;
 use crate::validator::TendermintValidator;
-use crate::variables::{
-    EDDSAPublicKeyVariable, EDDSASignatureVariable, HeightProofVariable,
-    MarshalledValidatorVariable, TendermintHashVariable, ValidatorMessageVariable,
-};
+use crate::variables::*;
 use crate::voting::TendermintVoting;
-
-#[derive(Debug, Clone, CircuitVariable)]
-#[value_name(Validator)]
-pub struct ValidatorVariable {
-    pub pubkey: EDDSAPublicKeyVariable,
-    pub signature: EDDSASignatureVariable,
-    pub message: ValidatorMessageVariable,
-    pub message_byte_length: Variable,
-    pub voting_power: U64Variable,
-    pub validator_byte_length: Variable,
-    pub enabled: BoolVariable,
-    pub signed: BoolVariable,
-    // Only used in skip circuit
-    pub present_on_trusted_header: BoolVariable,
-}
-
-#[derive(Debug, Clone, CircuitVariable)]
-#[value_name(ValidatorHashField)]
-pub struct ValidatorHashFieldVariable {
-    pub pubkey: EDDSAPublicKeyVariable,
-    pub voting_power: U64Variable,
-    pub validator_byte_length: Variable,
-    pub enabled: BoolVariable,
-}
-
-/// The protobuf-encoded leaf (a hash), and it's corresponding proof and path indices against the header.
-pub type HashInclusionProofVariable =
-    MerkleInclusionProofVariable<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES>;
-
-pub type BlockIDInclusionProofVariable =
-    MerkleInclusionProofVariable<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES>;
 
 pub trait TendermintVerify<L: PlonkParameters<D>, const D: usize> {
     fn get_root<const LEAF_SIZE_BYTES: usize>(

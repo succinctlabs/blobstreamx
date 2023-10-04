@@ -26,8 +26,7 @@ use crate::consts::{
     VALIDATORS_HASH_INDEX,
 };
 use crate::input_data::types::{get_validators_as_input, get_validators_fields_as_input};
-use crate::variables::HeightProofValueType;
-use crate::verify::{Validator, ValidatorHashField};
+use crate::variables::*;
 
 pub enum InputDataMode {
     Rpc(String),

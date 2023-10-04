@@ -10,10 +10,7 @@ use tendermint::{private_key, Signature};
 
 use super::tendermint_utils::{non_absent_vote, TempSignedBlock};
 use crate::consts::VALIDATOR_MESSAGE_BYTES_LENGTH_MAX;
-use crate::variables::{
-    pubkey_to_value_type, signature_to_value_type, EDDSASignatureVariable, Ed25519, Ed25519Scalar,
-};
-use crate::verify::{Validator, ValidatorHashField};
+use crate::variables::*;
 
 pub fn get_validators_as_input<const VALIDATOR_SET_SIZE_MAX: usize, F: RichField>(
     block: &TempSignedBlock,
