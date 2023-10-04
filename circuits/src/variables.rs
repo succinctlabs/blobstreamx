@@ -12,7 +12,7 @@ use plonky2x::prelude::{
     Field, PlonkParameters, RichField, Variable, Witness, WitnessWrite,
 };
 use tendermint::crypto::ed25519::VerificationKey;
-use tendermint::{private_key, Signature};
+use tendermint::Signature;
 
 use crate::consts::{
     HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES,

@@ -1,8 +1,6 @@
 use ed25519_consensus::SigningKey;
-use num::BigUint;
-use plonky2x::frontend::ecc::ed25519::curve::curve_types::AffinePoint;
 use plonky2x::frontend::ecc::ed25519::gadgets::verify::DUMMY_SIGNATURE;
-use plonky2x::prelude::{CircuitVariable, Field, RichField};
+use plonky2x::prelude::RichField;
 use tendermint::crypto::ed25519::VerificationKey;
 use tendermint::validator::Set as ValidatorSet;
 use tendermint::vote::{SignedVote, ValidatorIndex};
