@@ -5,7 +5,7 @@ use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::frontend::vars::U32Variable;
 use plonky2x::prelude::{
     ArrayVariable, Bytes32Variable, BytesVariable, CircuitBuilder, CircuitVariable,
-    PlonkParameters, RichField, Variable, Witness, WitnessWrite,
+    PlonkParameters, RichField, Variable,
 };
 
 use crate::consts::{
