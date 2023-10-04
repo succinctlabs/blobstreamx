@@ -51,7 +51,7 @@ pub struct DataCommitment {
 
 #[derive(Debug, Deserialize)]
 pub struct SignedBlockResponse {
-    pub result: TempSignedBlock,
+    pub result: SignedBlock,
 }
 
 #[derive(Debug, Deserialize)]
@@ -76,7 +76,7 @@ pub struct TempValidatorSet {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[non_exhaustive]
-pub struct TempSignedBlock {
+pub struct SignedBlock {
     /// Block header
     pub header: Header,
 
@@ -89,22 +89,6 @@ pub struct TempSignedBlock {
     /// Validator set
     pub validator_set: TempValidatorSet,
 }
-
-// #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-// #[non_exhaustive]
-// pub struct SignedBlock {
-//     /// Block header
-//     pub header: Header,
-
-//     /// Transaction data
-//     pub data: RawData,
-
-//     /// Commit
-//     pub commit: Commit,
-
-//     /// Validator set
-//     pub validator_set: ValidatorSet,
-// }
 
 // Note: Matches the implementation in tendermint-rs, need to add PR to tendermint-rs to support proofs
 // https://github.com/tendermint/tendermint/blob/35581cf54ec436b8c37fabb43fdaa3f48339a170/crypto/merkle/proof.go#L35-L236

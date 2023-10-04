@@ -1,6 +1,4 @@
 use plonky2x::backend::circuit::PlonkParameters;
-use plonky2x::frontend::ecc::ed25519::curve::curve_types::Curve;
-use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
 use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::frontend::vars::{ArrayVariable, Bytes32Variable, EvmVariable};
 use plonky2x::prelude::{BoolVariable, ByteVariable, BytesVariable, CircuitBuilder};
@@ -13,8 +11,6 @@ use crate::consts::{
 use crate::variables::DataCommitmentProofVariable;
 
 pub trait DataCommitment<L: PlonkParameters<D>, const D: usize> {
-    type Curve: Curve;
-
     /// Encodes the data hash and height into a tuple.
     /// Spec: https://github.com/celestiaorg/celestia-core/blob/6933af1ead0ddf4a8c7516690e3674c6cdfa7bd8/rpc/core/blocks.go#L325-L334
     fn encode_data_root_tuple(
@@ -50,8 +46,6 @@ pub trait DataCommitment<L: PlonkParameters<D>, const D: usize> {
 }
 
 impl<L: PlonkParameters<D>, const D: usize> DataCommitment<L, D> for CircuitBuilder<L, D> {
-    type Curve = Ed25519;
-
     fn encode_data_root_tuple(
         &mut self,
         data_hash: &Bytes32Variable,

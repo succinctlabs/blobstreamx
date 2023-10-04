@@ -6,12 +6,12 @@ use tendermint::validator::Set as ValidatorSet;
 use tendermint::vote::{SignedVote, ValidatorIndex};
 use tendermint::{private_key, Signature};
 
-use super::tendermint_utils::{non_absent_vote, TempSignedBlock};
+use super::tendermint_utils::{non_absent_vote, SignedBlock};
 use crate::consts::VALIDATOR_MESSAGE_BYTES_LENGTH_MAX;
 use crate::variables::*;
 
 pub fn get_validators_as_input<const VALIDATOR_SET_SIZE_MAX: usize, F: RichField>(
-    block: &TempSignedBlock,
+    block: &SignedBlock,
 ) -> Vec<Validator<F>> {
     let mut validators = Vec::new();
 
@@ -106,7 +106,7 @@ pub fn get_validators_as_input<const VALIDATOR_SET_SIZE_MAX: usize, F: RichField
 }
 
 pub fn get_validators_fields_as_input<const VALIDATOR_SET_SIZE_MAX: usize, F: RichField>(
-    trusted_block: &TempSignedBlock,
+    trusted_block: &SignedBlock,
 ) -> Vec<ValidatorHashField<F>> {
     let mut trusted_validator_fields = Vec::new();
 
@@ -157,8 +157,8 @@ pub fn get_validators_fields_as_input<const VALIDATOR_SET_SIZE_MAX: usize, F: Ri
 
 pub fn update_present_on_trusted_header<F: RichField>(
     target_validators: &mut [Validator<F>],
-    target_block: &TempSignedBlock,
-    start_block: &TempSignedBlock,
+    target_block: &SignedBlock,
+    start_block: &SignedBlock,
 ) {
     // Parse each block to compute the validators that are the same from block_1 to block_2, and the cumulative voting power of the shared validators
     let mut shared_voting_power = 0;

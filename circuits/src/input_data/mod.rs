@@ -16,7 +16,7 @@ use tendermint_proto::Protobuf;
 
 use self::tendermint_utils::{
     generate_proofs_from_header, DataCommitmentResponse, Hash, Header, HeaderResponse, Proof,
-    SignedBlockResponse, TempSignedBlock,
+    SignedBlock, SignedBlockResponse,
 };
 use self::types::update_present_on_trusted_header;
 use self::utils::convert_to_h256;
@@ -111,7 +111,7 @@ impl InputDataFetcher {
             .unwrap()
     }
 
-    pub async fn get_block_from_number(&self, block_number: u64) -> Box<TempSignedBlock> {
+    pub async fn get_block_from_number(&self, block_number: u64) -> Box<SignedBlock> {
         let file_name = format!(
             "{}/{}/signed_block.json",
             self.fixture_path,
