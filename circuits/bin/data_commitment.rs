@@ -96,12 +96,19 @@ impl<const MAX_LEAVES: usize> Circuit for DataCommitmentCircuit<MAX_LEAVES> {
         input_stream.write(&end_header_hash);
         let output_stream =
             builder.async_hint(input_stream, DataCommitmentOffchainInputs::<MAX_LEAVES> {});
+
+        debug!("Finished data comm hint");
+
         let data_comm_proof =
             output_stream.read::<DataCommitmentProofVariable<MAX_LEAVES>>(builder);
 
         let expected_data_commitment = output_stream.read::<Bytes32Variable>(builder);
 
+        debug!("Start proving data comm");
+
         let data_commitment = builder.prove_data_commitment::<MAX_LEAVES>(data_comm_proof);
+
+        debug!("Finished proving data comm");
 
         builder.assert_is_equal(data_commitment, expected_data_commitment);
 
