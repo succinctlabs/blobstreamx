@@ -16,6 +16,7 @@
 //!
 use std::env;
 
+use async_trait::async_trait;
 use celestia::commitment::DataCommitment;
 use celestia::input_data::utils::convert_to_h256;
 use celestia::input_data::InputDataFetcher;
@@ -23,20 +24,24 @@ use celestia::variables::{DataCommitmentProofValueType, DataCommitmentProofVaria
 use ethers::types::H256;
 use plonky2x::backend::circuit::Circuit;
 use plonky2x::backend::function::VerifiableFunction;
-use plonky2x::frontend::hint::simple::hint::Hint;
-use plonky2x::frontend::hint::synchronous::Async;
+use plonky2x::frontend::hint::asynchronous::hint::AsyncHint;
 use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::frontend::vars::{ValueStream, VariableStream};
 use plonky2x::prelude::{Bytes32Variable, CircuitBuilder, PlonkParameters};
 use serde::{Deserialize, Serialize};
-use tokio::runtime::Runtime; // TODO: re-export this instead of this path
+use tracing::debug;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct DataCommitmentOffchainInputs<const MAX_LEAVES: usize> {}
 
-impl<const MAX_LEAVES: usize, L: PlonkParameters<D>, const D: usize> Hint<L, D>
+#[async_trait]
+impl<const MAX_LEAVES: usize, L: PlonkParameters<D>, const D: usize> AsyncHint<L, D>
     for DataCommitmentOffchainInputs<MAX_LEAVES>
 {
-    fn hint(&self, input_stream: &mut ValueStream<L, D>, output_stream: &mut ValueStream<L, D>) {
+    async fn hint(
+        &self,
+        input_stream: &mut ValueStream<L, D>,
+        output_stream: &mut ValueStream<L, D>,
+    ) {
         let start_block = input_stream.read_value::<U64Variable>();
         let start_header_hash = input_stream.read_value::<Bytes32Variable>();
         let end_block = input_stream.read_value::<U64Variable>();
@@ -44,17 +49,17 @@ impl<const MAX_LEAVES: usize, L: PlonkParameters<D>, const D: usize> Hint<L, D>
 
         let mut data_fetcher = InputDataFetcher::new();
 
-        let rt = Runtime::new().expect("failed to create tokio runtime");
-        let result = rt.block_on(async {
-            data_fetcher
-                .get_data_commitment_inputs::<MAX_LEAVES, L::Field>(
-                    start_block,
-                    start_header_hash,
-                    end_block,
-                    end_header_hash,
-                )
-                .await
-        });
+        debug!("Fetching data comm inputs");
+        let result = data_fetcher
+            .get_data_commitment_inputs::<MAX_LEAVES, L::Field>(
+                start_block,
+                start_header_hash,
+                end_block,
+                end_header_hash,
+            )
+            .await;
+        debug!("Done fetching data comm inputs");
+
         let data_comm_proof = DataCommitmentProofValueType {
             data_hashes: convert_to_h256(result.0),
             start_block_height: start_block,
@@ -64,10 +69,12 @@ impl<const MAX_LEAVES: usize, L: PlonkParameters<D>, const D: usize> Hint<L, D>
             data_hash_proofs: result.1,
             prev_header_proofs: result.2,
         };
+        debug!("Writing data comm inputs");
         // Write the inputs to the data commitment circuit.
         output_stream.write_value::<DataCommitmentProofVariable<MAX_LEAVES>>(data_comm_proof);
         // Write the expected data commitment.
         output_stream.write_value::<Bytes32Variable>(H256(result.3));
+        debug!("Done writing data comm inputs");
     }
 }
 
@@ -87,10 +94,8 @@ impl<const MAX_LEAVES: usize> Circuit for DataCommitmentCircuit<MAX_LEAVES> {
         input_stream.write(&start_header_hash);
         input_stream.write(&end_block_number);
         input_stream.write(&end_header_hash);
-        let output_stream = builder.async_hint(
-            input_stream,
-            Async(DataCommitmentOffchainInputs::<MAX_LEAVES> {}),
-        );
+        let output_stream =
+            builder.async_hint(input_stream, DataCommitmentOffchainInputs::<MAX_LEAVES> {});
         let data_comm_proof =
             output_stream.read::<DataCommitmentProofVariable<MAX_LEAVES>>(builder);
 
@@ -109,7 +114,7 @@ impl<const MAX_LEAVES: usize> Circuit for DataCommitmentCircuit<MAX_LEAVES> {
         <<L as PlonkParameters<D>>::Config as plonky2::plonk::config::GenericConfig<D>>::Hasher:
             plonky2::plonk::config::AlgebraicHasher<L::Field>,
     {
-        generator_registry.register_hint::<DataCommitmentOffchainInputs<MAX_LEAVES>>();
+        generator_registry.register_async_hint::<DataCommitmentOffchainInputs<MAX_LEAVES>>();
     }
 }
 
@@ -169,7 +174,9 @@ mod tests {
         end_header_hash: [u8; 32],
     ) {
         env::set_var("RUST_LOG", "debug");
-        env_logger::try_init().unwrap_or_default();
+        // env_logger::try_init().unwrap_or_default();
+        tracing_subscriber::fmt::init();
+
         // env::set_var("RPC_MOCHA_4", "fixture"); // Use fixture during testing
 
         let mut builder = DefaultBuilder::new();

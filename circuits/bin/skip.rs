@@ -16,6 +16,7 @@
 //!
 use std::env;
 
+use async_trait::async_trait;
 use celestia::input_data::InputDataFetcher;
 use celestia::variables::HeightProofVariable;
 use celestia::verify::{
@@ -24,35 +25,37 @@ use celestia::verify::{
 use plonky2x::backend::circuit::Circuit;
 use plonky2x::backend::function::VerifiableFunction;
 use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
-use plonky2x::frontend::hint::simple::hint::Hint;
+use plonky2x::frontend::hint::asynchronous::hint::AsyncHint;
 use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::frontend::vars::{ValueStream, VariableStream};
 use plonky2x::prelude::{
     ArrayVariable, BoolVariable, Bytes32Variable, CircuitBuilder, PlonkParameters,
 };
 use serde::{Deserialize, Serialize};
-use tokio::runtime::Runtime; // TODO: re-export this instead of this path
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct SkipOffchainInputs<const MAX_VALIDATOR_SET_SIZE: usize> {}
 
-impl<const MAX_VALIDATOR_SET_SIZE: usize, L: PlonkParameters<D>, const D: usize> Hint<L, D>
+#[async_trait]
+impl<const MAX_VALIDATOR_SET_SIZE: usize, L: PlonkParameters<D>, const D: usize> AsyncHint<L, D>
     for SkipOffchainInputs<MAX_VALIDATOR_SET_SIZE>
 {
-    fn hint(&self, input_stream: &mut ValueStream<L, D>, output_stream: &mut ValueStream<L, D>) {
+    async fn hint(
+        &self,
+        input_stream: &mut ValueStream<L, D>,
+        output_stream: &mut ValueStream<L, D>,
+    ) {
         let trusted_header_hash = input_stream.read_value::<Bytes32Variable>();
         let trusted_block = input_stream.read_value::<U64Variable>();
         let target_block = input_stream.read_value::<U64Variable>();
         let mut data_fetcher = InputDataFetcher::new();
-        let rt = Runtime::new().expect("failed to create tokio runtime");
-        let result = rt.block_on(async {
-            data_fetcher
-                .get_skip_inputs::<MAX_VALIDATOR_SET_SIZE, L::Field>(
-                    trusted_block,
-                    trusted_header_hash,
-                    target_block,
-                )
-                .await
-        });
+
+        let result = data_fetcher
+            .get_skip_inputs::<MAX_VALIDATOR_SET_SIZE, L::Field>(
+                trusted_block,
+                trusted_header_hash,
+                target_block,
+            )
+            .await;
         output_stream
             .write_value::<ArrayVariable<ValidatorVariable<Ed25519>, MAX_VALIDATOR_SET_SIZE>>(
                 result.0,
@@ -83,7 +86,7 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize> Circuit for SkipCircuit<MAX_VALIDATOR_
         input_stream.write(&trusted_header_hash);
         input_stream.write(&trusted_block);
         input_stream.write(&target_block);
-        let output_stream = builder.hint(
+        let output_stream = builder.async_hint(
             input_stream,
             SkipOffchainInputs::<MAX_VALIDATOR_SET_SIZE> {},
         );
@@ -121,7 +124,7 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize> Circuit for SkipCircuit<MAX_VALIDATOR_
         <<L as PlonkParameters<D>>::Config as plonky2::plonk::config::GenericConfig<D>>::Hasher:
             plonky2::plonk::config::AlgebraicHasher<L::Field>,
     {
-        generator_registry.register_hint::<SkipOffchainInputs<MAX_VALIDATOR_SET_SIZE>>();
+        generator_registry.register_async_hint::<SkipOffchainInputs<MAX_VALIDATOR_SET_SIZE>>();
     }
 }
 

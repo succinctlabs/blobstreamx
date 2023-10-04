@@ -16,6 +16,7 @@
 //!
 use std::env;
 
+use async_trait::async_trait;
 use celestia::input_data::InputDataFetcher;
 use celestia::verify::{
     BlockIDInclusionProofVariable, HashInclusionProofVariable, TendermintVerify, ValidatorVariable,
@@ -23,33 +24,39 @@ use celestia::verify::{
 use plonky2x::backend::circuit::Circuit;
 use plonky2x::backend::function::VerifiableFunction;
 use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
-use plonky2x::frontend::hint::simple::hint::Hint;
+use plonky2x::frontend::hint::asynchronous::hint::AsyncHint;
 use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::frontend::vars::{ValueStream, VariableStream};
 use plonky2x::prelude::{
     ArrayVariable, BoolVariable, Bytes32Variable, CircuitBuilder, PlonkParameters,
 };
 use serde::{Deserialize, Serialize};
-use tokio::runtime::Runtime; // TODO: re-export this instead of this path
+use tracing::debug;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct StepOffchainInputs<const MAX_VALIDATOR_SET_SIZE: usize> {}
 
-impl<const MAX_VALIDATOR_SET_SIZE: usize, L: PlonkParameters<D>, const D: usize> Hint<L, D>
+#[async_trait]
+impl<const MAX_VALIDATOR_SET_SIZE: usize, L: PlonkParameters<D>, const D: usize> AsyncHint<L, D>
     for StepOffchainInputs<MAX_VALIDATOR_SET_SIZE>
 {
-    fn hint(&self, input_stream: &mut ValueStream<L, D>, output_stream: &mut ValueStream<L, D>) {
+    async fn hint(
+        &self,
+        input_stream: &mut ValueStream<L, D>,
+        output_stream: &mut ValueStream<L, D>,
+    ) {
         let prev_header_hash = input_stream.read_value::<Bytes32Variable>();
         let prev_block_number = input_stream.read_value::<U64Variable>();
         let mut data_fetcher = InputDataFetcher::new();
-        let rt = Runtime::new().expect("failed to create tokio runtime");
-        let result = rt.block_on(async {
-            data_fetcher
-                .get_step_inputs::<MAX_VALIDATOR_SET_SIZE, L::Field>(
-                    prev_block_number,
-                    prev_header_hash,
-                )
-                .await
-        });
+
+        debug!("Fetching step inputs");
+        let result = data_fetcher
+            .get_step_inputs::<MAX_VALIDATOR_SET_SIZE, L::Field>(
+                prev_block_number,
+                prev_header_hash,
+            )
+            .await;
+        debug!("Done fetching step inputs");
+
         output_stream.write_value::<Bytes32Variable>(result.0.into()); // next_header
         output_stream.write_value::<BoolVariable>(result.1); // round_present
         output_stream
@@ -73,7 +80,7 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize> Circuit for StepCircuit<MAX_VALIDATOR_
         let mut input_stream = VariableStream::new();
         input_stream.write(&prev_header_hash);
         input_stream.write(&prev_block_number);
-        let output_stream = builder.hint(
+        let output_stream = builder.async_hint(
             input_stream,
             StepOffchainInputs::<MAX_VALIDATOR_SET_SIZE> {},
         );
@@ -106,7 +113,7 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize> Circuit for StepCircuit<MAX_VALIDATOR_
         <<L as PlonkParameters<D>>::Config as plonky2::plonk::config::GenericConfig<D>>::Hasher:
             plonky2::plonk::config::AlgebraicHasher<L::Field>,
     {
-        generator_registry.register_hint::<StepOffchainInputs<MAX_VALIDATOR_SET_SIZE>>();
+        generator_registry.register_async_hint::<StepOffchainInputs<MAX_VALIDATOR_SET_SIZE>>();
     }
 }
 

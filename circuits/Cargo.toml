@@ -23,6 +23,7 @@ ci = []
 
 [dependencies]
 anyhow = "1.0.71"
+async-trait = "0.1.73"
 clap = { version = "4.3.18", features = ["derive"] }
 curta = { git = "https://github.com/succinctlabs/curta.git" }
 digest = "0.10.7"
@@ -34,7 +35,7 @@ itertools = "0.11.0"
 log = "0.4.19"
 num = "0.4.1"
 plonky2 = { git = "https://github.com/mir-protocol/plonky2.git" }
-plonky2x = { git = "https://github.com/succinctlabs/succinctx.git", branch = "ratan/sha256-curta-async" }
+plonky2x = { git = "https://github.com/succinctlabs/succinctx.git", branch = "tamir/sha_expriments" }
 rand = "0.8.5"
 reqwest = "0.11.18"
 serde = "1.0.175"
@@ -44,3 +45,5 @@ subtle-encoding = "0.5.1"
 tendermint = "0.33.0"
 tendermint-proto = "0.33.0"
 tokio = { version = "1.29.1", features = ["full"] }
+tracing = "0.1.37"
+tracing-subscriber = "0.3.17"
