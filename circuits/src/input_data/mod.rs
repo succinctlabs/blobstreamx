@@ -8,7 +8,6 @@ use std::{env, fs};
 
 use ethers::types::H256;
 use itertools::Itertools;
-use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
 use plonky2x::frontend::merkle::tree::InclusionProof;
 use plonky2x::prelude::RichField;
 use subtle_encoding::hex;
@@ -221,7 +220,7 @@ impl InputDataFetcher {
     ) -> (
         [u8; 32],
         bool,
-        Vec<Validator<Ed25519, F>>,
+        Vec<Validator<F>>,
         InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES, F>,
         InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, F>,
         InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES, F>,
@@ -288,14 +287,14 @@ impl InputDataFetcher {
         trusted_block_hash: H256,
         target_block_number: u64,
     ) -> (
-        Vec<Validator<Ed25519, F>>, // validators
-        [u8; 32],                   // target_header
-        bool,                       // round_present
-        HeightProofValueType<F>,    // target_block_height_proof,
+        Vec<Validator<F>>,                                               // validators
+        [u8; 32],                                                        // target_header
+        bool,                                                            // round_present
+        HeightProofValueType<F>, // target_block_height_proof,
         InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES, F>, // target_header_validators_hash_proof,
         [u8; 32],                                                        // trusted_header
         InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES, F>, // trusted_validators_hash_proof
-        Vec<ValidatorHashField<Ed25519, F>>, // trusted_validators_hash_fields
+        Vec<ValidatorHashField<F>>, // trusted_validators_hash_fields
     ) {
         let trusted_block = self.get_block_from_number(trusted_block_number).await;
         let computed_trusted_header_hash = trusted_block.header.hash();

@@ -22,7 +22,6 @@ use celestia::verify::{
 };
 use plonky2x::backend::circuit::Circuit;
 use plonky2x::backend::function::VerifiableFunction;
-use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
 use plonky2x::frontend::hint::simple::hint::Hint;
 use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::frontend::vars::{ValueStream, VariableStream};
@@ -53,9 +52,7 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize, L: PlonkParameters<D>, const D: usize>
         output_stream.write_value::<Bytes32Variable>(result.0.into()); // next_header
         output_stream.write_value::<BoolVariable>(result.1); // round_present
         output_stream
-            .write_value::<ArrayVariable<ValidatorVariable<Ed25519>, MAX_VALIDATOR_SET_SIZE>>(
-                result.2,
-            );
+            .write_value::<ArrayVariable<ValidatorVariable, MAX_VALIDATOR_SET_SIZE>>(result.2);
         output_stream.write_value::<HashInclusionProofVariable>(result.3);
         output_stream.write_value::<BlockIDInclusionProofVariable>(result.4);
         output_stream.write_value::<HashInclusionProofVariable>(result.5);
@@ -79,8 +76,8 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize> Circuit for StepCircuit<MAX_VALIDATOR_
         );
         let next_header = output_stream.read::<Bytes32Variable>(builder);
         let round_present = output_stream.read::<BoolVariable>(builder);
-        let next_block_validators = output_stream
-            .read::<ArrayVariable<ValidatorVariable<Ed25519>, MAX_VALIDATOR_SET_SIZE>>(builder);
+        let next_block_validators =
+            output_stream.read::<ArrayVariable<ValidatorVariable, MAX_VALIDATOR_SET_SIZE>>(builder);
         let next_block_validators_hash_proof =
             output_stream.read::<HashInclusionProofVariable>(builder);
         let next_block_last_block_id_proof =

@@ -23,7 +23,6 @@ use celestia::verify::{
 };
 use plonky2x::backend::circuit::Circuit;
 use plonky2x::backend::function::VerifiableFunction;
-use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
 use plonky2x::frontend::hint::simple::hint::Hint;
 use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::frontend::vars::{ValueStream, VariableStream};
@@ -54,18 +53,17 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize, L: PlonkParameters<D>, const D: usize>
                 .await
         });
         output_stream
-            .write_value::<ArrayVariable<ValidatorVariable<Ed25519>, MAX_VALIDATOR_SET_SIZE>>(
-                result.0,
-            ); // target_block_validators
+            .write_value::<ArrayVariable<ValidatorVariable, MAX_VALIDATOR_SET_SIZE>>(result.0); // target_block_validators
         output_stream.write_value::<Bytes32Variable>(result.1.into()); // target_header
         output_stream.write_value::<BoolVariable>(result.2); // round_present
         output_stream.write_value::<HeightProofVariable>(result.3); // block_height_proof
         output_stream.write_value::<HashInclusionProofVariable>(result.4); // validators_hash_proof
         output_stream.write_value::<Bytes32Variable>(result.5.into()); // trusted_header
         output_stream.write_value::<HashInclusionProofVariable>(result.6); // trusted_header_validators_hash_proof
-        output_stream.write_value::<ArrayVariable<ValidatorHashFieldVariable<Ed25519>, MAX_VALIDATOR_SET_SIZE>>(
-            result.7
-        ); // trusted_header_validators_hash_fields
+        output_stream
+            .write_value::<ArrayVariable<ValidatorHashFieldVariable, MAX_VALIDATOR_SET_SIZE>>(
+                result.7,
+            ); // trusted_header_validators_hash_fields
     }
 }
 
@@ -87,8 +85,8 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize> Circuit for SkipCircuit<MAX_VALIDATOR_
             input_stream,
             SkipOffchainInputs::<MAX_VALIDATOR_SET_SIZE> {},
         );
-        let target_block_validators = output_stream
-            .read::<ArrayVariable<ValidatorVariable<Ed25519>, MAX_VALIDATOR_SET_SIZE>>(builder);
+        let target_block_validators =
+            output_stream.read::<ArrayVariable<ValidatorVariable, MAX_VALIDATOR_SET_SIZE>>(builder);
         let target_header = output_stream.read::<Bytes32Variable>(builder);
         let round_present = output_stream.read::<BoolVariable>(builder);
         let target_header_block_height_proof = output_stream.read::<HeightProofVariable>(builder);
@@ -98,9 +96,7 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize> Circuit for SkipCircuit<MAX_VALIDATOR_
         let trusted_header_validators_hash_proof =
             output_stream.read::<HashInclusionProofVariable>(builder);
         let trusted_header_validators_hash_fields = output_stream
-            .read::<ArrayVariable<ValidatorHashFieldVariable<Ed25519>, MAX_VALIDATOR_SET_SIZE>>(
-                builder,
-            );
+            .read::<ArrayVariable<ValidatorHashFieldVariable, MAX_VALIDATOR_SET_SIZE>>(builder);
 
         builder.skip(
             &target_block_validators,

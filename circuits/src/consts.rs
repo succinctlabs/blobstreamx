@@ -29,9 +29,6 @@ pub const VALIDATOR_BYTE_LENGTH_MIN: usize = 38;
 pub const NUM_POSSIBLE_VALIDATOR_BYTE_LENGTHS: usize =
     VALIDATOR_BYTE_LENGTH_MAX - VALIDATOR_BYTE_LENGTH_MIN + 1;
 
-// The number of bytes in a Tendermint validator's public key.
-const _PUBKEY_BYTES_LEN: usize = 32;
-
 // The maximum number of bytes in a protobuf-encoded varint.
 // https://docs.tendermint.com/v0.34/tendermint-core/using-tendermint.html#tendermint-networks
 pub const VARINT_BYTES_LENGTH_MAX: usize = 9;

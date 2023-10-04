@@ -1,19 +1,48 @@
+use num::BigUint;
+use plonky2x::frontend::ecc::ed25519::curve::curve_types::AffinePoint;
+pub use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
+pub use plonky2x::frontend::ecc::ed25519::field::ed25519_scalar::Ed25519Scalar;
 use plonky2x::frontend::ecc::ed25519::gadgets::curve::AffinePointTarget;
+use plonky2x::frontend::ecc::ed25519::gadgets::eddsa::EDDSASignatureTarget;
 use plonky2x::frontend::merkle::tree::MerkleInclusionProofVariable;
-use plonky2x::frontend::num::u32::gadgets::arithmetic_u32::U32Target;
 use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::frontend::vars::U32Variable;
 use plonky2x::prelude::{
-    ArrayVariable, Bytes32Variable, BytesVariable, CircuitBuilder, CircuitVariable,
+    ArrayVariable, Bytes32Variable, BytesVariable, CircuitBuilder, CircuitVariable, Field,
     PlonkParameters, RichField, Variable, Witness, WitnessWrite,
 };
+use tendermint::crypto::ed25519::VerificationKey;
+use tendermint::{private_key, Signature};
 
 use crate::consts::{
     HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES,
     VALIDATOR_BYTE_LENGTH_MAX, VALIDATOR_MESSAGE_BYTES_LENGTH_MAX,
 };
 
-pub type EDDSAPublicKeyVariable<C> = AffinePointTarget<C>;
+pub type EDDSAPublicKeyVariable = AffinePointTarget<Ed25519>;
+pub type EDDSAPublicKeyValueType<F> = <EDDSAPublicKeyVariable as CircuitVariable>::ValueType<F>;
+
+// Converts a public key to an AffinePoint<Ed25519>, which is the value type of EDDSAPublicKeyVariable
+pub fn pubkey_to_value_type<F: RichField>(pubkey: &VerificationKey) -> EDDSAPublicKeyValueType<F> {
+    let pubkey_bytes = pubkey.as_bytes();
+    AffinePoint::new_from_compressed_point(pubkey_bytes)
+}
+
+pub type EDDSASignatureVariable = EDDSASignatureTarget<Ed25519>;
+pub type EDDSASignatureValueType<F> = <EDDSASignatureVariable as CircuitVariable>::ValueType<F>;
+
+// Converts a signature to the value type of EDDSASignatureVariable
+pub fn signature_to_value_type<F: RichField>(signature: &Signature) -> EDDSASignatureValueType<F> {
+    let sig_bytes = signature.as_bytes();
+    let sig_r = AffinePoint::new_from_compressed_point(&sig_bytes[0..32]);
+    assert!(sig_r.is_valid());
+    let sig_s_biguint = BigUint::from_bytes_le(&sig_bytes[32..64]);
+    if sig_s_biguint.to_u32_digits().is_empty() {
+        panic!("sig_s_biguint has 0 limbs which will cause problems down the line")
+    }
+    let sig_s = Ed25519Scalar::from_noncanonical_biguint(sig_s_biguint);
+    EDDSASignatureValueType::<F> { r: sig_r, s: sig_s }
+}
 
 /// A protobuf-encoded tendermint block ID as a 72 byte target.
 pub type EncBlockIDVariable = BytesVariable<PROTOBUF_BLOCK_ID_SIZE_BYTES>;
@@ -65,6 +94,3 @@ pub struct DataCommitmentProofVariable<const MAX_LEAVES: usize> {
         MAX_LEAVES,
     >,
 }
-/// The voting power as a list of 2 u32 targets.
-#[derive(Debug, Clone, Copy)]
-pub struct I64Target(pub [U32Target; 2]);

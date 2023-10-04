@@ -1,9 +1,6 @@
 use ed25519_consensus::SigningKey;
 use num::BigUint;
 use plonky2x::frontend::ecc::ed25519::curve::curve_types::AffinePoint;
-use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
-use plonky2x::frontend::ecc::ed25519::field::ed25519_scalar::Ed25519Scalar;
-use plonky2x::frontend::ecc::ed25519::gadgets::eddsa::EDDSASignatureTarget;
 use plonky2x::frontend::ecc::ed25519::gadgets::verify::DUMMY_SIGNATURE;
 use plonky2x::prelude::{CircuitVariable, Field, RichField};
 use tendermint::crypto::ed25519::VerificationKey;
@@ -13,32 +10,14 @@ use tendermint::{private_key, Signature};
 
 use super::tendermint_utils::{non_absent_vote, TempSignedBlock};
 use crate::consts::VALIDATOR_MESSAGE_BYTES_LENGTH_MAX;
+use crate::variables::{
+    pubkey_to_value_type, signature_to_value_type, EDDSASignatureVariable, Ed25519, Ed25519Scalar,
+};
 use crate::verify::{Validator, ValidatorHashField};
-
-type C = Ed25519;
-
-fn pubkey_to_affine_point(pubkey: &VerificationKey) -> AffinePoint<C> {
-    let pubkey_bytes = pubkey.as_bytes();
-    AffinePoint::new_from_compressed_point(pubkey_bytes)
-}
-
-type SignatureValueType<F> = <EDDSASignatureTarget<Ed25519> as CircuitVariable>::ValueType<F>;
-
-fn signature_to_value_type<F: RichField>(signature: &Signature) -> SignatureValueType<F> {
-    let sig_bytes = signature.as_bytes();
-    let sig_r = AffinePoint::new_from_compressed_point(&sig_bytes[0..32]);
-    assert!(sig_r.is_valid());
-    let sig_s_biguint = BigUint::from_bytes_le(&sig_bytes[32..64]);
-    if sig_s_biguint.to_u32_digits().is_empty() {
-        panic!("sig_s_biguint has 0 limbs which will cause problems down the line")
-    }
-    let sig_s = Ed25519Scalar::from_noncanonical_biguint(sig_s_biguint);
-    SignatureValueType::<F> { r: sig_r, s: sig_s }
-}
 
 pub fn get_validators_as_input<const VALIDATOR_SET_SIZE_MAX: usize, F: RichField>(
     block: &TempSignedBlock,
-) -> Vec<Validator<C, F>> {
+) -> Vec<Validator<F>> {
     let mut validators = Vec::new();
 
     // Signatures or dummy
@@ -71,8 +50,8 @@ pub fn get_validators_as_input<const VALIDATOR_SET_SIZE_MAX: usize, F: RichField
             let sig = signed_vote.signature();
 
             validators.push(Validator {
-                pubkey: pubkey_to_affine_point(&validator.pub_key.ed25519().unwrap()),
-                signature: signature_to_value_type(&sig.clone()),
+                pubkey: pubkey_to_value_type::<F>(&validator.pub_key.ed25519().unwrap()),
+                signature: signature_to_value_type::<F>(&sig.clone()),
                 message: message_padded.try_into().unwrap(),
                 message_byte_length: F::from_canonical_usize(signed_vote.sign_bytes().len()),
                 voting_power: validator.power(),
@@ -84,8 +63,8 @@ pub fn get_validators_as_input<const VALIDATOR_SET_SIZE_MAX: usize, F: RichField
         } else {
             // These are dummy signatures (included in val hash, did not vote)
             validators.push(Validator {
-                pubkey: pubkey_to_affine_point(&validator.pub_key.ed25519().unwrap()),
-                signature: signature_to_value_type(
+                pubkey: pubkey_to_value_type::<F>(&validator.pub_key.ed25519().unwrap()),
+                signature: signature_to_value_type::<F>(
                     &Signature::try_from(DUMMY_SIGNATURE.to_vec()).expect("missing signature"),
                 ),
                 // TODO: Replace these with correct outputs
@@ -110,11 +89,11 @@ pub fn get_validators_as_input<const VALIDATOR_SET_SIZE_MAX: usize, F: RichField
         let verification_key = signing_key.verification_key();
         // TODO: Fix empty signatures
         validators.push(Validator {
-            pubkey: pubkey_to_affine_point(
+            pubkey: pubkey_to_value_type::<F>(
                 &VerificationKey::try_from(verification_key.as_bytes().as_ref())
                     .expect("failed to create verification key"),
             ),
-            signature: signature_to_value_type(
+            signature: signature_to_value_type::<F>(
                 &Signature::try_from(DUMMY_SIGNATURE.to_vec()).expect("missing signature"),
             ),
             // TODO: Replace these with correct outputs
@@ -133,7 +112,7 @@ pub fn get_validators_as_input<const VALIDATOR_SET_SIZE_MAX: usize, F: RichField
 
 pub fn get_validators_fields_as_input<const VALIDATOR_SET_SIZE_MAX: usize, F: RichField>(
     trusted_block: &TempSignedBlock,
-) -> Vec<ValidatorHashField<C, F>> {
+) -> Vec<ValidatorHashField<F>> {
     let mut trusted_validator_fields = Vec::new();
 
     let validator_set = ValidatorSet::new(
@@ -150,7 +129,7 @@ pub fn get_validators_fields_as_input<const VALIDATOR_SET_SIZE_MAX: usize, F: Ri
         });
         let val_bytes = validator.hash_bytes();
         trusted_validator_fields.push(ValidatorHashField {
-            pubkey: pubkey_to_affine_point(&validator.pub_key.ed25519().unwrap()),
+            pubkey: pubkey_to_value_type::<F>(&validator.pub_key.ed25519().unwrap()),
             voting_power: validator.power(),
             validator_byte_length: F::from_canonical_usize(val_bytes.len()),
             enabled: true,
@@ -168,7 +147,7 @@ pub fn get_validators_fields_as_input<const VALIDATOR_SET_SIZE_MAX: usize, F: Ri
         let verification_key = signing_key.verification_key();
         // TODO: Fix empty signatures
         trusted_validator_fields.push(ValidatorHashField {
-            pubkey: pubkey_to_affine_point(
+            pubkey: pubkey_to_value_type::<F>(
                 &VerificationKey::try_from(verification_key.as_bytes().as_ref())
                     .expect("failed to create verification key"),
             ),
@@ -182,7 +161,7 @@ pub fn get_validators_fields_as_input<const VALIDATOR_SET_SIZE_MAX: usize, F: Ri
 }
 
 pub fn update_present_on_trusted_header<F: RichField>(
-    target_validators: &mut [Validator<C, F>],
+    target_validators: &mut [Validator<F>],
     target_block: &TempSignedBlock,
     start_block: &TempSignedBlock,
 ) {
