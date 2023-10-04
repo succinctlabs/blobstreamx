@@ -16,7 +16,6 @@
 //!
 use std::env;
 
-use celestia::consts::HEADER_PROOF_DEPTH;
 use celestia::input_data::InputDataFetcher;
 use celestia::verify::{
     BlockIDInclusionProofVariable, HashInclusionProofVariable, TendermintVerify, ValidatorVariable,
@@ -57,15 +56,9 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize, L: PlonkParameters<D>, const D: usize>
             .write_value::<ArrayVariable<ValidatorVariable<Ed25519>, MAX_VALIDATOR_SET_SIZE>>(
                 result.2,
             );
-        output_stream.write_value::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>(
-            result.3.to_hash_value_type(),
-        );
-        output_stream.write_value::<BlockIDInclusionProofVariable<HEADER_PROOF_DEPTH>>(
-            result.4.to_block_id_value_type(),
-        );
-        output_stream.write_value::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>(
-            result.5.to_hash_value_type(),
-        );
+        output_stream.write_value::<HashInclusionProofVariable>(result.3);
+        output_stream.write_value::<BlockIDInclusionProofVariable>(result.4);
+        output_stream.write_value::<HashInclusionProofVariable>(result.5);
     }
 }
 
@@ -89,11 +82,11 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize> Circuit for StepCircuit<MAX_VALIDATOR_
         let next_block_validators = output_stream
             .read::<ArrayVariable<ValidatorVariable<Ed25519>, MAX_VALIDATOR_SET_SIZE>>(builder);
         let next_block_validators_hash_proof =
-            output_stream.read::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>(builder);
+            output_stream.read::<HashInclusionProofVariable>(builder);
         let next_block_last_block_id_proof =
-            output_stream.read::<BlockIDInclusionProofVariable<HEADER_PROOF_DEPTH>>(builder);
+            output_stream.read::<BlockIDInclusionProofVariable>(builder);
         let prev_block_next_validators_hash_proof =
-            output_stream.read::<HashInclusionProofVariable<HEADER_PROOF_DEPTH>>(builder);
+            output_stream.read::<HashInclusionProofVariable>(builder);
 
         builder.step(
             &next_block_validators,

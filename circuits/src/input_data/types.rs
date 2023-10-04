@@ -1,111 +1,21 @@
 use ed25519_consensus::SigningKey;
-use ethers::types::H256;
 use num::BigUint;
 use plonky2x::frontend::ecc::ed25519::curve::curve_types::AffinePoint;
 use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
 use plonky2x::frontend::ecc::ed25519::field::ed25519_scalar::Ed25519Scalar;
 use plonky2x::frontend::ecc::ed25519::gadgets::eddsa::EDDSASignatureTarget;
 use plonky2x::frontend::ecc::ed25519::gadgets::verify::DUMMY_SIGNATURE;
-use plonky2x::prelude::{CircuitVariable, Field, GoldilocksField, RichField};
-use serde::{Deserialize, Serialize};
+use plonky2x::prelude::{CircuitVariable, Field, RichField};
 use tendermint::crypto::ed25519::VerificationKey;
 use tendermint::validator::Set as ValidatorSet;
 use tendermint::vote::{SignedVote, ValidatorIndex};
 use tendermint::{private_key, Signature};
 
 use super::tendermint_utils::{non_absent_vote, TempSignedBlock};
-use crate::consts::{
-    HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES,
-    VALIDATOR_MESSAGE_BYTES_LENGTH_MAX,
-};
-use crate::verify::{
-    BlockIDInclusionProof, BlockIDInclusionProofVariable, HashInclusionProof,
-    HashInclusionProofVariable, Validator, ValidatorHashField,
-};
+use crate::consts::VALIDATOR_MESSAGE_BYTES_LENGTH_MAX;
+use crate::verify::{Validator, ValidatorHashField};
 
 type C = Ed25519;
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TempMerkleInclusionProof {
-    pub enc_leaf: Vec<u8>,
-    // Path and proof should have a fixed length of HEADER_PROOF_DEPTH.
-    pub path: Vec<bool>,
-    pub proof: Vec<H256>,
-}
-
-impl TempMerkleInclusionProof {
-    pub fn to_hash_value_type<F: RichField>(&self) -> HashInclusionProof<HEADER_PROOF_DEPTH, F> {
-        if self.proof.len() != HEADER_PROOF_DEPTH {
-            panic!("path length does not match");
-        }
-        if self.enc_leaf.len() != PROTOBUF_HASH_SIZE_BYTES {
-            panic!("enc_leaf length does not match");
-        }
-        let leaf_as_fixed: [u8; PROTOBUF_HASH_SIZE_BYTES] = self.enc_leaf[..].try_into().unwrap();
-        HashInclusionProof {
-            enc_leaf: leaf_as_fixed,
-            proof: self.proof.clone(),
-        }
-    }
-
-    pub fn to_block_id_value_type<F: RichField>(
-        &self,
-    ) -> BlockIDInclusionProof<HEADER_PROOF_DEPTH, F> {
-        if self.proof.len() != HEADER_PROOF_DEPTH {
-            panic!("path length does not match");
-        }
-        if self.enc_leaf.len() != PROTOBUF_BLOCK_ID_SIZE_BYTES {
-            panic!("enc_leaf length does not match");
-        }
-        let leaf_as_fixed: [u8; PROTOBUF_BLOCK_ID_SIZE_BYTES] =
-            self.enc_leaf[..].try_into().unwrap();
-        BlockIDInclusionProof {
-            enc_leaf: leaf_as_fixed,
-            proof: self.proof.clone(),
-        }
-    }
-}
-
-impl From<TempMerkleInclusionProof>
-    for <HashInclusionProofVariable<HEADER_PROOF_DEPTH> as CircuitVariable>::ValueType<
-        GoldilocksField,
-    >
-{
-    fn from(proof: TempMerkleInclusionProof) -> Self {
-        if proof.proof.len() != HEADER_PROOF_DEPTH {
-            panic!("path length does not match");
-        }
-        if proof.enc_leaf.len() != PROTOBUF_HASH_SIZE_BYTES {
-            panic!("enc_leaf length does not match");
-        }
-        let leaf_as_fixed: [u8; PROTOBUF_HASH_SIZE_BYTES] = proof.enc_leaf[..].try_into().unwrap();
-        Self {
-            enc_leaf: leaf_as_fixed,
-            proof: proof.proof,
-        }
-    }
-}
-
-impl From<TempMerkleInclusionProof>
-    for <BlockIDInclusionProofVariable<HEADER_PROOF_DEPTH> as CircuitVariable>::ValueType<
-        GoldilocksField,
-    >
-{
-    fn from(proof: TempMerkleInclusionProof) -> Self {
-        if proof.proof.len() != HEADER_PROOF_DEPTH {
-            panic!("path length does not match");
-        }
-        if proof.enc_leaf.len() != PROTOBUF_BLOCK_ID_SIZE_BYTES {
-            panic!("enc_leaf length does not match");
-        }
-        let leaf_as_fixed: [u8; PROTOBUF_BLOCK_ID_SIZE_BYTES] =
-            proof.enc_leaf[..].try_into().unwrap();
-        Self {
-            enc_leaf: leaf_as_fixed,
-            proof: proof.proof,
-        }
-    }
-}
 
 fn pubkey_to_affine_point(pubkey: &VerificationKey) -> AffinePoint<C> {
     let pubkey_bytes = pubkey.as_bytes();
