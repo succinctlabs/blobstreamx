@@ -5,7 +5,6 @@ use async_trait::async_trait;
 use celestia::consts::*;
 use celestia::input::utils::convert_to_h256;
 use celestia::input::{InputDataFetcher, InputDataMode};
-use celestia::variables::*;
 use ethers::types::H256;
 use itertools::Itertools;
 use plonky2x::frontend::hint::simple::hint::Hint;
@@ -19,7 +18,7 @@ use tendermint_proto::types::BlockId as RawBlockId;
 use tendermint_proto::Protobuf;
 use tokio::runtime::Runtime;
 
-use crate::vars::*;
+use crate::vars::{DataCommitmentProofValueType, DataCommitmentProofVariable};
 
 #[derive(Debug, Deserialize)]
 pub struct DataCommitmentResponse {

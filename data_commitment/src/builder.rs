@@ -8,7 +8,7 @@ use plonky2x::frontend::vars::{ArrayVariable, Bytes32Variable, EvmVariable};
 use plonky2x::prelude::{BoolVariable, ByteVariable, BytesVariable, CircuitBuilder};
 use tendermint::merkle::HASH_SIZE;
 
-use crate::vars::*;
+use crate::vars::DataCommitmentProofVariable;
 
 pub trait DataCommitmentBuilder<L: PlonkParameters<D>, const D: usize> {
     /// Encodes the data hash and height into a tuple.

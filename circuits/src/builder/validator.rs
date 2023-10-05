@@ -160,7 +160,7 @@ pub(crate) mod tests {
     use plonky2x::frontend::ecc::ed25519::curve::curve_types::AffinePoint;
     use plonky2x::frontend::merkle::tree::{InclusionProof, MerkleInclusionProofVariable};
     use plonky2x::prelude::{
-        ArrayVariable, Bytes32Variable, DefaultBuilder, DefaultParameters, Field, GoldilocksField,
+        ArrayVariable, Bytes32Variable, DefaultBuilder, Field, GoldilocksField,
     };
     use sha2::Sha256;
     use tendermint_proto::types::BlockId as RawBlockId;
@@ -174,7 +174,7 @@ pub(crate) mod tests {
     };
     use crate::input::utils::{convert_to_h256, get_path_indices};
     use crate::input::InputDataFetcher;
-    use crate::variables::{EDDSAPublicKeyValueType, Ed25519};
+    use crate::variables::Ed25519;
 
     #[test]
     fn test_marshal_tendermint_validator() {
