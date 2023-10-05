@@ -1,5 +1,5 @@
+pub mod conversion;
 pub mod tendermint_utils;
-pub mod types;
 pub mod utils;
 
 use std::collections::HashMap;
@@ -7,28 +7,23 @@ use std::path::Path;
 use std::{env, fs};
 
 use ethers::types::H256;
-use itertools::Itertools;
-use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
 use plonky2x::frontend::merkle::tree::InclusionProof;
 use plonky2x::prelude::RichField;
-use subtle_encoding::hex;
 use tendermint_proto::types::BlockId as RawBlockId;
 use tendermint_proto::Protobuf;
 
+use self::conversion::update_present_on_trusted_header;
 use self::tendermint_utils::{
-    generate_proofs_from_header, DataCommitmentResponse, Hash, Header, HeaderResponse, Proof,
-    SignedBlockResponse, TempSignedBlock,
+    generate_proofs_from_header, Hash, Header, HeaderResponse, Proof, SignedBlock,
+    SignedBlockResponse,
 };
-use self::types::update_present_on_trusted_header;
 use self::utils::convert_to_h256;
 use crate::consts::{
-    BLOCK_HEIGHT_INDEX, DATA_HASH_INDEX, HEADER_PROOF_DEPTH, LAST_BLOCK_ID_INDEX,
-    NEXT_VALIDATORS_HASH_INDEX, PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES,
-    VALIDATORS_HASH_INDEX,
+    BLOCK_HEIGHT_INDEX, HEADER_PROOF_DEPTH, LAST_BLOCK_ID_INDEX, NEXT_VALIDATORS_HASH_INDEX,
+    PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES, VALIDATORS_HASH_INDEX,
 };
-use crate::input_data::types::{get_validators_as_input, get_validators_fields_as_input};
-use crate::variables::HeightProofValueType;
-use crate::verify::{Validator, ValidatorHashField};
+use crate::input::conversion::{validator_from_block, validator_hash_field_from_block};
+use crate::variables::*;
 
 pub enum InputDataMode {
     Rpc(String),
@@ -36,10 +31,10 @@ pub enum InputDataMode {
 }
 
 pub struct InputDataFetcher {
-    mode: InputDataMode,
-    proof_cache: HashMap<Hash, Vec<Proof>>,
-    save: bool,
-    fixture_path: String,
+    pub mode: InputDataMode,
+    pub proof_cache: HashMap<Hash, Vec<Proof>>,
+    pub save: bool,
+    pub fixture_path: String,
 }
 
 impl Default for InputDataFetcher {
@@ -73,47 +68,7 @@ impl InputDataFetcher {
         self.save = save;
     }
 
-    pub async fn get_data_commitment(&self, start_block: u64, end_block: u64) -> [u8; 32] {
-        let file_name = format!(
-            "{}/{}-{}/data_commitment.json",
-            self.fixture_path,
-            start_block.to_string().as_str(),
-            end_block.to_string().as_str()
-        );
-        let fetched_result = match &self.mode {
-            InputDataMode::Rpc(url) => {
-                let query_url = format!(
-                    "{}/data_commitment?start={}&end={}",
-                    url,
-                    start_block.to_string().as_str(),
-                    end_block.to_string().as_str()
-                );
-                let res = reqwest::get(query_url).await.unwrap().text().await.unwrap();
-                if self.save {
-                    // Ensure the directory exists
-                    if let Some(parent) = Path::new(&file_name).parent() {
-                        fs::create_dir_all(parent).unwrap();
-                    }
-                    fs::write(file_name.as_str(), res.as_bytes()).expect("Unable to write file");
-                }
-                res
-            }
-            InputDataMode::Fixture => {
-                let file_content = fs::read_to_string(file_name.as_str());
-                println!("Retrieving fixture");
-                file_content.unwrap()
-            }
-        };
-        let v: DataCommitmentResponse =
-            serde_json::from_str(&fetched_result).expect("Failed to parse JSON");
-
-        hex::decode_upper(v.result.data_commitment)
-            .unwrap()
-            .try_into()
-            .unwrap()
-    }
-
-    pub async fn get_block_from_number(&self, block_number: u64) -> Box<TempSignedBlock> {
+    pub async fn get_block_from_number(&self, block_number: u64) -> Box<SignedBlock> {
         let file_name = format!(
             "{}/{}/signed_block.json",
             self.fixture_path,
@@ -144,8 +99,8 @@ impl InputDataFetcher {
         };
         let v: SignedBlockResponse =
             serde_json::from_str(&fetched_result).expect("Failed to parse JSON");
-        let temp_block = v.result;
-        Box::new(temp_block)
+        let block = v.result;
+        Box::new(block)
     }
 
     pub async fn get_header_from_number(&self, block_number: u64) -> Header {
@@ -221,7 +176,7 @@ impl InputDataFetcher {
     ) -> (
         [u8; 32],
         bool,
-        Vec<Validator<Ed25519, F>>,
+        Vec<Validator<F>>,
         InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES, F>,
         InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, F>,
         InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES, F>,
@@ -238,8 +193,7 @@ impl InputDataFetcher {
 
         let next_block_header = next_block.header.hash();
 
-        let next_block_validators =
-            get_validators_as_input::<VALIDATOR_SET_SIZE_MAX, F>(&next_block);
+        let next_block_validators = validator_from_block::<VALIDATOR_SET_SIZE_MAX, F>(&next_block);
         assert_eq!(
             next_block_validators.len(),
             VALIDATOR_SET_SIZE_MAX,
@@ -288,14 +242,14 @@ impl InputDataFetcher {
         trusted_block_hash: H256,
         target_block_number: u64,
     ) -> (
-        Vec<Validator<Ed25519, F>>, // validators
-        [u8; 32],                   // target_header
-        bool,                       // round_present
-        HeightProofValueType<F>,    // target_block_height_proof,
+        Vec<Validator<F>>,                                               // validators
+        [u8; 32],                                                        // target_header
+        bool,                                                            // round_present
+        HeightProofValueType<F>, // target_block_height_proof,
         InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES, F>, // target_header_validators_hash_proof,
         [u8; 32],                                                        // trusted_header
         InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES, F>, // trusted_validators_hash_proof
-        Vec<ValidatorHashField<Ed25519, F>>, // trusted_validators_hash_fields
+        Vec<ValidatorHashField<F>>, // trusted_validators_hash_fields
     ) {
         let trusted_block = self.get_block_from_number(trusted_block_number).await;
         let computed_trusted_header_hash = trusted_block.header.hash();
@@ -307,14 +261,14 @@ impl InputDataFetcher {
         let target_block_header = target_block.header.hash();
         let round_present = target_block.commit.round.value() != 0;
         let mut target_block_validators =
-            get_validators_as_input::<VALIDATOR_SET_SIZE_MAX, F>(&target_block);
+            validator_from_block::<VALIDATOR_SET_SIZE_MAX, F>(&target_block);
         update_present_on_trusted_header(
             &mut target_block_validators,
             &target_block,
             &trusted_block,
         );
 
-        let temp_target_block_height_proof = self.get_merkle_proof(
+        let target_block_height_proof = self.get_merkle_proof(
             &target_block.header,
             BLOCK_HEIGHT_INDEX as u64,
             target_block.header.height.encode_vec(),
@@ -323,7 +277,7 @@ impl InputDataFetcher {
         let target_block_height_proof = HeightProofValueType::<F> {
             height: target_block.header.height.value(),
             enc_height_byte_length: target_block.header.height.encode_vec().len() as u32,
-            proof: temp_target_block_height_proof.1,
+            proof: target_block_height_proof.1,
         };
 
         let target_block_validators_hash_proof = self.get_inclusion_proof(
@@ -333,7 +287,7 @@ impl InputDataFetcher {
         );
 
         let trusted_block_validator_fields =
-            get_validators_fields_as_input::<VALIDATOR_SET_SIZE_MAX, F>(&trusted_block);
+            validator_hash_field_from_block::<VALIDATOR_SET_SIZE_MAX, F>(&trusted_block);
         let trusted_block_validator_hash_proof = self.get_inclusion_proof(
             &trusted_block.header,
             VALIDATORS_HASH_INDEX as u64,
@@ -351,116 +305,6 @@ impl InputDataFetcher {
             trusted_block_validator_fields,
         )
     }
-
-    pub async fn get_data_commitment_inputs<const MAX_LEAVES: usize, F: RichField>(
-        &mut self,
-        start_block_number: u64,
-        start_header_hash: H256,
-        end_block_number: u64,
-        end_header_hash: H256,
-    ) -> (
-        Vec<[u8; 32]>,                                                            // data_hashes
-        Vec<InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES, F>>, // data_hash_proofs
-        Vec<InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, F>>, // prev_header_proofs
-        [u8; 32], // expected_data_commitment
-    ) {
-        let start_header = self.get_header_from_number(start_block_number).await;
-        let computed_start_header_hash = start_header.hash();
-        assert_eq!(
-            computed_start_header_hash.as_bytes(),
-            start_header_hash.as_bytes()
-        );
-
-        let end_header = self.get_header_from_number(end_block_number).await;
-        let computed_end_header_hash = end_header.hash();
-        assert_eq!(
-            computed_end_header_hash.as_bytes(),
-            end_header_hash.as_bytes()
-        );
-
-        let mut data_hashes = Vec::new();
-        let mut data_hash_proofs = Vec::new();
-        let mut prev_header_proofs = Vec::new();
-        for i in start_block_number..end_block_number + 1 {
-            let header = self.get_header_from_number(i).await;
-            let data_hash = header.data_hash.unwrap();
-            data_hashes.push(data_hash.as_bytes().try_into().unwrap());
-
-            let data_hash_proof = self.get_inclusion_proof::<PROTOBUF_HASH_SIZE_BYTES, F>(
-                &header,
-                DATA_HASH_INDEX as u64,
-                header.data_hash.unwrap().encode_vec(),
-            );
-            data_hash_proofs.push(data_hash_proof);
-            let prev_header_proof = self.get_inclusion_proof::<PROTOBUF_BLOCK_ID_SIZE_BYTES, F>(
-                &header,
-                LAST_BLOCK_ID_INDEX as u64,
-                Protobuf::<RawBlockId>::encode_vec(header.last_block_id.unwrap_or_default()),
-            );
-            prev_header_proofs.push(prev_header_proof);
-        }
-
-        // Remove end_block's data_hash, as data_commitment does not include it.
-        data_hashes.pop();
-
-        // Remove end_block's data_hash_proof, as data_commitment does not check it.
-        data_hash_proofs.pop();
-
-        // Remove start_block's prev_header_proof, as data_commitment does not check it.
-        prev_header_proofs = prev_header_proofs[1..].to_vec();
-
-        let mut data_hash_proofs_formatted = data_hash_proofs
-            .into_iter()
-            .map(
-                |proof| InclusionProof::<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES, F> {
-                    proof: proof.proof,
-                    leaf: proof.leaf,
-                },
-            )
-            .collect_vec();
-
-        let mut prev_header_proofs_formatted = prev_header_proofs
-            .into_iter()
-            .map(
-                |proof| InclusionProof::<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, F> {
-                    proof: proof.proof,
-                    leaf: proof.leaf,
-                },
-            )
-            .collect_vec();
-
-        // Extend data_hashes, data_hash_proofs, and prev_header_proofs to MAX_LEAVES.
-        for _ in (end_block_number - start_block_number) as usize..MAX_LEAVES {
-            data_hashes.push([0u8; 32]);
-            data_hash_proofs_formatted.push(InclusionProof::<
-                HEADER_PROOF_DEPTH,
-                PROTOBUF_HASH_SIZE_BYTES,
-                F,
-            > {
-                proof: [H256::zero(); HEADER_PROOF_DEPTH].to_vec(),
-                leaf: [0u8; PROTOBUF_HASH_SIZE_BYTES],
-            });
-            prev_header_proofs_formatted.push(InclusionProof::<
-                HEADER_PROOF_DEPTH,
-                PROTOBUF_BLOCK_ID_SIZE_BYTES,
-                F,
-            > {
-                proof: [H256::zero(); HEADER_PROOF_DEPTH].to_vec(),
-                leaf: [0u8; PROTOBUF_BLOCK_ID_SIZE_BYTES],
-            });
-        }
-
-        let expected_data_commitment = self
-            .get_data_commitment(start_block_number, end_block_number)
-            .await;
-
-        (
-            data_hashes,
-            data_hash_proofs_formatted,
-            prev_header_proofs_formatted,
-            expected_data_commitment,
-        )
-    }
 }
 
 mod test {
@@ -471,7 +315,7 @@ mod test {
         // TODO: Clippy does not recognize imports in Tokio tests.
         use std::env;
 
-        use crate::input_data::InputDataFetcher;
+        use crate::input::InputDataFetcher;
 
         env::set_var(
             "RPC_MOCHA_4",

@@ -1,18 +1,13 @@
 [package]
-name = "celestia"
+name = "blobstream"
 version = "0.1.0"
 edition = "2021"
 
 [lib]
 
-
 [[bin]]
-name = "step"
-path = "bin/step.rs"
-
-[[bin]]
-name = "skip"
-path = "bin/skip.rs"
+name = "data_commitment"
+path = "bin/data_commitment.rs"
 
 [features]
 ci = []
@@ -40,3 +35,5 @@ subtle-encoding = "0.5.1"
 tendermint = "0.33.0"
 tendermint-proto = "0.33.0"
 tokio = { version = "1.29.1", features = ["full"] }
+celestia = { path = "../circuits" }
+async-trait = "0.1.73"

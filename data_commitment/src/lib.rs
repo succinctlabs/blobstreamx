@@ -2,8 +2,6 @@
 #![allow(clippy::too_many_arguments)]
 
 pub mod builder;
-pub mod consts;
+pub mod circuit;
 pub mod input;
-pub mod skip;
-pub mod step;
-pub mod variables;
+pub mod vars;

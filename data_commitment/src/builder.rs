@@ -1,20 +1,13 @@
+use celestia::consts::*;
 use plonky2x::backend::circuit::PlonkParameters;
-use plonky2x::frontend::ecc::ed25519::curve::curve_types::Curve;
-use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
 use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::frontend::vars::{ArrayVariable, Bytes32Variable, EvmVariable};
 use plonky2x::prelude::{BoolVariable, ByteVariable, BytesVariable, CircuitBuilder};
 use tendermint::merkle::HASH_SIZE;
 
-use crate::consts::{
-    ENC_DATA_ROOT_TUPLE_SIZE_BYTES, HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES,
-    PROTOBUF_HASH_SIZE_BYTES,
-};
-use crate::variables::DataCommitmentProofVariable;
+use crate::vars::DataCommitmentProofVariable;
 
-pub trait DataCommitment<L: PlonkParameters<D>, const D: usize> {
-    type Curve: Curve;
-
+pub trait DataCommitmentBuilder<L: PlonkParameters<D>, const D: usize> {
     /// Encodes the data hash and height into a tuple.
     /// Spec: https://github.com/celestiaorg/celestia-core/blob/6933af1ead0ddf4a8c7516690e3674c6cdfa7bd8/rpc/core/blocks.go#L325-L334
     fn encode_data_root_tuple(
@@ -49,9 +42,7 @@ pub trait DataCommitment<L: PlonkParameters<D>, const D: usize> {
     ) -> Bytes32Variable;
 }
 
-impl<L: PlonkParameters<D>, const D: usize> DataCommitment<L, D> for CircuitBuilder<L, D> {
-    type Curve = Ed25519;
-
+impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for CircuitBuilder<L, D> {
     fn encode_data_root_tuple(
         &mut self,
         data_hash: &Bytes32Variable,
@@ -114,6 +105,7 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitment<L, D> for CircuitBuil
             leaves_enabled,
         )
     }
+
     fn prove_header_chain<const MAX_LEAVES: usize>(
         &mut self,
         input: DataCommitmentProofVariable<MAX_LEAVES>,
@@ -210,15 +202,15 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitment<L, D> for CircuitBuil
 pub(crate) mod tests {
     use std::env;
 
+    use celestia::input::utils::convert_to_h256;
+    use celestia::input::InputDataFetcher;
     use ethers::types::H256;
     use plonky2x::backend::circuit::DefaultParameters;
     use tokio::runtime::Runtime;
 
     use super::*;
-    use crate::commitment::DataCommitment;
-    use crate::input_data::utils::convert_to_h256;
-    use crate::input_data::InputDataFetcher;
-    use crate::variables::{DataCommitmentProofValueType, DataCommitmentProofVariable};
+    use crate::input::DataCommitmentInputs;
+    use crate::vars::*;
 
     type L = DefaultParameters;
     type F = <L as PlonkParameters<D>>::Field;

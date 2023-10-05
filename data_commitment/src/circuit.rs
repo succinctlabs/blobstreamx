@@ -1,76 +1,13 @@
-//! To build the binary:
-//!
-//!     `cargo build --release --bin data_commitment`
-//!
-//! To build the circuit:
-//!
-//!     `./target/release/circuit_function_field build`
-//!
-//! To prove the circuit using evm io:
-//!
-//!    `./target/release/circuit_function_evm prove --input-json src/bin/circuit_function_evm_input.json`
-//!
-//! Note that this circuit will not work with field-based io.
-//!
-//!
-//!
-use std::env;
-
-use celestia::commitment::DataCommitment;
-use celestia::input_data::utils::convert_to_h256;
-use celestia::input_data::InputDataFetcher;
-use celestia::variables::{DataCommitmentProofValueType, DataCommitmentProofVariable};
-use ethers::types::H256;
 use plonky2x::backend::circuit::Circuit;
-use plonky2x::backend::function::VerifiableFunction;
-use plonky2x::frontend::hint::simple::hint::Hint;
 use plonky2x::frontend::uint::uint64::U64Variable;
-use plonky2x::frontend::vars::{ValueStream, VariableStream};
+use plonky2x::frontend::vars::VariableStream;
 use plonky2x::prelude::{Bytes32Variable, CircuitBuilder, PlonkParameters};
-use serde::{Deserialize, Serialize};
-use tokio::runtime::Runtime; // TODO: re-export this instead of this path
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct DataCommitmentOffchainInputs<const MAX_LEAVES: usize> {}
 
-impl<const MAX_LEAVES: usize, L: PlonkParameters<D>, const D: usize> Hint<L, D>
-    for DataCommitmentOffchainInputs<MAX_LEAVES>
-{
-    fn hint(&self, input_stream: &mut ValueStream<L, D>, output_stream: &mut ValueStream<L, D>) {
-        let start_block = input_stream.read_value::<U64Variable>();
-        let start_header_hash = input_stream.read_value::<Bytes32Variable>();
-        let end_block = input_stream.read_value::<U64Variable>();
-        let end_header_hash = input_stream.read_value::<Bytes32Variable>();
+use crate::builder::DataCommitmentBuilder;
+use crate::input::DataCommitmentOffchainInputs;
+use crate::vars::*;
 
-        let mut data_fetcher = InputDataFetcher::new();
-
-        let rt = Runtime::new().expect("failed to create tokio runtime");
-        let result = rt.block_on(async {
-            data_fetcher
-                .get_data_commitment_inputs::<MAX_LEAVES, L::Field>(
-                    start_block,
-                    start_header_hash,
-                    end_block,
-                    end_header_hash,
-                )
-                .await
-        });
-        let data_comm_proof = DataCommitmentProofValueType {
-            data_hashes: convert_to_h256(result.0),
-            start_block_height: start_block,
-            start_header: start_header_hash,
-            end_block_height: end_block,
-            end_header: end_header_hash,
-            data_hash_proofs: result.1,
-            prev_header_proofs: result.2,
-        };
-        // Write the inputs to the data commitment circuit.
-        output_stream.write_value::<DataCommitmentProofVariable<MAX_LEAVES>>(data_comm_proof);
-        // Write the expected data commitment.
-        output_stream.write_value::<Bytes32Variable>(H256(result.3));
-    }
-}
-
-struct DataCommitmentCircuit<const MAX_LEAVES: usize> {
+pub struct DataCommitmentCircuit<const MAX_LEAVES: usize> {
     _config: usize,
 }
 
@@ -110,28 +47,11 @@ impl<const MAX_LEAVES: usize> Circuit for DataCommitmentCircuit<MAX_LEAVES> {
     }
 }
 
-fn main() {
-    // Celestia's maxmimum data commitment size is 1000: https://github.com/celestiaorg/celestia-core/blob/6933af1ead0ddf4a8c7516690e3674c6cdfa7bd8/pkg/consts/consts.go#L44.
-    let env_max_leaves = env::var("MAX_LEAVES").unwrap_or(0.to_string());
-
-    if env_max_leaves == 1024.to_string() {
-        const MAX_LEAVES: usize = 1024;
-        VerifiableFunction::<DataCommitmentCircuit<MAX_LEAVES>>::entrypoint();
-    } else if env_max_leaves == 256.to_string() {
-        const MAX_LEAVES: usize = 256;
-        VerifiableFunction::<DataCommitmentCircuit<MAX_LEAVES>>::entrypoint();
-    } else if env_max_leaves == 4.to_string() {
-        const MAX_LEAVES: usize = 4;
-        VerifiableFunction::<DataCommitmentCircuit<MAX_LEAVES>>::entrypoint();
-    } else {
-        panic!("MAX_LEAVES must be set to 1024, 256, or 4");
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::env;
 
+    use ethers::types::H256;
     use plonky2x::prelude::{DefaultBuilder, GateRegistry, HintRegistry};
     use subtle_encoding::hex;
 
