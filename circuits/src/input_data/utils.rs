@@ -21,31 +21,3 @@ pub fn get_path_indices(index: u64, total: u64) -> Vec<bool> {
     }
     path_indices
 }
-
-pub fn to_be_bits(msg: Vec<u8>) -> Vec<bool> {
-    let mut res = Vec::new();
-    msg.iter().for_each(|char| {
-        for j in 0..8 {
-            if (char & (1 << (7 - j))) != 0 {
-                res.push(true);
-            } else {
-                res.push(false);
-            }
-        }
-    });
-    res
-}
-
-pub fn to_le_bits(msg: Vec<u8>) -> Vec<bool> {
-    let mut res = Vec::new();
-    msg.iter().for_each(|char| {
-        for j in 0..8 {
-            if (char & (1 << j)) != 0 {
-                res.push(true);
-            } else {
-                res.push(false);
-            }
-        }
-    });
-    res
-}
