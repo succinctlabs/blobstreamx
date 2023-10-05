@@ -1,6 +1,4 @@
-use celestia::consts::{
-    HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES,
-};
+use celestia::consts::*;
 use plonky2x::frontend::merkle::tree::MerkleInclusionProofVariable;
 use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::prelude::{
@@ -9,10 +7,8 @@ use plonky2x::prelude::{
 };
 
 // The data commitment inputs as a struct.
-// Note: data_hashes should be in order from start_header to end_header - 1.
-// Note: data_hash_proofs and prev_header_proofs should be in order from end_header to start_header.
-// Note: data_hash_proofs starts at end_header - 1.
-// Note: prev_header_proofs starts at end_header.
+// Note: data_hashes, data_hash_proofs should include range (start, end-1).
+// Note: prev_header_proofs should include range (start+1, end).
 #[derive(Clone, Debug, CircuitVariable)]
 #[value_name(DataCommitmentProofValueType)]
 pub struct DataCommitmentProofVariable<const MAX_LEAVES: usize> {

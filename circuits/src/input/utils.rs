@@ -8,7 +8,7 @@ pub fn convert_to_h256(aunts: Vec<[u8; 32]>) -> Vec<H256> {
     aunts_h256
 }
 
-// If hash_so_far is on the left, False, else True
+// Get the path indices of a leaf in a merkle tree of size total corresponding to index.
 pub fn get_path_indices(index: u64, total: u64) -> Vec<bool> {
     let mut path_indices = vec![];
 
