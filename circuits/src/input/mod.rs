@@ -22,7 +22,7 @@ use crate::consts::{
     BLOCK_HEIGHT_INDEX, HEADER_PROOF_DEPTH, LAST_BLOCK_ID_INDEX, NEXT_VALIDATORS_HASH_INDEX,
     PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES, VALIDATORS_HASH_INDEX,
 };
-use crate::input_data::types::{get_validators_as_input, get_validators_fields_as_input};
+use crate::input::types::{get_validators_as_input, get_validators_fields_as_input};
 use crate::variables::*;
 
 pub enum InputDataMode {
@@ -316,7 +316,7 @@ mod test {
         // TODO: Clippy does not recognize imports in Tokio tests.
         use std::env;
 
-        use crate::input_data::InputDataFetcher;
+        use crate::input::InputDataFetcher;
 
         env::set_var(
             "RPC_MOCHA_4",

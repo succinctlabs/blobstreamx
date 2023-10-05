@@ -3,8 +3,8 @@ use std::path::Path;
 
 use async_trait::async_trait;
 use celestia::consts::*;
-use celestia::input_data::utils::convert_to_h256;
-use celestia::input_data::{InputDataFetcher, InputDataMode};
+use celestia::input::utils::convert_to_h256;
+use celestia::input::{InputDataFetcher, InputDataMode};
 use celestia::variables::*;
 use ethers::types::H256;
 use itertools::Itertools;

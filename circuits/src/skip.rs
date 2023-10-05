@@ -28,7 +28,7 @@ use serde::{Deserialize, Serialize};
 use tokio::runtime::Runtime;
 
 use crate::builder::verify::TendermintVerify;
-use crate::input_data::InputDataFetcher;
+use crate::input::InputDataFetcher;
 use crate::variables::*;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

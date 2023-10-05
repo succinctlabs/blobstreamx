@@ -169,11 +169,11 @@ pub(crate) mod tests {
 
     use super::*;
     use crate::consts::{HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES};
-    use crate::input_data::tendermint_utils::{
+    use crate::input::tendermint_utils::{
         generate_proofs_from_header, hash_all_leaves, proofs_from_byte_slices,
     };
-    use crate::input_data::utils::{convert_to_h256, get_path_indices};
-    use crate::input_data::InputDataFetcher;
+    use crate::input::utils::{convert_to_h256, get_path_indices};
+    use crate::input::InputDataFetcher;
     use crate::validator::TendermintValidator;
     use crate::variables::Ed25519;
 
