@@ -65,10 +65,9 @@ pub struct WrappedHeader {
 }
 
 // Note: Implementations of ValidatorSet and SignedBlock differ in tendermint-rs and comet-bft
-// Note: Following PR needs to be merged in tendermint-rs to remove TempValidatorSet and TempSignedBlock: https://github.com/informalsystems/tendermint-rs/pull/1340
 /// Validator set contains a vector of validators
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct TempValidatorSet {
+pub struct ValidatorSet {
     pub validators: Vec<Info>,
     pub proposer: Option<Info>,
     pub total_voting_power: Option<Power>,
@@ -87,7 +86,7 @@ pub struct SignedBlock {
     pub commit: Commit,
 
     /// Validator set
-    pub validator_set: TempValidatorSet,
+    pub validator_set: ValidatorSet,
 }
 
 // Note: Matches the implementation in tendermint-rs, need to add PR to tendermint-rs to support proofs

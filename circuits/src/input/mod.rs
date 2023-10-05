@@ -99,8 +99,8 @@ impl InputDataFetcher {
         };
         let v: SignedBlockResponse =
             serde_json::from_str(&fetched_result).expect("Failed to parse JSON");
-        let temp_block = v.result;
-        Box::new(temp_block)
+        let block = v.result;
+        Box::new(block)
     }
 
     pub async fn get_header_from_number(&self, block_number: u64) -> Header {
@@ -269,7 +269,7 @@ impl InputDataFetcher {
             &trusted_block,
         );
 
-        let temp_target_block_height_proof = self.get_merkle_proof(
+        let target_block_height_proof = self.get_merkle_proof(
             &target_block.header,
             BLOCK_HEIGHT_INDEX as u64,
             target_block.header.height.encode_vec(),
@@ -278,7 +278,7 @@ impl InputDataFetcher {
         let target_block_height_proof = HeightProofValueType::<F> {
             height: target_block.header.height.value(),
             enc_height_byte_length: target_block.header.height.encode_vec().len() as u32,
-            proof: temp_target_block_height_proof.1,
+            proof: target_block_height_proof.1,
         };
 
         let target_block_validators_hash_proof = self.get_inclusion_proof(
