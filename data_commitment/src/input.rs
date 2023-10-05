@@ -3,22 +3,15 @@ use std::path::Path;
 
 use async_trait::async_trait;
 use celestia::consts::*;
-use celestia::input::utils::convert_to_h256;
 use celestia::input::{InputDataFetcher, InputDataMode};
 use ethers::types::H256;
 use itertools::Itertools;
-use plonky2x::frontend::hint::simple::hint::Hint;
 use plonky2x::frontend::merkle::tree::InclusionProof;
-use plonky2x::frontend::uint::uint64::U64Variable;
-use plonky2x::frontend::vars::ValueStream;
-use plonky2x::prelude::{Bytes32Variable, PlonkParameters, RichField};
-use serde::{Deserialize, Serialize};
+use plonky2x::prelude::RichField;
+use serde::Deserialize;
 use subtle_encoding::hex;
 use tendermint_proto::types::BlockId as RawBlockId;
 use tendermint_proto::Protobuf;
-use tokio::runtime::Runtime;
-
-use crate::vars::{DataCommitmentProofValueType, DataCommitmentProofVariable};
 
 #[derive(Debug, Deserialize)]
 pub struct DataCommitmentResponse {
@@ -198,46 +191,5 @@ impl DataCommitmentInputs for InputDataFetcher {
             prev_header_proofs_formatted,
             expected_data_commitment,
         )
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DataCommitmentOffchainInputs<const MAX_LEAVES: usize> {}
-
-impl<const MAX_LEAVES: usize, L: PlonkParameters<D>, const D: usize> Hint<L, D>
-    for DataCommitmentOffchainInputs<MAX_LEAVES>
-{
-    fn hint(&self, input_stream: &mut ValueStream<L, D>, output_stream: &mut ValueStream<L, D>) {
-        let start_block = input_stream.read_value::<U64Variable>();
-        let start_header_hash = input_stream.read_value::<Bytes32Variable>();
-        let end_block = input_stream.read_value::<U64Variable>();
-        let end_header_hash = input_stream.read_value::<Bytes32Variable>();
-
-        let mut data_fetcher = InputDataFetcher::new();
-
-        let rt = Runtime::new().expect("failed to create tokio runtime");
-        let result = rt.block_on(async {
-            data_fetcher
-                .get_data_commitment_inputs::<MAX_LEAVES, L::Field>(
-                    start_block,
-                    start_header_hash,
-                    end_block,
-                    end_header_hash,
-                )
-                .await
-        });
-        let data_comm_proof = DataCommitmentProofValueType {
-            data_hashes: convert_to_h256(result.0),
-            start_block_height: start_block,
-            start_header: start_header_hash,
-            end_block_height: end_block,
-            end_header: end_header_hash,
-            data_hash_proofs: result.1,
-            prev_header_proofs: result.2,
-        };
-        // Write the inputs to the data commitment circuit.
-        output_stream.write_value::<DataCommitmentProofVariable<MAX_LEAVES>>(data_comm_proof);
-        // Write the expected data commitment.
-        output_stream.write_value::<Bytes32Variable>(H256(result.3));
     }
 }

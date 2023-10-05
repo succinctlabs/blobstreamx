@@ -9,7 +9,7 @@ use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::frontend::vars::U32Variable;
 use plonky2x::prelude::{
     ArrayVariable, BoolVariable, Bytes32Variable, BytesVariable, CircuitBuilder, CircuitVariable,
-    Field, PlonkParameters, RichField, Variable, Witness, WitnessWrite,
+    Field, PlonkParameters, RichField, Variable,
 };
 use tendermint::crypto::ed25519::VerificationKey;
 use tendermint::Signature;

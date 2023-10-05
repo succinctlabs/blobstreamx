@@ -1,11 +1,61 @@
+use async_trait::async_trait;
+use celestia::input::utils::convert_to_h256;
+use celestia::input::InputDataFetcher;
+use ethers::types::H256;
 use plonky2x::backend::circuit::Circuit;
+use plonky2x::frontend::hint::asynchronous::hint::AsyncHint;
 use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::frontend::vars::VariableStream;
-use plonky2x::prelude::{Bytes32Variable, CircuitBuilder, PlonkParameters};
+use plonky2x::prelude::{Bytes32Variable, CircuitBuilder, PlonkParameters, ValueStream};
+use serde::{Deserialize, Serialize};
 
 use crate::builder::DataCommitmentBuilder;
-use crate::input::DataCommitmentOffchainInputs;
+use crate::input::DataCommitmentInputs;
 use crate::vars::*;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DataCommitmentOffchainInputs<const MAX_LEAVES: usize> {}
+
+#[async_trait]
+impl<const MAX_LEAVES: usize, L: PlonkParameters<D>, const D: usize> AsyncHint<L, D>
+    for DataCommitmentOffchainInputs<MAX_LEAVES>
+{
+    async fn hint(
+        &self,
+        input_stream: &mut ValueStream<L, D>,
+        output_stream: &mut ValueStream<L, D>,
+    ) {
+        let start_block = input_stream.read_value::<U64Variable>();
+        let start_header_hash = input_stream.read_value::<Bytes32Variable>();
+        let end_block = input_stream.read_value::<U64Variable>();
+        let end_header_hash = input_stream.read_value::<Bytes32Variable>();
+
+        let mut data_fetcher = InputDataFetcher::new();
+
+        let result = data_fetcher
+            .get_data_commitment_inputs::<MAX_LEAVES, L::Field>(
+                start_block,
+                start_header_hash,
+                end_block,
+                end_header_hash,
+            )
+            .await;
+
+        let data_comm_proof = DataCommitmentProofValueType {
+            data_hashes: convert_to_h256(result.0),
+            start_block_height: start_block,
+            start_header: start_header_hash,
+            end_block_height: end_block,
+            end_header: end_header_hash,
+            data_hash_proofs: result.1,
+            prev_header_proofs: result.2,
+        };
+        // Write the inputs to the data commitment circuit.
+        output_stream.write_value::<DataCommitmentProofVariable<MAX_LEAVES>>(data_comm_proof);
+        // Write the expected data commitment.
+        output_stream.write_value::<Bytes32Variable>(H256(result.3));
+    }
+}
 
 pub struct DataCommitmentCircuit<const MAX_LEAVES: usize> {
     _config: usize,
@@ -24,7 +74,8 @@ impl<const MAX_LEAVES: usize> Circuit for DataCommitmentCircuit<MAX_LEAVES> {
         input_stream.write(&end_block_number);
         input_stream.write(&end_header_hash);
         let output_stream =
-            builder.hint(input_stream, DataCommitmentOffchainInputs::<MAX_LEAVES> {});
+            builder.async_hint(input_stream, DataCommitmentOffchainInputs::<MAX_LEAVES> {});
+
         let data_comm_proof =
             output_stream.read::<DataCommitmentProofVariable<MAX_LEAVES>>(builder);
 
@@ -43,7 +94,7 @@ impl<const MAX_LEAVES: usize> Circuit for DataCommitmentCircuit<MAX_LEAVES> {
         <<L as PlonkParameters<D>>::Config as plonky2::plonk::config::GenericConfig<D>>::Hasher:
             plonky2::plonk::config::AlgebraicHasher<L::Field>,
     {
-        generator_registry.register_hint::<DataCommitmentOffchainInputs<MAX_LEAVES>>();
+        generator_registry.register_async_hint::<DataCommitmentOffchainInputs<MAX_LEAVES>>();
     }
 }
 
@@ -87,6 +138,7 @@ mod tests {
     ) {
         env::set_var("RUST_LOG", "debug");
         env_logger::try_init().unwrap_or_default();
+
         // env::set_var("RPC_MOCHA_4", "fixture"); // Use fixture during testing
 
         let mut builder = DefaultBuilder::new();
@@ -106,7 +158,10 @@ mod tests {
         input.evm_write::<Bytes32Variable>(H256::from_slice(end_header_hash.as_slice()));
 
         log::debug!("Generating proof");
-        let (proof, mut output) = circuit.prove(&input);
+
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let (proof, mut output) = rt.block_on(async { circuit.prove_async(&input).await });
+
         log::debug!("Done generating proof");
 
         circuit.verify(&proof, &input, &output);
@@ -167,15 +222,15 @@ mod tests {
     fn test_data_commitment_smart_contract() {
         // Test variable length NUM_BLOCKS.
         const MAX_LEAVES: usize = 256;
-        const NUM_BLOCKS: usize = 100;
+        const NUM_BLOCKS: usize = 4;
 
-        let start_block = 100000u64;
+        let start_block = 10000u64;
         let start_header_hash =
-            hex::decode_upper("0C1D96912ACE4102C620EC6223E4A457D01ABC9CEC70B7149A10410472D6D60E")
+            hex::decode_upper("A0123D5E4B8B8888A61F931EE2252D83568B97C223E0ECA9795B29B8BD8CBA2D")
                 .unwrap();
         let end_block = start_block + NUM_BLOCKS as u64;
         let end_header_hash =
-            hex::decode_upper("400773BF4613E2F0311DD382DB3B2278B6442560A7AD6627984799D2FC4F0DF9")
+            hex::decode_upper("FCDA37FA6306C77737DD911E6101B612E2DBD837F29ED4F4E1C30919FBAC9D05")
                 .unwrap();
 
         test_data_commitment_template::<MAX_LEAVES>(

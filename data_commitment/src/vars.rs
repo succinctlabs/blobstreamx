@@ -3,7 +3,7 @@ use plonky2x::frontend::merkle::tree::MerkleInclusionProofVariable;
 use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::prelude::{
     ArrayVariable, Bytes32Variable, CircuitBuilder, CircuitVariable, PlonkParameters, RichField,
-    Variable, Witness, WitnessWrite,
+    Variable,
 };
 
 // The data commitment inputs as a struct.
