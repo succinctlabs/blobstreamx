@@ -1,5 +1,5 @@
+pub mod conversion;
 pub mod tendermint_utils;
-pub mod types;
 pub mod utils;
 
 use std::collections::HashMap;
@@ -12,17 +12,17 @@ use plonky2x::prelude::RichField;
 use tendermint_proto::types::BlockId as RawBlockId;
 use tendermint_proto::Protobuf;
 
+use self::conversion::update_present_on_trusted_header;
 use self::tendermint_utils::{
     generate_proofs_from_header, Hash, Header, HeaderResponse, Proof, SignedBlock,
     SignedBlockResponse,
 };
-use self::types::update_present_on_trusted_header;
 use self::utils::convert_to_h256;
 use crate::consts::{
     BLOCK_HEIGHT_INDEX, HEADER_PROOF_DEPTH, LAST_BLOCK_ID_INDEX, NEXT_VALIDATORS_HASH_INDEX,
     PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES, VALIDATORS_HASH_INDEX,
 };
-use crate::input::types::{get_validators_as_input, get_validators_fields_as_input};
+use crate::input::conversion::{validator_from_block, validator_hash_field_from_block};
 use crate::variables::*;
 
 pub enum InputDataMode {
@@ -193,8 +193,7 @@ impl InputDataFetcher {
 
         let next_block_header = next_block.header.hash();
 
-        let next_block_validators =
-            get_validators_as_input::<VALIDATOR_SET_SIZE_MAX, F>(&next_block);
+        let next_block_validators = validator_from_block::<VALIDATOR_SET_SIZE_MAX, F>(&next_block);
         assert_eq!(
             next_block_validators.len(),
             VALIDATOR_SET_SIZE_MAX,
@@ -262,7 +261,7 @@ impl InputDataFetcher {
         let target_block_header = target_block.header.hash();
         let round_present = target_block.commit.round.value() != 0;
         let mut target_block_validators =
-            get_validators_as_input::<VALIDATOR_SET_SIZE_MAX, F>(&target_block);
+            validator_from_block::<VALIDATOR_SET_SIZE_MAX, F>(&target_block);
         update_present_on_trusted_header(
             &mut target_block_validators,
             &target_block,
@@ -288,7 +287,7 @@ impl InputDataFetcher {
         );
 
         let trusted_block_validator_fields =
-            get_validators_fields_as_input::<VALIDATOR_SET_SIZE_MAX, F>(&trusted_block);
+            validator_hash_field_from_block::<VALIDATOR_SET_SIZE_MAX, F>(&trusted_block);
         let trusted_block_validator_hash_proof = self.get_inclusion_proof(
             &trusted_block.header,
             VALIDATORS_HASH_INDEX as u64,

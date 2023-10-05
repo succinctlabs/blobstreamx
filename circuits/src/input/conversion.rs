@@ -10,7 +10,7 @@ use super::tendermint_utils::{non_absent_vote, SignedBlock};
 use crate::consts::VALIDATOR_MESSAGE_BYTES_LENGTH_MAX;
 use crate::variables::*;
 
-pub fn get_validators_as_input<const VALIDATOR_SET_SIZE_MAX: usize, F: RichField>(
+pub fn validator_from_block<const VALIDATOR_SET_SIZE_MAX: usize, F: RichField>(
     block: &SignedBlock,
 ) -> Vec<Validator<F>> {
     let mut validators = Vec::new();
@@ -105,7 +105,7 @@ pub fn get_validators_as_input<const VALIDATOR_SET_SIZE_MAX: usize, F: RichField
     validators
 }
 
-pub fn get_validators_fields_as_input<const VALIDATOR_SET_SIZE_MAX: usize, F: RichField>(
+pub fn validator_hash_field_from_block<const VALIDATOR_SET_SIZE_MAX: usize, F: RichField>(
     trusted_block: &SignedBlock,
 ) -> Vec<ValidatorHashField<F>> {
     let mut trusted_validator_fields = Vec::new();
