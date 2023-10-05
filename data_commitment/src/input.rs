@@ -3,22 +3,15 @@ use std::path::Path;
 
 use async_trait::async_trait;
 use celestia::consts::*;
-use celestia::input::utils::convert_to_h256;
 use celestia::input::{InputDataFetcher, InputDataMode};
 use ethers::types::H256;
 use itertools::Itertools;
-use plonky2x::frontend::hint::simple::hint::Hint;
 use plonky2x::frontend::merkle::tree::InclusionProof;
-use plonky2x::frontend::uint::uint64::U64Variable;
-use plonky2x::frontend::vars::ValueStream;
-use plonky2x::prelude::{Bytes32Variable, PlonkParameters, RichField};
-use serde::{Deserialize, Serialize};
+use plonky2x::prelude::RichField;
+use serde::Deserialize;
 use subtle_encoding::hex;
 use tendermint_proto::types::BlockId as RawBlockId;
 use tendermint_proto::Protobuf;
-use tokio::runtime::Runtime;
-
-use crate::vars::{DataCommitmentProofValueType, DataCommitmentProofVariable};
 
 #[derive(Debug, Deserialize)]
 pub struct DataCommitmentResponse {

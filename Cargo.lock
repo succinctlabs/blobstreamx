@@ -457,7 +457,7 @@ dependencies = [
  "log",
  "num",
  "plonky2",
- "plonky2x 0.1.0 (git+https://github.com/succinctlabs/succinctx.git?branch=tamir/sha_expriments)",
+ "plonky2x 0.1.0 (git+https://github.com/succinctlabs/succinctx.git?branch=ratan/sha256-curta-async)",
  "rand",
  "reqwest",
  "serde",
@@ -751,7 +751,7 @@ dependencies = [
 [[package]]
 name = "curta"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/curta.git#1a36e5681c1e25f108c89270ae480a5f0efe317b"
+source = "git+https://github.com/succinctlabs/curta.git#b397226c359a372726316e99397db68272f20b04"
 dependencies = [
  "anyhow",
  "bincode",
@@ -2772,7 +2772,7 @@ checksum = "4503fa043bf02cee09a9582e9554b4c6403b2ef55e4612e96561d294419429f8"
 [[package]]
 name = "plonky2"
 version = "0.1.4"
-source = "git+https://github.com/mir-protocol/plonky2.git#51eb7c0b5221e6fce5a39beac6a9ba274b2d71b3"
+source = "git+https://github.com/mir-protocol/plonky2.git#0de6f949622a6410835bb776c40cc3cad04316a9"
 dependencies = [
  "ahash",
  "anyhow",
@@ -2796,7 +2796,7 @@ dependencies = [
 [[package]]
 name = "plonky2_field"
 version = "0.1.1"
-source = "git+https://github.com/mir-protocol/plonky2.git#51eb7c0b5221e6fce5a39beac6a9ba274b2d71b3"
+source = "git+https://github.com/mir-protocol/plonky2.git#0de6f949622a6410835bb776c40cc3cad04316a9"
 dependencies = [
  "anyhow",
  "itertools 0.11.0",
@@ -2820,7 +2820,7 @@ dependencies = [
 [[package]]
 name = "plonky2_maybe_rayon"
 version = "0.1.1"
-source = "git+https://github.com/mir-protocol/plonky2.git#51eb7c0b5221e6fce5a39beac6a9ba274b2d71b3"
+source = "git+https://github.com/mir-protocol/plonky2.git#0de6f949622a6410835bb776c40cc3cad04316a9"
 dependencies = [
  "rayon",
 ]
@@ -2828,12 +2828,12 @@ dependencies = [
 [[package]]
 name = "plonky2_util"
 version = "0.1.1"
-source = "git+https://github.com/mir-protocol/plonky2.git#51eb7c0b5221e6fce5a39beac6a9ba274b2d71b3"
+source = "git+https://github.com/mir-protocol/plonky2.git#0de6f949622a6410835bb776c40cc3cad04316a9"
 
 [[package]]
 name = "plonky2x"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git?branch=tamir/sha_expriments#11b3bde1ee9e4cd5a7bdc265d7ca4f5e0decdf16"
+source = "git+https://github.com/succinctlabs/succinctx.git?branch=ratan/sha256-curta-async#6c11d64fad16cb0b6951999c1ba3269fd1f42bd0"
 dependencies = [
  "anyhow",
  "array-macro",
@@ -2859,7 +2859,7 @@ dependencies = [
  "num",
  "num-bigint 0.4.4",
  "plonky2",
- "plonky2x-derive 0.1.0 (git+https://github.com/succinctlabs/succinctx.git?branch=tamir/sha_expriments)",
+ "plonky2x-derive 0.1.0 (git+https://github.com/succinctlabs/succinctx.git?branch=ratan/sha256-curta-async)",
  "rand",
  "reqwest",
  "serde",
@@ -2870,7 +2870,6 @@ dependencies = [
  "sha256",
  "tokio",
  "tracing",
- "tracing-subscriber",
  "uuid 1.4.1",
 ]
 
@@ -2920,7 +2919,7 @@ dependencies = [
 [[package]]
 name = "plonky2x-derive"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git?branch=tamir/sha_expriments#11b3bde1ee9e4cd5a7bdc265d7ca4f5e0decdf16"
+source = "git+https://github.com/succinctlabs/succinctx.git?branch=ratan/sha256-curta-async#6c11d64fad16cb0b6951999c1ba3269fd1f42bd0"
 dependencies = [
  "proc-macro2",
  "quote",

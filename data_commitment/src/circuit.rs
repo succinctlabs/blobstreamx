@@ -1,12 +1,16 @@
 use async_trait::async_trait;
+use celestia::input::utils::convert_to_h256;
+use celestia::input::InputDataFetcher;
+use ethers::types::H256;
 use plonky2x::backend::circuit::Circuit;
 use plonky2x::frontend::hint::asynchronous::hint::AsyncHint;
 use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::frontend::vars::VariableStream;
-use plonky2x::prelude::{Bytes32Variable, CircuitBuilder, PlonkParameters};
+use plonky2x::prelude::{Bytes32Variable, CircuitBuilder, PlonkParameters, ValueStream};
+use serde::{Deserialize, Serialize};
 
 use crate::builder::DataCommitmentBuilder;
-use crate::input::DataCommitmentOffchainInputs;
+use crate::input::DataCommitmentInputs;
 use crate::vars::*;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -28,7 +32,6 @@ impl<const MAX_LEAVES: usize, L: PlonkParameters<D>, const D: usize> AsyncHint<L
 
         let mut data_fetcher = InputDataFetcher::new();
 
-        let rt = Runtime::new().expect("failed to create tokio runtime");
         let result = data_fetcher
             .get_data_commitment_inputs::<MAX_LEAVES, L::Field>(
                 start_block,
@@ -73,18 +76,12 @@ impl<const MAX_LEAVES: usize> Circuit for DataCommitmentCircuit<MAX_LEAVES> {
         let output_stream =
             builder.async_hint(input_stream, DataCommitmentOffchainInputs::<MAX_LEAVES> {});
 
-        debug!("Finished data comm hint");
-
         let data_comm_proof =
             output_stream.read::<DataCommitmentProofVariable<MAX_LEAVES>>(builder);
 
         let expected_data_commitment = output_stream.read::<Bytes32Variable>(builder);
 
-        debug!("Start proving data comm");
-
         let data_commitment = builder.prove_data_commitment::<MAX_LEAVES>(data_comm_proof);
-
-        debug!("Finished proving data comm");
 
         builder.assert_is_equal(data_commitment, expected_data_commitment);
 
@@ -140,8 +137,7 @@ mod tests {
         end_header_hash: [u8; 32],
     ) {
         env::set_var("RUST_LOG", "debug");
-        // env_logger::try_init().unwrap_or_default();
-        tracing_subscriber::fmt::init();
+        env_logger::try_init().unwrap_or_default();
 
         // env::set_var("RPC_MOCHA_4", "fixture"); // Use fixture during testing
 
