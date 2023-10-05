@@ -25,6 +25,7 @@ use ethers::types::H256;
 use plonky2x::backend::circuit::Circuit;
 use plonky2x::backend::function::VerifiableFunction;
 use plonky2x::frontend::hint::asynchronous::hint::AsyncHint;
+use plonky2x::frontend::hint::simple::hint::Hint;
 use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::frontend::vars::{ValueStream, VariableStream};
 use plonky2x::prelude::{Bytes32Variable, CircuitBuilder, PlonkParameters};
@@ -78,6 +79,50 @@ impl<const MAX_LEAVES: usize, L: PlonkParameters<D>, const D: usize> AsyncHint<L
     }
 }
 
+impl<const MAX_LEAVES: usize, L: PlonkParameters<D>, const D: usize> Hint<L, D>
+    for DataCommitmentOffchainInputs<MAX_LEAVES>
+{
+    fn hint(
+        &self,
+        input_stream: &mut ValueStream<L, D>,
+        output_stream: &mut ValueStream<L, D>,
+    ) {
+        let start_block = input_stream.read_value::<U64Variable>();
+        let start_header_hash = input_stream.read_value::<Bytes32Variable>();
+        let end_block = input_stream.read_value::<U64Variable>();
+        let end_header_hash = input_stream.read_value::<Bytes32Variable>();
+
+        let mut data_fetcher = InputDataFetcher::new();
+
+        debug!("Fetching data comm inputs");
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let result = rt.block_on(data_fetcher
+            .get_data_commitment_inputs::<MAX_LEAVES, L::Field>(
+                start_block,
+                start_header_hash,
+                end_block,
+                end_header_hash,
+            ));
+        debug!("Done fetching data comm inputs");
+
+        let data_comm_proof = DataCommitmentProofValueType {
+            data_hashes: convert_to_h256(result.0),
+            start_block_height: start_block,
+            start_header: start_header_hash,
+            end_block_height: end_block,
+            end_header: end_header_hash,
+            data_hash_proofs: result.1,
+            prev_header_proofs: result.2,
+        };
+        debug!("Writing data comm inputs");
+        // Write the inputs to the data commitment circuit.
+        output_stream.write_value::<DataCommitmentProofVariable<MAX_LEAVES>>(data_comm_proof);
+        // Write the expected data commitment.
+        output_stream.write_value::<Bytes32Variable>(H256(result.3));
+        debug!("Done writing data comm inputs");
+    }
+}
+
 struct DataCommitmentCircuit<const MAX_LEAVES: usize> {
     _config: usize,
 }
@@ -95,7 +140,7 @@ impl<const MAX_LEAVES: usize> Circuit for DataCommitmentCircuit<MAX_LEAVES> {
         input_stream.write(&end_block_number);
         input_stream.write(&end_header_hash);
         let output_stream =
-            builder.async_hint(input_stream, DataCommitmentOffchainInputs::<MAX_LEAVES> {});
+            builder.hint(input_stream, DataCommitmentOffchainInputs::<MAX_LEAVES> {});
 
         debug!("Finished data comm hint");
 
