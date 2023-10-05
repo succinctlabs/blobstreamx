@@ -220,7 +220,7 @@ mod tests {
         // Test variable length NUM_BLOCKS.
         const MAX_LEAVES: usize = 8;
         const NUM_BLOCKS: usize = 4;
-
+        env::set_var("RPC_MOCHA_4", "http://64.227.18.169:26657"); 
         let start_block = 10000u64;
         let start_header_hash =
             hex::decode_upper("A0123D5E4B8B8888A61F931EE2252D83568B97C223E0ECA9795B29B8BD8CBA2D")
@@ -268,7 +268,7 @@ mod tests {
         // Test variable length NUM_BLOCKS.
         const MAX_LEAVES: usize = 256;
         const NUM_BLOCKS: usize = 4;
-
+        env::set_var("RPC_MOCHA_4", "http://64.227.18.169:26657"); 
         let start_block = 10000u64;
         let start_header_hash =
             hex::decode_upper("A0123D5E4B8B8888A61F931EE2252D83568B97C223E0ECA9795B29B8BD8CBA2D")

@@ -722,7 +722,7 @@ dependencies = [
 [[package]]
 name = "curta"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/curta.git#1a36e5681c1e25f108c89270ae480a5f0efe317b"
+source = "git+https://github.com/succinctlabs/curta.git#b397226c359a372726316e99397db68272f20b04"
 dependencies = [
  "anyhow",
  "bincode",
@@ -2804,7 +2804,7 @@ source = "git+https://github.com/mir-protocol/plonky2.git#51eb7c0b5221e6fce5a39b
 [[package]]
 name = "plonky2x"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git?branch=tamir/sha_expriments#11b3bde1ee9e4cd5a7bdc265d7ca4f5e0decdf16"
+source = "git+https://github.com/succinctlabs/succinctx.git?branch=tamir/more_sha_expr#11bb3bf3dc2d98fa5ad445d54bafa64f500d8f5d"
 dependencies = [
  "anyhow",
  "array-macro",
@@ -2848,7 +2848,7 @@ dependencies = [
 [[package]]
 name = "plonky2x-derive"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git?branch=tamir/sha_expriments#11b3bde1ee9e4cd5a7bdc265d7ca4f5e0decdf16"
+source = "git+https://github.com/succinctlabs/succinctx.git?branch=tamir/more_sha_expr#11bb3bf3dc2d98fa5ad445d54bafa64f500d8f5d"
 dependencies = [
  "proc-macro2",
  "quote",
