@@ -34,10 +34,10 @@ pub enum InputDataMode {
 }
 
 pub struct InputDataFetcher {
-    mode: InputDataMode,
-    proof_cache: HashMap<Hash, Vec<Proof>>,
-    save: bool,
-    fixture_path: String,
+    pub mode: InputDataMode,
+    pub proof_cache: HashMap<Hash, Vec<Proof>>,
+    pub save: bool,
+    pub fixture_path: String,
 }
 
 impl Default for InputDataFetcher {
