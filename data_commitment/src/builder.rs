@@ -108,6 +108,7 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
             leaves_enabled,
         )
     }
+
     fn prove_header_chain<const MAX_LEAVES: usize>(
         &mut self,
         input: DataCommitmentProofVariable<MAX_LEAVES>,
@@ -204,15 +205,15 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
 pub(crate) mod tests {
     use std::env;
 
+    use celestia::input::utils::convert_to_h256;
+    use celestia::input::InputDataFetcher;
     use ethers::types::H256;
     use plonky2x::backend::circuit::DefaultParameters;
     use tokio::runtime::Runtime;
 
     use super::*;
-    use crate::builder::DataCommitment;
-    use crate::input_data::utils::convert_to_h256;
-    use crate::input_data::InputDataFetcher;
-    use crate::variables::{DataCommitmentProofValueType, DataCommitmentProofVariable};
+    use crate::input::DataCommitmentInputs;
+    use crate::vars::*;
 
     type L = DefaultParameters;
     type F = <L as PlonkParameters<D>>::Field;

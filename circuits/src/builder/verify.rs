@@ -5,13 +5,12 @@ use plonky2x::frontend::vars::U32Variable;
 use plonky2x::prelude::{
     ArrayVariable, BoolVariable, Bytes32Variable, CircuitBuilder, PlonkParameters, Variable,
 };
-use tendermint::merkle::HASH_SIZE;
 
 use super::shared::TendermintHeader;
 use super::validator::TendermintValidator;
 use super::voting::TendermintVoting;
 use crate::consts::{
-    HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES,
+    HASH_SIZE, HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES,
     VALIDATOR_MESSAGE_BYTES_LENGTH_MAX,
 };
 use crate::variables::*;

@@ -1,4 +1,4 @@
-use tendermint::merkle::HASH_SIZE;
+pub use tendermint::merkle::HASH_SIZE;
 /// The number of bits in a SHA256 hash.
 pub const HASH_SIZE_BITS: usize = HASH_SIZE * 8;
 

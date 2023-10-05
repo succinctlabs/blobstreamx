@@ -160,7 +160,7 @@ pub(crate) mod tests {
     use plonky2x::frontend::ecc::ed25519::curve::curve_types::AffinePoint;
     use plonky2x::frontend::merkle::tree::{InclusionProof, MerkleInclusionProofVariable};
     use plonky2x::prelude::{
-        ArrayVariable, Bytes32Variable, DefaultBuilder, Field, GoldilocksField,
+        ArrayVariable, Bytes32Variable, DefaultBuilder, DefaultParameters, Field, GoldilocksField,
     };
     use sha2::Sha256;
     use tendermint_proto::types::BlockId as RawBlockId;
@@ -174,8 +174,7 @@ pub(crate) mod tests {
     };
     use crate::input::utils::{convert_to_h256, get_path_indices};
     use crate::input::InputDataFetcher;
-    use crate::validator::TendermintValidator;
-    use crate::variables::Ed25519;
+    use crate::variables::{EDDSAPublicKeyValueType, Ed25519};
 
     #[test]
     fn test_marshal_tendermint_validator() {
@@ -192,16 +191,16 @@ pub(crate) mod tests {
         // Define the circuit
         let mut builder = DefaultBuilder::new();
         let voting_power_variable = builder.read::<U64Variable>();
-        let pub_key = builder.read::<AffinePointTarget<Ed25519>>();
+        let pub_key = builder.read::<EDDSAPublicKeyVariable>();
         let result = builder.marshal_tendermint_validator(&pub_key, &voting_power_variable);
         builder.write(result);
         let circuit = builder.build();
 
         let mut input = circuit.input();
         input.write::<U64Variable>(voting_power_i64 as u64);
-        let pub_key_uncompressed: AffinePoint<Ed25519> =
-            AffinePoint::new_from_compressed_point(&hex::decode(pubkey).unwrap());
-        input.write::<AffinePointTarget<Ed25519>>(pub_key_uncompressed);
+        let pub_key_uncompressed =
+            AffinePoint::<Ed25519>::new_from_compressed_point(&hex::decode(pubkey).unwrap());
+        input.write::<EDDSAPublicKeyVariable>(pub_key_uncompressed);
         let (_, mut output) = circuit.prove(&input);
         let output_bytes = output.read::<BytesVariable<VALIDATOR_BYTE_LENGTH_MAX>>();
 

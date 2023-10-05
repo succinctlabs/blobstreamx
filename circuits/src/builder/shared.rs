@@ -1,5 +1,3 @@
-use plonky2x::frontend::ecc::ed25519::curve::curve_types::Curve;
-use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
 use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::frontend::vars::U32Variable;
 use plonky2x::prelude::{
@@ -10,8 +8,6 @@ use plonky2x::prelude::{
 use crate::consts::{HEADER_PROOF_DEPTH, PROTOBUF_VARINT_SIZE_BYTES, VARINT_BYTES_LENGTH_MAX};
 
 pub trait TendermintHeader<L: PlonkParameters<D>, const D: usize> {
-    type Curve: Curve;
-
     /// Serializes an int64 as a protobuf varint.
     fn marshal_int64_varint(
         &mut self,
@@ -36,8 +32,6 @@ pub trait TendermintHeader<L: PlonkParameters<D>, const D: usize> {
 }
 
 impl<L: PlonkParameters<D>, const D: usize> TendermintHeader<L, D> for CircuitBuilder<L, D> {
-    type Curve = Ed25519;
-
     fn marshal_int64_varint(
         &mut self,
         value: &U64Variable,
