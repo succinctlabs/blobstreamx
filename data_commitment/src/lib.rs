@@ -3,3 +3,4 @@
 
 pub mod commitment;
 pub mod hint;
+pub mod vars;

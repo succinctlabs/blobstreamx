@@ -2,12 +2,13 @@ use celestia::consts::{
     ENC_DATA_ROOT_TUPLE_SIZE_BYTES, HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES,
     PROTOBUF_HASH_SIZE_BYTES,
 };
-use celestia::variables::DataCommitmentProofVariable;
 use plonky2x::backend::circuit::PlonkParameters;
 use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::frontend::vars::{ArrayVariable, Bytes32Variable, EvmVariable};
 use plonky2x::prelude::{BoolVariable, ByteVariable, BytesVariable, CircuitBuilder};
 use tendermint::merkle::HASH_SIZE;
+
+use crate::vars::*;
 
 pub trait DataCommitmentBuilder<L: PlonkParameters<D>, const D: usize> {
     /// Encodes the data hash and height into a tuple.

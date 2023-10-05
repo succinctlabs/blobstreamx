@@ -21,6 +21,8 @@ use tendermint_proto::types::BlockId as RawBlockId;
 use tendermint_proto::Protobuf;
 use tokio::runtime::Runtime;
 
+use crate::vars::*;
+
 #[derive(Debug, Deserialize)]
 pub struct DataCommitmentResponse {
     pub result: DataCommitment,

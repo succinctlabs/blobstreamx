@@ -18,9 +18,9 @@ use std::env;
 
 use blobstream::commitment::DataCommitmentBuilder;
 use blobstream::hint::DataCommitmentInputs;
+use blobstream::vars::*;
 use celestia::input_data::utils::convert_to_h256;
 use celestia::input_data::InputDataFetcher;
-use celestia::variables::{DataCommitmentProofValueType, DataCommitmentProofVariable};
 use ethers::types::H256;
 use plonky2x::backend::circuit::Circuit;
 use plonky2x::backend::function::VerifiableFunction;
