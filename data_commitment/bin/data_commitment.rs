@@ -16,15 +16,8 @@
 //!
 use std::env;
 
-use blobstream::builder::DataCommitmentBuilder;
 use blobstream::circuit::DataCommitmentCircuit;
-use blobstream::input::DataCommitmentOffchainInputs;
-use blobstream::vars::*;
-use plonky2x::backend::circuit::Circuit;
 use plonky2x::backend::function::VerifiableFunction;
-use plonky2x::frontend::uint::uint64::U64Variable;
-use plonky2x::frontend::vars::VariableStream;
-use plonky2x::prelude::{Bytes32Variable, CircuitBuilder, PlonkParameters};
 
 fn main() {
     // Celestia's maxmimum data commitment size is 1000: https://github.com/celestiaorg/celestia-core/blob/6933af1ead0ddf4a8c7516690e3674c6cdfa7bd8/pkg/consts/consts.go#L44.
