@@ -448,7 +448,6 @@ dependencies = [
  "anyhow",
  "async-trait",
  "clap",
- "curta",
  "digest 0.10.7",
  "dotenv",
  "ed25519-consensus",

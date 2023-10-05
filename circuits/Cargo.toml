@@ -21,7 +21,6 @@ ci = []
 anyhow = "1.0.71"
 async-trait = "0.1.73"
 clap = { version = "4.3.18", features = ["derive"] }
-curta = { git = "https://github.com/succinctlabs/curta.git" }
 digest = "0.10.7"
 dotenv = "0.15.0"
 ed25519-consensus = "2.1.0"

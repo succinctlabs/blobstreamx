@@ -1,4 +1,6 @@
+use async_trait::async_trait;
 use plonky2x::backend::circuit::Circuit;
+use plonky2x::frontend::hint::asynchronous::hint::AsyncHint;
 use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::frontend::vars::VariableStream;
 use plonky2x::prelude::{Bytes32Variable, CircuitBuilder, PlonkParameters};
@@ -6,6 +8,51 @@ use plonky2x::prelude::{Bytes32Variable, CircuitBuilder, PlonkParameters};
 use crate::builder::DataCommitmentBuilder;
 use crate::input::DataCommitmentOffchainInputs;
 use crate::vars::*;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DataCommitmentOffchainInputs<const MAX_LEAVES: usize> {}
+
+#[async_trait]
+impl<const MAX_LEAVES: usize, L: PlonkParameters<D>, const D: usize> AsyncHint<L, D>
+    for DataCommitmentOffchainInputs<MAX_LEAVES>
+{
+    async fn hint(
+        &self,
+        input_stream: &mut ValueStream<L, D>,
+        output_stream: &mut ValueStream<L, D>,
+    ) {
+        let start_block = input_stream.read_value::<U64Variable>();
+        let start_header_hash = input_stream.read_value::<Bytes32Variable>();
+        let end_block = input_stream.read_value::<U64Variable>();
+        let end_header_hash = input_stream.read_value::<Bytes32Variable>();
+
+        let mut data_fetcher = InputDataFetcher::new();
+
+        let rt = Runtime::new().expect("failed to create tokio runtime");
+        let result = data_fetcher
+            .get_data_commitment_inputs::<MAX_LEAVES, L::Field>(
+                start_block,
+                start_header_hash,
+                end_block,
+                end_header_hash,
+            )
+            .await;
+
+        let data_comm_proof = DataCommitmentProofValueType {
+            data_hashes: convert_to_h256(result.0),
+            start_block_height: start_block,
+            start_header: start_header_hash,
+            end_block_height: end_block,
+            end_header: end_header_hash,
+            data_hash_proofs: result.1,
+            prev_header_proofs: result.2,
+        };
+        // Write the inputs to the data commitment circuit.
+        output_stream.write_value::<DataCommitmentProofVariable<MAX_LEAVES>>(data_comm_proof);
+        // Write the expected data commitment.
+        output_stream.write_value::<Bytes32Variable>(H256(result.3));
+    }
+}
 
 pub struct DataCommitmentCircuit<const MAX_LEAVES: usize> {
     _config: usize,
