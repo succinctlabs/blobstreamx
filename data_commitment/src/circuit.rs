@@ -22,8 +22,8 @@ use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::frontend::vars::VariableStream;
 use plonky2x::prelude::{Bytes32Variable, CircuitBuilder, PlonkParameters};
 
-use crate::commitment::DataCommitmentBuilder;
-use crate::hint::DataCommitmentOffchainInputs;
+use crate::builder::DataCommitmentBuilder;
+use crate::input::DataCommitmentOffchainInputs;
 use crate::vars::*;
 
 pub struct DataCommitmentCircuit<const MAX_LEAVES: usize> {

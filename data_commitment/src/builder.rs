@@ -209,7 +209,7 @@ pub(crate) mod tests {
     use tokio::runtime::Runtime;
 
     use super::*;
-    use crate::commitment::DataCommitment;
+    use crate::builder::DataCommitment;
     use crate::input_data::utils::convert_to_h256;
     use crate::input_data::InputDataFetcher;
     use crate::variables::{DataCommitmentProofValueType, DataCommitmentProofVariable};

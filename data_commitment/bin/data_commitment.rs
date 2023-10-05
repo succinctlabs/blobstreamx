@@ -16,9 +16,9 @@
 //!
 use std::env;
 
+use blobstream::builder::DataCommitmentBuilder;
 use blobstream::circuit::DataCommitmentCircuit;
-use blobstream::commitment::DataCommitmentBuilder;
-use blobstream::hint::DataCommitmentOffchainInputs;
+use blobstream::input::DataCommitmentOffchainInputs;
 use blobstream::vars::*;
 use plonky2x::backend::circuit::Circuit;
 use plonky2x::backend::function::VerifiableFunction;
