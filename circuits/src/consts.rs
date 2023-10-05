@@ -1,4 +1,4 @@
-use tendermint::merkle::HASH_SIZE;
+pub use tendermint::merkle::HASH_SIZE;
 /// The number of bits in a SHA256 hash.
 pub const HASH_SIZE_BITS: usize = HASH_SIZE * 8;
 
@@ -28,9 +28,6 @@ pub const VALIDATOR_BYTE_LENGTH_MIN: usize = 38;
 /// The number of possible byte lengths of a protobuf-encoded Tendermint validator.
 pub const NUM_POSSIBLE_VALIDATOR_BYTE_LENGTHS: usize =
     VALIDATOR_BYTE_LENGTH_MAX - VALIDATOR_BYTE_LENGTH_MIN + 1;
-
-// The number of bytes in a Tendermint validator's public key.
-const _PUBKEY_BYTES_LEN: usize = 32;
 
 // The maximum number of bytes in a protobuf-encoded varint.
 // https://docs.tendermint.com/v0.34/tendermint-core/using-tendermint.html#tendermint-networks

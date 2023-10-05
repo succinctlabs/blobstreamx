@@ -2,12 +2,10 @@
 //! https://github.com/cometbft/cometbft/blob/eb51aa722e75939157a788ebe0f6b62aeffd0e5d/types/validator_set.go#L25
 //! When summing the voting power of all validators, the total voting power will not overflow a u64.
 //! When multiplying the total voting power by a small factor c < 16, the result will not overflow a u64.
-use plonky2x::frontend::ecc::ed25519::curve::curve_types::Curve;
-use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
 use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::prelude::{BoolVariable, CircuitBuilder, PlonkParameters};
+
 pub trait TendermintVoting {
-    type Curve: Curve;
     // Gets the total voting power by summing the voting power of all validators.
     fn get_total_voting_power<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
@@ -35,8 +33,6 @@ pub trait TendermintVoting {
 }
 
 impl<L: PlonkParameters<D>, const D: usize> TendermintVoting for CircuitBuilder<L, D> {
-    type Curve = Ed25519;
-
     fn get_total_voting_power<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
         validator_voting_power: &[U64Variable],

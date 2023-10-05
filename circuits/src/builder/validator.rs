@@ -1,6 +1,4 @@
-use plonky2x::frontend::ecc::ed25519::curve::curve_types::Curve;
-use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
-use plonky2x::frontend::ecc::ed25519::gadgets::curve::{AffinePointTarget, CircuitBuilderCurve};
+use plonky2x::frontend::ecc::ed25519::gadgets::curve::CircuitBuilderCurve;
 use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::frontend::vars::U32Variable;
 use plonky2x::prelude::{
@@ -8,13 +6,13 @@ use plonky2x::prelude::{
     Variable,
 };
 
+use super::shared::TendermintHeader;
 use crate::consts::VALIDATOR_BYTE_LENGTH_MAX;
-use crate::shared::TendermintHeader;
-use crate::variables::{MarshalledValidatorVariable, TendermintHashVariable};
+use crate::variables::{
+    EDDSAPublicKeyVariable, MarshalledValidatorVariable, TendermintHashVariable,
+};
 
 pub trait TendermintValidator<L: PlonkParameters<D>, const D: usize> {
-    type Curve: Curve;
-
     /// Serializes the validator public key and voting power to bytes.
     /// The protobuf encoding of a Tendermint validator is a deterministic function of the validator's
     /// public key (32 bytes) and voting power (int64). The encoding is as follows in bytes:
@@ -24,7 +22,7 @@ pub trait TendermintValidator<L: PlonkParameters<D>, const D: usize> {
     /// read more about them here: https://protobuf.dev/programming-guides/encoding/#varints.  
     fn marshal_tendermint_validator(
         &mut self,
-        pubkey: &AffinePointTarget<Self::Curve>,
+        pubkey: &EDDSAPublicKeyVariable,
         voting_power: &U64Variable,
     ) -> MarshalledValidatorVariable;
 
@@ -53,11 +51,9 @@ pub trait TendermintValidator<L: PlonkParameters<D>, const D: usize> {
 }
 
 impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for CircuitBuilder<L, D> {
-    type Curve = Ed25519;
-
     fn marshal_tendermint_validator(
         &mut self,
-        pubkey: &AffinePointTarget<Self::Curve>,
+        pubkey: &EDDSAPublicKeyVariable,
         voting_power: &U64Variable,
     ) -> MarshalledValidatorVariable {
         let mut res = self
@@ -173,14 +169,12 @@ pub(crate) mod tests {
 
     use super::*;
     use crate::consts::{HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES};
-    use crate::input_data::tendermint_utils::{
+    use crate::input::tendermint_utils::{
         generate_proofs_from_header, hash_all_leaves, proofs_from_byte_slices,
     };
-    use crate::input_data::utils::{convert_to_h256, get_path_indices};
-    use crate::input_data::InputDataFetcher;
-    use crate::validator::TendermintValidator;
-
-    type Curve = Ed25519;
+    use crate::input::utils::{convert_to_h256, get_path_indices};
+    use crate::input::InputDataFetcher;
+    use crate::variables::Ed25519;
 
     #[test]
     fn test_marshal_tendermint_validator() {
@@ -197,16 +191,16 @@ pub(crate) mod tests {
         // Define the circuit
         let mut builder = DefaultBuilder::new();
         let voting_power_variable = builder.read::<U64Variable>();
-        let pub_key = builder.read::<AffinePointTarget<Curve>>();
+        let pub_key = builder.read::<EDDSAPublicKeyVariable>();
         let result = builder.marshal_tendermint_validator(&pub_key, &voting_power_variable);
         builder.write(result);
         let circuit = builder.build();
 
         let mut input = circuit.input();
         input.write::<U64Variable>(voting_power_i64 as u64);
-        let pub_key_uncompressed: AffinePoint<Curve> =
-            AffinePoint::new_from_compressed_point(&hex::decode(pubkey).unwrap());
-        input.write::<AffinePointTarget<Curve>>(pub_key_uncompressed);
+        let pub_key_uncompressed =
+            AffinePoint::<Ed25519>::new_from_compressed_point(&hex::decode(pubkey).unwrap());
+        input.write::<EDDSAPublicKeyVariable>(pub_key_uncompressed);
         let (_, mut output) = circuit.prove(&input);
         let output_bytes = output.read::<BytesVariable<VALIDATOR_BYTE_LENGTH_MAX>>();
 

@@ -1,100 +1,21 @@
-use plonky2x::frontend::ecc::ed25519::curve::curve_types::Curve;
-use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
-use plonky2x::frontend::ecc::ed25519::gadgets::eddsa::EDDSASignatureTarget;
 use plonky2x::frontend::ecc::ed25519::gadgets::verify::EDDSABatchVerify;
 use plonky2x::frontend::merkle::tree::MerkleInclusionProofVariable;
 use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::frontend::vars::U32Variable;
 use plonky2x::prelude::{
-    ArrayVariable, BoolVariable, Bytes32Variable, CircuitBuilder, CircuitVariable, PlonkParameters,
-    RichField, Variable,
+    ArrayVariable, BoolVariable, Bytes32Variable, CircuitBuilder, PlonkParameters, Variable,
 };
-use tendermint::merkle::HASH_SIZE;
 
+use super::shared::TendermintHeader;
+use super::validator::TendermintValidator;
+use super::voting::TendermintVoting;
 use crate::consts::{
-    HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES,
+    HASH_SIZE, HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES,
     VALIDATOR_MESSAGE_BYTES_LENGTH_MAX,
 };
-use crate::shared::TendermintHeader;
-use crate::validator::TendermintValidator;
-use crate::variables::{
-    EDDSAPublicKeyVariable, HeightProofVariable, MarshalledValidatorVariable,
-    TendermintHashVariable, ValidatorMessageVariable,
-};
-use crate::voting::TendermintVoting;
-
-#[derive(Debug, Clone, CircuitVariable)]
-#[value_name(Validator)]
-pub struct ValidatorVariable<C: Curve> {
-    pub pubkey: EDDSAPublicKeyVariable<C>,
-    pub signature: EDDSASignatureTarget<C>,
-    pub message: ValidatorMessageVariable,
-    pub message_byte_length: Variable,
-    pub voting_power: U64Variable,
-    pub validator_byte_length: Variable,
-    pub enabled: BoolVariable,
-    pub signed: BoolVariable,
-    // Only used in skip circuit
-    pub present_on_trusted_header: BoolVariable,
-}
-
-#[derive(Debug, Clone, CircuitVariable)]
-#[value_name(ValidatorHashField)]
-pub struct ValidatorHashFieldVariable<C: Curve> {
-    pub pubkey: EDDSAPublicKeyVariable<C>,
-    pub voting_power: U64Variable,
-    pub validator_byte_length: Variable,
-    pub enabled: BoolVariable,
-}
-
-/// The protobuf-encoded leaf (a hash), and it's corresponding proof and path indices against the header.
-pub type HashInclusionProofVariable =
-    MerkleInclusionProofVariable<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES>;
-
-pub type BlockIDInclusionProofVariable =
-    MerkleInclusionProofVariable<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES>;
-
-#[derive(Debug, Clone, CircuitVariable)]
-pub struct StepProofTarget<
-    C: Curve,
-    const HEADER_PROOF_DEPTH: usize,
-    const VALIDATOR_SET_SIZE_MAX: usize,
-> {
-    prev_header_next_validators_hash_proof: HashInclusionProofVariable,
-    prev_header: TendermintHashVariable,
-    last_block_id_proof: BlockIDInclusionProofVariable,
-    base: BaseBlockProofVariable<C, HEADER_PROOF_DEPTH, VALIDATOR_SET_SIZE_MAX>,
-}
-
-#[derive(Debug, Clone, CircuitVariable)]
-pub struct SkipProofTarget<
-    C: Curve,
-    const HEADER_PROOF_DEPTH: usize,
-    const VALIDATOR_SET_SIZE_MAX: usize,
-> {
-    trusted_header: TendermintHashVariable,
-    trusted_validator_hash_proof: HashInclusionProofVariable,
-    trusted_validator_hash_fields: Vec<ValidatorHashFieldVariable<C>>,
-    base: BaseBlockProofVariable<C, HEADER_PROOF_DEPTH, VALIDATOR_SET_SIZE_MAX>,
-}
-
-#[derive(Debug, Clone, CircuitVariable)]
-pub struct BaseBlockProofVariable<
-    C: Curve,
-    const HEADER_PROOF_DEPTH: usize,
-    const VALIDATOR_SET_SIZE_MAX: usize,
-> {
-    validators: ArrayVariable<ValidatorVariable<C>, VALIDATOR_SET_SIZE_MAX>,
-    header: TendermintHashVariable,
-    data_hash_proof: HashInclusionProofVariable,
-    validator_hash_proof: HashInclusionProofVariable,
-    next_validators_hash_proof: HashInclusionProofVariable,
-    round_present: BoolVariable,
-}
+use crate::variables::*;
 
 pub trait TendermintVerify<L: PlonkParameters<D>, const D: usize> {
-    type Curve: Curve;
-
     fn get_root<const LEAF_SIZE_BYTES: usize>(
         &mut self,
         proof: &MerkleInclusionProofVariable<HEADER_PROOF_DEPTH, LEAF_SIZE_BYTES>,
@@ -129,7 +50,7 @@ pub trait TendermintVerify<L: PlonkParameters<D>, const D: usize> {
     /// Verify a Tendermint consensus block.
     fn verify_header<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
-        validators: &ArrayVariable<ValidatorVariable<Self::Curve>, VALIDATOR_SET_SIZE_MAX>,
+        validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
         header: &TendermintHashVariable,
         validator_hash_proof: &HashInclusionProofVariable,
         round_present: &BoolVariable,
@@ -138,7 +59,7 @@ pub trait TendermintVerify<L: PlonkParameters<D>, const D: usize> {
     /// Sequentially verify a Tendermint consensus block.
     fn step<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
-        validators: &ArrayVariable<ValidatorVariable<Self::Curve>, VALIDATOR_SET_SIZE_MAX>,
+        validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
         header: &TendermintHashVariable,
         prev_header: &TendermintHashVariable,
         validator_hash_proof: &HashInclusionProofVariable,
@@ -150,11 +71,11 @@ pub trait TendermintVerify<L: PlonkParameters<D>, const D: usize> {
     /// Verify the trusted validators have signed the trusted header.
     fn verify_trusted_validators<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
-        validators: &ArrayVariable<ValidatorVariable<Self::Curve>, VALIDATOR_SET_SIZE_MAX>,
+        validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
         trusted_header: TendermintHashVariable,
         trusted_validator_hash_proof: &HashInclusionProofVariable,
         trusted_validator_hash_fields: &ArrayVariable<
-            ValidatorHashFieldVariable<Self::Curve>,
+            ValidatorHashFieldVariable,
             VALIDATOR_SET_SIZE_MAX,
         >,
     );
@@ -162,7 +83,7 @@ pub trait TendermintVerify<L: PlonkParameters<D>, const D: usize> {
     /// Verify Tendermint block that is non-sequential with the trusted block.
     fn skip<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
-        validators: &ArrayVariable<ValidatorVariable<Self::Curve>, VALIDATOR_SET_SIZE_MAX>,
+        validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
         header: &TendermintHashVariable,
         header_height_proof: &HeightProofVariable,
         validator_hash_proof: &HashInclusionProofVariable,
@@ -170,7 +91,7 @@ pub trait TendermintVerify<L: PlonkParameters<D>, const D: usize> {
         trusted_header: TendermintHashVariable,
         trusted_validator_hash_proof: &HashInclusionProofVariable,
         trusted_validator_hash_fields: &ArrayVariable<
-            ValidatorHashFieldVariable<Self::Curve>,
+            ValidatorHashFieldVariable,
             VALIDATOR_SET_SIZE_MAX,
         >,
     );
@@ -178,7 +99,7 @@ pub trait TendermintVerify<L: PlonkParameters<D>, const D: usize> {
     // Assert the voting power of the signed validators is greater than the threshold.
     fn assert_voting_check<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
-        validators: ArrayVariable<ValidatorVariable<Self::Curve>, VALIDATOR_SET_SIZE_MAX>,
+        validators: ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
         threshold_numerator: &U64Variable,
         threshold_denominator: &U64Variable,
         include_in_check: Vec<BoolVariable>, // TODO: this should be an array var of the same size
@@ -186,8 +107,6 @@ pub trait TendermintVerify<L: PlonkParameters<D>, const D: usize> {
 }
 
 impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBuilder<L, D> {
-    type Curve = Ed25519;
-
     fn get_root<const LEAF_SIZE_BYTES: usize>(
         &mut self,
         proof: &MerkleInclusionProofVariable<HEADER_PROOF_DEPTH, LEAF_SIZE_BYTES>,
@@ -229,7 +148,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
 
     fn assert_voting_check<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
-        validators: ArrayVariable<ValidatorVariable<Self::Curve>, VALIDATOR_SET_SIZE_MAX>,
+        validators: ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
         threshold_numerator: &U64Variable,
         threshold_denominator: &U64Variable,
         include_in_check: Vec<BoolVariable>,
@@ -256,7 +175,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
 
     fn step<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
-        validators: &ArrayVariable<ValidatorVariable<Self::Curve>, VALIDATOR_SET_SIZE_MAX>,
+        validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
         header: &TendermintHashVariable,
         prev_header: &TendermintHashVariable,
         validator_hash_proof: &HashInclusionProofVariable,
@@ -285,7 +204,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
 
     fn verify_header<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
-        validators: &ArrayVariable<ValidatorVariable<Self::Curve>, VALIDATOR_SET_SIZE_MAX>,
+        validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
         header: &TendermintHashVariable,
         validator_hash_proof: &HashInclusionProofVariable,
         round_present: &BoolVariable,
@@ -308,15 +227,14 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
                 .map(|v| U32Variable(v.message_byte_length))
                 .collect(),
         );
-        let signatures =
-            ArrayVariable::<EDDSASignatureTarget<Ed25519>, VALIDATOR_SET_SIZE_MAX>::new(
-                validators
-                    .as_vec()
-                    .iter()
-                    .map(|v| v.signature.clone())
-                    .collect(),
-            );
-        let pubkeys = ArrayVariable::<EDDSAPublicKeyVariable<Ed25519>, VALIDATOR_SET_SIZE_MAX>::new(
+        let signatures = ArrayVariable::<EDDSASignatureVariable, VALIDATOR_SET_SIZE_MAX>::new(
+            validators
+                .as_vec()
+                .iter()
+                .map(|v| v.signature.clone())
+                .collect(),
+        );
+        let pubkeys = ArrayVariable::<EDDSAPublicKeyVariable, VALIDATOR_SET_SIZE_MAX>::new(
             validators
                 .as_vec()
                 .iter()
@@ -439,7 +357,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
 
     fn skip<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
-        validators: &ArrayVariable<ValidatorVariable<Self::Curve>, VALIDATOR_SET_SIZE_MAX>,
+        validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
         header: &TendermintHashVariable,
         header_height_proof: &HeightProofVariable,
         validator_hash_proof: &HashInclusionProofVariable,
@@ -447,7 +365,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         trusted_header: TendermintHashVariable,
         trusted_validator_hash_proof: &HashInclusionProofVariable,
         trusted_validator_hash_fields: &ArrayVariable<
-            ValidatorHashFieldVariable<Self::Curve>,
+            ValidatorHashFieldVariable,
             VALIDATOR_SET_SIZE_MAX,
         >,
     ) {
@@ -470,11 +388,11 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
 
     fn verify_trusted_validators<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
-        validators: &ArrayVariable<ValidatorVariable<Self::Curve>, VALIDATOR_SET_SIZE_MAX>,
+        validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
         trusted_header: TendermintHashVariable,
         trusted_validator_hash_proof: &HashInclusionProofVariable,
         trusted_validator_hash_fields: &ArrayVariable<
-            ValidatorHashFieldVariable<Self::Curve>,
+            ValidatorHashFieldVariable,
             VALIDATOR_SET_SIZE_MAX,
         >,
     ) {

@@ -1,5 +1,5 @@
 [workspace]
-members = ["circuits"]
+members = ["circuits", "data_commitment"]
 resolver = "2"
 
 [profile.release]
