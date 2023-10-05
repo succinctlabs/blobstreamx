@@ -140,7 +140,7 @@ impl<const MAX_LEAVES: usize> Circuit for DataCommitmentCircuit<MAX_LEAVES> {
         input_stream.write(&end_block_number);
         input_stream.write(&end_header_hash);
         let output_stream =
-            builder.hint(input_stream, DataCommitmentOffchainInputs::<MAX_LEAVES> {});
+            builder.async_hint(input_stream, DataCommitmentOffchainInputs::<MAX_LEAVES> {});
 
         debug!("Finished data comm hint");
 
@@ -249,8 +249,7 @@ mod tests {
 
         log::debug!("Generating proof");
 
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        let (proof, mut output) = rt.block_on(async { circuit.prove_async(&input).await });
+        let (proof, mut output) = circuit.prove(&input);
 
         log::debug!("Done generating proof");
 
