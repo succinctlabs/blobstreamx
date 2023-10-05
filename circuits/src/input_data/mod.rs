@@ -7,23 +7,20 @@ use std::path::Path;
 use std::{env, fs};
 
 use ethers::types::H256;
-use itertools::Itertools;
 use plonky2x::frontend::merkle::tree::InclusionProof;
 use plonky2x::prelude::RichField;
-use subtle_encoding::hex;
 use tendermint_proto::types::BlockId as RawBlockId;
 use tendermint_proto::Protobuf;
 
 use self::tendermint_utils::{
-    generate_proofs_from_header, DataCommitmentResponse, Hash, Header, HeaderResponse, Proof,
-    SignedBlock, SignedBlockResponse,
+    generate_proofs_from_header, Hash, Header, HeaderResponse, Proof, SignedBlock,
+    SignedBlockResponse,
 };
 use self::types::update_present_on_trusted_header;
 use self::utils::convert_to_h256;
 use crate::consts::{
-    BLOCK_HEIGHT_INDEX, DATA_HASH_INDEX, HEADER_PROOF_DEPTH, LAST_BLOCK_ID_INDEX,
-    NEXT_VALIDATORS_HASH_INDEX, PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES,
-    VALIDATORS_HASH_INDEX,
+    BLOCK_HEIGHT_INDEX, HEADER_PROOF_DEPTH, LAST_BLOCK_ID_INDEX, NEXT_VALIDATORS_HASH_INDEX,
+    PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES, VALIDATORS_HASH_INDEX,
 };
 use crate::input_data::types::{get_validators_as_input, get_validators_fields_as_input};
 use crate::variables::*;

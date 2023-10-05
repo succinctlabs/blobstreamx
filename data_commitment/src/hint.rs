@@ -1,5 +1,5 @@
+use std::fs;
 use std::path::Path;
-use std::{env, fs};
 
 use async_trait::async_trait;
 use celestia::consts::*;
@@ -8,13 +8,11 @@ use celestia::input_data::{InputDataFetcher, InputDataMode};
 use celestia::variables::*;
 use ethers::types::H256;
 use itertools::Itertools;
-use plonky2x::backend::circuit::Circuit;
-use plonky2x::backend::function::VerifiableFunction;
 use plonky2x::frontend::hint::simple::hint::Hint;
 use plonky2x::frontend::merkle::tree::InclusionProof;
 use plonky2x::frontend::uint::uint64::U64Variable;
-use plonky2x::frontend::vars::{ValueStream, VariableStream};
-use plonky2x::prelude::{Bytes32Variable, CircuitBuilder, PlonkParameters, RichField};
+use plonky2x::frontend::vars::ValueStream;
+use plonky2x::prelude::{Bytes32Variable, PlonkParameters, RichField};
 use serde::{Deserialize, Serialize};
 use subtle_encoding::hex;
 use tendermint_proto::types::BlockId as RawBlockId;

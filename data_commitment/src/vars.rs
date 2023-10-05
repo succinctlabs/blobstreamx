@@ -1,13 +1,11 @@
 use celestia::consts::{
     HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES,
-    VALIDATOR_BYTE_LENGTH_MAX, VALIDATOR_MESSAGE_BYTES_LENGTH_MAX,
 };
 use plonky2x::frontend::merkle::tree::MerkleInclusionProofVariable;
 use plonky2x::frontend::uint::uint64::U64Variable;
-use plonky2x::frontend::vars::U32Variable;
 use plonky2x::prelude::{
-    ArrayVariable, BoolVariable, Bytes32Variable, BytesVariable, CircuitBuilder, CircuitVariable,
-    Field, PlonkParameters, RichField, Variable, Witness, WitnessWrite,
+    ArrayVariable, Bytes32Variable, CircuitBuilder, CircuitVariable, PlonkParameters, RichField,
+    Variable, Witness, WitnessWrite,
 };
 
 // The data commitment inputs as a struct.
