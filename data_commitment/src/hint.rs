@@ -203,7 +203,7 @@ impl DataCommitmentInputs for InputDataFetcher {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct DataCommitmentOffchainInputs<const MAX_LEAVES: usize> {}
+pub struct DataCommitmentOffchainInputs<const MAX_LEAVES: usize> {}
 
 impl<const MAX_LEAVES: usize, L: PlonkParameters<D>, const D: usize> Hint<L, D>
     for DataCommitmentOffchainInputs<MAX_LEAVES>
