@@ -203,7 +203,10 @@ mod tests {
         input.evm_write::<Bytes32Variable>(H256::from_slice(end_header_hash.as_slice()));
 
         log::debug!("Generating proof");
-        let (proof, mut output) = circuit.prove(&input);
+
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let (proof, mut output) = rt.block_on(async { circuit.prove_async(&input).await });
+
         log::debug!("Done generating proof");
 
         circuit.verify(&proof, &input, &output);
