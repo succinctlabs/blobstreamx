@@ -7,14 +7,14 @@ use plonky2x::prelude::{
 };
 use tendermint::merkle::HASH_SIZE;
 
+use super::shared::TendermintHeader;
+use super::validator::TendermintValidator;
+use super::voting::TendermintVoting;
 use crate::consts::{
     HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES,
     VALIDATOR_MESSAGE_BYTES_LENGTH_MAX,
 };
-use crate::shared::TendermintHeader;
-use crate::validator::TendermintValidator;
 use crate::variables::*;
-use crate::voting::TendermintVoting;
 
 pub trait TendermintVerify<L: PlonkParameters<D>, const D: usize> {
     fn get_root<const LEAF_SIZE_BYTES: usize>(

@@ -6,8 +6,8 @@ use plonky2x::prelude::{
     Variable,
 };
 
+use super::shared::TendermintHeader;
 use crate::consts::VALIDATOR_BYTE_LENGTH_MAX;
-use crate::shared::TendermintHeader;
 use crate::variables::{
     EDDSAPublicKeyVariable, MarshalledValidatorVariable, TendermintHashVariable,
 };
