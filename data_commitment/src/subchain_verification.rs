@@ -12,14 +12,6 @@ use crate::builder::DataCommitmentBuilder;
 use crate::circuit::DataCommitmentOffchainInputs;
 use crate::vars::DataCommitmentProofVariable;
 
-/// The nubmer of map jobs.  This needs to be a power of 2
-const NUM_MAP_JOBS: usize = 2;
-
-pub const BATCH_SIZE: usize = 8;
-
-/// Num processed headers per MR job
-const HEADERS_PER_JOB: usize = BATCH_SIZE * NUM_MAP_JOBS;
-
 #[derive(Clone, Debug, CircuitVariable)]
 pub struct MapReduceSubchainVariable {
     pub is_enabled: BoolVariable,
@@ -39,8 +31,9 @@ pub struct SubchainVerificationCtx {
 }
 
 pub trait SubChainVerifier<L: PlonkParameters<D>, const D: usize> {
-    // Verify the subchain from start_block to end_block, and return the data_merkle_root of the subchain.
-    fn verify_subchain<C: Circuit>(
+    /// Verify the subchain from start_block to end_block, and return the data_merkle_root of the subchain.
+    /// NUM_MAP_JOBS must be a power of 2.
+    fn verify_subchain<C: Circuit, const NUM_MAP_JOBS: usize, const BATCH_SIZE: usize>(
         &mut self,
         start_block: U64Variable,
         start_header_hash: Bytes32Variable,
@@ -53,7 +46,7 @@ pub trait SubChainVerifier<L: PlonkParameters<D>, const D: usize> {
 }
 
 impl<L: PlonkParameters<D>, const D: usize> SubChainVerifier<L, D> for CircuitBuilder<L, D> {
-    fn verify_subchain<C: Circuit>(
+    fn verify_subchain<C: Circuit, const NUM_MAP_JOBS: usize, const BATCH_SIZE: usize>(
         &mut self,
         start_block: U64Variable,
         start_header_hash: Bytes32Variable,
@@ -71,7 +64,9 @@ impl<L: PlonkParameters<D>, const D: usize> SubChainVerifier<L, D> for CircuitBu
             end_header_hash,
         };
 
-        let relative_block_nums = (0u64..(HEADERS_PER_JOB as u64)).collect_vec();
+        let total_headers = NUM_MAP_JOBS * BATCH_SIZE;
+
+        let relative_block_nums = (0u64..(total_headers as u64)).collect_vec();
 
         // The last block in batch i and the start block in batch i+1 are shared.
         let result = self

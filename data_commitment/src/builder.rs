@@ -229,7 +229,11 @@ pub(crate) mod tests {
 
         let result = rt.block_on(async {
             input_data_fetcher
-                .get_data_commitment_inputs::<MAX_LEAVES, F>(start_height as u64, end_height as u64)
+                .get_data_commitment_inputs(
+                    start_height as u64,
+                    end_height as u64,
+                    MAX_LEAVES as u64,
+                )
                 .await
         });
 

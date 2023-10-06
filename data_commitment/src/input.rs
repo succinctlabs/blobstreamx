@@ -30,10 +30,11 @@ pub trait DataCommitmentInputs {
     /// Inclusive of start_block_number and end_block_number.
     /// Returns (end_block_number - start_block_number) data_hashes, data_hash_proofs, and prev_header_proofs.
     /// expected_data_commitment is the data commitment computed [start_block, end_block).
-    async fn get_data_commitment_inputs<const MAX_LEAVES: usize, F: RichField>(
+    async fn get_data_commitment_inputs<F: RichField>(
         &mut self,
         start_block_number: u64,
         end_block_number: u64,
+        max_leaves: u64,
     ) -> (
         [u8; 32],                                                             // start_header_hash
         [u8; 32],                                                             // end_header_hash
@@ -86,10 +87,11 @@ impl DataCommitmentInputs for InputDataFetcher {
             .unwrap()
     }
 
-    async fn get_data_commitment_inputs<const MAX_LEAVES: usize, F: RichField>(
+    async fn get_data_commitment_inputs<F: RichField>(
         &mut self,
         start_block_number: u64,
         end_block_number: u64,
+        max_leaves: u64,
     ) -> (
         [u8; 32],                                                             // start_header_hash
         [u8; 32],                                                             // end_header_hash
@@ -155,8 +157,8 @@ impl DataCommitmentInputs for InputDataFetcher {
             )
             .collect_vec();
 
-        // Extend data_hashes, data_hash_proofs, and prev_header_proofs to MAX_LEAVES.
-        for _ in (end_block_number - start_block_number) as usize..MAX_LEAVES {
+        // Extend data_hashes, data_hash_proofs, and prev_header_proofs to max_leaves.
+        for _ in (end_block_number - start_block_number) as usize..max_leaves as usize {
             data_hashes.push([0u8; 32]);
             data_hash_proofs_formatted.push(InclusionProof::<
                 HEADER_PROOF_DEPTH,
