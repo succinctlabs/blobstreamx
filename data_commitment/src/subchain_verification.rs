@@ -22,6 +22,15 @@ const HEADERS_PER_JOB: usize = BATCH_SIZE * NUM_MAP_JOBS;
 
 const MAX_HEADER_CHUNK_SIZE: usize = 100;
 pub const MAX_HEADER_SIZE: usize = MAX_HEADER_CHUNK_SIZE * 128;
+#[derive(Clone, Debug, CircuitVariable)]
+pub struct MapReduceSubchainVariable {
+    pub is_enabled: BoolVariable,
+    pub start_block: U64Variable,
+    pub start_header: Bytes32Variable,
+    pub end_block: U64Variable,
+    pub end_header: Bytes32Variable,
+    pub data_merkle_root: Bytes32Variable,
+}
 
 #[derive(Clone, Debug, CircuitVariable)]
 pub struct SubchainVerificationCtx {
@@ -66,15 +75,8 @@ impl<L: PlonkParameters<D>, const D: usize> SubChainVerifier<L, D> for CircuitBu
         let relative_block_nums = (0u64..(HEADERS_PER_JOB as u64)).collect_vec();
 
         // The last block in batch i and the start block in batch i+1 are shared.
-        let (_, _, _, _, _, data_merkle_root) = self
-            .mapreduce::<SubchainVerificationCtx, U64Variable, (
-                BoolVariable,    // is_enabled (whether the leaf contains any valid headers)
-                U64Variable,     // first block's num
-                Bytes32Variable, // first block's hash
-                U64Variable,     // last block's num
-                Bytes32Variable, // last block's hash
-                Bytes32Variable, // data merkle root
-            ), C, BATCH_SIZE, _, _>(
+        let result = self
+            .mapreduce::<SubchainVerificationCtx, U64Variable, MapReduceSubchainVariable, C, BATCH_SIZE, _, _>(
                 ctx.clone(),
                 relative_block_nums,
                 |map_ctx, map_relative_block_nums, builder| {
@@ -194,45 +196,31 @@ impl<L: PlonkParameters<D>, const D: usize> SubChainVerifier<L, D> for CircuitBu
                         end_block_num,
                     );
 
-                    (
-                        is_batch_enabled,
+                    MapReduceSubchainVariable {
+                        is_enabled: is_batch_enabled,
                         start_block,
-                        batch_start_header,
-                        last_block,
-                        batch_end_header,
+                        start_header: batch_start_header,
+                        end_block: batch_end_block,
+                        end_header: batch_end_header,
                         data_merkle_root,
-                    )
+                    }
                 },
                 |_, left_output, right_output, builder| {
-                    let (
-                        left_is_batch_enabled,
-                        left_start_block,
-                        left_batch_start_header,
-                        left_last_block,
-                        left_batch_end_header,
-                        left_data_merkle_root,
-                    ) = left_output;
+                    let left_subchain = left_output;
 
-                    let (
-                        right_is_batch_enabled,
-                        right_start_block,
-                        right_batch_start_header,
-                        right_last_block,
-                        right_batch_end_header,
-                        right_data_merkle_root,
-                    ) = right_output;
+                    let right_subchain = right_output;
 
                     let false_var = builder._false();
 
-                    let right_empty = builder.is_equal(right_is_batch_enabled, false_var);
+                    let right_empty = builder.is_equal(right_subchain.is_enabled, false_var);
 
                     // Check to see if the left and right nodes are correctly linked.
                     let nodes_linked =
-                        builder.is_equal(left_batch_end_header, right_batch_start_header);
+                        builder.is_equal(left_subchain.end_header, right_subchain.start_header);
 
                     let one = builder.one();
-                    let expected_block_num = builder.sub(right_start_block, one);
-                    let nodes_sequential = builder.is_equal(left_last_block, expected_block_num);
+                    let expected_block_num = builder.sub(right_subchain.start_block, one);
+                    let nodes_sequential = builder.is_equal(left_subchain.end_block, expected_block_num);
 
                     let nodes_correctly_linked = builder.and(nodes_linked, nodes_sequential);
 
@@ -240,35 +228,32 @@ impl<L: PlonkParameters<D>, const D: usize> SubChainVerifier<L, D> for CircuitBu
                     let true_const = builder._true();
                     builder.assert_is_equal(link_check, true_const);
 
-                    let end_block = builder.select(right_empty, left_last_block, right_last_block);
+                    let end_block = builder.select(right_empty, left_subchain.end_block, right_subchain.end_block);
                     let end_header_hash =
-                        builder.select(right_empty, left_batch_end_header, right_batch_end_header);
+                        builder.select(right_empty, left_subchain.end_header, right_subchain.end_header);
 
-                    let mut data_root_bytes = left_data_merkle_root.as_bytes().to_vec();
-                    data_root_bytes.extend(&right_data_merkle_root.as_bytes());
-
-                    let computed_data_merkle_root = builder.inner_hash(&left_data_merkle_root, &right_data_merkle_root);
+                    let computed_data_merkle_root = builder.inner_hash(&left_subchain.data_merkle_root, &right_subchain.data_merkle_root);
 
                     // If the right node is empty, then the data_merkle_root is the left node's data_merkle_root.
                     let data_merkle_root = builder.select(
                         right_empty,
-                        left_data_merkle_root,
+                        left_subchain.data_merkle_root,
                         computed_data_merkle_root,
                     );
 
-                    let either_enabled = builder.or(left_is_batch_enabled, right_is_batch_enabled);
+                    let either_enabled = builder.or(left_subchain.is_enabled, right_subchain.is_enabled);
 
-                    (
-                        either_enabled,
-                        left_start_block,
-                        left_batch_start_header,
+                    MapReduceSubchainVariable {
+                        is_enabled: either_enabled,
+                        start_block: left_subchain.start_block,
+                        start_header: left_subchain.start_header,
                         end_block,
-                        end_header_hash,
+                        end_header: end_header_hash,
                         data_merkle_root,
-                    )
+                    }
                 },
             );
 
-        data_merkle_root
+            result.data_merkle_root
     }
 }

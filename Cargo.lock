@@ -311,7 +311,7 @@ dependencies = [
  "log",
  "num",
  "plonky2",
- "plonky2x 0.1.0 (git+https://github.com/succinctlabs/succinctx.git?branch=ratan/variable-tuple-macro)",
+ "plonky2x",
  "rand",
  "reqwest",
  "serde",
@@ -457,7 +457,7 @@ dependencies = [
  "log",
  "num",
  "plonky2",
- "plonky2x 0.1.0 (git+https://github.com/succinctlabs/succinctx.git)",
+ "plonky2x",
  "rand",
  "reqwest",
  "serde",
@@ -2833,49 +2833,6 @@ source = "git+https://github.com/mir-protocol/plonky2.git#0de6f949622a6410835bb7
 [[package]]
 name = "plonky2x"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git?branch=ratan/variable-tuple-macro#e1841ea6cff2e5bcf1cde30b11092cd877bf65af"
-dependencies = [
- "anyhow",
- "array-macro",
- "async-trait",
- "backtrace",
- "base64 0.13.1",
- "bincode",
- "clap",
- "curta",
- "curve25519-dalek",
- "digest 0.10.7",
- "dotenv",
- "ed25519-consensus",
- "env_logger",
- "ethers",
- "ff",
- "futures",
- "hex",
- "itertools 0.10.5",
- "jemallocator",
- "lazy_static",
- "log",
- "num",
- "num-bigint 0.4.4",
- "plonky2",
- "plonky2x-derive 0.1.0 (git+https://github.com/succinctlabs/succinctx.git?branch=ratan/variable-tuple-macro)",
- "rand",
- "reqwest",
- "serde",
- "serde_json",
- "serde_plain",
- "serde_with",
- "sha2 0.10.8",
- "sha256",
- "tokio",
- "tracing",
- "uuid 1.4.1",
-]
-
-[[package]]
-name = "plonky2x"
-version = "0.1.0"
 source = "git+https://github.com/succinctlabs/succinctx.git#2c4b522d68c7b64243717e4c7b1fd941e84f5e2e"
 dependencies = [
  "anyhow",
@@ -2902,7 +2859,7 @@ dependencies = [
  "num",
  "num-bigint 0.4.4",
  "plonky2",
- "plonky2x-derive 0.1.0 (git+https://github.com/succinctlabs/succinctx.git)",
+ "plonky2x-derive",
  "rand",
  "reqwest",
  "serde",
@@ -2914,16 +2871,6 @@ dependencies = [
  "tokio",
  "tracing",
  "uuid 1.4.1",
-]
-
-[[package]]
-name = "plonky2x-derive"
-version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git?branch=ratan/variable-tuple-macro#e1841ea6cff2e5bcf1cde30b11092cd877bf65af"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.38",
 ]
 
 [[package]]
