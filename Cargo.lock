@@ -311,7 +311,7 @@ dependencies = [
  "log",
  "num",
  "plonky2",
- "plonky2x 0.1.0",
+ "plonky2x 0.1.0 (git+https://github.com/succinctlabs/succinctx.git?branch=ratan/variable-tuple-macro)",
  "rand",
  "reqwest",
  "serde",
@@ -365,9 +365,9 @@ checksum = "c3ac9f8b63eca6fd385229b3675f6cc0dc5c8a5c8a54a59d4f52ffd670d87b0c"
 
 [[package]]
 name = "byteorder"
-version = "1.4.3"
+version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "14c189c53d098945499cdfa7ecc63567cf3886b3332b312a5b4585d8d3a6a610"
+checksum = "1fd0f2584146f6f2ef48085050886acf353beff7305ebd1ae69500e27c67f64b"
 
 [[package]]
 name = "bytes"
@@ -2833,6 +2833,7 @@ source = "git+https://github.com/mir-protocol/plonky2.git#0de6f949622a6410835bb7
 [[package]]
 name = "plonky2x"
 version = "0.1.0"
+source = "git+https://github.com/succinctlabs/succinctx.git?branch=ratan/variable-tuple-macro#e1841ea6cff2e5bcf1cde30b11092cd877bf65af"
 dependencies = [
  "anyhow",
  "array-macro",
@@ -2858,7 +2859,7 @@ dependencies = [
  "num",
  "num-bigint 0.4.4",
  "plonky2",
- "plonky2x-derive 0.1.0",
+ "plonky2x-derive 0.1.0 (git+https://github.com/succinctlabs/succinctx.git?branch=ratan/variable-tuple-macro)",
  "rand",
  "reqwest",
  "serde",
@@ -2875,7 +2876,7 @@ dependencies = [
 [[package]]
 name = "plonky2x"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git#8bacca0f1a4243d9be3c39912649c5c770a25a6b"
+source = "git+https://github.com/succinctlabs/succinctx.git#2c4b522d68c7b64243717e4c7b1fd941e84f5e2e"
 dependencies = [
  "anyhow",
  "array-macro",
@@ -2918,6 +2919,7 @@ dependencies = [
 [[package]]
 name = "plonky2x-derive"
 version = "0.1.0"
+source = "git+https://github.com/succinctlabs/succinctx.git?branch=ratan/variable-tuple-macro#e1841ea6cff2e5bcf1cde30b11092cd877bf65af"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2927,7 +2929,7 @@ dependencies = [
 [[package]]
 name = "plonky2x-derive"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git#8bacca0f1a4243d9be3c39912649c5c770a25a6b"
+source = "git+https://github.com/succinctlabs/succinctx.git#2c4b522d68c7b64243717e4c7b1fd941e84f5e2e"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3022,9 +3024,9 @@ checksum = "dc375e1527247fe1a97d8b7156678dfe7c1af2fc075c9a4db3690ecd2a148068"
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.67"
+version = "1.0.68"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3d433d9f1a3e8c1263d9456598b16fec66f4acc9a74dacffd35c7bb09b3a1328"
+checksum = "5b1106fec09662ec6dd98ccac0f81cef56984d0b49f75c92d8cbad76e20c005c"
 dependencies = [
  "unicode-ident",
 ]
@@ -4624,9 +4626,9 @@ checksum = "ed94fce61571a4006852b7389a063ab983c02eb1bb37b47f8272ce92d06d9538"
 
 [[package]]
 name = "winnow"
-version = "0.5.15"
+version = "0.5.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7c2e3184b9c4e92ad5167ca73039d0c42476302ab603e2fec4487511f38ccefc"
+checksum = "037711d82167854aff2018dfd193aa0fef5370f456732f0d5a0c59b0f1b4b907"
 dependencies = [
  "memchr",
 ]
