@@ -285,7 +285,7 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
                     input_stream.write(&start_block);
                     input_stream.write(&batch_end_block);
                     let header_fetcher = DataCommitmentOffchainInputs::<BATCH_SIZE> {};
-                    
+
                     let output_stream = builder
                         .async_hint(input_stream, header_fetcher);
 
