@@ -13,10 +13,10 @@ use plonky2x::prelude::{
 #[value_name(DataCommitmentProofValueType)]
 pub struct DataCommitmentProofVariable<const MAX_LEAVES: usize> {
     pub data_hashes: ArrayVariable<Bytes32Variable, MAX_LEAVES>,
-    pub end_header: Bytes32Variable,
-    pub end_block_height: U64Variable,
     pub start_header: Bytes32Variable,
     pub start_block_height: U64Variable,
+    pub end_header: Bytes32Variable,
+    pub end_block_height: U64Variable,
     pub data_hash_proofs: ArrayVariable<
         MerkleInclusionProofVariable<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES>,
         MAX_LEAVES,

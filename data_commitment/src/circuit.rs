@@ -9,8 +9,8 @@ use plonky2x::frontend::vars::VariableStream;
 use plonky2x::prelude::{Bytes32Variable, CircuitBuilder, PlonkParameters, ValueStream};
 use serde::{Deserialize, Serialize};
 
+use crate::builder::DataCommitmentBuilder;
 use crate::input::DataCommitmentInputs;
-use crate::subchain_verification::SubChainVerifier;
 use crate::vars::*;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -83,7 +83,7 @@ impl<const NUM_MAP_JOBS: usize, const BATCH_SIZE: usize, const MAX_LEAVES: usize
         let _ = output_stream.read::<DataCommitmentProofVariable<MAX_LEAVES>>(builder);
         let expected_data_commitment = output_stream.read::<Bytes32Variable>(builder);
 
-        let data_commitment = builder.verify_subchain::<Self, NUM_MAP_JOBS, BATCH_SIZE>(
+        let data_commitment = builder.prove_data_commitment::<Self, NUM_MAP_JOBS, BATCH_SIZE>(
             start_block_number,
             start_header_hash,
             end_block_number,
