@@ -18,7 +18,7 @@
             "name": "data-commitment",
             "framework": "plonky2",
             "baseDir": "data_commitment",
-            "buildCommand": "mkdir -p build && RUST_LOG=debug cargo run --package celestia --bin data_commitment --release build && mv ./target/release/data_commitment ./build/data_commitment",
+            "buildCommand": "mkdir -p build && RUST_LOG=debug cargo run --package blobstream --bin data_commitment --release build && mv ./target/release/data_commitment ./build/data_commitment",
             "proveCommand": "RUST_LOG=info ./build/data_commitment prove-wrapped --input-json input.json --wrapper-path /verifier-build"
         }
     ]
