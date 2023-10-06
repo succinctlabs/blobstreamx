@@ -12,6 +12,57 @@ use crate::builder::verify::TendermintVerify;
 use crate::input::InputDataFetcher;
 use crate::variables::*;
 
+pub trait TendermintSkipCircuit<L: PlonkParameters<D>, const D: usize> {
+    fn skip_from_inputs<const MAX_VALIDATOR_SET_SIZE: usize>(
+        &mut self,
+        trusted_block: U64Variable,
+        trusted_header_hash: Bytes32Variable,
+        target_block: U64Variable,
+    ) -> Bytes32Variable;
+}
+
+impl<L: PlonkParameters<D>, const D: usize> TendermintSkipCircuit<L, D> for CircuitBuilder<L, D> {
+    fn skip_from_inputs<const MAX_VALIDATOR_SET_SIZE: usize>(
+        &mut self,
+        trusted_block: U64Variable,
+        trusted_header_hash: Bytes32Variable,
+        target_block: U64Variable,
+    ) -> Bytes32Variable {
+        let mut input_stream = VariableStream::new();
+        input_stream.write(&trusted_header_hash);
+        input_stream.write(&trusted_block);
+        input_stream.write(&target_block);
+        let output_stream = self.async_hint(
+            input_stream,
+            SkipOffchainInputs::<MAX_VALIDATOR_SET_SIZE> {},
+        );
+        let target_block_validators =
+            output_stream.read::<ArrayVariable<ValidatorVariable, MAX_VALIDATOR_SET_SIZE>>(self);
+        let target_header = output_stream.read::<Bytes32Variable>(self);
+        let round_present = output_stream.read::<BoolVariable>(self);
+        let target_header_block_height_proof = output_stream.read::<HeightProofVariable>(self);
+        let target_header_validators_hash_proof =
+            output_stream.read::<HashInclusionProofVariable>(self);
+        let trusted_header = output_stream.read::<Bytes32Variable>(self);
+        let trusted_header_validators_hash_proof =
+            output_stream.read::<HashInclusionProofVariable>(self);
+        let trusted_header_validators_hash_fields = output_stream
+            .read::<ArrayVariable<ValidatorHashFieldVariable, MAX_VALIDATOR_SET_SIZE>>(self);
+
+        self.skip(
+            &target_block_validators,
+            &target_header,
+            &target_header_block_height_proof,
+            &target_header_validators_hash_proof,
+            &round_present,
+            trusted_header,
+            &trusted_header_validators_hash_proof,
+            &trusted_header_validators_hash_fields,
+        );
+        target_header
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SkipOffchainInputs<const MAX_VALIDATOR_SET_SIZE: usize> {}
 
@@ -61,38 +112,13 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize> Circuit for SkipCircuit<MAX_VALIDATOR_
         let trusted_block = builder.evm_read::<U64Variable>();
         let target_block = builder.evm_read::<U64Variable>();
 
-        let mut input_stream = VariableStream::new();
-        input_stream.write(&trusted_header_hash);
-        input_stream.write(&trusted_block);
-        input_stream.write(&target_block);
-        let output_stream = builder.async_hint(
-            input_stream,
-            SkipOffchainInputs::<MAX_VALIDATOR_SET_SIZE> {},
+        let target_header_hash = builder.skip_from_inputs::<MAX_VALIDATOR_SET_SIZE>(
+            trusted_block,
+            trusted_header_hash,
+            target_block,
         );
-        let target_block_validators =
-            output_stream.read::<ArrayVariable<ValidatorVariable, MAX_VALIDATOR_SET_SIZE>>(builder);
-        let target_header = output_stream.read::<Bytes32Variable>(builder);
-        let round_present = output_stream.read::<BoolVariable>(builder);
-        let target_header_block_height_proof = output_stream.read::<HeightProofVariable>(builder);
-        let target_header_validators_hash_proof =
-            output_stream.read::<HashInclusionProofVariable>(builder);
-        let trusted_header = output_stream.read::<Bytes32Variable>(builder);
-        let trusted_header_validators_hash_proof =
-            output_stream.read::<HashInclusionProofVariable>(builder);
-        let trusted_header_validators_hash_fields = output_stream
-            .read::<ArrayVariable<ValidatorHashFieldVariable, MAX_VALIDATOR_SET_SIZE>>(builder);
 
-        builder.skip(
-            &target_block_validators,
-            &target_header,
-            &target_header_block_height_proof,
-            &target_header_validators_hash_proof,
-            &round_present,
-            trusted_header,
-            &trusted_header_validators_hash_proof,
-            &trusted_header_validators_hash_fields,
-        );
-        builder.evm_write(target_header);
+        builder.evm_write(target_header_hash);
     }
 
     fn register_generators<L: PlonkParameters<D>, const D: usize>(
