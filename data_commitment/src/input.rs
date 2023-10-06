@@ -28,8 +28,8 @@ pub trait DataCommitmentInputs {
     async fn get_data_commitment(&self, start_block: u64, end_block: u64) -> [u8; 32];
 
     /// Inclusive of start_block_number and end_block_number.
-    /// Returns (end_block_number - start_block_number) + 1 data_hashes, data_hash_proofs, and prev_header_proofs.
-    /// expected_data_commitment is the data commitment computed from the first N data_hashes.
+    /// Returns (end_block_number - start_block_number) data_hashes, data_hash_proofs, and prev_header_proofs.
+    /// expected_data_commitment is the data commitment computed [start_block, end_block).
     async fn get_data_commitment_inputs<const MAX_LEAVES: usize, F: RichField>(
         &mut self,
         start_block_number: u64,
@@ -107,7 +107,7 @@ impl DataCommitmentInputs for InputDataFetcher {
         let mut data_hashes = Vec::new();
         let mut data_hash_proofs = Vec::new();
         let mut prev_header_proofs = Vec::new();
-        for i in start_block_number..end_block_number {
+        for i in start_block_number..end_block_number + 1 {
             let header = self.get_header_from_number(i).await;
             let data_hash = header.data_hash.unwrap();
             data_hashes.push(data_hash.as_bytes().try_into().unwrap());
@@ -125,6 +125,15 @@ impl DataCommitmentInputs for InputDataFetcher {
             );
             prev_header_proofs.push(prev_header_proof);
         }
+
+        // Remove end_block's data_hash, as data_commitment does not include it.
+        data_hashes.pop();
+
+        // Remove end_block's data_hash_proof, as data_commitment does not check it.
+        data_hash_proofs.pop();
+
+        // Remove start_block's prev_header_proof, as data_commitment does not check it.
+        prev_header_proofs = prev_header_proofs[1..].to_vec();
 
         let mut data_hash_proofs_formatted = data_hash_proofs
             .into_iter()
