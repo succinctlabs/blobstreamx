@@ -9,8 +9,8 @@ use plonky2x::frontend::vars::VariableStream;
 use plonky2x::prelude::{Bytes32Variable, CircuitBuilder, PlonkParameters, ValueStream};
 use serde::{Deserialize, Serialize};
 
-use crate::builder::DataCommitmentBuilder;
 use crate::input::DataCommitmentInputs;
+use crate::subchain_verification::SubChainVerifier;
 use crate::vars::*;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -56,7 +56,7 @@ pub struct DataCommitmentCircuit<const MAX_LEAVES: usize> {
 }
 
 impl<const MAX_LEAVES: usize> Circuit for DataCommitmentCircuit<MAX_LEAVES> {
-    fn define<L: PlonkParameters<D>, const D: usize>(builder: &mut CircuitBuilder<L, D>) {
+    fn define<L: PlonkParameters<D>, const D: usize>(builder: &mut CircuitBuilder<L, D>) where <<L as plonky2x::prelude::PlonkParameters<D>>::Config as plonky2::plonk::config::GenericConfig<D>>::Hasher: plonky2::plonk::config::AlgebraicHasher<<L as plonky2x::prelude::PlonkParameters<D>>::Field>{
         let start_block_number = builder.evm_read::<U64Variable>();
         let start_header_hash = builder.evm_read::<Bytes32Variable>();
         let end_block_number = builder.evm_read::<U64Variable>();
@@ -64,18 +64,19 @@ impl<const MAX_LEAVES: usize> Circuit for DataCommitmentCircuit<MAX_LEAVES> {
 
         let mut input_stream = VariableStream::new();
         input_stream.write(&start_block_number);
-        input_stream.write(&start_header_hash);
         input_stream.write(&end_block_number);
-        input_stream.write(&end_header_hash);
         let output_stream =
             builder.async_hint(input_stream, DataCommitmentOffchainInputs::<MAX_LEAVES> {});
 
-        let data_comm_proof =
-            output_stream.read::<DataCommitmentProofVariable<MAX_LEAVES>>(builder);
-
+        let _ = output_stream.read::<DataCommitmentProofVariable<MAX_LEAVES>>(builder);
         let expected_data_commitment = output_stream.read::<Bytes32Variable>(builder);
 
-        let data_commitment = builder.prove_data_commitment::<MAX_LEAVES>(data_comm_proof);
+        let data_commitment = builder.verify_subchain::<Self>(
+            start_block_number,
+            start_header_hash,
+            end_block_number,
+            end_header_hash,
+        );
 
         builder.assert_is_equal(data_commitment, expected_data_commitment);
 

@@ -15,7 +15,7 @@ use crate::vars::DataCommitmentProofVariable;
 /// The nubmer of map jobs.  This needs to be a power of 2
 const NUM_MAP_JOBS: usize = 2;
 
-pub const BATCH_SIZE: usize = 16;
+pub const BATCH_SIZE: usize = 8;
 
 /// Num processed headers per MR job
 const HEADERS_PER_JOB: usize = BATCH_SIZE * NUM_MAP_JOBS;
@@ -38,7 +38,7 @@ pub trait SubChainVerifier<L: PlonkParameters<D>, const D: usize> {
         trusted_header_hash: Bytes32Variable,
         target_block: U64Variable,
         target_header_hash: Bytes32Variable,
-    ) -> (Bytes32Variable, Bytes32Variable)
+    ) -> Bytes32Variable
     where
         <<L as PlonkParameters<D>>::Config as GenericConfig<D>>::Hasher:
             AlgebraicHasher<<L as PlonkParameters<D>>::Field>;
@@ -51,7 +51,7 @@ impl<L: PlonkParameters<D>, const D: usize> SubChainVerifier<L, D> for CircuitBu
         trusted_header_hash: Bytes32Variable,
         target_block: U64Variable,
         target_header_hash: Bytes32Variable,
-    ) -> (Bytes32Variable, Bytes32Variable)
+    ) -> Bytes32Variable
     where
         <<L as PlonkParameters<D>>::Config as GenericConfig<D>>::Hasher:
             AlgebraicHasher<<L as PlonkParameters<D>>::Field>,
@@ -66,7 +66,7 @@ impl<L: PlonkParameters<D>, const D: usize> SubChainVerifier<L, D> for CircuitBu
         let relative_block_nums = (0u64..(HEADERS_PER_JOB as u64)).collect_vec();
 
         // The last block in batch i and the start block in batch i+1 are shared.
-        let (_, _, _, _, end_header_hash, data_merkle_root) = self
+        let (_, _, _, _, _, data_merkle_root) = self
             .mapreduce::<SubchainVerificationCtx, U64Variable, (
                 BoolVariable,    // is_enabled (whether the leaf contains any valid headers)
                 U64Variable,     // first block's num
@@ -264,6 +264,6 @@ impl<L: PlonkParameters<D>, const D: usize> SubChainVerifier<L, D> for CircuitBu
                 },
             );
 
-        (end_header_hash, data_merkle_root)
+        data_merkle_root
     }
 }
