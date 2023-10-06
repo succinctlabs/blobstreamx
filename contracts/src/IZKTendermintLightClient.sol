@@ -14,13 +14,9 @@ interface IZKTendermintLightClient {
 
     event FunctionId(string name, bytes32 id);
 
-    function getGateway() external view returns (address);
-
     function getFunctionId(string memory) external view returns (bytes32);
 
     function getHeaderHash(uint64) external view returns (bytes32);
-
-    function getHead() external view returns (uint64);
 
     function updateGateway(address _gateway) external;
 
