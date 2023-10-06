@@ -102,9 +102,14 @@ impl<L: PlonkParameters<D>, const D: usize> SubChainVerifier<L, D> for CircuitBu
                     input_stream.write(&start_block);
                     input_stream.write(&batch_end_block);
                     let header_fetcher = DataCommitmentOffchainInputs::<BATCH_SIZE> {};
-                    let data_comm_proof = builder
-                        .async_hint(input_stream, header_fetcher)
+                    
+                    let output_stream = builder
+                        .async_hint(input_stream, header_fetcher);
+
+                    let data_comm_proof = output_stream
                         .read::<DataCommitmentProofVariable<BATCH_SIZE>>(builder);
+
+                    let _ = output_stream.read::<Bytes32Variable>(builder);
 
                     // Start and end headers of the batch.
                     let batch_start_header = data_comm_proof.start_header;
