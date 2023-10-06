@@ -69,7 +69,7 @@ impl<const MAX_LEAVES: usize> Circuit for DataCommitmentCircuit<MAX_LEAVES> {
             builder.async_hint(input_stream, DataCommitmentOffchainInputs::<MAX_LEAVES> {});
 
         let _ = output_stream.read::<DataCommitmentProofVariable<MAX_LEAVES>>(builder);
-        // let expected_data_commitment = output_stream.read::<Bytes32Variable>(builder);
+        let expected_data_commitment = output_stream.read::<Bytes32Variable>(builder);
 
         let data_commitment = builder.verify_subchain::<Self>(
             start_block_number,
@@ -78,7 +78,7 @@ impl<const MAX_LEAVES: usize> Circuit for DataCommitmentCircuit<MAX_LEAVES> {
             end_header_hash,
         );
 
-        // builder.assert_is_equal(data_commitment, expected_data_commitment);
+        builder.assert_is_equal(data_commitment, expected_data_commitment);
 
         builder.evm_write(data_commitment);
     }
