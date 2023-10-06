@@ -102,6 +102,7 @@ impl<const NB_MAP_JOBS: usize, const BATCH_SIZE: usize, const MAX_LEAVES: usize>
         <<L as PlonkParameters<D>>::Config as plonky2::plonk::config::GenericConfig<D>>::Hasher:
             plonky2::plonk::config::AlgebraicHasher<L::Field>,
     {
+        generator_registry.register_async_hint::<DataCommitmentOffchainInputs<BATCH_SIZE>>();
         generator_registry.register_async_hint::<DataCommitmentOffchainInputs<MAX_LEAVES>>();
     }
 }
