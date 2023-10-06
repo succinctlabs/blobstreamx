@@ -202,10 +202,14 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
 pub(crate) mod tests {
     use std::env;
 
+    use celestia::input::tendermint_utils::leaf_hash;
     use celestia::input::utils::convert_to_h256;
     use celestia::input::InputDataFetcher;
+    use ethers::abi::Token;
     use ethers::types::H256;
     use plonky2x::backend::circuit::DefaultParameters;
+    use sha2::Sha256;
+    use subtle_encoding::hex;
     use tokio::runtime::Runtime;
 
     use super::*;
@@ -215,6 +219,31 @@ pub(crate) mod tests {
     type L = DefaultParameters;
     type F = <L as PlonkParameters<D>>::Field;
     const D: usize = 2;
+
+    #[test]
+    fn test_data_comm_single_block() {
+        let input_data_fetcher = InputDataFetcher::new();
+        let rt = Runtime::new().expect("failed to create tokio runtime");
+        rt.block_on(async {
+            let start_header = input_data_fetcher.get_header_from_number(10000).await;
+
+            // Encode data_hash and height into a tuple.
+            let encoded_tuple = ethers::abi::encode(&[
+                Token::Uint(start_header.height.value().into()),
+                Token::FixedBytes(start_header.data_hash.unwrap().as_bytes().to_vec()),
+            ]);
+
+            // leaf_hash start_header
+            let leaf_hash = leaf_hash::<Sha256>(&encoded_tuple);
+
+            let data_comm = input_data_fetcher.get_data_commitment(10000, 10001).await;
+
+            assert_eq!(
+                String::from_utf8(hex::encode(data_comm)),
+                String::from_utf8(hex::encode(leaf_hash))
+            );
+        });
+    }
 
     fn generate_data_commitment_value_inputs<const MAX_LEAVES: usize>(
         start_height: usize,
