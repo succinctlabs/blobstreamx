@@ -90,8 +90,7 @@ impl<const NUM_MAP_JOBS: usize, const BATCH_SIZE: usize, const MAX_LEAVES: usize
             end_header_hash,
         );
 
-        // TODO: Is there a way to do this assert without fetching the hint twice?
-        // Note: Don't need to do this assert, it's more of a sanity check.
+        // Note: Don't need this assert, it's only a sanity check.
         builder.assert_is_equal(data_commitment, expected_data_commitment);
 
         builder.evm_write(data_commitment);
