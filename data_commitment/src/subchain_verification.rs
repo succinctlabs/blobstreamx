@@ -20,8 +20,6 @@ pub const BATCH_SIZE: usize = 8;
 /// Num processed headers per MR job
 const HEADERS_PER_JOB: usize = BATCH_SIZE * NUM_MAP_JOBS;
 
-const MAX_HEADER_CHUNK_SIZE: usize = 100;
-pub const MAX_HEADER_SIZE: usize = MAX_HEADER_CHUNK_SIZE * 128;
 #[derive(Clone, Debug, CircuitVariable)]
 pub struct MapReduceSubchainVariable {
     pub is_enabled: BoolVariable,
@@ -34,19 +32,20 @@ pub struct MapReduceSubchainVariable {
 
 #[derive(Clone, Debug, CircuitVariable)]
 pub struct SubchainVerificationCtx {
-    pub trusted_block: U64Variable,
-    pub trusted_header_hash: Bytes32Variable,
-    pub target_block: U64Variable,
-    pub target_header_hash: Bytes32Variable,
+    pub start_block: U64Variable,
+    pub start_header_hash: Bytes32Variable,
+    pub end_block: U64Variable,
+    pub end_header_hash: Bytes32Variable,
 }
 
 pub trait SubChainVerifier<L: PlonkParameters<D>, const D: usize> {
+    // Verify the subchain from start_block to end_block, and return the data_merkle_root of the subchain.
     fn verify_subchain<C: Circuit>(
         &mut self,
-        trusted_block: U64Variable,
-        trusted_header_hash: Bytes32Variable,
-        target_block: U64Variable,
-        target_header_hash: Bytes32Variable,
+        start_block: U64Variable,
+        start_header_hash: Bytes32Variable,
+        end_block: U64Variable,
+        end_header_hash: Bytes32Variable,
     ) -> Bytes32Variable
     where
         <<L as PlonkParameters<D>>::Config as GenericConfig<D>>::Hasher:
@@ -56,20 +55,20 @@ pub trait SubChainVerifier<L: PlonkParameters<D>, const D: usize> {
 impl<L: PlonkParameters<D>, const D: usize> SubChainVerifier<L, D> for CircuitBuilder<L, D> {
     fn verify_subchain<C: Circuit>(
         &mut self,
-        trusted_block: U64Variable,
-        trusted_header_hash: Bytes32Variable,
-        target_block: U64Variable,
-        target_header_hash: Bytes32Variable,
+        start_block: U64Variable,
+        start_header_hash: Bytes32Variable,
+        end_block: U64Variable,
+        end_header_hash: Bytes32Variable,
     ) -> Bytes32Variable
     where
         <<L as PlonkParameters<D>>::Config as GenericConfig<D>>::Hasher:
             AlgebraicHasher<<L as PlonkParameters<D>>::Field>,
     {
         let ctx = SubchainVerificationCtx {
-            trusted_block,
-            trusted_header_hash,
-            target_block,
-            target_header_hash,
+            start_block,
+            start_header_hash,
+            end_block,
+            end_header_hash,
         };
 
         let relative_block_nums = (0u64..(HEADERS_PER_JOB as u64)).collect_vec();
@@ -81,15 +80,15 @@ impl<L: PlonkParameters<D>, const D: usize> SubChainVerifier<L, D> for CircuitBu
                 relative_block_nums,
                 |map_ctx, map_relative_block_nums, builder| {
 
-                    let target_header_hash = ctx.target_header_hash;
-                    let target_block = ctx.target_block;
+                    let end_header_hash = ctx.end_header_hash;
+                    let end_block = ctx.end_block;
 
                     // Note: map_relative_block_nums is inclusive of the last block.
                     let mut input_stream = VariableStream::new();
                     let start_block =
-                        builder.add(map_ctx.trusted_block, map_relative_block_nums.as_vec()[0]);
+                        builder.add(map_ctx.start_block, map_relative_block_nums.as_vec()[0]);
                     let last_block = builder.add(
-                        map_ctx.trusted_block,
+                        map_ctx.start_block,
                         map_relative_block_nums.as_vec()[BATCH_SIZE - 1],
                     );
 
@@ -97,8 +96,7 @@ impl<L: PlonkParameters<D>, const D: usize> SubChainVerifier<L, D> for CircuitBu
 
                     let one = builder.constant::<U64Variable>(1u64);
 
-                    // Add 1 to last_block to match Celestia's format (exclusive of last_block).
-                    // Note: last_block - start_block = BATCH_SIZE
+                    // Note: batch_end_block - start_block = BATCH_SIZE.
                     let batch_end_block = builder.add(last_block, one);
 
                     input_stream.write(&start_block);
@@ -124,17 +122,17 @@ impl<L: PlonkParameters<D>, const D: usize> SubChainVerifier<L, D> for CircuitBu
                     ]);
 
                     // Only need to check these headers if the batch is enabled.
-                    // If the start_block = map_ctx.target_block, we still verify the prev_header_proof against the target_block in reduce.
-                    let mut is_enabled = builder.lt(start_block, map_ctx.target_block);
+                    // If the start_block = map_ctx.end_block, we still verify the prev_header_proof against the end_block in reduce.
+                    let mut is_enabled = builder.lt(start_block, map_ctx.end_block);
                     let is_batch_enabled = is_enabled;
 
                     let mut curr_header = batch_start_header;
 
-                    let last_block_to_process = builder.sub(target_block, one);
+                    let last_block_to_process = builder.sub(end_block, one);
                     // Verify all data_hash_proofs against headers from prev_header_proofs.
                     for i in 0..BATCH_SIZE {
                         let is_disabled = builder.not(is_enabled);
-                        // target_block - 1 is the last valid leaf.
+                        // end_block - 1 is the last valid leaf.
                         let curr_idx = builder.constant::<U64Variable>(i as u64);
                         let curr_block = builder.add(start_block, curr_idx);
                         let is_last_valid_leaf = builder.is_equal(last_block_to_process, curr_block);
@@ -173,7 +171,7 @@ impl<L: PlonkParameters<D>, const D: usize> SubChainVerifier<L, D> for CircuitBu
                         builder.assert_is_equal(prev_header_check, true_var);
 
                         // 2) If is_last_valid_leaf is true, then the root of the prev_header_proof must be the end_header.
-                        let root_matches_end_header = builder.is_equal(prev_header_proof_root, target_header_hash);
+                        let root_matches_end_header = builder.is_equal(prev_header_proof_root, end_header_hash);
                         // NOT is_valid_leaf || root_matches_end_header must be true.
                         let end_header_check = builder.or(is_not_last_valid_leaf, root_matches_end_header);
                         builder.assert_is_equal(end_header_check, true_var);
@@ -185,11 +183,11 @@ impl<L: PlonkParameters<D>, const D: usize> SubChainVerifier<L, D> for CircuitBu
                     }
 
                     // Select the min of the target block and the end block in the batch.
-                    let is_less_than_target = builder.lte(batch_end_block, map_ctx.target_block);
+                    let is_less_than_target = builder.lte(batch_end_block, map_ctx.end_block);
                     let end_block_num =
-                        builder.select(is_less_than_target, batch_end_block, map_ctx.target_block);
+                        builder.select(is_less_than_target, batch_end_block, map_ctx.end_block);
 
-                    // Note: We will only inner hash the data_merkle_root if its start_block is < target_block.
+                    // Generate the data_merkle_root for the batch. If the batch is disabled
                     let data_merkle_root = builder.get_data_commitment::<BATCH_SIZE>(
                         &data_comm_proof.data_hashes,
                         start_block,
