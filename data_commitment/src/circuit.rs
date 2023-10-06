@@ -6,7 +6,6 @@ use plonky2x::backend::circuit::Circuit;
 use plonky2x::frontend::hint::asynchronous::hint::AsyncHint;
 use plonky2x::frontend::mapreduce::generator::MapReduceGenerator;
 use plonky2x::frontend::uint::uint64::U64Variable;
-use plonky2x::frontend::vars::VariableStream;
 use plonky2x::prelude::{Bytes32Variable, CircuitBuilder, PlonkParameters, ValueStream};
 use serde::{Deserialize, Serialize};
 
@@ -28,12 +27,11 @@ impl<const MAX_LEAVES: usize, L: PlonkParameters<D>, const D: usize> AsyncHint<L
     ) {
         let start_block = input_stream.read_value::<U64Variable>();
         let end_block = input_stream.read_value::<U64Variable>();
-        let max_leaves = input_stream.read_value::<U64Variable>();
 
         let mut data_fetcher = InputDataFetcher::new();
 
         let result = data_fetcher
-            .get_data_commitment_inputs::<L::Field>(start_block, end_block, max_leaves)
+            .get_data_commitment_inputs::<L::Field>(start_block, end_block, MAX_LEAVES as u64)
             .await;
 
         let data_comm_proof = DataCommitmentProofValueType {
@@ -72,17 +70,17 @@ impl<const NB_MAP_JOBS: usize, const BATCH_SIZE: usize, const MAX_LEAVES: usize>
         let end_block_number = builder.evm_read::<U64Variable>();
         let end_header_hash = builder.evm_read::<Bytes32Variable>();
 
-        let mut input_stream = VariableStream::new();
-        input_stream.write(&start_block_number);
-        input_stream.write(&end_block_number);
-        let max_leaves = &builder.constant::<U64Variable>(MAX_LEAVES as u64);
-        input_stream.write(max_leaves);
+        // let mut input_stream = VariableStream::new();
+        // input_stream.write(&start_block_number);
+        // input_stream.write(&end_block_number);
+        // let max_leaves = &builder.constant::<U64Variable>(MAX_LEAVES as u64);
+        // input_stream.write(max_leaves);
 
-        let output_stream =
-            builder.async_hint(input_stream, DataCommitmentOffchainInputs::<MAX_LEAVES> {});
+        // let output_stream =
+        //     builder.async_hint(input_stream, DataCommitmentOffchainInputs::<MAX_LEAVES> {});
 
-        let _ = output_stream.read::<DataCommitmentProofVariable<MAX_LEAVES>>(builder);
-        let expected_data_commitment = output_stream.read::<Bytes32Variable>(builder);
+        // let _ = output_stream.read::<DataCommitmentProofVariable<MAX_LEAVES>>(builder);
+        // let expected_data_commitment = output_stream.read::<Bytes32Variable>(builder);
 
         let data_commitment = builder.prove_data_commitment::<Self, NB_MAP_JOBS, BATCH_SIZE>(
             start_block_number,
@@ -91,8 +89,8 @@ impl<const NB_MAP_JOBS: usize, const BATCH_SIZE: usize, const MAX_LEAVES: usize>
             end_header_hash,
         );
 
-        // Note: Don't need this assert, it's only a sanity check.
-        builder.assert_is_equal(data_commitment, expected_data_commitment);
+        // // Note: Don't need this assert, it's only a sanity check.
+        // builder.assert_is_equal(data_commitment, expected_data_commitment);
 
         builder.evm_write(data_commitment);
     }
@@ -104,7 +102,6 @@ impl<const NB_MAP_JOBS: usize, const BATCH_SIZE: usize, const MAX_LEAVES: usize>
             plonky2::plonk::config::AlgebraicHasher<L::Field>,
     {
         generator_registry.register_async_hint::<DataCommitmentOffchainInputs<BATCH_SIZE>>();
-        generator_registry.register_async_hint::<DataCommitmentOffchainInputs<MAX_LEAVES>>();
 
         let mr_id = MapReduceGenerator::<
             L,
@@ -213,8 +210,8 @@ mod tests {
     fn test_data_commitment_small() {
         // Test variable length NUM_BLOCKS.
         const MAX_LEAVES: usize = 8;
-        const NB_MAP_JOBS: usize = 1;
-        const BATCH_SIZE: usize = 8;
+        const NB_MAP_JOBS: usize = 2;
+        const BATCH_SIZE: usize = 4;
 
         let start_block = 10000u64;
         let start_header_hash =

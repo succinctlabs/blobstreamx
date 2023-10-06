@@ -265,6 +265,8 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
                 relative_block_nums,
                 |map_ctx, map_relative_block_nums, builder| {
 
+                    let one = builder.constant::<U64Variable>(1u64);
+
                     let global_end_header_hash = ctx.end_header_hash;
                     let global_end_block = ctx.end_block;
 
@@ -277,13 +279,13 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
                         map_relative_block_nums.as_vec()[BATCH_SIZE - 1],
                     );
 
-                    let one = builder.constant::<U64Variable>(1u64);
 
                     // Note: batch_end_block - start_block = BATCH_SIZE.
                     let batch_end_block = builder.add(last_block, one);
 
                     input_stream.write(&start_block);
                     input_stream.write(&batch_end_block);
+
                     let header_fetcher = DataCommitmentOffchainInputs::<BATCH_SIZE> {};
 
                     let output_stream = builder
