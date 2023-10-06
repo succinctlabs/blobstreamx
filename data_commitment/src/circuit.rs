@@ -4,12 +4,13 @@ use celestia::input::InputDataFetcher;
 use ethers::types::H256;
 use plonky2x::backend::circuit::Circuit;
 use plonky2x::frontend::hint::asynchronous::hint::AsyncHint;
+use plonky2x::frontend::mapreduce::generator::MapReduceGenerator;
 use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::frontend::vars::VariableStream;
 use plonky2x::prelude::{Bytes32Variable, CircuitBuilder, PlonkParameters, ValueStream};
 use serde::{Deserialize, Serialize};
 
-use crate::builder::DataCommitmentBuilder;
+use crate::builder::{DataCommitmentBuilder, MapReduceSubchainVariable, SubchainVerificationCtx};
 use crate::input::DataCommitmentInputs;
 use crate::vars::*;
 
@@ -104,6 +105,25 @@ impl<const NB_MAP_JOBS: usize, const BATCH_SIZE: usize, const MAX_LEAVES: usize>
     {
         generator_registry.register_async_hint::<DataCommitmentOffchainInputs<BATCH_SIZE>>();
         generator_registry.register_async_hint::<DataCommitmentOffchainInputs<MAX_LEAVES>>();
+
+        let mr_id = MapReduceGenerator::<
+            L,
+            SubchainVerificationCtx,
+            U64Variable,
+            MapReduceSubchainVariable,
+            Self,
+            BATCH_SIZE,
+            D,
+        >::id();
+        generator_registry.register_simple::<MapReduceGenerator<
+            L,
+            SubchainVerificationCtx,
+            U64Variable,
+            MapReduceSubchainVariable,
+            Self,
+            BATCH_SIZE,
+            D,
+        >>(mr_id);
     }
 }
 
