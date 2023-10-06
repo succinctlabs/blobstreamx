@@ -1,9 +1,12 @@
 use celestia::consts::*;
-use plonky2::plonk::config::{GenericConfig, AlgebraicHasher};
-use plonky2x::backend::circuit::{PlonkParameters, Circuit};
+use plonky2::plonk::config::{AlgebraicHasher, GenericConfig};
+use plonky2x::backend::circuit::{Circuit, PlonkParameters};
 use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::frontend::vars::{ArrayVariable, Bytes32Variable, EvmVariable};
-use plonky2x::prelude::{ByteVariable, BytesVariable, CircuitBuilder, CircuitVariable, BoolVariable, Variable, RichField, VariableStream};
+use plonky2x::prelude::{
+    BoolVariable, ByteVariable, BytesVariable, CircuitBuilder, CircuitVariable, RichField,
+    Variable, VariableStream,
+};
 
 use crate::circuit::DataCommitmentOffchainInputs;
 use crate::vars::DataCommitmentProofVariable;
@@ -148,11 +151,10 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
         let batch_end_block = data_comm_proof.end_block_height;
         let batch_end_header_hash = data_comm_proof.end_header;
 
-        let data_hash_path = self
-            .constant::<ArrayVariable<BoolVariable, 4>>(vec![false, true, true, false]);
-        let last_block_id_path = self.constant::<ArrayVariable<BoolVariable, 4>>(vec![
-            false, false, true, false,
-        ]);
+        let data_hash_path =
+            self.constant::<ArrayVariable<BoolVariable, 4>>(vec![false, true, true, false]);
+        let last_block_id_path =
+            self.constant::<ArrayVariable<BoolVariable, 4>>(vec![false, false, true, false]);
 
         // Only need to check these headers if the batch is enabled.
         // If the start_block = map_ctx.end_block, we still verify the prev_header_proof against the end_block in reduce.
@@ -173,28 +175,25 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
 
             // Header hash of block (start + i).
             let data_hash_proof_root = self
-            .get_root_from_merkle_proof::<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES>(
-                &data_comm_proof.data_hash_proofs[i],
-                &data_hash_path,
-            );
+                .get_root_from_merkle_proof::<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES>(
+                    &data_comm_proof.data_hash_proofs[i],
+                    &data_hash_path,
+                );
             // Header hash of block (start + i + 1).
             let prev_header_proof_root = self
-            .get_root_from_merkle_proof::<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES>(
-                &data_comm_proof.prev_header_proofs[i],
-                &last_block_id_path.clone(),
-            );
+                .get_root_from_merkle_proof::<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES>(
+                    &data_comm_proof.prev_header_proofs[i],
+                    &last_block_id_path.clone(),
+                );
 
             // Header hash of block (start + i).
-            let header_hash =
-                &data_comm_proof.prev_header_proofs[i].leaf[2..2 + HASH_SIZE];
-            
+            let header_hash = &data_comm_proof.prev_header_proofs[i].leaf[2..2 + HASH_SIZE];
+
             // Verify the data hash proof against the header hash of block (start + i).
-            let is_valid_data_hash =
-            self.is_equal(data_hash_proof_root, header_hash.into());
+            let is_valid_data_hash = self.is_equal(data_hash_proof_root, header_hash.into());
             // NOT is_enabled || (data_hash_proof_root == header_hash) must be true.
             let data_hash_check = self.or(is_disabled, is_valid_data_hash);
             self.assert_is_equal(data_hash_check, true_var);
-
 
             // Verify the header chain.
             // 1) Verify the curr_header matches the extracted header_hash.
@@ -204,7 +203,8 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
             self.assert_is_equal(prev_header_check, true_var);
 
             // 2) If is_last_valid_leaf is true, then the root of the prev_header_proof must be the end_header.
-            let root_matches_end_header = self.is_equal(prev_header_proof_root, global_end_header_hash);
+            let root_matches_end_header =
+                self.is_equal(prev_header_proof_root, global_end_header_hash);
             // NOT is_valid_leaf || root_matches_end_header must be true.
             let end_header_check = self.or(is_not_last_valid_leaf, root_matches_end_header);
             self.assert_is_equal(end_header_check, true_var);
@@ -217,8 +217,7 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
 
         // Select the min of the target block and the end block in the batch.
         let is_less_than_target = self.lte(batch_end_block, global_end_block);
-        let end_block_num =
-        self.select(is_less_than_target, batch_end_block, global_end_block);
+        let end_block_num = self.select(is_less_than_target, batch_end_block, global_end_block);
 
         // Generate the data_merkle_root for the batch. If the batch is disabled
         let data_merkle_root = self.get_data_commitment::<BATCH_SIZE>(
@@ -346,7 +345,7 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
                 },
             );
 
-            result.data_merkle_root
+        result.data_merkle_root
     }
 }
 
@@ -453,7 +452,11 @@ pub(crate) mod tests {
         let data_commitment_var = builder.read::<DataCommitmentProofVariable<MAX_LEAVES>>();
 
         // TODO: Remove clone if performance is an issue.
-        builder.prove_subchain::<MAX_LEAVES>(data_commitment_var.clone(), data_commitment_var.clone().end_block_height, data_commitment_var.clone().end_header);
+        builder.prove_subchain::<MAX_LEAVES>(
+            data_commitment_var.clone(),
+            data_commitment_var.clone().end_block_height,
+            data_commitment_var.clone().end_header,
+        );
 
         let circuit = builder.build();
 
