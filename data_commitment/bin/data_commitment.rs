@@ -25,25 +25,25 @@ fn main() {
 
     if env_max_leaves == 1024.to_string() {
         // Note: These constants can be tuned.
-        const NUM_MAP_JOBS: usize = 16;
+        const NB_MAP_JOBS: usize = 16;
         const BATCH_SIZE: usize = 64;
         const MAX_LEAVES: usize = 1024;
 
-        VerifiableFunction::<DataCommitmentCircuit<NUM_MAP_JOBS, BATCH_SIZE, MAX_LEAVES>>::entrypoint();
+        VerifiableFunction::<DataCommitmentCircuit<NB_MAP_JOBS, BATCH_SIZE, MAX_LEAVES>>::entrypoint();
     } else if env_max_leaves == 256.to_string() {
         // Note: These constants can be tuned.
-        const NUM_MAP_JOBS: usize = 16;
+        const NB_MAP_JOBS: usize = 16;
         const BATCH_SIZE: usize = 16;
         const MAX_LEAVES: usize = 256;
 
-        VerifiableFunction::<DataCommitmentCircuit<NUM_MAP_JOBS, BATCH_SIZE, MAX_LEAVES>>::entrypoint();
+        VerifiableFunction::<DataCommitmentCircuit<NB_MAP_JOBS, BATCH_SIZE, MAX_LEAVES>>::entrypoint();
     } else if env_max_leaves == 4.to_string() {
         // Note: These constants can be tuned.
-        const NUM_MAP_JOBS: usize = 1;
+        const NB_MAP_JOBS: usize = 1;
         const BATCH_SIZE: usize = 4;
         const MAX_LEAVES: usize = 4;
 
-        VerifiableFunction::<DataCommitmentCircuit<NUM_MAP_JOBS, BATCH_SIZE, MAX_LEAVES>>::entrypoint();
+        VerifiableFunction::<DataCommitmentCircuit<NB_MAP_JOBS, BATCH_SIZE, MAX_LEAVES>>::entrypoint();
     } else {
         panic!("MAX_LEAVES must be set to 1024, 256, or 4");
     }

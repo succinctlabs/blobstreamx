@@ -53,18 +53,18 @@ impl<const MAX_LEAVES: usize, L: PlonkParameters<D>, const D: usize> AsyncHint<L
 
 #[derive(Debug, Clone)]
 pub struct DataCommitmentCircuit<
-    const NUM_MAP_JOBS: usize,
+    const NB_MAP_JOBS: usize,
     const BATCH_SIZE: usize,
     const MAX_LEAVES: usize,
 > {
     _config: usize,
 }
 
-impl<const NUM_MAP_JOBS: usize, const BATCH_SIZE: usize, const MAX_LEAVES: usize> Circuit
-    for DataCommitmentCircuit<NUM_MAP_JOBS, BATCH_SIZE, MAX_LEAVES>
+impl<const NB_MAP_JOBS: usize, const BATCH_SIZE: usize, const MAX_LEAVES: usize> Circuit
+    for DataCommitmentCircuit<NB_MAP_JOBS, BATCH_SIZE, MAX_LEAVES>
 {
     fn define<L: PlonkParameters<D>, const D: usize>(builder: &mut CircuitBuilder<L, D>) where <<L as plonky2x::prelude::PlonkParameters<D>>::Config as plonky2::plonk::config::GenericConfig<D>>::Hasher: plonky2::plonk::config::AlgebraicHasher<<L as plonky2x::prelude::PlonkParameters<D>>::Field>{
-        assert_eq!(NUM_MAP_JOBS * BATCH_SIZE, MAX_LEAVES);
+        assert_eq!(NB_MAP_JOBS * BATCH_SIZE, MAX_LEAVES);
 
         let start_block_number = builder.evm_read::<U64Variable>();
         let start_header_hash = builder.evm_read::<Bytes32Variable>();
@@ -83,7 +83,7 @@ impl<const NUM_MAP_JOBS: usize, const BATCH_SIZE: usize, const MAX_LEAVES: usize
         let _ = output_stream.read::<DataCommitmentProofVariable<MAX_LEAVES>>(builder);
         let expected_data_commitment = output_stream.read::<Bytes32Variable>(builder);
 
-        let data_commitment = builder.prove_data_commitment::<Self, NUM_MAP_JOBS, BATCH_SIZE>(
+        let data_commitment = builder.prove_data_commitment::<Self, NB_MAP_JOBS, BATCH_SIZE>(
             start_block_number,
             start_header_hash,
             end_block_number,
@@ -123,21 +123,21 @@ mod tests {
         env_logger::try_init().unwrap_or_default();
 
         const MAX_LEAVES: usize = 2;
-        const NUM_MAP_JOBS: usize = 1;
+        const NB_MAP_JOBS: usize = 1;
         const BATCH_SIZE: usize = 2;
         let mut builder = DefaultBuilder::new();
 
         log::debug!("Defining circuit");
-        DataCommitmentCircuit::<NUM_MAP_JOBS, BATCH_SIZE, MAX_LEAVES>::define(&mut builder);
+        DataCommitmentCircuit::<NB_MAP_JOBS, BATCH_SIZE, MAX_LEAVES>::define(&mut builder);
         let circuit = builder.build();
         log::debug!("Done building circuit");
 
         let mut hint_registry = HintRegistry::new();
         let mut gate_registry = GateRegistry::new();
-        DataCommitmentCircuit::<NUM_MAP_JOBS, BATCH_SIZE, MAX_LEAVES>::register_generators(
+        DataCommitmentCircuit::<NB_MAP_JOBS, BATCH_SIZE, MAX_LEAVES>::register_generators(
             &mut hint_registry,
         );
-        DataCommitmentCircuit::<NUM_MAP_JOBS, BATCH_SIZE, MAX_LEAVES>::register_gates(
+        DataCommitmentCircuit::<NB_MAP_JOBS, BATCH_SIZE, MAX_LEAVES>::register_gates(
             &mut gate_registry,
         );
 
@@ -145,7 +145,7 @@ mod tests {
     }
 
     fn test_data_commitment_template<
-        const NUM_MAP_JOBS: usize,
+        const NB_MAP_JOBS: usize,
         const BATCH_SIZE: usize,
         const MAX_LEAVES: usize,
     >(
@@ -162,7 +162,7 @@ mod tests {
         let mut builder = DefaultBuilder::new();
 
         log::debug!("Defining circuit");
-        DataCommitmentCircuit::<NUM_MAP_JOBS, BATCH_SIZE, MAX_LEAVES>::define(&mut builder);
+        DataCommitmentCircuit::<NB_MAP_JOBS, BATCH_SIZE, MAX_LEAVES>::define(&mut builder);
 
         log::debug!("Building circuit");
         let circuit = builder.build();
@@ -192,7 +192,7 @@ mod tests {
     fn test_data_commitment_small() {
         // Test variable length NUM_BLOCKS.
         const MAX_LEAVES: usize = 8;
-        const NUM_MAP_JOBS: usize = 1;
+        const NB_MAP_JOBS: usize = 1;
         const BATCH_SIZE: usize = 8;
 
         let start_block = 10000u64;
@@ -204,7 +204,7 @@ mod tests {
             hex::decode_upper("FCDA37FA6306C77737DD911E6101B612E2DBD837F29ED4F4E1C30919FBAC9D05")
                 .unwrap();
 
-        test_data_commitment_template::<NUM_MAP_JOBS, BATCH_SIZE, MAX_LEAVES>(
+        test_data_commitment_template::<NB_MAP_JOBS, BATCH_SIZE, MAX_LEAVES>(
             start_block as usize,
             start_header_hash.as_slice().try_into().unwrap(),
             end_block as usize,
@@ -218,7 +218,7 @@ mod tests {
         // Test variable length NUM_BLOCKS.
         const MAX_LEAVES: usize = 1024;
         // Note: These can be tuned.
-        const NUM_MAP_JOBS: usize = 1;
+        const NB_MAP_JOBS: usize = 1;
         const BATCH_SIZE: usize = 1024;
 
         let start_block = 10000u64;
@@ -230,7 +230,7 @@ mod tests {
             hex::decode_upper("FCDA37FA6306C77737DD911E6101B612E2DBD837F29ED4F4E1C30919FBAC9D05")
                 .unwrap();
 
-        test_data_commitment_template::<NUM_MAP_JOBS, BATCH_SIZE, MAX_LEAVES>(
+        test_data_commitment_template::<NB_MAP_JOBS, BATCH_SIZE, MAX_LEAVES>(
             start_block as usize,
             start_header_hash.as_slice().try_into().unwrap(),
             end_block as usize,
@@ -244,7 +244,7 @@ mod tests {
         // Test variable length NUM_BLOCKS.
         const MAX_LEAVES: usize = 256;
         // Note: These can be tuned.
-        const NUM_MAP_JOBS: usize = 1;
+        const NB_MAP_JOBS: usize = 1;
         const BATCH_SIZE: usize = 256;
 
         let start_block = 10000u64;
@@ -256,7 +256,7 @@ mod tests {
             hex::decode_upper("FCDA37FA6306C77737DD911E6101B612E2DBD837F29ED4F4E1C30919FBAC9D05")
                 .unwrap();
 
-        test_data_commitment_template::<NUM_MAP_JOBS, BATCH_SIZE, MAX_LEAVES>(
+        test_data_commitment_template::<NB_MAP_JOBS, BATCH_SIZE, MAX_LEAVES>(
             start_block as usize,
             start_header_hash.as_slice().try_into().unwrap(),
             end_block as usize,

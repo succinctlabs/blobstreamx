@@ -55,8 +55,8 @@ pub trait DataCommitmentBuilder<L: PlonkParameters<D>, const D: usize> {
     /// Prove header chain from end_header to start_header & the block heights for the current header and the trusted header.
     /// Merkle prove the last block id against the current header, and the data hash for each header except the current header.
     /// prev_header_proofs are against (start_block + 1, end_block), data_hash_proofs are against (start_block, end_block - 1).
-    /// NUM_MAP_JOBS must be a power of 2.
-    fn prove_data_commitment<C: Circuit, const NUM_MAP_JOBS: usize, const BATCH_SIZE: usize>(
+    /// NB_MAP_JOBS must be a power of 2.
+    fn prove_data_commitment<C: Circuit, const NB_MAP_JOBS: usize, const BATCH_SIZE: usize>(
         &mut self,
         start_block: U64Variable,
         start_header_hash: Bytes32Variable,
@@ -237,7 +237,7 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
         }
     }
 
-    fn prove_data_commitment<C: Circuit, const NUM_MAP_JOBS: usize, const BATCH_SIZE: usize>(
+    fn prove_data_commitment<C: Circuit, const NB_MAP_JOBS: usize, const BATCH_SIZE: usize>(
         &mut self,
         start_block: U64Variable,
         start_header_hash: Bytes32Variable,
@@ -255,7 +255,7 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
             end_header_hash,
         };
 
-        let total_headers = NUM_MAP_JOBS * BATCH_SIZE;
+        let total_headers = NB_MAP_JOBS * BATCH_SIZE;
 
         let relative_block_nums = (0u64..(total_headers as u64)).collect::<Vec<_>>();
 
