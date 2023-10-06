@@ -2,10 +2,9 @@ use celestia::consts::*;
 use itertools::Itertools;
 use plonky2::plonk::config::{AlgebraicHasher, GenericConfig};
 use plonky2x::backend::circuit::{Circuit, PlonkParameters};
-use plonky2x::frontend::vars::{VariableStream};
 use plonky2x::prelude::{
     ArrayVariable, BoolVariable, Bytes32Variable, CircuitBuilder, CircuitVariable, RichField,
-    Variable, U64Variable,
+    Variable, U64Variable, VariableStream,
 };
 use tendermint::merkle::HASH_SIZE;
 
@@ -76,9 +75,13 @@ impl<L: PlonkParameters<D>, const D: usize> SubChainVerifier<L, D> for CircuitBu
                 Bytes32Variable, // last block's hash
                 Bytes32Variable, // data merkle root
             ), C, BATCH_SIZE, _, _>(
-                ctx,
+                ctx.clone(),
                 relative_block_nums,
                 |map_ctx, map_relative_block_nums, builder| {
+
+                    let target_header_hash = ctx.target_header_hash;
+                    let target_block = ctx.target_block;
+
                     // Note: map_relative_block_nums is inclusive of the last block.
                     let mut input_stream = VariableStream::new();
                     let start_block =
@@ -120,7 +123,7 @@ impl<L: PlonkParameters<D>, const D: usize> SubChainVerifier<L, D> for CircuitBu
 
                     let mut curr_header = batch_start_header;
 
-                    let last_block_to_process = builder.sub(ctx.target_block, one);
+                    let last_block_to_process = builder.sub(target_block, one);
                     // Verify all data_hash_proofs against headers from prev_header_proofs.
                     for i in 0..BATCH_SIZE {
                         let is_disabled = builder.not(is_enabled);
@@ -142,6 +145,7 @@ impl<L: PlonkParameters<D>, const D: usize> SubChainVerifier<L, D> for CircuitBu
                             &data_comm_proof.prev_header_proofs[i],
                             &last_block_id_path.clone(),
                         );
+
                         // Header hash of block (start + i).
                         let header_hash =
                             &data_comm_proof.prev_header_proofs[i].leaf[2..2 + HASH_SIZE];
@@ -150,15 +154,9 @@ impl<L: PlonkParameters<D>, const D: usize> SubChainVerifier<L, D> for CircuitBu
                         let is_valid_data_hash =
                         builder.is_equal(data_hash_proof_root, header_hash.into());
                         // NOT is_enabled || (data_hash_proof_root == header_hash) must be true.
-                        let data_hash_check = self.or(is_disabled, is_valid_data_hash);
+                        let data_hash_check = builder.or(is_disabled, is_valid_data_hash);
                         builder.assert_is_equal(data_hash_check, true_var);
 
-                        let prev_header_proof_root = builder
-                            .get_root_from_merkle_proof::<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES>(
-                                &data_comm_proof.prev_header_proofs[i + 1],
-                                &last_block_id_path,
-                            );
-                        let curr_header = prev_header_proof_root;
 
                         // Verify the header chain.
                         // 1) Verify the curr_header matches the extracted header_hash.
@@ -168,7 +166,7 @@ impl<L: PlonkParameters<D>, const D: usize> SubChainVerifier<L, D> for CircuitBu
                         builder.assert_is_equal(prev_header_check, true_var);
 
                         // 2) If is_last_valid_leaf is true, then the root of the prev_header_proof must be the end_header.
-                        let root_matches_end_header = builder.is_equal(prev_header_proof_root, ctx.target_header_hash);
+                        let root_matches_end_header = builder.is_equal(prev_header_proof_root, target_header_hash);
                         // NOT is_valid_leaf || root_matches_end_header must be true.
                         let end_header_check = builder.or(is_not_last_valid_leaf, root_matches_end_header);
                         builder.assert_is_equal(end_header_check, true_var);

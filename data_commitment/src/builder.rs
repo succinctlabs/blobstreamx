@@ -228,14 +228,6 @@ pub(crate) mod tests {
         let rt = Runtime::new().expect("failed to create tokio runtime");
 
         let result = rt.block_on(async {
-            let start_header = input_data_fetcher
-                .get_header_from_number(start_height as u64)
-                .await;
-            let start_header_hash = H256::from_slice(start_header.hash().as_bytes());
-            let end_header = input_data_fetcher
-                .get_header_from_number(end_height as u64)
-                .await;
-            let end_header_hash = H256::from_slice(end_header.hash().as_bytes());
             input_data_fetcher
                 .get_data_commitment_inputs::<MAX_LEAVES, F>(start_height as u64, end_height as u64)
                 .await
