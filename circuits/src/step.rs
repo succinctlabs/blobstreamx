@@ -44,6 +44,7 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize, L: PlonkParameters<D>, const D: usize>
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct StepCircuit<const MAX_VALIDATOR_SET_SIZE: usize> {
     _config: usize,
 }
