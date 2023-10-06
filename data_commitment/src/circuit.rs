@@ -78,6 +78,8 @@ impl<const MAX_LEAVES: usize> Circuit for DataCommitmentCircuit<MAX_LEAVES> {
             end_header_hash,
         );
 
+        // TODO: Is there a way to do this assert without fetching the hint twice?
+        // Note: Don't need to do this assert, it's more of a sanity check.
         builder.assert_is_equal(data_commitment, expected_data_commitment);
 
         builder.evm_write(data_commitment);
