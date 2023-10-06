@@ -26,34 +26,27 @@ impl<const MAX_LEAVES: usize, L: PlonkParameters<D>, const D: usize> AsyncHint<L
         output_stream: &mut ValueStream<L, D>,
     ) {
         let start_block = input_stream.read_value::<U64Variable>();
-        let start_header_hash = input_stream.read_value::<Bytes32Variable>();
         let end_block = input_stream.read_value::<U64Variable>();
-        let end_header_hash = input_stream.read_value::<Bytes32Variable>();
 
         let mut data_fetcher = InputDataFetcher::new();
 
         let result = data_fetcher
-            .get_data_commitment_inputs::<MAX_LEAVES, L::Field>(
-                start_block,
-                start_header_hash,
-                end_block,
-                end_header_hash,
-            )
+            .get_data_commitment_inputs::<MAX_LEAVES, L::Field>(start_block, end_block)
             .await;
 
         let data_comm_proof = DataCommitmentProofValueType {
-            data_hashes: convert_to_h256(result.0),
+            data_hashes: convert_to_h256(result.2),
             start_block_height: start_block,
-            start_header: start_header_hash,
+            start_header: H256(result.0),
             end_block_height: end_block,
-            end_header: end_header_hash,
-            data_hash_proofs: result.1,
-            prev_header_proofs: result.2,
+            end_header: H256(result.1),
+            data_hash_proofs: result.3,
+            prev_header_proofs: result.4,
         };
         // Write the inputs to the data commitment circuit.
         output_stream.write_value::<DataCommitmentProofVariable<MAX_LEAVES>>(data_comm_proof);
         // Write the expected data commitment.
-        output_stream.write_value::<Bytes32Variable>(H256(result.3));
+        output_stream.write_value::<Bytes32Variable>(H256(result.5));
     }
 }
 

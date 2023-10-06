@@ -4,4 +4,5 @@
 pub mod builder;
 pub mod circuit;
 pub mod input;
+pub mod subchain_verification;
 pub mod vars;

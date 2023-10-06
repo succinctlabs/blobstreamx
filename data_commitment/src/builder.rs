@@ -86,7 +86,9 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
         }
 
         let mut leaves_enabled = Vec::new();
-        let mut is_enabled = self.constant::<BoolVariable>(true);
+
+        // Include all leaves where the block height is less than end_block.
+        let mut is_enabled = self.lt(start_block, end_block);
         for i in 0..MAX_LEAVES {
             leaves_enabled.push(is_enabled);
 
@@ -225,7 +227,7 @@ pub(crate) mod tests {
 
         let rt = Runtime::new().expect("failed to create tokio runtime");
 
-        let (result, start_header_hash, end_header_hash) = rt.block_on(async {
+        let result = rt.block_on(async {
             let start_header = input_data_fetcher
                 .get_header_from_number(start_height as u64)
                 .await;
@@ -234,28 +236,22 @@ pub(crate) mod tests {
                 .get_header_from_number(end_height as u64)
                 .await;
             let end_header_hash = H256::from_slice(end_header.hash().as_bytes());
-            let result = input_data_fetcher
-                .get_data_commitment_inputs::<MAX_LEAVES, F>(
-                    start_height as u64,
-                    start_header_hash,
-                    end_height as u64,
-                    end_header_hash,
-                )
-                .await;
-            (result, start_header_hash, end_header_hash)
+            input_data_fetcher
+                .get_data_commitment_inputs::<MAX_LEAVES, F>(start_height as u64, end_height as u64)
+                .await
         });
 
         (
             DataCommitmentProofValueType {
-                data_hashes: convert_to_h256(result.0),
-                start_block_height: (start_height as u64),
-                start_header: start_header_hash,
-                end_block_height: (end_height as u64),
-                end_header: end_header_hash,
-                data_hash_proofs: result.1,
-                prev_header_proofs: result.2,
+                data_hashes: convert_to_h256(result.2),
+                start_block_height: start_height as u64,
+                start_header: H256(result.0),
+                end_block_height: end_height as u64,
+                end_header: H256(result.1),
+                data_hash_proofs: result.3,
+                prev_header_proofs: result.4,
             },
-            H256(result.3),
+            H256(result.5),
         )
     }
 
