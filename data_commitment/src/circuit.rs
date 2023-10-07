@@ -70,27 +70,12 @@ impl<const NB_MAP_JOBS: usize, const BATCH_SIZE: usize, const MAX_LEAVES: usize>
         let end_block_number = builder.evm_read::<U64Variable>();
         let end_header_hash = builder.evm_read::<Bytes32Variable>();
 
-        // let mut input_stream = VariableStream::new();
-        // input_stream.write(&start_block_number);
-        // input_stream.write(&end_block_number);
-        // let max_leaves = &builder.constant::<U64Variable>(MAX_LEAVES as u64);
-        // input_stream.write(max_leaves);
-
-        // let output_stream =
-        //     builder.async_hint(input_stream, DataCommitmentOffchainInputs::<MAX_LEAVES> {});
-
-        // let _ = output_stream.read::<DataCommitmentProofVariable<MAX_LEAVES>>(builder);
-        // let expected_data_commitment = output_stream.read::<Bytes32Variable>(builder);
-
         let data_commitment = builder.prove_data_commitment::<Self, NB_MAP_JOBS, BATCH_SIZE>(
             start_block_number,
             start_header_hash,
             end_block_number,
             end_header_hash,
         );
-
-        // // Note: Don't need this assert, it's only a sanity check.
-        // builder.assert_is_equal(data_commitment, expected_data_commitment);
 
         builder.evm_write(data_commitment);
     }
@@ -236,8 +221,8 @@ mod tests {
         // Test variable length NUM_BLOCKS.
         const MAX_LEAVES: usize = 1024;
         // Note: These can be tuned.
-        const NB_MAP_JOBS: usize = 1;
-        const BATCH_SIZE: usize = 1024;
+        const NB_MAP_JOBS: usize = 2;
+        const BATCH_SIZE: usize = 512;
 
         let start_block = 10000u64;
         let start_header_hash =
@@ -262,8 +247,8 @@ mod tests {
         // Test variable length NUM_BLOCKS.
         const MAX_LEAVES: usize = 256;
         // Note: These can be tuned.
-        const NB_MAP_JOBS: usize = 1;
-        const BATCH_SIZE: usize = 256;
+        const NB_MAP_JOBS: usize = 2;
+        const BATCH_SIZE: usize = 128;
 
         let start_block = 10000u64;
         let start_header_hash =
