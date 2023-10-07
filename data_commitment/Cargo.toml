@@ -13,6 +13,10 @@ path = "bin/step_data_commitment.rs"
 name = "skip_data_commitment"
 path = "bin/skip_data_commitment.rs"
 
+[[bin]]
+name = "commitment"
+path = "bin/commitment.rs"
+
 [features]
 ci = []
 
