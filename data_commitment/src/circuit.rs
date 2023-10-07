@@ -209,9 +209,9 @@ mod tests {
     #[cfg_attr(feature = "ci", ignore)]
     fn test_data_commitment_small() {
         // Test variable length NUM_BLOCKS.
-        const MAX_LEAVES: usize = 8;
+        const MAX_LEAVES: usize = 16;
         const NB_MAP_JOBS: usize = 2;
-        const BATCH_SIZE: usize = 4;
+        const BATCH_SIZE: usize = 8;
 
         let start_block = 10000u64;
         let start_header_hash =

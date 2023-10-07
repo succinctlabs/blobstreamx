@@ -183,7 +183,7 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
             let prev_header_proof_root = self
                 .get_root_from_merkle_proof::<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES>(
                     &data_comm_proof.prev_header_proofs[i],
-                    &last_block_id_path.clone(),
+                    &last_block_id_path,
                 );
 
             // Header hash of block (start + i).
@@ -311,9 +311,7 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
                     let nodes_linked =
                         builder.is_equal(left_subchain.end_header, right_subchain.start_header);
 
-                    let one = builder.one();
-                    let expected_block_num = builder.sub(right_subchain.start_block, one);
-                    let nodes_sequential = builder.is_equal(left_subchain.end_block, expected_block_num);
+                    let nodes_sequential = builder.is_equal(left_subchain.end_block, right_subchain.start_block);
 
                     let nodes_correctly_linked = builder.and(nodes_linked, nodes_sequential);
 
