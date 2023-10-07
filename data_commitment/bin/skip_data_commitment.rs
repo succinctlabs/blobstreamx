@@ -16,23 +16,28 @@
 //!
 use std::env;
 
-use blobstream::circuit::DataCommitmentCircuit;
+use blobstream::combined_skip::CombinedSkipCircuit;
 use plonky2x::backend::function::VerifiableFunction;
 
 fn main() {
     // Celestia's maxmimum data commitment size is 1000: https://github.com/celestiaorg/celestia-core/blob/6933af1ead0ddf4a8c7516690e3674c6cdfa7bd8/pkg/consts/consts.go#L44.
-    let env_max_leaves = env::var("MAX_LEAVES").unwrap_or(0.to_string());
+    let env_validator_set_size_max = env::var("VALIDATOR_SET_SIZE_MAX").unwrap_or(0.to_string());
 
-    if env_max_leaves == 1024.to_string() {
+    // TODO: Configure this to set arbitrary
+
+    if env_validator_set_size_max == 128.to_string() {
+        const VALIDATOR_SET_SIZE_MAX: usize = 128;
         const MAX_LEAVES: usize = 1024;
-        VerifiableFunction::<DataCommitmentCircuit<MAX_LEAVES>>::entrypoint();
-    } else if env_max_leaves == 256.to_string() {
+        VerifiableFunction::<CombinedSkipCircuit<VALIDATOR_SET_SIZE_MAX, MAX_LEAVES>>::entrypoint();
+    } else if env_validator_set_size_max == 32.to_string() {
+        const VALIDATOR_SET_SIZE_MAX: usize = 32;
         const MAX_LEAVES: usize = 256;
-        VerifiableFunction::<DataCommitmentCircuit<MAX_LEAVES>>::entrypoint();
-    } else if env_max_leaves == 4.to_string() {
-        const MAX_LEAVES: usize = 4;
-        VerifiableFunction::<DataCommitmentCircuit<MAX_LEAVES>>::entrypoint();
+        VerifiableFunction::<CombinedSkipCircuit<VALIDATOR_SET_SIZE_MAX, MAX_LEAVES>>::entrypoint();
+    } else if env_validator_set_size_max == 4.to_string() {
+        const VALIDATOR_SET_SIZE_MAX: usize = 4;
+        const MAX_LEAVES: usize = 256;
+        VerifiableFunction::<CombinedSkipCircuit<VALIDATOR_SET_SIZE_MAX, MAX_LEAVES>>::entrypoint();
     } else {
-        panic!("MAX_LEAVES must be set to 1024, 256, or 4");
+        panic!("VALIDATOR_SET_SIZE_MAX must be set to 128, 32, or 4");
     }
 }
