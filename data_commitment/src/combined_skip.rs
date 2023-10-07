@@ -1,120 +1,36 @@
-use async_trait::async_trait;
-use celestia::input::utils::convert_to_h256;
-use celestia::input::InputDataFetcher;
-use ethers::types::H256;
+use celestia::skip::{SkipOffchainInputs, TendermintSkipCircuit};
 use plonky2x::backend::circuit::Circuit;
-use plonky2x::frontend::hint::asynchronous::hint::AsyncHint;
 use plonky2x::frontend::uint::uint64::U64Variable;
-use plonky2x::frontend::vars::VariableStream;
-use plonky2x::prelude::{Bytes32Variable, CircuitBuilder, PlonkParameters, ValueStream};
-use serde::{Deserialize, Serialize};
+use plonky2x::prelude::{Bytes32Variable, CircuitBuilder, PlonkParameters};
 
-use crate::builder::DataCommitmentBuilder;
-use crate::input::DataCommitmentInputs;
-use crate::vars::*;
+use crate::circuit::{CelestiaDataCommitmentCircuit, DataCommitmentOffchainInputs};
 
-pub trait CelestiaDataCommitmentCircuit<L: PlonkParameters<D>, const D: usize> {
-    fn data_commitment_from_inputs<const MAX_LEAVES: usize>(
-        &mut self,
-        start_block_number: U64Variable,
-        start_header_hash: Bytes32Variable,
-        end_block_number: U64Variable,
-        end_header_hash: Bytes32Variable,
-    ) -> Bytes32Variable;
-}
-
-impl<L: PlonkParameters<D>, const D: usize> CelestiaDataCommitmentCircuit<L, D>
-    for CircuitBuilder<L, D>
-{
-    fn data_commitment_from_inputs<const MAX_LEAVES: usize>(
-        &mut self,
-        start_block_number: U64Variable,
-        start_header_hash: Bytes32Variable,
-        end_block_number: U64Variable,
-        end_header_hash: Bytes32Variable,
-    ) -> Bytes32Variable {
-        let mut input_stream = VariableStream::new();
-        input_stream.write(&start_block_number);
-        input_stream.write(&start_header_hash);
-        input_stream.write(&end_block_number);
-        input_stream.write(&end_header_hash);
-        let output_stream =
-            self.async_hint(input_stream, DataCommitmentOffchainInputs::<MAX_LEAVES> {});
-
-        let data_comm_proof = output_stream.read::<DataCommitmentProofVariable<MAX_LEAVES>>(self);
-
-        let expected_data_commitment = output_stream.read::<Bytes32Variable>(self);
-
-        let data_commitment = self.prove_data_commitment::<MAX_LEAVES>(data_comm_proof);
-
-        self.assert_is_equal(data_commitment, expected_data_commitment);
-
-        data_commitment
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DataCommitmentOffchainInputs<const MAX_LEAVES: usize> {}
-
-#[async_trait]
-impl<const MAX_LEAVES: usize, L: PlonkParameters<D>, const D: usize> AsyncHint<L, D>
-    for DataCommitmentOffchainInputs<MAX_LEAVES>
-{
-    async fn hint(
-        &self,
-        input_stream: &mut ValueStream<L, D>,
-        output_stream: &mut ValueStream<L, D>,
-    ) {
-        let start_block = input_stream.read_value::<U64Variable>();
-        let start_header_hash = input_stream.read_value::<Bytes32Variable>();
-        let end_block = input_stream.read_value::<U64Variable>();
-        let end_header_hash = input_stream.read_value::<Bytes32Variable>();
-
-        let mut data_fetcher = InputDataFetcher::new();
-
-        let result = data_fetcher
-            .get_data_commitment_inputs::<MAX_LEAVES, L::Field>(
-                start_block,
-                start_header_hash,
-                end_block,
-                end_header_hash,
-            )
-            .await;
-
-        let data_comm_proof = DataCommitmentProofValueType {
-            data_hashes: convert_to_h256(result.0),
-            start_block_height: start_block,
-            start_header: start_header_hash,
-            end_block_height: end_block,
-            end_header: end_header_hash,
-            data_hash_proofs: result.1,
-            prev_header_proofs: result.2,
-        };
-        // Write the inputs to the data commitment circuit.
-        output_stream.write_value::<DataCommitmentProofVariable<MAX_LEAVES>>(data_comm_proof);
-        // Write the expected data commitment.
-        output_stream.write_value::<Bytes32Variable>(H256(result.3));
-    }
-}
-
-pub struct DataCommitmentCircuit<const MAX_LEAVES: usize> {
+pub struct CombinedSkipCircuit<const MAX_LEAVES: usize, const MAX_VALIDATOR_SET_SIZE: usize> {
     _config: usize,
 }
 
-impl<const MAX_LEAVES: usize> Circuit for DataCommitmentCircuit<MAX_LEAVES> {
+impl<const MAX_LEAVES: usize, const MAX_VALIDATOR_SET_SIZE: usize> Circuit
+    for CombinedSkipCircuit<MAX_LEAVES, MAX_VALIDATOR_SET_SIZE>
+{
     fn define<L: PlonkParameters<D>, const D: usize>(builder: &mut CircuitBuilder<L, D>) {
-        let start_block_number = builder.evm_read::<U64Variable>();
-        let start_header_hash = builder.evm_read::<Bytes32Variable>();
-        let end_block_number = builder.evm_read::<U64Variable>();
-        let end_header_hash = builder.evm_read::<Bytes32Variable>();
+        let trusted_header_hash = builder.evm_read::<Bytes32Variable>();
+        let trusted_block = builder.evm_read::<U64Variable>();
+        let target_block = builder.evm_read::<U64Variable>();
 
-        let data_commitment = builder.data_commitment_from_inputs::<MAX_LEAVES>(
-            start_block_number,
-            start_header_hash,
-            end_block_number,
-            end_header_hash,
+        let target_header_hash = builder.skip_from_inputs::<MAX_VALIDATOR_SET_SIZE>(
+            trusted_block,
+            trusted_header_hash,
+            target_block,
         );
 
+        let data_commitment = builder.data_commitment_from_inputs::<MAX_LEAVES>(
+            trusted_block,
+            trusted_header_hash,
+            target_block,
+            target_header_hash,
+        );
+
+        builder.evm_write(target_header_hash);
         builder.evm_write(data_commitment);
     }
 
@@ -124,7 +40,8 @@ impl<const MAX_LEAVES: usize> Circuit for DataCommitmentCircuit<MAX_LEAVES> {
         <<L as PlonkParameters<D>>::Config as plonky2::plonk::config::GenericConfig<D>>::Hasher:
             plonky2::plonk::config::AlgebraicHasher<L::Field>,
     {
-        generator_registry.register_async_hint::<DataCommitmentOffchainInputs<MAX_LEAVES>>();
+        generator_registry.register_async_hint::<DataCommitmentOffchainInputs<1>>();
+        generator_registry.register_async_hint::<SkipOffchainInputs<MAX_VALIDATOR_SET_SIZE>>();
     }
 }
 
