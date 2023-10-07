@@ -23,7 +23,7 @@ fn main() {
     // Celestia's maxmimum data commitment size is 1000: https://github.com/celestiaorg/celestia-core/blob/6933af1ead0ddf4a8c7516690e3674c6cdfa7bd8/pkg/consts/consts.go#L44.
     let env_validator_set_size_max = env::var("VALIDATOR_SET_SIZE_MAX").unwrap_or(0.to_string());
 
-    // TODO: Configure this to set arbitrary
+    // TODO: Configure this to set arbitrary MAX_LEAVES.
 
     if env_validator_set_size_max == 128.to_string() {
         const VALIDATOR_SET_SIZE_MAX: usize = 128;
