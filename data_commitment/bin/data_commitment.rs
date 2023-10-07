@@ -34,7 +34,7 @@ fn main() {
         // Note: These constants can be tuned.
         const NB_MAP_JOBS: usize = 2;
         const BATCH_SIZE: usize = 128;
-        const MAX_LEAVES: usize = 2;
+        const MAX_LEAVES: usize = 256;
 
         VerifiableFunction::<DataCommitmentCircuit<NB_MAP_JOBS, BATCH_SIZE, MAX_LEAVES>>::entrypoint();
     } else if env_max_leaves == 4.to_string() {
