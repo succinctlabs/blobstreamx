@@ -40,7 +40,7 @@ impl<const MAX_LEAVES: usize, const MAX_VALIDATOR_SET_SIZE: usize> Circuit
         <<L as PlonkParameters<D>>::Config as plonky2::plonk::config::GenericConfig<D>>::Hasher:
             plonky2::plonk::config::AlgebraicHasher<L::Field>,
     {
-        generator_registry.register_async_hint::<DataCommitmentOffchainInputs<1>>();
+        generator_registry.register_async_hint::<DataCommitmentOffchainInputs<MAX_LEAVES>>();
         generator_registry.register_async_hint::<SkipOffchainInputs<MAX_VALIDATOR_SET_SIZE>>();
     }
 }
