@@ -13,8 +13,8 @@ impl<const MAX_LEAVES: usize, const MAX_VALIDATOR_SET_SIZE: usize> Circuit
     for CombinedSkipCircuit<MAX_LEAVES, MAX_VALIDATOR_SET_SIZE>
 {
     fn define<L: PlonkParameters<D>, const D: usize>(builder: &mut CircuitBuilder<L, D>) {
-        let trusted_header_hash = builder.evm_read::<Bytes32Variable>();
         let trusted_block = builder.evm_read::<U64Variable>();
+        let trusted_header_hash = builder.evm_read::<Bytes32Variable>();
         let target_block = builder.evm_read::<U64Variable>();
 
         let target_header_hash = builder.skip_from_inputs::<MAX_VALIDATOR_SET_SIZE>(
