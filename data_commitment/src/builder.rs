@@ -202,14 +202,10 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
 pub(crate) mod tests {
     use std::env;
 
-    use celestia::input::tendermint_utils::leaf_hash;
     use celestia::input::utils::convert_to_h256;
     use celestia::input::InputDataFetcher;
-    use ethers::abi::Token;
     use ethers::types::H256;
     use plonky2x::backend::circuit::DefaultParameters;
-    use sha2::Sha256;
-    use subtle_encoding::hex;
     use tokio::runtime::Runtime;
 
     use super::*;
