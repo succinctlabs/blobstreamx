@@ -6,16 +6,16 @@ edition = "2021"
 [lib]
 
 [[bin]]
-name = "step_data_commitment"
-path = "bin/step_data_commitment.rs"
+name = "combined_step"
+path = "bin/combined_step.rs"
 
 [[bin]]
-name = "skip_data_commitment"
-path = "bin/skip_data_commitment.rs"
+name = "combined_skip"
+path = "bin/combined_skip.rs"
 
 [[bin]]
-name = "commitment"
-path = "bin/commitment.rs"
+name = "data_commitment"
+path = "bin/data_commitment.rs"
 
 [features]
 ci = []
