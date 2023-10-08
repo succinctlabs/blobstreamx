@@ -81,6 +81,7 @@ impl InputDataFetcher {
                     url,
                     block_number.to_string().as_str()
                 );
+                println!("Querying url {:?}", query_url.as_str());
                 let res = reqwest::get(query_url).await.unwrap().text().await.unwrap();
                 if self.save {
                     // Ensure the directory exists
