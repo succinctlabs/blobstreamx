@@ -1,6 +1,6 @@
 //! To build the binary:
 //!
-//!     `cargo build --release --bin step_data_commitment`
+//!     `cargo build --release --bin combined_step`
 //!
 //! To build the circuit:
 //!

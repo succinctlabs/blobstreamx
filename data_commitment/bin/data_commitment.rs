@@ -1,6 +1,6 @@
 //! To build the binary:
 //!
-//!     `cargo build --release --bin skip_data_commitment`
+//!     `cargo build --release --bin data_commitment`
 //!
 //! To build the circuit:
 //!
