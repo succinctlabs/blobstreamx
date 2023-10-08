@@ -59,7 +59,7 @@ impl InputDataFetcher {
         Self {
             mode,
             proof_cache: HashMap::new(),
-            save: false,
+            save: true,
             fixture_path: "./fixtures/mocha-4".to_string(),
         }
     }

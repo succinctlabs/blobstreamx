@@ -11,8 +11,8 @@ pub struct CombinedStepCircuit<const MAX_VALIDATOR_SET_SIZE: usize> {
 
 impl<const MAX_VALIDATOR_SET_SIZE: usize> Circuit for CombinedStepCircuit<MAX_VALIDATOR_SET_SIZE> {
     fn define<L: PlonkParameters<D>, const D: usize>(builder: &mut CircuitBuilder<L, D>) {
-        let prev_header_hash = builder.evm_read::<Bytes32Variable>();
         let prev_block_number = builder.evm_read::<U64Variable>();
+        let prev_header_hash = builder.evm_read::<Bytes32Variable>();
 
         let one = builder.constant::<U64Variable>(1u64);
         let next_block_number = builder.add(prev_block_number, one);
