@@ -212,7 +212,6 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         let false_t = self._false();
         let true_t = self._true();
 
-        // TODO: clean up below, it's a bit horrendous
         // Fields used for verifying signatures
         let validators_signed = ArrayVariable::<BoolVariable, VALIDATOR_SET_SIZE_MAX>::new(
             validators.as_vec().iter().map(|v| v.signed).collect(),
