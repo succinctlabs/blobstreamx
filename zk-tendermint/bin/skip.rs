@@ -17,8 +17,8 @@
 //!
 use std::env;
 
-use celestia::skip::SkipCircuit;
 use plonky2x::backend::function::VerifiableFunction;
+use zk_tendermint::skip::SkipCircuit;
 
 fn main() {
     let env_validator_set_size_max = env::var("VALIDATOR_SET_SIZE_MAX").unwrap_or(0.to_string());

@@ -1,5 +1,5 @@
 [workspace]
-members = ["circuits", "data_commitment"]
+members = ["zk-tendermint", "blobstream"]
 resolver = "2"
 
 [profile.release]

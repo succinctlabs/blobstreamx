@@ -1,6 +1,4 @@
 use async_trait::async_trait;
-use celestia::input::utils::convert_to_h256;
-use celestia::input::InputDataFetcher;
 use ethers::types::H256;
 use plonky2x::backend::circuit::Circuit;
 use plonky2x::frontend::hint::asynchronous::hint::AsyncHint;
@@ -8,13 +6,15 @@ use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::frontend::vars::VariableStream;
 use plonky2x::prelude::{Bytes32Variable, CircuitBuilder, PlonkParameters, ValueStream};
 use serde::{Deserialize, Serialize};
+use zk_tendermint::input::utils::convert_to_h256;
+use zk_tendermint::input::InputDataFetcher;
 
 use crate::builder::DataCommitmentBuilder;
 use crate::input::DataCommitmentInputs;
 use crate::vars::*;
 
 pub trait CelestiaDataCommitmentCircuit<L: PlonkParameters<D>, const D: usize> {
-    fn data_commitment_from_inputs<const MAX_LEAVES: usize>(
+    fn data_commitment<const MAX_LEAVES: usize>(
         &mut self,
         start_block_number: U64Variable,
         start_header_hash: Bytes32Variable,
@@ -26,7 +26,7 @@ pub trait CelestiaDataCommitmentCircuit<L: PlonkParameters<D>, const D: usize> {
 impl<L: PlonkParameters<D>, const D: usize> CelestiaDataCommitmentCircuit<L, D>
     for CircuitBuilder<L, D>
 {
-    fn data_commitment_from_inputs<const MAX_LEAVES: usize>(
+    fn data_commitment<const MAX_LEAVES: usize>(
         &mut self,
         start_block_number: U64Variable,
         start_header_hash: Bytes32Variable,
@@ -108,7 +108,7 @@ impl<const MAX_LEAVES: usize> Circuit for DataCommitmentCircuit<MAX_LEAVES> {
         let end_block_number = builder.evm_read::<U64Variable>();
         let end_header_hash = builder.evm_read::<Bytes32Variable>();
 
-        let data_commitment = builder.data_commitment_from_inputs::<MAX_LEAVES>(
+        let data_commitment = builder.data_commitment::<MAX_LEAVES>(
             start_block_number,
             start_header_hash,
             end_block_number,
