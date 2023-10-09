@@ -1,6 +1,6 @@
 //! To build the binary:
 //!
-//!     `cargo build --release --bin step`
+//!     `cargo build --release --bin combined_step`
 //!
 //! To build the circuit:
 //!
@@ -16,22 +16,22 @@
 //!
 use std::env;
 
+use blobstream::combined_step::CombinedStepCircuit;
 use plonky2x::backend::function::VerifiableFunction;
-use zk_tendermint::step::StepCircuit;
 
 fn main() {
     let env_validator_set_size_max = env::var("VALIDATOR_SET_SIZE_MAX").unwrap_or(0.to_string());
 
     if env_validator_set_size_max == 128.to_string() {
         const VALIDATOR_SET_SIZE_MAX: usize = 128;
-        VerifiableFunction::<StepCircuit<VALIDATOR_SET_SIZE_MAX>>::entrypoint();
+        VerifiableFunction::<CombinedStepCircuit<VALIDATOR_SET_SIZE_MAX>>::entrypoint();
     } else if env_validator_set_size_max == 32.to_string() {
         const VALIDATOR_SET_SIZE_MAX: usize = 32;
-        VerifiableFunction::<StepCircuit<VALIDATOR_SET_SIZE_MAX>>::entrypoint();
+        VerifiableFunction::<CombinedStepCircuit<VALIDATOR_SET_SIZE_MAX>>::entrypoint();
     } else if env_validator_set_size_max == 4.to_string() {
         const VALIDATOR_SET_SIZE_MAX: usize = 4;
-        VerifiableFunction::<StepCircuit<VALIDATOR_SET_SIZE_MAX>>::entrypoint();
+        VerifiableFunction::<CombinedStepCircuit<VALIDATOR_SET_SIZE_MAX>>::entrypoint();
     } else {
-        panic!("VALIDATOR_SET_SIZE_MAX must be set to 128, 32 or 4");
+        panic!("VALIDATOR_SET_SIZE_MAX must be set to 128, 32, or 4");
     }
 }

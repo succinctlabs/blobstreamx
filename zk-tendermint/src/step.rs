@@ -12,6 +12,51 @@ use crate::builder::verify::TendermintVerify;
 use crate::input::InputDataFetcher;
 use crate::variables::*;
 
+pub trait TendermintStepCircuit<L: PlonkParameters<D>, const D: usize> {
+    fn step<const MAX_VALIDATOR_SET_SIZE: usize>(
+        &mut self,
+        prev_header_hash: Bytes32Variable,
+        prev_block_number: U64Variable,
+    ) -> Bytes32Variable;
+}
+
+impl<L: PlonkParameters<D>, const D: usize> TendermintStepCircuit<L, D> for CircuitBuilder<L, D> {
+    fn step<const MAX_VALIDATOR_SET_SIZE: usize>(
+        &mut self,
+        prev_header_hash: Bytes32Variable,
+        prev_block_number: U64Variable,
+    ) -> Bytes32Variable {
+        let mut input_stream = VariableStream::new();
+        input_stream.write(&prev_header_hash);
+        input_stream.write(&prev_block_number);
+        let output_stream = self.async_hint(
+            input_stream,
+            StepOffchainInputs::<MAX_VALIDATOR_SET_SIZE> {},
+        );
+        let next_header = output_stream.read::<Bytes32Variable>(self);
+        let round_present = output_stream.read::<BoolVariable>(self);
+        let next_block_validators =
+            output_stream.read::<ArrayVariable<ValidatorVariable, MAX_VALIDATOR_SET_SIZE>>(self);
+        let next_block_validators_hash_proof =
+            output_stream.read::<HashInclusionProofVariable>(self);
+        let next_block_last_block_id_proof =
+            output_stream.read::<BlockIDInclusionProofVariable>(self);
+        let prev_block_next_validators_hash_proof =
+            output_stream.read::<HashInclusionProofVariable>(self);
+
+        self.verify_step(
+            &next_block_validators,
+            &next_header,
+            &prev_header_hash,
+            &next_block_validators_hash_proof,
+            &prev_block_next_validators_hash_proof,
+            &next_block_last_block_id_proof,
+            &round_present,
+        );
+        next_header
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StepOffchainInputs<const MAX_VALIDATOR_SET_SIZE: usize> {}
 
@@ -52,34 +97,11 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize> Circuit for StepCircuit<MAX_VALIDATOR_
     fn define<L: PlonkParameters<D>, const D: usize>(builder: &mut CircuitBuilder<L, D>) {
         let prev_header_hash = builder.evm_read::<Bytes32Variable>();
         let prev_block_number = builder.evm_read::<U64Variable>();
-        let mut input_stream = VariableStream::new();
-        input_stream.write(&prev_header_hash);
-        input_stream.write(&prev_block_number);
-        let output_stream = builder.async_hint(
-            input_stream,
-            StepOffchainInputs::<MAX_VALIDATOR_SET_SIZE> {},
-        );
-        let next_header = output_stream.read::<Bytes32Variable>(builder);
-        let round_present = output_stream.read::<BoolVariable>(builder);
-        let next_block_validators =
-            output_stream.read::<ArrayVariable<ValidatorVariable, MAX_VALIDATOR_SET_SIZE>>(builder);
-        let next_block_validators_hash_proof =
-            output_stream.read::<HashInclusionProofVariable>(builder);
-        let next_block_last_block_id_proof =
-            output_stream.read::<BlockIDInclusionProofVariable>(builder);
-        let prev_block_next_validators_hash_proof =
-            output_stream.read::<HashInclusionProofVariable>(builder);
 
-        builder.step(
-            &next_block_validators,
-            &next_header,
-            &prev_header_hash,
-            &next_block_validators_hash_proof,
-            &prev_block_next_validators_hash_proof,
-            &next_block_last_block_id_proof,
-            &round_present,
-        );
-        builder.evm_write(next_header);
+        let next_header_hash =
+            builder.step::<MAX_VALIDATOR_SET_SIZE>(prev_header_hash, prev_block_number);
+
+        builder.evm_write(next_header_hash);
     }
 
     fn register_generators<L: PlonkParameters<D>, const D: usize>(
@@ -125,7 +147,7 @@ mod tests {
         circuit.test_serializers(&gate_registry, &hint_registry);
     }
 
-    // TODO: this test should not run in CI because it uses the RPC instead of a fixture
+    // This test should not  run in CI because it uses the RPC instead of a fixture.
     #[test]
     #[cfg_attr(feature = "ci", ignore)]
     fn test_step_circuit_with_input_bytes() {
