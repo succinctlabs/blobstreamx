@@ -76,32 +76,30 @@ contract Blobstream {
         blockHeightToHeaderHash[height] = header;
     }
 
-    function requestHeaderCombinedSkip(
-        uint64 _requestedBlock
-    ) external payable {
-        bytes32 trustedHeader = blockHeightToHeaderHash[latestBlock];
-        if (trustedHeader == bytes32(0)) {
+    function requestCombinedSkip(uint64 _requestedBlock) external payable {
+        bytes32 latestHeader = blockHeightToHeaderHash[latestBlock];
+        if (latestHeader == bytes32(0)) {
             revert("Trusted header not found");
         }
-        bytes32 id = functionNameToId["combined_skip"];
+        bytes32 id = functionNameToId["combinedSkip"];
         if (id == bytes32(0)) {
-            revert("Function ID for skip not found");
+            revert("Function ID for combined skip not found");
         }
 
-        emit FunctionId("combined_skip", id);
+        emit FunctionId("combinedSkip", id);
 
         require(_requestedBlock - latestBlock <= DATA_COMMITMENT_MAX); // TODO: change this constant (should match max number of blocks in a data commitment)
         require(_requestedBlock > latestBlock);
         bytes32 requestId = IFunctionGateway(gateway).request{value: msg.value}(
             id,
-            abi.encodePacked(trustedHeader, latestBlock, _requestedBlock),
-            this.callbackHeaderCombinedSkip.selector,
+            abi.encodePacked(latestBlock, latestHeader, _requestedBlock),
+            this.callbackCombinedSkip.selector,
             abi.encode(_requestedBlock)
         );
         emit CombinedSkipRequested(latestBlock, _requestedBlock, requestId);
     }
 
-    function callbackHeaderCombinedSkip(
+    function callbackCombinedSkip(
         bytes memory requestResult,
         bytes memory context
     ) external onlyGateway {
@@ -128,28 +126,28 @@ contract Blobstream {
     }
 
     // Needed in the rare case that skip cannot be used--when validator set changes by > 1/3
-    function requestHeaderCombinedStep() external payable {
+    function requestCombinedStep() external payable {
         bytes32 latestHeader = blockHeightToHeaderHash[latestBlock];
-        // TODO: Is this necessary?
+        // Note: Should never happen, deeply concerning if it does.
         if (latestHeader == bytes32(0)) {
             revert("Latest header not found");
         }
-        bytes32 id = functionNameToId["combined_step"];
+        bytes32 id = functionNameToId["combinedStep"];
         if (id == bytes32(0)) {
-            revert("Function ID for step not found");
+            revert("Function ID for combined step not found");
         }
 
-        emit FunctionId("combined_step", id);
+        emit FunctionId("combinedStep", id);
         bytes32 requestId = IFunctionGateway(gateway).request{value: msg.value}(
             id,
-            abi.encodePacked(latestHeader, latestBlock),
-            this.callbackHeaderCombinedStep.selector,
+            abi.encodePacked(latestBlock, latestHeader),
+            this.callbackCombinedStep.selector,
             abi.encode(latestBlock)
         );
         emit CombinedStepRequested(latestBlock, latestBlock + 1, requestId);
     }
 
-    function callbackHeaderCombinedStep(
+    function callbackCombinedStep(
         bytes memory requestResult,
         bytes memory context
     ) external onlyGateway {
