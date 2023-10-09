@@ -13,20 +13,20 @@ contract ZKTendermintLightClientTest is Test {
 
     function testGetEncodePackedStep() public view {
         // http://64.227.18.169:26657/block?height=10000
-        bytes32 header = hex"A0123D5E4B8B8888A61F931EE2252D83568B97C223E0ECA9795B29B8BD8CBA2D";
         uint64 height = 10000;
-        bytes memory encodedInput = abi.encodePacked(header, height);
+        bytes32 header = hex"A0123D5E4B8B8888A61F931EE2252D83568B97C223E0ECA9795B29B8BD8CBA2D";
+        bytes memory encodedInput = abi.encodePacked(height, header);
         console.logBytes(encodedInput);
     }
 
     function testGetEncodePackedSkip() public view {
         // http://64.227.18.169:26657/block?height=10000
-        bytes32 header = hex"A0123D5E4B8B8888A61F931EE2252D83568B97C223E0ECA9795B29B8BD8CBA2D";
         uint64 height = 10000;
+        bytes32 header = hex"A0123D5E4B8B8888A61F931EE2252D83568B97C223E0ECA9795B29B8BD8CBA2D";
         uint64 requestedHeight = 10004;
         bytes memory encodedInput = abi.encodePacked(
-            header,
             height,
+            header,
             requestedHeight
         );
         console.logBytes(encodedInput);
