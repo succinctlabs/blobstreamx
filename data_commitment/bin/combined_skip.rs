@@ -26,17 +26,17 @@ fn main() {
     // TODO: Configure this to set arbitrary MAX_LEAVES.
 
     if env_validator_set_size_max == 128.to_string() {
-        const VALIDATOR_SET_SIZE_MAX: usize = 128;
         const MAX_LEAVES: usize = 1024;
-        VerifiableFunction::<CombinedSkipCircuit<VALIDATOR_SET_SIZE_MAX, MAX_LEAVES>>::entrypoint();
+        const VALIDATOR_SET_SIZE_MAX: usize = 128;
+        VerifiableFunction::<CombinedSkipCircuit<MAX_LEAVES, VALIDATOR_SET_SIZE_MAX>>::entrypoint();
     } else if env_validator_set_size_max == 32.to_string() {
+        const MAX_LEAVES: usize = 256;
         const VALIDATOR_SET_SIZE_MAX: usize = 32;
-        const MAX_LEAVES: usize = 256;
-        VerifiableFunction::<CombinedSkipCircuit<VALIDATOR_SET_SIZE_MAX, MAX_LEAVES>>::entrypoint();
+        VerifiableFunction::<CombinedSkipCircuit<MAX_LEAVES, VALIDATOR_SET_SIZE_MAX>>::entrypoint();
     } else if env_validator_set_size_max == 4.to_string() {
-        const VALIDATOR_SET_SIZE_MAX: usize = 4;
         const MAX_LEAVES: usize = 256;
-        VerifiableFunction::<CombinedSkipCircuit<VALIDATOR_SET_SIZE_MAX, MAX_LEAVES>>::entrypoint();
+        const VALIDATOR_SET_SIZE_MAX: usize = 4;
+        VerifiableFunction::<CombinedSkipCircuit<MAX_LEAVES, VALIDATOR_SET_SIZE_MAX>>::entrypoint();
     } else {
         panic!("VALIDATOR_SET_SIZE_MAX must be set to 128, 32, or 4");
     }
