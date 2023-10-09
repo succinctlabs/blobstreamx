@@ -13,7 +13,7 @@ use crate::input::InputDataFetcher;
 use crate::variables::*;
 
 pub trait TendermintSkipCircuit<L: PlonkParameters<D>, const D: usize> {
-    fn skip_from_inputs<const MAX_VALIDATOR_SET_SIZE: usize>(
+    fn skip<const MAX_VALIDATOR_SET_SIZE: usize>(
         &mut self,
         trusted_block: U64Variable,
         trusted_header_hash: Bytes32Variable,
@@ -22,7 +22,7 @@ pub trait TendermintSkipCircuit<L: PlonkParameters<D>, const D: usize> {
 }
 
 impl<L: PlonkParameters<D>, const D: usize> TendermintSkipCircuit<L, D> for CircuitBuilder<L, D> {
-    fn skip_from_inputs<const MAX_VALIDATOR_SET_SIZE: usize>(
+    fn skip<const MAX_VALIDATOR_SET_SIZE: usize>(
         &mut self,
         trusted_block: U64Variable,
         trusted_header_hash: Bytes32Variable,
@@ -112,7 +112,7 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize> Circuit for SkipCircuit<MAX_VALIDATOR_
         let trusted_block = builder.evm_read::<U64Variable>();
         let target_block = builder.evm_read::<U64Variable>();
 
-        let target_header_hash = builder.skip_from_inputs::<MAX_VALIDATOR_SET_SIZE>(
+        let target_header_hash = builder.skip::<MAX_VALIDATOR_SET_SIZE>(
             trusted_block,
             trusted_header_hash,
             target_block,

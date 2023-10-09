@@ -13,7 +13,7 @@ use crate::input::InputDataFetcher;
 use crate::variables::*;
 
 pub trait TendermintStepCircuit<L: PlonkParameters<D>, const D: usize> {
-    fn step_from_inputs<const MAX_VALIDATOR_SET_SIZE: usize>(
+    fn step<const MAX_VALIDATOR_SET_SIZE: usize>(
         &mut self,
         prev_header_hash: Bytes32Variable,
         prev_block_number: U64Variable,
@@ -21,7 +21,7 @@ pub trait TendermintStepCircuit<L: PlonkParameters<D>, const D: usize> {
 }
 
 impl<L: PlonkParameters<D>, const D: usize> TendermintStepCircuit<L, D> for CircuitBuilder<L, D> {
-    fn step_from_inputs<const MAX_VALIDATOR_SET_SIZE: usize>(
+    fn step<const MAX_VALIDATOR_SET_SIZE: usize>(
         &mut self,
         prev_header_hash: Bytes32Variable,
         prev_block_number: U64Variable,
@@ -99,7 +99,7 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize> Circuit for StepCircuit<MAX_VALIDATOR_
         let prev_block_number = builder.evm_read::<U64Variable>();
 
         let next_header_hash =
-            builder.step_from_inputs::<MAX_VALIDATOR_SET_SIZE>(prev_header_hash, prev_block_number);
+            builder.step::<MAX_VALIDATOR_SET_SIZE>(prev_header_hash, prev_block_number);
 
         builder.evm_write(next_header_hash);
     }
