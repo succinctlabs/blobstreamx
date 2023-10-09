@@ -35,7 +35,7 @@ contract DeployScript is Script {
         blobstream.updateFunctionId("combinedStep", combinedStepFunctionId);
         blobstream.updateFunctionId("combinedSkip", combinedSkipFunctionId);
 
-        uint64 skipHeight = 100200;
+        uint64 skipHeight = 10100;
         blobstream.requestCombinedSkip{value: 0.1 ether}(skipHeight);
 
         // blobstream.requestCombinedStep{value: 0.1 ether}(height);
