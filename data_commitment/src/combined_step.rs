@@ -20,8 +20,7 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize> Circuit for CombinedStepCircuit<MAX_VA
         let next_header_hash =
             builder.step_from_inputs::<MAX_VALIDATOR_SET_SIZE>(prev_header_hash, prev_block_number);
 
-        // Compute data commitment.
-        // TODO: This can be simplified as it will always be for 1 block.
+        // Compute data commitment (always for 1 leaf).
         let data_commitment = builder.data_commitment_from_inputs::<1>(
             prev_block_number,
             prev_header_hash,
