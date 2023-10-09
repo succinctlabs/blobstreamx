@@ -28,17 +28,14 @@ interface IZKTendermintLightClient {
 
     function setGenesisHeader(uint64 height, bytes32 header) external;
 
-    function requestHeaderSkip(
-        uint64 _trustedBlock,
-        uint64 _requestedBlock
-    ) external payable;
+    function requestHeaderSkip(uint64 _requestedBlock) external payable;
 
     function callbackHeaderSkip(
         bytes memory requestResult,
         bytes memory context
     ) external;
 
-    function requestHeaderStep(uint64 _prevBlock) external payable;
+    function requestHeaderStep() external payable;
 
     function callbackHeaderStep(
         bytes memory requestResult,

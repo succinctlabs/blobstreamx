@@ -51,11 +51,8 @@ contract ZKTendermintLightClient is IZKTendermintLightClient {
         blockHeightToHeaderHash[height] = header;
     }
 
-    function requestHeaderSkip(
-        uint64 _trustedBlock,
-        uint64 _requestedBlock
-    ) external payable {
-        bytes32 trustedHeader = blockHeightToHeaderHash[_trustedBlock];
+    function requestHeaderSkip(uint64 _requestedBlock) external payable {
+        bytes32 trustedHeader = blockHeightToHeaderHash[head];
         if (trustedHeader == bytes32(0)) {
             revert("Trusted header not found");
         }
@@ -63,16 +60,15 @@ contract ZKTendermintLightClient is IZKTendermintLightClient {
         if (id == bytes32(0)) {
             revert("Function ID for skip not found");
         }
-        require(_requestedBlock > _trustedBlock);
-        require(_requestedBlock - _trustedBlock <= 512); // TODO: change this constant (should match max number of blocks in a data commitment)
+        require(_requestedBlock - head <= 512); // TODO: change this constant (should match max number of blocks in a data commitment)
         require(_requestedBlock > head); // TODO: do we need this?
         bytes32 requestId = IFunctionGateway(gateway).request{value: msg.value}(
             id,
-            abi.encodePacked(trustedHeader, _trustedBlock, _requestedBlock),
+            abi.encodePacked(trustedHeader, head, _requestedBlock),
             this.callbackHeaderSkip.selector,
             abi.encode(_requestedBlock)
         );
-        emit HeaderSkipRequested(_trustedBlock, _requestedBlock, requestId);
+        emit HeaderSkipRequested(head, _requestedBlock, requestId);
     }
 
     function callbackHeaderSkip(
@@ -88,24 +84,23 @@ contract ZKTendermintLightClient is IZKTendermintLightClient {
     }
 
     // Needed in the rare case that skip cannot be used--when validator set changes by > 1/3
-    function requestHeaderStep(uint64 _prevBlock) external payable {
-        bytes32 prevHeader = blockHeightToHeaderHash[_prevBlock];
-        if (prevHeader == bytes32(0)) {
+    function requestHeaderStep() external payable {
+        bytes32 headHeaderHash = blockHeightToHeaderHash[head];
+        if (headHeaderHash == bytes32(0)) {
             revert("Prev header not found");
         }
         bytes32 id = functionNameToId["step"];
         if (id == bytes32(0)) {
             revert("Function ID for step not found");
         }
-        require(_prevBlock + 1 > head); // TODO: do we need this?
         emit FunctionId("step", id);
         bytes32 requestId = IFunctionGateway(gateway).request{value: msg.value}(
             id,
-            abi.encodePacked(prevHeader, _prevBlock),
+            abi.encodePacked(headHeaderHash, head),
             this.callbackHeaderStep.selector,
-            abi.encode(_prevBlock)
+            abi.encode(head)
         );
-        emit HeaderStepRequested(_prevBlock, requestId);
+        emit HeaderStepRequested(head, requestId);
     }
 
     function callbackHeaderStep(
