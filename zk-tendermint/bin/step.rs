@@ -16,8 +16,8 @@
 //!
 use std::env;
 
-use celestia::step::StepCircuit;
 use plonky2x::backend::function::VerifiableFunction;
+use zk_tendermint::step::StepCircuit;
 
 fn main() {
     let env_validator_set_size_max = env::var("VALIDATOR_SET_SIZE_MAX").unwrap_or(0.to_string());

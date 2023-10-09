@@ -2,8 +2,6 @@ use std::fs;
 use std::path::Path;
 
 use async_trait::async_trait;
-use celestia::consts::*;
-use celestia::input::{InputDataFetcher, InputDataMode};
 use ethers::types::H256;
 use itertools::Itertools;
 use plonky2x::frontend::merkle::tree::InclusionProof;
@@ -12,6 +10,8 @@ use serde::Deserialize;
 use subtle_encoding::hex;
 use tendermint_proto::types::BlockId as RawBlockId;
 use tendermint_proto::Protobuf;
+use zk_tendermint::consts::*;
+use zk_tendermint::input::{InputDataFetcher, InputDataMode};
 
 #[derive(Debug, Deserialize)]
 pub struct DataCommitmentResponse {

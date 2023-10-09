@@ -1,9 +1,9 @@
-use celestia::consts::*;
 use plonky2x::backend::circuit::PlonkParameters;
 use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::frontend::vars::{ArrayVariable, Bytes32Variable, EvmVariable};
 use plonky2x::prelude::{BoolVariable, ByteVariable, BytesVariable, CircuitBuilder};
 use tendermint::merkle::HASH_SIZE;
+use zk_tendermint::consts::*;
 
 use crate::vars::DataCommitmentProofVariable;
 
@@ -202,11 +202,11 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
 pub(crate) mod tests {
     use std::env;
 
-    use celestia::input::utils::convert_to_h256;
-    use celestia::input::InputDataFetcher;
     use ethers::types::H256;
     use plonky2x::backend::circuit::DefaultParameters;
     use tokio::runtime::Runtime;
+    use zk_tendermint::input::utils::convert_to_h256;
+    use zk_tendermint::input::InputDataFetcher;
 
     use super::*;
     use crate::input::DataCommitmentInputs;
