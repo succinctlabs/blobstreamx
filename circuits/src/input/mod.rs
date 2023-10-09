@@ -7,6 +7,7 @@ use std::path::Path;
 use std::{env, fs};
 
 use ethers::types::H256;
+use log::info;
 use plonky2x::frontend::merkle::tree::InclusionProof;
 use plonky2x::prelude::RichField;
 use tendermint_proto::types::BlockId as RawBlockId;
@@ -81,7 +82,7 @@ impl InputDataFetcher {
                     url,
                     block_number.to_string().as_str()
                 );
-                println!("Querying url {:?}", query_url.as_str());
+                info!("Querying url {:?}", query_url.as_str());
                 let res = reqwest::get(query_url).await.unwrap().text().await.unwrap();
                 if self.save {
                     // Ensure the directory exists
@@ -94,8 +95,6 @@ impl InputDataFetcher {
             }
             InputDataMode::Fixture => {
                 let file_content = fs::read_to_string(file_name.as_str());
-                println!("File name {:?}", file_name.as_str());
-                println!("Retrieving fixture");
                 file_content.unwrap()
             }
         };
@@ -118,6 +117,7 @@ impl InputDataFetcher {
                     url,
                     block_number.to_string().as_str()
                 );
+                info!("Querying url {:?}", query_url.as_str());
                 let res = reqwest::get(query_url).await.unwrap().text().await.unwrap();
                 if self.save {
                     // Ensure the directory exists

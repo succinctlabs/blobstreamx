@@ -49,7 +49,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintSkipCircuit<L, D> for Circ
         let trusted_header_validators_hash_fields = output_stream
             .read::<ArrayVariable<ValidatorHashFieldVariable, MAX_VALIDATOR_SET_SIZE>>(self);
 
-        self.skip(
+        self.verify_skip(
             &target_block_validators,
             &target_header,
             &target_header_block_height_proof,
