@@ -314,7 +314,7 @@ mod test {
     // Run with cargo test --lib input_data::test::test_fixture_generation_asdf -- --nocapture
     #[tokio::test]
     async fn test_fixture_generation_asdf() {
-        // TODO: Clippy does not recognize imports in Tokio tests.
+        // Clippy does not recognize imports in Tokio tests.
         use std::env;
 
         use crate::input::InputDataFetcher;
