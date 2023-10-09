@@ -240,6 +240,20 @@ mod tests {
 
     #[test]
     #[cfg_attr(feature = "ci", ignore)]
+    fn test_skip_medium() {
+        const MAX_VALIDATOR_SET_SIZE: usize = 32;
+        let trusted_header: [u8; 32] =
+            hex::decode("A0123D5E4B8B8888A61F931EE2252D83568B97C223E0ECA9795B29B8BD8CBA2D")
+                .unwrap()
+                .try_into()
+                .unwrap();
+        let trusted_height = 10000u64;
+        let target_height = 10500u64;
+        test_skip_template::<MAX_VALIDATOR_SET_SIZE>(trusted_header, trusted_height, target_height)
+    }
+
+    #[test]
+    #[cfg_attr(feature = "ci", ignore)]
     fn test_skip_large() {
         const MAX_VALIDATOR_SET_SIZE: usize = 128;
         let trusted_header: [u8; 32] =

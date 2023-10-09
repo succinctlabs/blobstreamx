@@ -26,10 +26,13 @@ fn main() {
     if env_validator_set_size_max == 128.to_string() {
         const VALIDATOR_SET_SIZE_MAX: usize = 128;
         VerifiableFunction::<SkipCircuit<VALIDATOR_SET_SIZE_MAX>>::entrypoint();
+    } else if env_validator_set_size_max == 32.to_string() {
+        const VALIDATOR_SET_SIZE_MAX: usize = 32;
+        VerifiableFunction::<SkipCircuit<VALIDATOR_SET_SIZE_MAX>>::entrypoint();
     } else if env_validator_set_size_max == 4.to_string() {
         const VALIDATOR_SET_SIZE_MAX: usize = 4;
         VerifiableFunction::<SkipCircuit<VALIDATOR_SET_SIZE_MAX>>::entrypoint();
     } else {
-        panic!("VALIDATOR_SET_SIZE_MAX must be set to 128 or 4");
+        panic!("VALIDATOR_SET_SIZE_MAX must be set to 128, 32 or 4");
     }
 }
