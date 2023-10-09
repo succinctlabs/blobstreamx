@@ -299,7 +299,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "celestia",
  "clap",
  "curta",
  "digest 0.10.7",
@@ -321,6 +320,7 @@ dependencies = [
  "tendermint",
  "tendermint-proto",
  "tokio",
+ "zk-tendermint",
 ]
 
 [[package]]
@@ -439,36 +439,6 @@ checksum = "f1174fb0b6ec23863f8b971027804a42614e347eafb0a95bf0b12cdae21fc4d0"
 dependencies = [
  "jobserver",
  "libc",
-]
-
-[[package]]
-name = "celestia"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "clap",
- "digest 0.10.7",
- "dotenv",
- "ed25519-consensus",
- "env_logger",
- "ethers",
- "itertools 0.11.0",
- "log",
- "num",
- "plonky2",
- "plonky2x",
- "rand",
- "reqwest",
- "serde",
- "serde_json",
- "sha2 0.10.8",
- "subtle-encoding",
- "tendermint",
- "tendermint-proto",
- "tokio",
- "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -4662,6 +4632,36 @@ dependencies = [
  "sha1",
  "time",
  "zstd",
+]
+
+[[package]]
+name = "zk-tendermint"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "clap",
+ "digest 0.10.7",
+ "dotenv",
+ "ed25519-consensus",
+ "env_logger",
+ "ethers",
+ "itertools 0.11.0",
+ "log",
+ "num",
+ "plonky2",
+ "plonky2x",
+ "rand",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sha2 0.10.8",
+ "subtle-encoding",
+ "tendermint",
+ "tendermint-proto",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
