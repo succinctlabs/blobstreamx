@@ -6,6 +6,14 @@ edition = "2021"
 [lib]
 
 [[bin]]
+name = "combined_step"
+path = "bin/combined_step.rs"
+
+[[bin]]
+name = "combined_skip"
+path = "bin/combined_skip.rs"
+
+[[bin]]
 name = "data_commitment"
 path = "bin/data_commitment.rs"
 

@@ -13,6 +13,46 @@ use crate::builder::DataCommitmentBuilder;
 use crate::input::DataCommitmentInputs;
 use crate::vars::*;
 
+pub trait CelestiaDataCommitmentCircuit<L: PlonkParameters<D>, const D: usize> {
+    fn data_commitment_from_inputs<const MAX_LEAVES: usize>(
+        &mut self,
+        start_block_number: U64Variable,
+        start_header_hash: Bytes32Variable,
+        end_block_number: U64Variable,
+        end_header_hash: Bytes32Variable,
+    ) -> Bytes32Variable;
+}
+
+impl<L: PlonkParameters<D>, const D: usize> CelestiaDataCommitmentCircuit<L, D>
+    for CircuitBuilder<L, D>
+{
+    fn data_commitment_from_inputs<const MAX_LEAVES: usize>(
+        &mut self,
+        start_block_number: U64Variable,
+        start_header_hash: Bytes32Variable,
+        end_block_number: U64Variable,
+        end_header_hash: Bytes32Variable,
+    ) -> Bytes32Variable {
+        let mut input_stream = VariableStream::new();
+        input_stream.write(&start_block_number);
+        input_stream.write(&start_header_hash);
+        input_stream.write(&end_block_number);
+        input_stream.write(&end_header_hash);
+        let output_stream =
+            self.async_hint(input_stream, DataCommitmentOffchainInputs::<MAX_LEAVES> {});
+
+        let data_comm_proof = output_stream.read::<DataCommitmentProofVariable<MAX_LEAVES>>(self);
+
+        let expected_data_commitment = output_stream.read::<Bytes32Variable>(self);
+
+        let data_commitment = self.prove_data_commitment::<MAX_LEAVES>(data_comm_proof);
+
+        self.assert_is_equal(data_commitment, expected_data_commitment);
+
+        data_commitment
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DataCommitmentOffchainInputs<const MAX_LEAVES: usize> {}
 
@@ -68,22 +108,12 @@ impl<const MAX_LEAVES: usize> Circuit for DataCommitmentCircuit<MAX_LEAVES> {
         let end_block_number = builder.evm_read::<U64Variable>();
         let end_header_hash = builder.evm_read::<Bytes32Variable>();
 
-        let mut input_stream = VariableStream::new();
-        input_stream.write(&start_block_number);
-        input_stream.write(&start_header_hash);
-        input_stream.write(&end_block_number);
-        input_stream.write(&end_header_hash);
-        let output_stream =
-            builder.async_hint(input_stream, DataCommitmentOffchainInputs::<MAX_LEAVES> {});
-
-        let data_comm_proof =
-            output_stream.read::<DataCommitmentProofVariable<MAX_LEAVES>>(builder);
-
-        let expected_data_commitment = output_stream.read::<Bytes32Variable>(builder);
-
-        let data_commitment = builder.prove_data_commitment::<MAX_LEAVES>(data_comm_proof);
-
-        builder.assert_is_equal(data_commitment, expected_data_commitment);
+        let data_commitment = builder.data_commitment_from_inputs::<MAX_LEAVES>(
+            start_block_number,
+            start_header_hash,
+            end_block_number,
+            end_header_hash,
+        );
 
         builder.evm_write(data_commitment);
     }
@@ -138,8 +168,7 @@ mod tests {
     ) {
         env::set_var("RUST_LOG", "debug");
         env_logger::try_init().unwrap_or_default();
-
-        // env::set_var("RPC_MOCHA_4", "fixture"); // Use fixture during testing
+        env::set_var("RPC_MOCHA_4", "fixture"); // Use fixture during testing
 
         let mut builder = DefaultBuilder::new();
 
