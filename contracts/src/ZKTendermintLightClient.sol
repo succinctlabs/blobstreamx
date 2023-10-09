@@ -20,20 +20,12 @@ contract ZKTendermintLightClient is IZKTendermintLightClient {
         gateway = _gateway;
     }
 
-    function getGateway() external view returns (address) {
-        return gateway;
-    }
-
     function getFunctionId(string memory name) external view returns (bytes32) {
         return functionNameToId[name];
     }
 
     function getHeaderHash(uint64 height) external view returns (bytes32) {
         return blockHeightToHeaderHash[height];
-    }
-
-    function getHead() external view returns (uint64) {
-        return head;
     }
 
     function updateGateway(address _gateway) external {

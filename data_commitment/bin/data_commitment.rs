@@ -16,7 +16,7 @@
 //!
 use std::env;
 
-use blobstream::circuit::DataCommitmentCircuit;
+use blobstream::commitment::DataCommitmentCircuit;
 use plonky2x::backend::function::VerifiableFunction;
 
 fn main() {

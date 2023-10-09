@@ -82,7 +82,6 @@ pub fn validator_from_block<const VALIDATOR_SET_SIZE_MAX: usize, F: RichField>(
         let signing_key = SigningKey::try_from(signing_key).unwrap();
 
         let verification_key = signing_key.verification_key();
-        // TODO: Fix empty signatures
         validators.push(Validator {
             pubkey: pubkey_to_value_type::<F>(
                 &VerificationKey::try_from(verification_key.as_bytes().as_ref())
@@ -91,7 +90,6 @@ pub fn validator_from_block<const VALIDATOR_SET_SIZE_MAX: usize, F: RichField>(
             signature: signature_to_value_type::<F>(
                 &Signature::try_from(DUMMY_SIGNATURE.to_vec()).expect("missing signature"),
             ),
-            // TODO: Replace these with correct outputs
             message: [0u8; VALIDATOR_MESSAGE_BYTES_LENGTH_MAX],
             message_byte_length: F::from_canonical_usize(32),
             voting_power: 0u64,

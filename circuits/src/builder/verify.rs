@@ -57,7 +57,7 @@ pub trait TendermintVerify<L: PlonkParameters<D>, const D: usize> {
     );
 
     /// Sequentially verify a Tendermint consensus block.
-    fn step<const VALIDATOR_SET_SIZE_MAX: usize>(
+    fn verify_step<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
         validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
         header: &TendermintHashVariable,
@@ -81,7 +81,7 @@ pub trait TendermintVerify<L: PlonkParameters<D>, const D: usize> {
     );
 
     /// Verify Tendermint block that is non-sequential with the trusted block.
-    fn skip<const VALIDATOR_SET_SIZE_MAX: usize>(
+    fn verify_skip<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
         validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
         header: &TendermintHashVariable,
@@ -173,7 +173,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         self.assert_is_equal(check_voting_power_bool, t);
     }
 
-    fn step<const VALIDATOR_SET_SIZE_MAX: usize>(
+    fn verify_step<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
         validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
         header: &TendermintHashVariable,
@@ -212,7 +212,6 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         let false_t = self._false();
         let true_t = self._true();
 
-        // TODO: clean up below, it's a bit horrendous
         // Fields used for verifying signatures
         let validators_signed = ArrayVariable::<BoolVariable, VALIDATOR_SET_SIZE_MAX>::new(
             validators.as_vec().iter().map(|v| v.signed).collect(),
@@ -355,7 +354,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         self.assert_is_equal(validators_hash, extracted_next_validators_hash);
     }
 
-    fn skip<const VALIDATOR_SET_SIZE_MAX: usize>(
+    fn verify_skip<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
         validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
         header: &TendermintHashVariable,
