@@ -324,7 +324,15 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
                     let end_header_hash =
                         builder.select(right_empty, left_subchain.end_header, right_subchain.end_header);
 
-                    let computed_data_merkle_root = builder.inner_hash(&left_subchain.data_merkle_root, &right_subchain.data_merkle_root);
+                    // Call regular SHA to avoid allocating a Curta gadget.
+                    let one_byte = ByteVariable::constant(builder, 1u8);
+                    let mut encoded_leaf = vec![one_byte];
+                    // Append the left bytes to the one byte.
+                    encoded_leaf.extend(left_subchain.data_merkle_root.as_bytes().to_vec());
+                    // Append the right bytes to the bytes so far.
+                    encoded_leaf.extend(right_subchain.data_merkle_root.as_bytes().to_vec());
+
+                    let computed_data_merkle_root = builder.sha256(&encoded_leaf);
 
                     // If the right node is empty, then the data_merkle_root is the left node's data_merkle_root.
                     let data_merkle_root = builder.select(

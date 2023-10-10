@@ -226,8 +226,8 @@ mod tests {
     fn test_data_commitment_smart_contract() {
         // Test variable length NUM_BLOCKS.
         // Note: These can be tuned.
-        const NB_MAP_JOBS: usize = 2;
-        const BATCH_SIZE: usize = 128;
+        const NB_MAP_JOBS: usize = 8;
+        const BATCH_SIZE: usize = 32;
 
         let start_block = 10000u64;
         let start_header_hash =
