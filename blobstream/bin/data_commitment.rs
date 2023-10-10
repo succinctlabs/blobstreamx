@@ -24,14 +24,17 @@ fn main() {
     let env_max_leaves = env::var("MAX_LEAVES").unwrap_or(0.to_string());
 
     if env_max_leaves == 1024.to_string() {
-        const MAX_LEAVES: usize = 1024;
-        VerifiableFunction::<DataCommitmentCircuit<MAX_LEAVES>>::entrypoint();
+        const NB_MAP_JOBS: usize = 16;
+        const BATCH_SIZE: usize = 64;
+        VerifiableFunction::<DataCommitmentCircuit<NB_MAP_JOBS, BATCH_SIZE>>::entrypoint();
     } else if env_max_leaves == 256.to_string() {
-        const MAX_LEAVES: usize = 256;
-        VerifiableFunction::<DataCommitmentCircuit<MAX_LEAVES>>::entrypoint();
+        const NB_MAP_JOBS: usize = 8;
+        const BATCH_SIZE: usize = 32;
+        VerifiableFunction::<DataCommitmentCircuit<NB_MAP_JOBS, BATCH_SIZE>>::entrypoint();
     } else if env_max_leaves == 4.to_string() {
-        const MAX_LEAVES: usize = 4;
-        VerifiableFunction::<DataCommitmentCircuit<MAX_LEAVES>>::entrypoint();
+        const NB_MAP_JOBS: usize = 2;
+        const BATCH_SIZE: usize = 2;
+        VerifiableFunction::<DataCommitmentCircuit<NB_MAP_JOBS, BATCH_SIZE>>::entrypoint();
     } else {
         panic!("MAX_LEAVES must be set to 1024, 256, or 4");
     }

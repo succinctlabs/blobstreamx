@@ -30,11 +30,11 @@ pub trait DataCommitmentInputs {
     async fn get_data_commitment_inputs<const MAX_LEAVES: usize, F: RichField>(
         &mut self,
         start_block_number: u64,
-        start_header_hash: H256,
         end_block_number: u64,
-        end_header_hash: H256,
     ) -> (
-        Vec<[u8; 32]>,                                                            // data_hashes
+        [u8; 32],                                                             // start_header_hash
+        [u8; 32],                                                             // end_header_hash
+        Vec<[u8; 32]>,                                                        // data_hashes
         Vec<InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES, F>>, // data_hash_proofs
         Vec<InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, F>>, // prev_header_proofs
         [u8; 32], // expected_data_commitment
@@ -86,28 +86,18 @@ impl DataCommitmentInputs for InputDataFetcher {
     async fn get_data_commitment_inputs<const MAX_LEAVES: usize, F: RichField>(
         &mut self,
         start_block_number: u64,
-        start_header_hash: H256,
         end_block_number: u64,
-        end_header_hash: H256,
     ) -> (
-        Vec<[u8; 32]>,                                                            // data_hashes
+        [u8; 32],                                                             // start_header_hash
+        [u8; 32],                                                             // end_header_hash
+        Vec<[u8; 32]>,                                                        // data_hashes
         Vec<InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES, F>>, // data_hash_proofs
         Vec<InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, F>>, // prev_header_proofs
         [u8; 32], // expected_data_commitment
     ) {
         let start_header = self.get_header_from_number(start_block_number).await;
-        let computed_start_header_hash = start_header.hash();
-        assert_eq!(
-            computed_start_header_hash.as_bytes(),
-            start_header_hash.as_bytes()
-        );
 
         let end_header = self.get_header_from_number(end_block_number).await;
-        let computed_end_header_hash = end_header.hash();
-        assert_eq!(
-            computed_end_header_hash.as_bytes(),
-            end_header_hash.as_bytes()
-        );
 
         let mut data_hashes = Vec::new();
         let mut data_hash_proofs = Vec::new();
@@ -186,6 +176,8 @@ impl DataCommitmentInputs for InputDataFetcher {
             .await;
 
         (
+            start_header.hash().as_bytes().try_into().unwrap(),
+            end_header.hash().as_bytes().try_into().unwrap(),
             data_hashes,
             data_hash_proofs_formatted,
             prev_header_proofs_formatted,

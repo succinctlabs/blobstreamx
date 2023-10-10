@@ -24,17 +24,20 @@ fn main() {
     let env_validator_set_size_max = env::var("VALIDATOR_SET_SIZE_MAX").unwrap_or(0.to_string());
 
     if env_validator_set_size_max == 128.to_string() {
-        const MAX_LEAVES: usize = 1024;
         const VALIDATOR_SET_SIZE_MAX: usize = 128;
-        VerifiableFunction::<CombinedSkipCircuit<MAX_LEAVES, VALIDATOR_SET_SIZE_MAX>>::entrypoint();
+        const NB_MAP_JOBS: usize = 16;
+        const BATCH_SIZE: usize = 64;
+        VerifiableFunction::<CombinedSkipCircuit<VALIDATOR_SET_SIZE_MAX, NB_MAP_JOBS, BATCH_SIZE>>::entrypoint();
     } else if env_validator_set_size_max == 32.to_string() {
-        const MAX_LEAVES: usize = 256;
         const VALIDATOR_SET_SIZE_MAX: usize = 32;
-        VerifiableFunction::<CombinedSkipCircuit<MAX_LEAVES, VALIDATOR_SET_SIZE_MAX>>::entrypoint();
+        const NB_MAP_JOBS: usize = 8;
+        const BATCH_SIZE: usize = 32;
+        VerifiableFunction::<CombinedSkipCircuit<VALIDATOR_SET_SIZE_MAX, NB_MAP_JOBS, BATCH_SIZE>>::entrypoint();
     } else if env_validator_set_size_max == 4.to_string() {
-        const MAX_LEAVES: usize = 32;
         const VALIDATOR_SET_SIZE_MAX: usize = 4;
-        VerifiableFunction::<CombinedSkipCircuit<MAX_LEAVES, VALIDATOR_SET_SIZE_MAX>>::entrypoint();
+        const NB_MAP_JOBS: usize = 2;
+        const BATCH_SIZE: usize = 2;
+        VerifiableFunction::<CombinedSkipCircuit<VALIDATOR_SET_SIZE_MAX, NB_MAP_JOBS, BATCH_SIZE>>::entrypoint();
     } else {
         panic!("VALIDATOR_SET_SIZE_MAX must be set to 128, 32, or 4");
     }

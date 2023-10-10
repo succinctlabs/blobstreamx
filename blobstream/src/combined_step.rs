@@ -1,9 +1,11 @@
 use plonky2x::backend::circuit::Circuit;
 use plonky2x::frontend::uint::uint64::U64Variable;
-use plonky2x::prelude::{Bytes32Variable, CircuitBuilder, PlonkParameters};
+use plonky2x::prelude::{Bytes32Variable, CircuitBuilder, PlonkParameters, VariableStream};
 use zk_tendermint::step::{StepOffchainInputs, TendermintStepCircuit};
 
-use crate::commitment::{CelestiaDataCommitmentCircuit, DataCommitmentOffchainInputs};
+use crate::builder::DataCommitmentBuilder;
+use crate::commitment::DataCommitmentOffchainInputs;
+use crate::vars::DataCommitmentProofVariable;
 
 pub struct CombinedStepCircuit<const MAX_VALIDATOR_SET_SIZE: usize> {
     _config: usize,
@@ -21,12 +23,17 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize> Circuit for CombinedStepCircuit<MAX_VA
             builder.step::<MAX_VALIDATOR_SET_SIZE>(prev_header_hash, prev_block_number);
 
         // Compute data commitment (always for 1 leaf).
-        let data_commitment = builder.data_commitment::<1>(
-            prev_block_number,
-            prev_header_hash,
-            next_block_number,
-            next_header_hash,
-        );
+        let mut input_stream = VariableStream::new();
+        input_stream.write(&prev_block_number);
+        input_stream.write(&next_block_number);
+        let data_comm_fetcher = DataCommitmentOffchainInputs::<1> {};
+        let output_stream = builder.async_hint(input_stream, data_comm_fetcher);
+        let data_comm_proof = output_stream.read::<DataCommitmentProofVariable<1>>(builder);
+        let _ = output_stream.read::<Bytes32Variable>(builder);
+
+        let encoded_tuple =
+            builder.encode_data_root_tuple(&data_comm_proof.data_hashes[0], &prev_block_number);
+        let data_commitment = builder.leaf_hash(&encoded_tuple.0);
 
         builder.evm_write(next_header_hash);
         builder.evm_write(data_commitment);
@@ -38,8 +45,8 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize> Circuit for CombinedStepCircuit<MAX_VA
         <<L as PlonkParameters<D>>::Config as plonky2::plonk::config::GenericConfig<D>>::Hasher:
             plonky2::plonk::config::AlgebraicHasher<L::Field>,
     {
-        generator_registry.register_async_hint::<DataCommitmentOffchainInputs<1>>();
         generator_registry.register_async_hint::<StepOffchainInputs<MAX_VALIDATOR_SET_SIZE>>();
+        generator_registry.register_async_hint::<DataCommitmentOffchainInputs<1>>();
     }
 }
 
