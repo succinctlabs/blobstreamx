@@ -7,6 +7,7 @@ use crate::builder::DataCommitmentBuilder;
 use crate::commitment::DataCommitmentOffchainInputs;
 use crate::vars::DataCommitmentProofVariable;
 
+#[derive(Debug, Clone)]
 pub struct CombinedStepCircuit<const MAX_VALIDATOR_SET_SIZE: usize> {
     _config: usize,
 }

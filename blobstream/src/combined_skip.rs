@@ -7,6 +7,7 @@ use zk_tendermint::skip::{SkipOffchainInputs, TendermintSkipCircuit};
 use crate::builder::{DataCommitmentBuilder, MapReduceSubchainVariable, SubchainVerificationCtx};
 use crate::commitment::{DataCommitmentCircuit, DataCommitmentOffchainInputs};
 
+#[derive(Debug, Clone)]
 pub struct CombinedSkipCircuit<
     const MAX_VALIDATOR_SET_SIZE: usize,
     const NB_MAP_JOBS: usize,
@@ -54,6 +55,7 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize, const NB_MAP_JOBS: usize, const BATCH_
             SubchainVerificationCtx,
             U64Variable,
             MapReduceSubchainVariable,
+            DataCommitmentCircuit<NB_MAP_JOBS, BATCH_SIZE>,
             BATCH_SIZE,
             D,
         >::id();
@@ -62,6 +64,7 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize, const NB_MAP_JOBS: usize, const BATCH_
             SubchainVerificationCtx,
             U64Variable,
             MapReduceSubchainVariable,
+            DataCommitmentCircuit<NB_MAP_JOBS, BATCH_SIZE>,
             BATCH_SIZE,
             D,
         >>(mr_id);

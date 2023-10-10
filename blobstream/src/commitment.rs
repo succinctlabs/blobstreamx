@@ -50,6 +50,7 @@ impl<const MAX_LEAVES: usize, L: PlonkParameters<D>, const D: usize> AsyncHint<L
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct DataCommitmentCircuit<const NB_MAP_JOBS: usize, const BATCH_SIZE: usize> {
     _config: usize,
 }
@@ -86,6 +87,7 @@ impl<const NB_MAP_JOBS: usize, const BATCH_SIZE: usize> Circuit
             SubchainVerificationCtx,
             U64Variable,
             MapReduceSubchainVariable,
+            Self,
             BATCH_SIZE,
             D,
         >::id();
@@ -94,6 +96,7 @@ impl<const NB_MAP_JOBS: usize, const BATCH_SIZE: usize> Circuit
             SubchainVerificationCtx,
             U64Variable,
             MapReduceSubchainVariable,
+            Self,
             BATCH_SIZE,
             D,
         >>(mr_id);
@@ -226,8 +229,8 @@ mod tests {
     fn test_data_commitment_smart_contract() {
         // Test variable length NUM_BLOCKS.
         // Note: These can be tuned.
-        const NB_MAP_JOBS: usize = 8;
-        const BATCH_SIZE: usize = 32;
+        const NB_MAP_JOBS: usize = 16;
+        const BATCH_SIZE: usize = 16;
 
         let start_block = 10000u64;
         let start_header_hash =
