@@ -73,6 +73,7 @@ contract Blobstream {
 
     function setGenesisHeader(uint64 height, bytes32 header) external {
         blockHeightToHeaderHash[height] = header;
+        latestBlock = height;
     }
 
     function requestCombinedSkip(uint64 _requestedBlock) external payable {

@@ -20,9 +20,9 @@ contract DeployScript is Script {
             0x38d95a54c6cf0cf5aad1b8c26ceba15f4514d146722f8eb237dfded3036a4d1a
         );
 
-        // Use the below to interact with an already deployed ZK light client
+        // Use the below to interact with an already deployed Blobstream
         Blobstream blobstream = Blobstream(
-            0xB1cdc97E3C9fC29a30da31e49B4e2304b011d631
+            0x6822E56Bee9ED802D039851801dc80d21dF15958
         );
 
         // TODO: Add back in when testing a new skip or step.
