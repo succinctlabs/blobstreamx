@@ -41,6 +41,7 @@ contract ZKTendermintLightClient is IZKTendermintLightClient {
 
     function setGenesisHeader(uint64 height, bytes32 header) external {
         blockHeightToHeaderHash[height] = header;
+        head = height;
     }
 
     function requestHeaderSkip(uint64 _requestedBlock) external payable {
