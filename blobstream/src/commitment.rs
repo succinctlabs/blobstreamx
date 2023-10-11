@@ -225,7 +225,7 @@ mod tests {
 
     #[test]
     #[cfg_attr(feature = "ci", ignore)]
-    fn test_data_commitment_smart_contract() {
+    fn test_data_commitment_medium() {
         // Test variable length NUM_BLOCKS.
         // Note: These can be tuned.
         const NB_MAP_JOBS: usize = 16;
