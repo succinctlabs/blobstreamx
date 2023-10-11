@@ -36,6 +36,9 @@ pub trait DataCommitmentBuilder<L: PlonkParameters<D>, const D: usize> {
     ) -> Bytes32Variable;
 
     /// Prove the subchain from batch_start_block to batch_end_block, verifying the subchain up to global_end_block.
+    ///
+    /// Specifically, a MapReduce circuit with <NB_MAP_JOBS=4, BATCH_SIZE=4> over blocks [0, 16) will invoke prove_subchain 4 times. The prove_subchain calls
+    /// over [0, 4), [4, 8), [8, 12), [12, 16) will each 1) prove the header chain and 2) output the data_merkle_root for their corresponding subrange.
     fn prove_subchain<const BATCH_SIZE: usize>(
         &mut self,
         data_comm_proof: &DataCommitmentProofVariable<BATCH_SIZE>,
@@ -123,7 +126,6 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
         )
     }
 
-    /// Prove the subchain from batch_start_block to batch_end_block, verifying the subchain up to global_end_block.
     fn prove_subchain<const BATCH_SIZE: usize>(
         &mut self,
         data_comm_proof: &DataCommitmentProofVariable<BATCH_SIZE>,
@@ -225,10 +227,6 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
         }
     }
 
-    /// Prove header chain from end_header to start_header & the block heights for the current header and the trusted header.
-    /// Merkle prove the last block id against the current header, and the data hash for each header except the current header.
-    /// prev_header_proofs are against (start_block + 1, end_block), data_hash_proofs are against (start_block, end_block - 1).
-    /// NB_MAP_JOBS must be a power of 2.
     fn prove_data_commitment<C: Circuit, const NB_MAP_JOBS: usize, const BATCH_SIZE: usize>(
         &mut self,
         start_block: U64Variable,
