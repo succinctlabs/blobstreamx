@@ -2731,7 +2731,7 @@ checksum = "4503fa043bf02cee09a9582e9554b4c6403b2ef55e4612e96561d294419429f8"
 [[package]]
 name = "plonky2"
 version = "0.1.4"
-source = "git+https://github.com/mir-protocol/plonky2.git#b4203c3d47c9164cecb589f1ef91f21e100dcb02"
+source = "git+https://github.com/mir-protocol/plonky2.git#d7990ee137cfdce7fc2f2422d4ddf7541ec2779c"
 dependencies = [
  "ahash",
  "anyhow",
@@ -2755,7 +2755,7 @@ dependencies = [
 [[package]]
 name = "plonky2_field"
 version = "0.1.1"
-source = "git+https://github.com/mir-protocol/plonky2.git#b4203c3d47c9164cecb589f1ef91f21e100dcb02"
+source = "git+https://github.com/mir-protocol/plonky2.git#d7990ee137cfdce7fc2f2422d4ddf7541ec2779c"
 dependencies = [
  "anyhow",
  "itertools 0.11.0",
@@ -2779,7 +2779,7 @@ dependencies = [
 [[package]]
 name = "plonky2_maybe_rayon"
 version = "0.1.1"
-source = "git+https://github.com/mir-protocol/plonky2.git#b4203c3d47c9164cecb589f1ef91f21e100dcb02"
+source = "git+https://github.com/mir-protocol/plonky2.git#d7990ee137cfdce7fc2f2422d4ddf7541ec2779c"
 dependencies = [
  "rayon",
 ]
@@ -2787,12 +2787,12 @@ dependencies = [
 [[package]]
 name = "plonky2_util"
 version = "0.1.1"
-source = "git+https://github.com/mir-protocol/plonky2.git#b4203c3d47c9164cecb589f1ef91f21e100dcb02"
+source = "git+https://github.com/mir-protocol/plonky2.git#d7990ee137cfdce7fc2f2422d4ddf7541ec2779c"
 
 [[package]]
 name = "plonky2x"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git#15e9bff0f9d543cb0db899d047438b545421c144"
+source = "git+https://github.com/succinctlabs/succinctx.git#66d8350d03bc1fa60e6708a8bafd22ecf58cfbde"
 dependencies = [
  "anyhow",
  "array-macro",
@@ -2835,7 +2835,7 @@ dependencies = [
 [[package]]
 name = "plonky2x-derive"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git#15e9bff0f9d543cb0db899d047438b545421c144"
+source = "git+https://github.com/succinctlabs/succinctx.git#66d8350d03bc1fa60e6708a8bafd22ecf58cfbde"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4680,11 +4680,10 @@ dependencies = [
 
 [[package]]
 name = "zstd-sys"
-version = "2.0.8+zstd.1.5.5"
+version = "2.0.9+zstd.1.5.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5556e6ee25d32df2586c098bbfa278803692a20d0ab9565e049480d52707ec8c"
+checksum = "9e16efa8a874a0481a574084d34cc26fdb3b99627480f785888deb6386506656"
 dependencies = [
  "cc",
- "libc",
  "pkg-config",
 ]
