@@ -1,4 +1,0 @@
-# Default state for all rules
-default: true
-# MD014/commands-show-output Dollar signs used before commands without showing output
-MD014: false
