@@ -38,9 +38,9 @@ pub trait DataCommitmentBuilder<L: PlonkParameters<D>, const D: usize> {
     /// Prove the subchain from batch_start_block to batch_end_block, verifying the subchain up to global_end_block.
     fn prove_subchain<const BATCH_SIZE: usize>(
         &mut self,
-        data_comm_proof: DataCommitmentProofVariable<BATCH_SIZE>,
-        global_end_block: U64Variable,
-        global_end_header_hash: Bytes32Variable,
+        data_comm_proof: &DataCommitmentProofVariable<BATCH_SIZE>,
+        global_end_block: &U64Variable,
+        global_end_header_hash: &Bytes32Variable,
     ) -> MapReduceSubchainVariable;
 
     /// Prove header chain from end_header to start_header & the block heights for the current header and the trusted header.
@@ -126,9 +126,9 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
     /// Prove the subchain from batch_start_block to batch_end_block, verifying the subchain up to global_end_block.
     fn prove_subchain<const BATCH_SIZE: usize>(
         &mut self,
-        data_comm_proof: DataCommitmentProofVariable<BATCH_SIZE>,
-        global_end_block: U64Variable,
-        global_end_header_hash: Bytes32Variable,
+        data_comm_proof: &DataCommitmentProofVariable<BATCH_SIZE>,
+        global_end_block: &U64Variable,
+        global_end_header_hash: &Bytes32Variable,
     ) -> MapReduceSubchainVariable {
         let one = self.constant::<U64Variable>(1u64);
         let true_var = self._true();
@@ -145,13 +145,13 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
 
         // Only need to check these headers if the batch is enabled.
         // If the start_block = map_ctx.end_block, we still verify the prev_header_proof against the end_block in reduce.
-        let mut is_enabled = self.lt(batch_start_block, global_end_block);
+        let mut is_enabled = self.lt(batch_start_block, *global_end_block);
         let is_batch_enabled = is_enabled;
 
         let mut curr_header = batch_start_header_hash;
 
         // global_end_block - 1 is the last valid leaf.
-        let last_block_to_process = self.sub(global_end_block, one);
+        let last_block_to_process = self.sub(*global_end_block, one);
 
         // Verify all data_hash_proofs against headers from prev_header_proofs.
         for i in 0..BATCH_SIZE {
@@ -193,7 +193,7 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
 
             // 2) If is_last_valid_leaf is true, then the root of the prev_header_proof must be the end_header.
             let root_matches_end_header =
-                self.is_equal(prev_header_proof_root, global_end_header_hash);
+                self.is_equal(prev_header_proof_root, *global_end_header_hash);
             // If this is the last valid leaf, then the prev_header_proof_root must be the global_end_header.
             let end_header_check = self.or(is_not_last_valid_leaf, root_matches_end_header);
             self.assert_is_equal(end_header_check, true_var);
@@ -205,8 +205,8 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
         }
 
         // Select the min of the target block and the end block in the batch.
-        let is_less_than_target = self.lte(batch_end_block, global_end_block);
-        let end_block_num = self.select(is_less_than_target, batch_end_block, global_end_block);
+        let is_less_than_target = self.lte(batch_end_block, *global_end_block);
+        let end_block_num = self.select(is_less_than_target, batch_end_block, *global_end_block);
 
         // Generate the data_merkle_root for the batch. If the batch is disabled
         let data_merkle_root = self.get_data_commitment::<BATCH_SIZE>(
@@ -293,7 +293,7 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
                         .read::<DataCommitmentProofVariable<BATCH_SIZE>>(builder);
                     let _ = output_stream.read::<Bytes32Variable>(builder);
 
-                    builder.prove_subchain(data_comm_proof, global_end_block, global_end_header_hash)
+                    builder.prove_subchain(&data_comm_proof, &global_end_block, &global_end_header_hash)
                 },
                 |_, left_output, right_output, builder| {
                     let left_subchain = left_output;

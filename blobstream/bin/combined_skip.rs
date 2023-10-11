@@ -17,7 +17,7 @@
 use std::env;
 
 use blobstream::combined_skip::CombinedSkipCircuit;
-use plonky2x::backend::function::VerifiableFunction;
+use plonky2x::backend::function::Plonky2xFunction;
 
 fn main() {
     // Celestia's maxmimum data commitment size is 1000: https://github.com/celestiaorg/celestia-core/blob/6933af1ead0ddf4a8c7516690e3674c6cdfa7bd8/pkg/consts/consts.go#L44.
@@ -27,17 +27,17 @@ fn main() {
         const VALIDATOR_SET_SIZE_MAX: usize = 128;
         const NB_MAP_JOBS: usize = 64;
         const BATCH_SIZE: usize = 16;
-        VerifiableFunction::<CombinedSkipCircuit<VALIDATOR_SET_SIZE_MAX, NB_MAP_JOBS, BATCH_SIZE>>::entrypoint();
+        CombinedSkipCircuit::<VALIDATOR_SET_SIZE_MAX, NB_MAP_JOBS, BATCH_SIZE>::entrypoint();
     } else if env_validator_set_size_max == 32.to_string() {
         const VALIDATOR_SET_SIZE_MAX: usize = 32;
         const NB_MAP_JOBS: usize = 32;
         const BATCH_SIZE: usize = 8;
-        VerifiableFunction::<CombinedSkipCircuit<VALIDATOR_SET_SIZE_MAX, NB_MAP_JOBS, BATCH_SIZE>>::entrypoint();
+        CombinedSkipCircuit::<VALIDATOR_SET_SIZE_MAX, NB_MAP_JOBS, BATCH_SIZE>::entrypoint();
     } else if env_validator_set_size_max == 4.to_string() {
         const VALIDATOR_SET_SIZE_MAX: usize = 4;
         const NB_MAP_JOBS: usize = 2;
         const BATCH_SIZE: usize = 2;
-        VerifiableFunction::<CombinedSkipCircuit<VALIDATOR_SET_SIZE_MAX, NB_MAP_JOBS, BATCH_SIZE>>::entrypoint();
+        CombinedSkipCircuit::<VALIDATOR_SET_SIZE_MAX, NB_MAP_JOBS, BATCH_SIZE>::entrypoint();
     } else {
         panic!("VALIDATOR_SET_SIZE_MAX must be set to 128, 32, or 4");
     }
