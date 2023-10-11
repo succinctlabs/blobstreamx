@@ -63,7 +63,7 @@ impl DataCommitmentInputs for InputDataFetcher {
                     start_block.to_string().as_str(),
                     end_block.to_string().as_str()
                 );
-                println!("Querying url: {}", query_url);
+                info!("Querying url: {}", query_url);
                 let res = reqwest::get(query_url).await.unwrap().text().await.unwrap();
                 if self.save {
                     // Ensure the directory exists
@@ -76,8 +76,8 @@ impl DataCommitmentInputs for InputDataFetcher {
             }
             InputDataMode::Fixture => {
                 let file_content = fs::read_to_string(file_name.as_str());
-                println!("File name: {}", file_name.as_str());
-                println!("Retrieving fixture");
+                info!("File name: {}", file_name.as_str());
+                info!("Retrieving fixture");
                 file_content.unwrap()
             }
         };
