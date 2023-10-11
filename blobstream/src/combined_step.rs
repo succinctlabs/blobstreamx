@@ -21,7 +21,7 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize> Circuit for CombinedStepCircuit<MAX_VA
         let next_block_number = builder.add(prev_block_number, one);
 
         let next_header_hash =
-            builder.step::<MAX_VALIDATOR_SET_SIZE>(prev_header_hash, prev_block_number);
+            builder.step::<MAX_VALIDATOR_SET_SIZE>(prev_block_number, prev_header_hash);
 
         // Compute data commitment (always for 1 leaf).
         let mut input_stream = VariableStream::new();

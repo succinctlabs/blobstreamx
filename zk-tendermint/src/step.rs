@@ -15,20 +15,20 @@ use crate::variables::*;
 pub trait TendermintStepCircuit<L: PlonkParameters<D>, const D: usize> {
     fn step<const MAX_VALIDATOR_SET_SIZE: usize>(
         &mut self,
-        prev_header_hash: Bytes32Variable,
         prev_block_number: U64Variable,
+        prev_header_hash: Bytes32Variable,
     ) -> Bytes32Variable;
 }
 
 impl<L: PlonkParameters<D>, const D: usize> TendermintStepCircuit<L, D> for CircuitBuilder<L, D> {
     fn step<const MAX_VALIDATOR_SET_SIZE: usize>(
         &mut self,
-        prev_header_hash: Bytes32Variable,
         prev_block_number: U64Variable,
+        prev_header_hash: Bytes32Variable,
     ) -> Bytes32Variable {
         let mut input_stream = VariableStream::new();
-        input_stream.write(&prev_header_hash);
         input_stream.write(&prev_block_number);
+        input_stream.write(&prev_header_hash);
         let output_stream = self.async_hint(
             input_stream,
             StepOffchainInputs::<MAX_VALIDATOR_SET_SIZE> {},
@@ -100,7 +100,7 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize> Circuit for StepCircuit<MAX_VALIDATOR_
         let prev_header_hash = builder.evm_read::<Bytes32Variable>();
 
         let next_header_hash =
-            builder.step::<MAX_VALIDATOR_SET_SIZE>(prev_header_hash, prev_block_number);
+            builder.step::<MAX_VALIDATOR_SET_SIZE>(prev_block_number, prev_header_hash);
 
         builder.evm_write(next_header_hash);
     }
