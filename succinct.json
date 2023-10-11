@@ -20,7 +20,10 @@
             "framework": "plonky2x",
             "baseDir": "blobstream",
             "buildCommand": "mkdir -p build && RUST_LOG=debug cargo run --package blobstream --bin data_commitment --release build && mv ./target/release/data_commitment ./build/data_commitment",
-            "proveCommand": "RUST_LOG=info ./build/data_commitment prove input.json"
+            "proveCommand": "RUST_LOG=info ./build/data_commitment prove input.json",
+            "requiredArtifacts": [
+                "data_commitment"
+            ]
         },
         {
             "name": "combined_step",
@@ -34,7 +37,10 @@
             "framework": "plonky2x",
             "baseDir": "blobstream",
             "buildCommand": "mkdir -p build && RUST_LOG=debug cargo run --package blobstream --bin combined_skip --release build && mv ./target/release/combined_skip ./build/combined_skip",
-            "proveCommand": "RUST_LOG=info ./build/combined_skip prove input.json"
+            "proveCommand": "RUST_LOG=info ./build/combined_skip prove input.json",
+            "requiredArtifacts": [
+                "data_commitment"
+            ]
         }
     ]
 }
