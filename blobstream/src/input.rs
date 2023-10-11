@@ -45,7 +45,8 @@ pub trait DataCommitmentInputs {
 #[async_trait]
 impl DataCommitmentInputs for InputDataFetcher {
     async fn get_data_commitment(&self, start_block: u64, end_block: u64) -> [u8; 32] {
-        // If start_block == end_block, then there is no data commitment.
+        // If start_block == end_block, then return a dummy commitment.
+        // This will occur in the context of data commitment's map reduce when leaves that contain blocks beyond the end_block.
         if end_block <= start_block {
             return [0u8; 32];
         }
@@ -130,13 +131,11 @@ impl DataCommitmentInputs for InputDataFetcher {
 
         // If there is no data commitment, each of the above vectors will be empty.
         if !data_hashes.is_empty() {
-            // Remove end_block's data_hash, as data_commitment does not include it.
+            // Remove the data hash and corresponding proof of end_block, as data_commitment does not include it.
             data_hashes.pop();
-
-            // Remove end_block's data_hash_proof, as data_commitment does not check it.
             data_hash_proofs.pop();
 
-            // Remove start_block's prev_header_proof, as data_commitment does not check it.
+            // Remove prev_header_proof of start_block, as data_commitment does not include it.
             prev_header_proofs = prev_header_proofs[1..].to_vec();
         }
 

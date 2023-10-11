@@ -150,23 +150,24 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
 
         let mut curr_header = batch_start_header_hash;
 
+        // global_end_block - 1 is the last valid leaf.
         let last_block_to_process = self.sub(global_end_block, one);
+
         // Verify all data_hash_proofs against headers from prev_header_proofs.
         for i in 0..BATCH_SIZE {
             let is_disabled = self.not(is_enabled);
-            // end_block - 1 is the last valid leaf.
             let curr_idx = self.constant::<U64Variable>(i as u64);
             let curr_block = self.add(batch_start_block, curr_idx);
             let is_last_valid_leaf = self.is_equal(last_block_to_process, curr_block);
             let is_not_last_valid_leaf = self.not(is_last_valid_leaf);
 
-            // Header hash of block (start + i).
+            // data_hash_proof_root should be the header hash of block (start + i).
             let data_hash_proof_root = self
                 .get_root_from_merkle_proof::<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES>(
                     &data_comm_proof.data_hash_proofs[i],
                     &data_hash_path,
                 );
-            // Header hash of block (start + i + 1).
+            // prev_header_proof_root should be the header hash of block (start + i + 1).
             let prev_header_proof_root = self
                 .get_root_from_merkle_proof::<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES>(
                     &data_comm_proof.prev_header_proofs[i],
@@ -178,21 +179,22 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
 
             // Verify the data hash proof against the header hash of block (start + i).
             let is_valid_data_hash = self.is_equal(data_hash_proof_root, header_hash.into());
-            // NOT is_enabled || (data_hash_proof_root == header_hash) must be true.
+            // Either this leaf is disabled or the data hash proof is valid.
             let data_hash_check = self.or(is_disabled, is_valid_data_hash);
             self.assert_is_equal(data_hash_check, true_var);
 
             // Verify the header chain.
+
             // 1) Verify the curr_header matches the extracted header_hash.
             let is_valid_prev_header = self.is_equal(curr_header, header_hash.into());
-            // NOT is_enabled || (curr_header == header_hash) must be true.
+            // Either this leaf is disabled or the prev header matches.
             let prev_header_check = self.or(is_disabled, is_valid_prev_header);
             self.assert_is_equal(prev_header_check, true_var);
 
             // 2) If is_last_valid_leaf is true, then the root of the prev_header_proof must be the end_header.
             let root_matches_end_header =
                 self.is_equal(prev_header_proof_root, global_end_header_hash);
-            // NOT is_valid_leaf || root_matches_end_header must be true.
+            // If this is the last valid leaf, then the prev_header_proof_root must be the global_end_header.
             let end_header_check = self.or(is_not_last_valid_leaf, root_matches_end_header);
             self.assert_is_equal(end_header_check, true_var);
 
@@ -246,7 +248,6 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
         };
 
         let total_headers = NB_MAP_JOBS * BATCH_SIZE;
-        println!("total_headers: {}", total_headers);
 
         let relative_block_nums = (0u64..(total_headers as u64)).collect::<Vec<_>>();
 
@@ -261,7 +262,7 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
                     let global_end_header_hash = map_ctx.end_header_hash;
                     let global_end_block = map_ctx.end_block;
 
-                    // Note: map_relative_block_nums is inclusive of the last block.
+                    // map_relative_block_nums is a [U64Variable; BATCH_SIZE]
                     let start_block =
                         builder.add(map_ctx.start_block, map_relative_block_nums.as_vec()[0]);
 
@@ -270,13 +271,12 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
                         map_relative_block_nums.as_vec()[BATCH_SIZE - 1],
                     );
 
-
-                    // Note: batch_end_block - start_block = BATCH_SIZE.
+                    // batch_end_block - start_block = BATCH_SIZE.
                     let batch_end_block = builder.add(last_block, one);
 
                     let past_global_end = builder.gt(batch_end_block, global_end_block);
 
-                    // If the batch_end_block is past the global_end_block, then the batch_end_block is the global_end_block.
+                    // If batch_end_block > global_end_block, then the data_commitment's end is the global_end_block.
                     let query_end_block = builder.select(past_global_end, global_end_block, batch_end_block);
 
                     let mut input_stream = VariableStream::new();
@@ -284,13 +284,13 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
                     input_stream.write(&query_end_block);
 
                     let data_comm_fetcher = DataCommitmentOffchainInputs::<BATCH_SIZE> {};
-
                     let output_stream = builder
                         .async_hint(input_stream, data_comm_fetcher);
 
+                    // If batch_end_block > global_end_block, data_comm_proof will have dummy values.
+                    // This is because prove_subchain only checks up to global_end_block, and doing so reduces RPC calls.
                     let data_comm_proof = output_stream
                         .read::<DataCommitmentProofVariable<BATCH_SIZE>>(builder);
-
                     let _ = output_stream.read::<Bytes32Variable>(builder);
 
                     builder.prove_subchain(data_comm_proof, global_end_block, global_end_header_hash)
