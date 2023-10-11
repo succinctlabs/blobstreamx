@@ -1,0 +1,3 @@
+[submodule "blobstream/contracts/lib/blobstream-contracts"]
+	path = blobstream/contracts/lib/blobstream-contracts
+	url = https://github.com/celestiaorg/blobstream-contracts
