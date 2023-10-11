@@ -3,6 +3,7 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Script.sol";
 import {IZKTendermintLightClient} from "../src/IZKTendermintLightClient.sol";
+import {ZKTendermintLightClient} from "../src/ZKTendermintLightClient.sol";
 import {QGB} from "../src/QGB.sol";
 
 // forge script script/QGB.s.sol --verifier etherscan --private-key
@@ -27,7 +28,7 @@ contract DeployScript is Script {
 
         bytes32 header = hex"400773BF4613E2F0311DD382DB3B2278B6442560A7AD6627984799D2FC4F0DF9";
 
-        IZKTendermintLightClient(lightClient).setGenesisHeader(100100, header);
+        ZKTendermintLightClient(lightClient).setGenesisHeader(100100, header);
 
         qgb.updateFunctionId(functionId);
 

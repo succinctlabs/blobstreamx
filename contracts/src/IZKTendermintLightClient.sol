@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.19;
 
 interface IZKTendermintLightClient {
     function getFunctionId(string memory) external view returns (bytes32);

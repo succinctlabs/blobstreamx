@@ -2,11 +2,12 @@
 pragma solidity ^0.8.13;
 
 import "./IZKTendermintLightClient.sol";
+import "./IBlobstream.sol";
 import "@succinctx/interfaces/IFunctionGateway.sol";
 import "@qgb/DataRootTuple.sol";
 import "@qgb/lib/tree/binary/BinaryMerkleTree.sol";
 
-contract QGB {
+contract QGB is IBlobstream {
     address public gateway;
     IZKTendermintLightClient public tendermintLightClient;
 

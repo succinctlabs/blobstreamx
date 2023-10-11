@@ -1,10 +1,14 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.19;
+
+import "@qgb/DataRootTuple.sol";
+import "@qgb/lib/tree/binary/BinaryMerkleTree.sol";
 
 import {IFunctionGateway} from "@succinctx/interfaces/IFunctionGateway.sol";
 import {IZKTendermintLightClient} from "./IZKTendermintLightClient.sol";
+import {IBlobstream} from "./IBlobstream.sol";
 
-contract Blobstream is IZKTendermintLightClient {
+contract Blobstream is IZKTendermintLightClient, IBlobstream {
     address public gateway;
     mapping(string => bytes32) public functionNameToId;
 
@@ -177,5 +181,38 @@ contract Blobstream is IZKTendermintLightClient {
             nextHeader,
             dataCommitment
         );
+    }
+
+    function getDataCommitment(
+        uint64 startBlock,
+        uint64 endBlock
+    ) external view returns (bytes32) {
+        return dataCommitments[keccak256(abi.encode(startBlock, endBlock))];
+    }
+
+    function verifyMerkleProof(
+        uint256 startBlock,
+        uint256 endBlock,
+        DataRootTuple memory _tuple,
+        BinaryMerkleProof memory _proof
+    ) external view returns (bool) {
+        // Tuple must have been committed before.
+        if (endBlock > latestBlock) {
+            return false;
+        }
+
+        // Load the tuple root at the given index from storage.
+        bytes32 root = dataCommitments[
+            keccak256(abi.encode(startBlock, endBlock))
+        ];
+
+        // Verify the proof.
+        bool isProofValid = BinaryMerkleTree.verify(
+            root,
+            _proof,
+            abi.encode(_tuple)
+        );
+
+        return isProofValid;
     }
 }
