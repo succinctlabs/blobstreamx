@@ -454,9 +454,9 @@ pub(crate) mod tests {
 
         // TODO: Remove clone if performance is an issue.
         builder.prove_subchain::<MAX_LEAVES>(
-            data_commitment_var.clone(),
-            data_commitment_var.clone().end_block_height,
-            data_commitment_var.clone().end_header,
+            &data_commitment_var,
+            &data_commitment_var.end_block_height,
+            &data_commitment_var.end_header,
         );
 
         let circuit = builder.build();
