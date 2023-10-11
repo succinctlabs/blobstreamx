@@ -7,3 +7,6 @@
 [submodule "blobstream/contracts/lib/quantum-gravity-bridge"]
 	path = blobstream/contracts/lib/quantum-gravity-bridge
 	url = https://github.com/celestiaorg/quantum-gravity-bridge
+[submodule "blobstream/contracts/lib/blobstream-contracts"]
+	path = blobstream/contracts/lib/blobstream-contracts
+	url = https://github.com/celestiaorg/blobstream-contracts
