@@ -39,7 +39,7 @@
             "buildCommand": "mkdir -p build && RUST_LOG=debug cargo run --package blobstream --bin combined_skip --release build && mv ./target/release/combined_skip ./build/combined_skip",
             "proveCommand": "RUST_LOG=info ./build/combined_skip prove input.json",
             "requiredArtifacts": [
-                "data_commitment"
+                "combined_skip"
             ]
         }
     ]
