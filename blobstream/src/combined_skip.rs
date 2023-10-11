@@ -31,7 +31,7 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize, const NB_MAP_JOBS: usize, const BATCH_
             target_block,
         );
 
-        let data_commitment = builder.prove_data_commitment::<DataCommitmentCircuit<NB_MAP_JOBS, BATCH_SIZE>, NB_MAP_JOBS, BATCH_SIZE>(
+        let data_commitment = builder.prove_data_commitment::<Self, NB_MAP_JOBS, BATCH_SIZE>(
             trusted_block,
             trusted_header_hash,
             target_block,
