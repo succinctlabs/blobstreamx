@@ -56,7 +56,7 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize, const NB_MAP_JOBS: usize, const BATCH_
             SubchainVerificationCtx,
             U64Variable,
             MapReduceSubchainVariable,
-            DataCommitmentCircuit<NB_MAP_JOBS, BATCH_SIZE>,
+            Self,
             BATCH_SIZE,
             D,
         >::id();
@@ -65,7 +65,7 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize, const NB_MAP_JOBS: usize, const BATCH_
             SubchainVerificationCtx,
             U64Variable,
             MapReduceSubchainVariable,
-            DataCommitmentCircuit<NB_MAP_JOBS, BATCH_SIZE>,
+            Self,
             BATCH_SIZE,
             D,
         >>(mr_id);
