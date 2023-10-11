@@ -120,6 +120,8 @@ mod tests {
         start_header_hash: [u8; 32],
         end_block: usize,
     ) {
+        println!("end block in template: {:?}", end_block);
+
         env::set_var("RUST_LOG", "debug");
         env_logger::try_init().unwrap_or_default();
         env::set_var("RPC_MOCHA_4", "fixture"); // Use fixture during testing

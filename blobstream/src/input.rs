@@ -1,3 +1,4 @@
+use std::cmp::min;
 use std::fs;
 use std::path::Path;
 
@@ -70,6 +71,7 @@ impl DataCommitmentInputs for InputDataFetcher {
             }
             InputDataMode::Fixture => {
                 let file_content = fs::read_to_string(file_name.as_str());
+                println!("File name: {}", file_name.as_str());
                 println!("Retrieving fixture");
                 file_content.unwrap()
             }
@@ -151,7 +153,7 @@ impl DataCommitmentInputs for InputDataFetcher {
             .collect_vec();
 
         // Extend data_hashes, data_hash_proofs, and prev_header_proofs to MAX_LEAVES.
-        for _ in (end_block_number - start_block_number) as usize..MAX_LEAVES {
+        for _ in min(0, end_block_number - start_block_number) as usize..MAX_LEAVES {
             data_hashes.push([0u8; 32]);
             data_hash_proofs_formatted.push(InclusionProof::<
                 HEADER_PROOF_DEPTH,

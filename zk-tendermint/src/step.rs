@@ -69,8 +69,8 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize, L: PlonkParameters<D>, const D: usize>
         input_stream: &mut ValueStream<L, D>,
         output_stream: &mut ValueStream<L, D>,
     ) {
-        let prev_header_hash = input_stream.read_value::<Bytes32Variable>();
         let prev_block_number = input_stream.read_value::<U64Variable>();
+        let prev_header_hash = input_stream.read_value::<Bytes32Variable>();
         let mut data_fetcher = InputDataFetcher::new();
         let result = data_fetcher
             .get_step_inputs::<MAX_VALIDATOR_SET_SIZE, L::Field>(
@@ -96,8 +96,8 @@ pub struct StepCircuit<const MAX_VALIDATOR_SET_SIZE: usize> {
 
 impl<const MAX_VALIDATOR_SET_SIZE: usize> Circuit for StepCircuit<MAX_VALIDATOR_SET_SIZE> {
     fn define<L: PlonkParameters<D>, const D: usize>(builder: &mut CircuitBuilder<L, D>) {
-        let prev_header_hash = builder.evm_read::<Bytes32Variable>();
         let prev_block_number = builder.evm_read::<U64Variable>();
+        let prev_header_hash = builder.evm_read::<Bytes32Variable>();
 
         let next_header_hash =
             builder.step::<MAX_VALIDATOR_SET_SIZE>(prev_header_hash, prev_block_number);
@@ -195,8 +195,8 @@ mod tests {
         log::debug!("Done building circuit");
 
         let mut input = circuit.input();
-        input.evm_write::<Bytes32Variable>(H256::from_slice(header.as_slice()));
         input.evm_write::<U64Variable>(block_height);
+        input.evm_write::<Bytes32Variable>(H256::from_slice(header.as_slice()));
 
         log::debug!("Generating proof");
         let (proof, mut output) = circuit.prove(&input);

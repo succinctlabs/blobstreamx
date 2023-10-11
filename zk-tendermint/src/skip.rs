@@ -29,8 +29,8 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintSkipCircuit<L, D> for Circ
         target_block: U64Variable,
     ) -> Bytes32Variable {
         let mut input_stream = VariableStream::new();
-        input_stream.write(&trusted_header_hash);
         input_stream.write(&trusted_block);
+        input_stream.write(&trusted_header_hash);
         input_stream.write(&target_block);
         let output_stream = self.async_hint(
             input_stream,
@@ -75,8 +75,8 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize, L: PlonkParameters<D>, const D: usize>
         input_stream: &mut ValueStream<L, D>,
         output_stream: &mut ValueStream<L, D>,
     ) {
-        let trusted_header_hash = input_stream.read_value::<Bytes32Variable>();
         let trusted_block = input_stream.read_value::<U64Variable>();
+        let trusted_header_hash = input_stream.read_value::<Bytes32Variable>();
         let target_block = input_stream.read_value::<U64Variable>();
         let mut data_fetcher = InputDataFetcher::new();
         let result = data_fetcher
@@ -109,8 +109,8 @@ pub struct SkipCircuit<const MAX_VALIDATOR_SET_SIZE: usize> {
 
 impl<const MAX_VALIDATOR_SET_SIZE: usize> Circuit for SkipCircuit<MAX_VALIDATOR_SET_SIZE> {
     fn define<L: PlonkParameters<D>, const D: usize>(builder: &mut CircuitBuilder<L, D>) {
-        let trusted_header_hash = builder.evm_read::<Bytes32Variable>();
         let trusted_block = builder.evm_read::<U64Variable>();
+        let trusted_header_hash = builder.evm_read::<Bytes32Variable>();
         let target_block = builder.evm_read::<U64Variable>();
 
         let target_header_hash = builder.skip::<MAX_VALIDATOR_SET_SIZE>(
@@ -212,8 +212,8 @@ mod tests {
         log::debug!("Done building circuit");
 
         let mut input = circuit.input();
-        input.evm_write::<Bytes32Variable>(H256::from_slice(trusted_header.as_slice()));
         input.evm_write::<U64Variable>(trusted_block);
+        input.evm_write::<Bytes32Variable>(H256::from_slice(trusted_header.as_slice()));
         input.evm_write::<U64Variable>(target_block);
 
         log::debug!("Generating proof");

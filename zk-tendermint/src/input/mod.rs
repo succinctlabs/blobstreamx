@@ -130,6 +130,7 @@ impl InputDataFetcher {
             }
             InputDataMode::Fixture => {
                 let file_content = fs::read_to_string(file_name.as_str());
+                println!("File name: {}", file_name.as_str());
                 println!("Retrieving fixture");
                 file_content.unwrap()
             }
