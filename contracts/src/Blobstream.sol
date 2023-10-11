@@ -2,8 +2,9 @@
 pragma solidity ^0.8.13;
 
 import {IFunctionGateway} from "@succinctx/interfaces/IFunctionGateway.sol";
+import {IZKTendermintLightClient} from "./IZKTendermintLightClient.sol";
 
-contract Blobstream {
+contract Blobstream is IZKTendermintLightClient {
     address public gateway;
     mapping(string => bytes32) public functionNameToId;
 
@@ -50,6 +51,10 @@ contract Blobstream {
 
     constructor(address _gateway) {
         gateway = _gateway;
+    }
+
+    function getLatestBlock() external view override returns (uint64) {
+        return latestBlock;
     }
 
     function getFunctionId(string memory name) external view returns (bytes32) {
