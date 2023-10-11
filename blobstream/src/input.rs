@@ -77,8 +77,7 @@ impl DataCommitmentInputs for InputDataFetcher {
             }
             InputDataMode::Fixture => {
                 let file_content = fs::read_to_string(file_name.as_str());
-                info!("File name: {}", file_name.as_str());
-                info!("Retrieving fixture");
+                info!("Fixture name: {}", file_name.as_str());
                 file_content.unwrap()
             }
         };
