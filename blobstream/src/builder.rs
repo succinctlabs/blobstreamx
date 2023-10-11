@@ -26,8 +26,7 @@ pub trait DataCommitmentBuilder<L: PlonkParameters<D>, const D: usize> {
         height: &U64Variable,
     ) -> BytesVariable<ENC_DATA_ROOT_TUPLE_SIZE_BYTES>;
 
-    /// Compute the data commitment from the data hashes and block heights. MAX_LEAVES is the maximum number of leaves in the tree for the data commitment.
-    /// Assumes the data hashes are already proven.
+    /// Compute the data commitment from start_block to end_block. Assumes the data hashes correspond to the blocks from start_block to end_block.
     fn get_data_commitment<const MAX_LEAVES: usize>(
         &mut self,
         data_hashes: &ArrayVariable<Bytes32Variable, MAX_LEAVES>,
@@ -35,10 +34,10 @@ pub trait DataCommitmentBuilder<L: PlonkParameters<D>, const D: usize> {
         end_block: U64Variable,
     ) -> Bytes32Variable;
 
-    /// Prove the subchain from batch_start_block to batch_end_block, verifying the subchain up to global_end_block.
+    /// Verify the chain of headers is linked for the subrange specified in data_comm_proof & generate the subrange's data_merkle_root. Skips verification after global_end_block.
     ///
-    /// Specifically, a MapReduce circuit with <NB_MAP_JOBS=4, BATCH_SIZE=4> over blocks [0, 16) will invoke prove_subchain 4 times. The prove_subchain calls
-    /// over [0, 4), [4, 8), [8, 12), [12, 16) will each 1) prove the header chain and 2) output the data_merkle_root for their corresponding subrange.
+    /// Specifically, a MapReduce circuit with <NB_MAP_JOBS=4, BATCH_SIZE=4> over blocks [0, 16) will invoke prove_subchain 4 times. Each of the prove_subchain calls
+    /// over [0, 4), [4, 8), [8, 12), [12, 16) will 1) prove the chain of headers are linked and 2) output the corresponding data_merkle_root.
     fn prove_subchain<const BATCH_SIZE: usize>(
         &mut self,
         data_comm_proof: &DataCommitmentProofVariable<BATCH_SIZE>,
@@ -46,10 +45,8 @@ pub trait DataCommitmentBuilder<L: PlonkParameters<D>, const D: usize> {
         global_end_header_hash: &Bytes32Variable,
     ) -> MapReduceSubchainVariable;
 
-    /// Prove header chain from end_header to start_header & the block heights for the current header and the trusted header.
-    /// Merkle prove the last block id against the current header, and the data hash for each header except the current header.
-    /// prev_header_proofs are against (start_block + 1, end_block), data_hash_proofs are against (start_block, end_block - 1).
-    /// NB_MAP_JOBS must be a power of 2.
+    /// Verify the chain of headers is linked from start_block to end_block, and generate the corresponding data_merkle_root.
+    /// NB_MAP_JOBS * BATCH_SIZE is the maximum range of blocks that can be included in the data commitment.
     fn prove_data_commitment<C: Circuit, const NB_MAP_JOBS: usize, const BATCH_SIZE: usize>(
         &mut self,
         start_block: U64Variable,
@@ -95,13 +92,14 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
         start_block: U64Variable,
         end_block: U64Variable,
     ) -> Bytes32Variable {
-        let num_leaves = self.sub(end_block, start_block);
+        let num_blocks = self.sub(end_block, start_block);
         let mut leaves = Vec::new();
 
         for i in 0..MAX_LEAVES {
             let curr_idx = self.constant::<U64Variable>(i as u64);
             let block_height = self.add(start_block, curr_idx);
-            // Encode the data hash and height into a tuple.
+
+            // Each leaf in Blobstream is abi.encodePacked(height, data_hash).
             leaves.push(self.encode_data_root_tuple(&data_hashes[i], &block_height));
         }
 
@@ -110,16 +108,16 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
         for i in 0..MAX_LEAVES {
             leaves_enabled.push(is_enabled);
 
-            // Number of leaves included in the data commitment so far (including this leaf).
-            let num_leaves_so_far = self.constant::<U64Variable>((i + 1) as u64);
-            // If at the last_valid_leaf, must flip is_enabled to false.
-            let is_last_valid_leaf = self.is_equal(num_leaves, num_leaves_so_far);
+            let num_blocks_so_far = self.constant::<U64Variable>((i + 1) as u64);
+
+            let is_last_valid_leaf = self.is_equal(num_blocks, num_blocks_so_far);
             let is_not_last_valid_leaf = self.not(is_last_valid_leaf);
 
+            // Mark the first num_blocks leaves as enabled.
             is_enabled = self.and(is_enabled, is_not_last_valid_leaf);
         }
 
-        // Return the root hash.
+        // Compute the root of the merkle tree over the first num_blocks leaves.
         self.compute_root_from_leaves::<MAX_LEAVES, ENC_DATA_ROOT_TUPLE_SIZE_BYTES>(
             leaves,
             leaves_enabled,
