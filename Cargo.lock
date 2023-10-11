@@ -2731,7 +2731,7 @@ checksum = "4503fa043bf02cee09a9582e9554b4c6403b2ef55e4612e96561d294419429f8"
 [[package]]
 name = "plonky2"
 version = "0.1.4"
-source = "git+https://github.com/mir-protocol/plonky2.git#d7990ee137cfdce7fc2f2422d4ddf7541ec2779c"
+source = "git+https://github.com/mir-protocol/plonky2.git#762e6f07b834df04be8cd290f07465a28c392c6d"
 dependencies = [
  "ahash",
  "anyhow",
@@ -2755,7 +2755,7 @@ dependencies = [
 [[package]]
 name = "plonky2_field"
 version = "0.1.1"
-source = "git+https://github.com/mir-protocol/plonky2.git#d7990ee137cfdce7fc2f2422d4ddf7541ec2779c"
+source = "git+https://github.com/mir-protocol/plonky2.git#762e6f07b834df04be8cd290f07465a28c392c6d"
 dependencies = [
  "anyhow",
  "itertools 0.11.0",
@@ -2779,7 +2779,7 @@ dependencies = [
 [[package]]
 name = "plonky2_maybe_rayon"
 version = "0.1.1"
-source = "git+https://github.com/mir-protocol/plonky2.git#d7990ee137cfdce7fc2f2422d4ddf7541ec2779c"
+source = "git+https://github.com/mir-protocol/plonky2.git#762e6f07b834df04be8cd290f07465a28c392c6d"
 dependencies = [
  "rayon",
 ]
@@ -2787,12 +2787,12 @@ dependencies = [
 [[package]]
 name = "plonky2_util"
 version = "0.1.1"
-source = "git+https://github.com/mir-protocol/plonky2.git#d7990ee137cfdce7fc2f2422d4ddf7541ec2779c"
+source = "git+https://github.com/mir-protocol/plonky2.git#762e6f07b834df04be8cd290f07465a28c392c6d"
 
 [[package]]
 name = "plonky2x"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git#66d8350d03bc1fa60e6708a8bafd22ecf58cfbde"
+source = "git+https://github.com/succinctlabs/succinctx.git#3f252a555dc136ad9f2968a1b59f62e1bd3529bf"
 dependencies = [
  "anyhow",
  "array-macro",
@@ -2835,7 +2835,7 @@ dependencies = [
 [[package]]
 name = "plonky2x-derive"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git#66d8350d03bc1fa60e6708a8bafd22ecf58cfbde"
+source = "git+https://github.com/succinctlabs/succinctx.git#3f252a555dc136ad9f2968a1b59f62e1bd3529bf"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3072,7 +3072,7 @@ dependencies = [
  "aho-corasick",
  "memchr",
  "regex-automata",
- "regex-syntax 0.8.0",
+ "regex-syntax 0.8.1",
 ]
 
 [[package]]
@@ -3083,7 +3083,7 @@ checksum = "465c6fc0621e4abc4187a2bda0937bfd4f722c2730b29562e19689ea796c9a4b"
 dependencies = [
  "aho-corasick",
  "memchr",
- "regex-syntax 0.8.0",
+ "regex-syntax 0.8.1",
 ]
 
 [[package]]
@@ -3094,9 +3094,9 @@ checksum = "dbb5fb1acd8a1a18b3dd5be62d25485eb770e05afb408a9627d14d451bae12da"
 
 [[package]]
 name = "regex-syntax"
-version = "0.8.0"
+version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c3cbb081b9784b07cceb8824c8583f86db4814d172ab043f3c23f7dc600bf83d"
+checksum = "56d84fdd47036b038fc80dd333d10b6aab10d5d31f4a366e20014def75328d33"
 
 [[package]]
 name = "reqwest"
