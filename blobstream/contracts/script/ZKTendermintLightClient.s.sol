@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Script.sol";
-import {ZKTendermintLightClient} from "../src/ZKTendermintLightClient.sol";
+import {ZKTendermintLightClient} from "@zk-tendermint/ZKTendermintLightClient.sol";
 
 // forge script script/ZKTendermintLightClient.s.sol --verifier etherscan --private-key
 // forge verify-contract <address> ZKTendermintLightClient --chain 5 --etherscan-api-key ${ETHERSCAN_API_KEY} --constructor-args "0x000000000000000000000000852a94f8309d445d27222edb1e92a4e83dddd2a8"

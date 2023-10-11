@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import "./IZKTendermintLightClient.sol";
-import "./IBlobstream.sol";
-import "@succinctx/interfaces/IFunctionGateway.sol";
+import {IZKTendermintLightClient} from "@zk-tendermint/IZKTendermintLightClient.sol";
+import {IBlobstream} from "./IBlobstream.sol";
+import {IFunctionGateway} from "@succinctx/interfaces/IFunctionGateway.sol";
+
 import "@qgb/DataRootTuple.sol";
 import "@qgb/lib/tree/binary/BinaryMerkleTree.sol";
 

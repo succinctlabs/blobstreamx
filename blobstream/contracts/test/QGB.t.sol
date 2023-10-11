@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import "../src/ZKTendermintLightClient.sol";
+import "@zk-tendermint/ZKTendermintLightClient.sol";
 import "../src/QGB.sol";
 
 contract QGBTest is Test {

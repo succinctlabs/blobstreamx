@@ -1,2 +1,3 @@
 @succinctx/=lib/succinctx/contracts/src/
 @qgb/=lib/quantum-gravity-bridge/src/
+@zk-tendermint=../../zk-tendermint/contracts/src/
