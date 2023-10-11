@@ -1,0 +1,26 @@
+.env
+
+.vscode/settings.json
+
+# Avoid vendor folder if not using go modules
+**/vendor
+
+# IDE
+*.log
+
+# Mac .DS_Store files
+.DS_Store
+
+# Output dirs for building
+dist/
+bin/
+.go
+
+*.json
+!nouns-fixture.json
+
+keystore
+
+# Ignoring files generated from CLI build
+*.bin
+**/FunctionVerifier.sol
