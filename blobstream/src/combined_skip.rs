@@ -163,7 +163,7 @@ mod tests {
         // Test variable length NUM_BLOCKS.
         const MAX_VALIDATOR_SET_SIZE: usize = 4;
         const NB_MAP_JOBS: usize = 2;
-        const BATCH_SIZE: usize = 4;
+        const BATCH_SIZE: usize = 2;
 
         let start_block = 10000u64;
         let start_header_hash =
