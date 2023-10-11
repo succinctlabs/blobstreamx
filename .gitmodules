@@ -7,3 +7,6 @@
 [submodule "contracts/lib/quantum-gravity-bridge"]
 	path = contracts/lib/quantum-gravity-bridge
 	url = https://github.com/celestiaorg/quantum-gravity-bridge
+[submodule "zk-tendermint/contracts/lib/succinctx"]
+	path = zk-tendermint/contracts/lib/succinctx
+	url = https://github.com/succinctlabs/succinctx
