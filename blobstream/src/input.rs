@@ -103,10 +103,6 @@ impl DataCommitmentInputs for InputDataFetcher {
         Vec<InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, F>>, // prev_header_proofs
         [u8; 32], // expected_data_commitment
     ) {
-        let start_header = self.get_header_from_number(start_block_number).await;
-
-        let end_header = self.get_header_from_number(end_block_number).await;
-
         let mut data_hashes = Vec::new();
         let mut data_hash_proofs = Vec::new();
         let mut prev_header_proofs = Vec::new();
@@ -185,9 +181,28 @@ impl DataCommitmentInputs for InputDataFetcher {
             .get_data_commitment(start_block_number, end_block_number)
             .await;
 
+        let mut start_header = [0u8; 32];
+        let mut end_header = [0u8; 32];
+        if start_block_number < end_block_number {
+            start_header = self
+                .get_header_from_number(start_block_number)
+                .await
+                .hash()
+                .as_bytes()
+                .try_into()
+                .unwrap();
+            end_header = self
+                .get_header_from_number(end_block_number)
+                .await
+                .hash()
+                .as_bytes()
+                .try_into()
+                .unwrap();
+        }
+
         (
-            start_header.hash().as_bytes().try_into().unwrap(),
-            end_header.hash().as_bytes().try_into().unwrap(),
+            start_header,
+            end_header,
             data_hashes,
             data_hash_proofs_formatted,
             prev_header_proofs_formatted,
