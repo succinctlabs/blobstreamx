@@ -7,17 +7,7 @@ use tendermint::merkle::HASH_SIZE;
 use zk_tendermint::consts::*;
 
 use crate::commitment::DataCommitmentOffchainInputs;
-use crate::vars::DataCommitmentProofVariable;
-
-#[derive(Clone, Debug, CircuitVariable)]
-pub struct MapReduceSubchainVariable {
-    pub is_enabled: BoolVariable,
-    pub start_block: U64Variable,
-    pub start_header: Bytes32Variable,
-    pub end_block: U64Variable,
-    pub end_header: Bytes32Variable,
-    pub data_merkle_root: Bytes32Variable,
-}
+use crate::vars::{DataCommitmentProofVariable, MapReduceSubchainVariable};
 
 #[derive(Clone, Debug, CircuitVariable)]
 pub struct SubchainVerificationCtx {

@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use zk_tendermint::input::utils::convert_to_h256;
 use zk_tendermint::input::InputDataFetcher;
 
-use crate::builder::{DataCommitmentBuilder, MapReduceSubchainVariable, SubchainVerificationCtx};
+use crate::builder::{DataCommitmentBuilder, SubchainVerificationCtx};
 use crate::input::DataCommitmentInputs;
 use crate::vars::*;
 

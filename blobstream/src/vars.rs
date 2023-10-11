@@ -2,7 +2,7 @@ use plonky2x::frontend::merkle::tree::MerkleInclusionProofVariable;
 use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::prelude::{
     ArrayVariable, Bytes32Variable, CircuitBuilder, CircuitVariable, PlonkParameters, RichField,
-    Variable,
+    Variable, BoolVariable,
 };
 use zk_tendermint::consts::*;
 
@@ -25,4 +25,14 @@ pub struct DataCommitmentProofVariable<const MAX_LEAVES: usize> {
         MerkleInclusionProofVariable<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES>,
         MAX_LEAVES,
     >,
+}
+
+#[derive(Clone, Debug, CircuitVariable)]
+pub struct MapReduceSubchainVariable {
+    pub is_enabled: BoolVariable,
+    pub start_block: U64Variable,
+    pub start_header: Bytes32Variable,
+    pub end_block: U64Variable,
+    pub end_header: Bytes32Variable,
+    pub data_merkle_root: Bytes32Variable,
 }

@@ -4,8 +4,9 @@ use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::prelude::{Bytes32Variable, CircuitBuilder, PlonkParameters};
 use zk_tendermint::skip::{SkipOffchainInputs, TendermintSkipCircuit};
 
-use crate::builder::{DataCommitmentBuilder, MapReduceSubchainVariable, SubchainVerificationCtx};
+use crate::builder::{DataCommitmentBuilder, SubchainVerificationCtx};
 use crate::commitment::{DataCommitmentCircuit, DataCommitmentOffchainInputs};
+use crate::vars::MapReduceSubchainVariable;
 
 #[derive(Debug, Clone)]
 pub struct CombinedSkipCircuit<
