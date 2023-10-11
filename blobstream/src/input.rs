@@ -1,4 +1,3 @@
-use std::cmp::min;
 use std::fs;
 use std::path::Path;
 
@@ -45,6 +44,11 @@ pub trait DataCommitmentInputs {
 #[async_trait]
 impl DataCommitmentInputs for InputDataFetcher {
     async fn get_data_commitment(&self, start_block: u64, end_block: u64) -> [u8; 32] {
+        // If start_block == end_block, then there is no data commitment.
+        if end_block <= start_block {
+            return [0u8; 32];
+        }
+
         let file_name = format!(
             "{}/{}-{}/data_commitment.json",
             self.fixture_path,
@@ -59,6 +63,7 @@ impl DataCommitmentInputs for InputDataFetcher {
                     start_block.to_string().as_str(),
                     end_block.to_string().as_str()
                 );
+                println!("Querying url: {}", query_url);
                 let res = reqwest::get(query_url).await.unwrap().text().await.unwrap();
                 if self.save {
                     // Ensure the directory exists
@@ -123,14 +128,17 @@ impl DataCommitmentInputs for InputDataFetcher {
             prev_header_proofs.push(prev_header_proof);
         }
 
-        // Remove end_block's data_hash, as data_commitment does not include it.
-        data_hashes.pop();
+        // If there is no data commitment, each of the above vectors will be empty.
+        if !data_hashes.is_empty() {
+            // Remove end_block's data_hash, as data_commitment does not include it.
+            data_hashes.pop();
 
-        // Remove end_block's data_hash_proof, as data_commitment does not check it.
-        data_hash_proofs.pop();
+            // Remove end_block's data_hash_proof, as data_commitment does not check it.
+            data_hash_proofs.pop();
 
-        // Remove start_block's prev_header_proof, as data_commitment does not check it.
-        prev_header_proofs = prev_header_proofs[1..].to_vec();
+            // Remove start_block's prev_header_proof, as data_commitment does not check it.
+            prev_header_proofs = prev_header_proofs[1..].to_vec();
+        }
 
         let mut data_hash_proofs_formatted = data_hash_proofs
             .into_iter()
@@ -152,8 +160,9 @@ impl DataCommitmentInputs for InputDataFetcher {
             )
             .collect_vec();
 
+        let num_so_far = data_hashes.len();
         // Extend data_hashes, data_hash_proofs, and prev_header_proofs to MAX_LEAVES.
-        for _ in min(0, end_block_number - start_block_number) as usize..MAX_LEAVES {
+        for _ in num_so_far..MAX_LEAVES {
             data_hashes.push([0u8; 32]);
             data_hash_proofs_formatted.push(InclusionProof::<
                 HEADER_PROOF_DEPTH,

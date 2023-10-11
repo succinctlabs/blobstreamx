@@ -255,9 +255,6 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
             end_header_hash,
         };
 
-        self.watch(&ctx.start_block, "global start block outside of mr");
-        self.watch(&ctx.end_block, "global end block outside of mr");
-
         let total_headers = NB_MAP_JOBS * BATCH_SIZE;
         println!("total_headers: {}", total_headers);
 
@@ -268,26 +265,28 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
             .mapreduce::<SubchainVerificationCtx, U64Variable, MapReduceSubchainVariable, C, BATCH_SIZE, _, _>(
                 ctx.clone(),
                 relative_block_nums,
-                |_, map_relative_block_nums, builder| {
-
-                    builder.watch(&ctx.start_block, "global start block inside of mr");
-                    builder.watch(&ctx.end_block, "global end block inside of mr");
-
+                |map_ctx, map_relative_block_nums, builder| {
                     let one = builder.constant::<U64Variable>(1u64);
 
-                    let global_end_header_hash = ctx.end_header_hash;
-                    let global_end_block = ctx.end_block;
+                    // builder.watch(&map_ctx.start_block, "start_block");
+                    // builder.watch(&map_ctx.end_block, "end_block");
+
+                    let global_end_header_hash = map_ctx.end_header_hash;
+                    let global_end_block = map_ctx.end_block;
+
+                    builder.watch(&global_end_header_hash, "global_end_header_hash");
+                    builder.watch(&global_end_block, "global_end_block");
 
                     // Note: map_relative_block_nums is inclusive of the last block.
                     let start_block =
-                        builder.add(ctx.start_block, map_relative_block_nums.as_vec()[0]);
-                    builder.watch(&start_block, "batch_start_block");
+                        builder.add(map_ctx.start_block, map_relative_block_nums.as_vec()[0]);
 
                     let last_block = builder.add(
-                        ctx.start_block,
+                        map_ctx.start_block,
                         map_relative_block_nums.as_vec()[BATCH_SIZE - 1],
                     );
-                    builder.watch(&last_block, "batch_end_block");
+                    builder.watch(&start_block, "start_block");
+                    builder.watch(&last_block, "last_block");
 
 
                     // Note: batch_end_block - start_block = BATCH_SIZE.
@@ -297,8 +296,6 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
 
                     // If the batch_end_block is past the global_end_block, then the batch_end_block is the global_end_block.
                     let query_end_block = builder.select(past_global_end, global_end_block, batch_end_block);
-                    builder.watch(&global_end_block, "global_end_block");
-                    builder.watch(&query_end_block, "query_end_block");
 
                     let mut input_stream = VariableStream::new();
                     input_stream.write(&start_block);
