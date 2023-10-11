@@ -5,8 +5,8 @@ import {IZKTendermintLightClient} from "@zk-tendermint/IZKTendermintLightClient.
 import {IBlobstream} from "./IBlobstream.sol";
 import {IFunctionGateway} from "@succinctx/interfaces/IFunctionGateway.sol";
 
-import "@qgb/DataRootTuple.sol";
-import "@qgb/lib/tree/binary/BinaryMerkleTree.sol";
+import "@blobstream/DataRootTuple.sol";
+import "@blobstream/lib/tree/binary/BinaryMerkleTree.sol";
 
 contract QGB is IBlobstream {
     address public gateway;
