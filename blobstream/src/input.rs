@@ -183,6 +183,7 @@ impl DataCommitmentInputs for InputDataFetcher {
 
         let mut start_header = [0u8; 32];
         let mut end_header = [0u8; 32];
+        // If start_block_number >= end_block_number, then start_header and end_header are dummy values.
         if start_block_number < end_block_number {
             start_header = self
                 .get_header_from_number(start_block_number)
