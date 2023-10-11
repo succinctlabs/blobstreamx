@@ -25,8 +25,8 @@ fn main() {
 
     if env_validator_set_size_max == 128.to_string() {
         const VALIDATOR_SET_SIZE_MAX: usize = 128;
-        const NB_MAP_JOBS: usize = 16;
-        const BATCH_SIZE: usize = 64;
+        const NB_MAP_JOBS: usize = 32;
+        const BATCH_SIZE: usize = 32;
         VerifiableFunction::<CombinedSkipCircuit<VALIDATOR_SET_SIZE_MAX, NB_MAP_JOBS, BATCH_SIZE>>::entrypoint();
     } else if env_validator_set_size_max == 32.to_string() {
         const VALIDATOR_SET_SIZE_MAX: usize = 32;
