@@ -24,12 +24,12 @@ fn main() {
     let env_max_leaves = env::var("MAX_LEAVES").unwrap_or(0.to_string());
 
     if env_max_leaves == 1024.to_string() {
-        const NB_MAP_JOBS: usize = 16;
-        const BATCH_SIZE: usize = 64;
+        const NB_MAP_JOBS: usize = 64;
+        const BATCH_SIZE: usize = 16;
         DataCommitmentCircuit::<NB_MAP_JOBS, BATCH_SIZE>::entrypoint();
     } else if env_max_leaves == 256.to_string() {
-        const NB_MAP_JOBS: usize = 8;
-        const BATCH_SIZE: usize = 32;
+        const NB_MAP_JOBS: usize = 16;
+        const BATCH_SIZE: usize = 16;
         DataCommitmentCircuit::<NB_MAP_JOBS, BATCH_SIZE>::entrypoint();
     } else if env_max_leaves == 4.to_string() {
         const NB_MAP_JOBS: usize = 2;
