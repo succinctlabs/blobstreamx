@@ -268,14 +268,8 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
                 |map_ctx, map_relative_block_nums, builder| {
                     let one = builder.constant::<U64Variable>(1u64);
 
-                    // builder.watch(&map_ctx.start_block, "start_block");
-                    // builder.watch(&map_ctx.end_block, "end_block");
-
                     let global_end_header_hash = map_ctx.end_header_hash;
                     let global_end_block = map_ctx.end_block;
-
-                    builder.watch(&global_end_header_hash, "global_end_header_hash");
-                    builder.watch(&global_end_block, "global_end_block");
 
                     // Note: map_relative_block_nums is inclusive of the last block.
                     let start_block =
@@ -285,8 +279,6 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
                         map_ctx.start_block,
                         map_relative_block_nums.as_vec()[BATCH_SIZE - 1],
                     );
-                    builder.watch(&start_block, "start_block");
-                    builder.watch(&last_block, "last_block");
 
 
                     // Note: batch_end_block - start_block = BATCH_SIZE.
