@@ -26,9 +26,9 @@ contract ZKBlobstream is IZKTendermintLightClient, IBlobstream {
     /// @notice Maps block ranges to their data commitments. Block ranges are stored as keccak256(abi.encode(startBlock, endBlock)).
     mapping(bytes32 => bytes32) public dataCommitments;
 
-    /////////////
+    ////////////
     // Events //
-    /////////////
+    ////////////
 
     /// @notice Emitted when a combined step is requested.
     /// @param startBlock The start block of the combined step request.
@@ -66,6 +66,19 @@ contract ZKBlobstream is IZKTendermintLightClient, IBlobstream {
         bytes32 targetHeader,
         bytes32 dataCommitment
     );
+
+    ////////////
+    // Errors //
+    ////////////
+
+    /// @notice Latest header not found.
+    error LatestHeaderNotFound();
+    /// @notice Function ID for name not found.
+    error FunctionIdNotFound(string name);
+    /// @notice Target block for proof must be greater than latest block.
+    error TargetLessThanLatest();
+    /// @notice The range of blocks in a request is greater than the maximum allowed.
+    error ProofBlockRangeTooLarge();
 
     ///////////////
     // Modifiers //
@@ -113,16 +126,20 @@ contract ZKBlobstream is IZKTendermintLightClient, IBlobstream {
     function requestCombinedSkip(uint64 _requestedBlock) external payable {
         bytes32 latestHeader = blockHeightToHeaderHash[latestBlock];
         if (latestHeader == bytes32(0)) {
-            revert("Latest header not found");
+            revert LatestHeaderNotFound();
         }
         bytes32 id = functionNameToId["combinedSkip"];
         if (id == bytes32(0)) {
-            revert("Function ID for combined skip not found");
+            revert FunctionIdNotFound("combinedSkip");
         }
 
         // A request can be at most DATA_COMMITMENT_MAX blocks ahead of the latest block.
-        require(_requestedBlock - latestBlock <= DATA_COMMITMENT_MAX);
-        require(_requestedBlock > latestBlock);
+        if (_requestedBlock - latestBlock > DATA_COMMITMENT_MAX) {
+            revert ProofBlockRangeTooLarge();
+        }
+        if (_requestedBlock <= latestBlock) {
+            revert TargetLessThanLatest();
+        }
 
         bytes32 requestId = IFunctionGateway(gateway).request{value: msg.value}(
             id,
@@ -149,10 +166,9 @@ contract ZKBlobstream is IZKTendermintLightClient, IBlobstream {
             (bytes32, bytes32)
         );
 
-        require(
-            skipTargetBlock > latestBlock,
-            "skipTargetBlock must be greater than latest block"
-        );
+        if (skipTargetBlock <= latestBlock) {
+            revert TargetLessThanLatest();
+        }
 
         blockHeightToHeaderHash[skipTargetBlock] = newHeader;
         dataCommitments[
@@ -173,11 +189,11 @@ contract ZKBlobstream is IZKTendermintLightClient, IBlobstream {
     function requestCombinedStep() external payable {
         bytes32 latestHeader = blockHeightToHeaderHash[latestBlock];
         if (latestHeader == bytes32(0)) {
-            revert("Latest header not found");
+            revert LatestHeaderNotFound();
         }
         bytes32 id = functionNameToId["combinedStep"];
         if (id == bytes32(0)) {
-            revert("Function ID for combined step not found");
+            revert FunctionIdNotFound("combinedStep");
         }
 
         bytes32 requestId = IFunctionGateway(gateway).request{value: msg.value}(
@@ -203,7 +219,9 @@ contract ZKBlobstream is IZKTendermintLightClient, IBlobstream {
         );
         uint64 nextBlock = prevBlock + 1;
 
-        require(nextBlock > latestBlock);
+        if (nextBlock <= latestBlock) {
+            revert TargetLessThanLatest();
+        }
 
         blockHeightToHeaderHash[nextBlock] = nextHeader;
         dataCommitments[
