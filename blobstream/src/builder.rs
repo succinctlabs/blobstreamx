@@ -157,47 +157,47 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
 
         // Verify all headers in the batch. If last_block_to_process < batch_end_block, stop verifying at last_block_to_process.
         for i in 0..BATCH_SIZE {
-            let curr_idx = self.constant::<U64Variable>(i as u64);
-            let curr_block = self.add(batch_start_block, curr_idx);
+            let loop_idx = self.constant::<U64Variable>(i as u64);
+            let curr_idx = self.add(batch_start_block, loop_idx);
 
             let curr_block_disabled = self.not(curr_block_enabled);
-            let is_last_block = self.is_equal(last_block_to_process, curr_block);
+            let is_last_block = self.is_equal(last_block_to_process, curr_idx);
             let is_not_last_block = self.not(is_last_block);
 
-            // Root of data_hash_proofs[i] should be the hash of block N.
+            // Root of data_hash_proofs[i] should be the hash of block curr_idx.
             let data_hash_proof_root = self
                 .get_root_from_merkle_proof::<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES>(
                     &data_comm_proof.data_hash_proofs[i],
                     &data_hash_path,
                 );
-            // Root of last_block_id_proofs[i] should be the hash of block N+1.
+            // Root of last_block_id_proofs[i] should be the hash of block curr_idx+1.
             let last_block_id_proof_root = self
                 .get_root_from_merkle_proof::<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES>(
                     &data_comm_proof.last_block_id_proofs[i],
                     &last_block_id_path,
                 );
 
-            // Extract the previous header hash from the leaf of last_block_id_proof, and verify it is equal to the header hash of block N.
-            // Note: The leaf of the last_block_id_proof against block N+1 is the protobuf-encoded last_block_id, which contains the header hash of block N at [2..2+HASH_SIZE].
+            // Extract the previous header hash from the leaf of last_block_id_proof, and verify it is equal to the header hash of block curr_idx.
+            // Note: The leaf of the last_block_id_proof against block curr_idx+1 is the protobuf-encoded last_block_id, which contains the header hash of block curr_idx at [2..2+HASH_SIZE].
             // Always passes if curr_block >= last_block_to_process (curr_block_disabled).
             let header_hash = &data_comm_proof.last_block_id_proofs[i].leaf[2..2 + HASH_SIZE];
             let is_valid_prev_header = self.is_equal(curr_header, header_hash.into());
             let prev_header_check = self.or(curr_block_disabled, is_valid_prev_header);
             self.assert_is_equal(prev_header_check, true_bool);
 
-            // Verify the data hash proof is valid against block N.
+            // Verify the data hash proof is valid against block curr_idx.
             let is_data_hash_proof_valid = self.is_equal(data_hash_proof_root, header_hash.into());
             let data_hash_check = self.or(curr_block_disabled, is_data_hash_proof_valid);
             self.assert_is_equal(data_hash_check, true_bool);
 
-            // If this is the last valid block, verify the last_block_id_proof_root (header hash of block N+1) is equal to the global_end_header_hash.
+            // If this is the last valid block, verify the last_block_id_proof_root (header hash of block curr_idx+1) is equal to the global_end_header_hash.
             // This is the final step in the verification that global_start_block -> global_end_block is linked.
             let root_matches_end_header =
                 self.is_equal(last_block_id_proof_root, *global_end_header_hash);
             let end_header_check = self.or(is_not_last_block, root_matches_end_header);
             self.assert_is_equal(end_header_check, true_bool);
 
-            // Set current header to the hash of block N+1.
+            // Set current header to the hash of block curr_idx+1.
             curr_header = last_block_id_proof_root;
             // If this is the last valid block, set curr_block_enabled to false.
             curr_block_enabled = self.and(curr_block_enabled, is_not_last_block);
