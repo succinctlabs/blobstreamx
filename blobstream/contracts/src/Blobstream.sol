@@ -8,32 +8,58 @@ import {IFunctionGateway} from "@succinctx/interfaces/IFunctionGateway.sol";
 import {IZKTendermintLightClient} from "@zk-tendermint/IZKTendermintLightClient.sol";
 import {IBlobstream} from "./IBlobstream.sol";
 
-contract Blobstream is IZKTendermintLightClient, IBlobstream {
-    address public gateway;
-    uint64 public latestBlock;
-    uint64 public DATA_COMMITMENT_MAX = 1000;
+contract ZKBlobstream is IZKTendermintLightClient, IBlobstream {
+    /////////////
+    // Storage //
+    /////////////
 
+    /// @notice The address of the gateway contract.
+    address public gateway;
+    /// @notice The latest block that has been committed.
+    uint64 public latestBlock;
+    /// @notice The maximum number of blocks that can be skipped in a single request.
+    uint64 public DATA_COMMITMENT_MAX = 1000;
+    /// @notice Maps function names to their IDs.
     mapping(string => bytes32) public functionNameToId;
+    /// @notice Maps block heights to their header hashes.
     mapping(uint64 => bytes32) public blockHeightToHeaderHash;
+    /// @notice Maps block ranges to their data commitments. Block ranges are stored as keccak256(abi.encode(startBlock, endBlock)).
     mapping(bytes32 => bytes32) public dataCommitments;
 
-    event FunctionId(string name, bytes32 id);
-    event CombinedStepRequested(
-        uint64 indexed startBlock,
-        uint64 indexed targetBlock,
-        bytes32 requestId
-    );
+    /////////////
+    // Events //
+    /////////////
+
+    /// @notice Emitted when a combined step is requested.
+    /// @param startBlock The start block of the combined step request.
+    /// @param requestId The ID of the request.
+    event CombinedStepRequested(uint64 indexed startBlock, bytes32 requestId);
+
+    /// @notice Emitted when a combined step is fulfilled.
+    /// @param startBlock The start block of the combined step request.
+    /// @param targetHeader The header hash of the startBlock + 1.
+    /// @param dataCommitment The data commitment of the block range [startBlock, startBlock + 1).
     event CombinedStepFulfilled(
         uint64 indexed startBlock,
-        uint64 indexed targetBlock,
         bytes32 targetHeader,
         bytes32 dataCommitment
     );
+
+    /// @notice Emitted when a combined skip is requested.
+    /// @param startBlock The start block of the combined skip request.
+    /// @param targetBlock The target block of the combined skip request.
+    /// @param requestId The ID of the request.
     event CombinedSkipRequested(
         uint64 indexed startBlock,
         uint64 indexed targetBlock,
         bytes32 requestId
     );
+
+    /// @notice Emitted when a combined skip is fulfilled.
+    /// @param startBlock The start block of the combined skip request.
+    /// @param targetBlock The target block of the combined skip request.
+    /// @param targetHeader The header hash of the target block.
+    /// @param dataCommitment The data commitment of the block range [startBlock, targetBlock).
     event CombinedSkipFulfilled(
         uint64 indexed startBlock,
         uint64 indexed targetBlock,
@@ -41,27 +67,31 @@ contract Blobstream is IZKTendermintLightClient, IBlobstream {
         bytes32 dataCommitment
     );
 
+    ///////////////
+    // Modifiers //
+    ///////////////
+
+    /// @notice Modifier for restricting the gateway as the only caller for a function.
     modifier onlyGateway() {
         require(msg.sender == gateway, "Only gateway can call this function");
         _;
     }
 
+    ///////////////
+    // Functions //
+    ///////////////
+
+    /// @notice Initialize the contract with the address of the gateway contract.
     constructor(address _gateway) {
         gateway = _gateway;
     }
 
-    function getFunctionId(string memory name) external view returns (bytes32) {
-        return functionNameToId[name];
-    }
-
-    function getHeaderHash(uint64 height) external view returns (bytes32) {
-        return blockHeightToHeaderHash[height];
-    }
-
+    /// @notice Update the address of the gateway contract.
     function updateGateway(address _gateway) external {
         gateway = _gateway;
     }
 
+    /// @notice Update the function ID for a function name.
     function updateFunctionId(
         string memory name,
         bytes32 _functionId
@@ -69,64 +99,79 @@ contract Blobstream is IZKTendermintLightClient, IBlobstream {
         functionNameToId[name] = _functionId;
     }
 
+    /// Note: Only for testnet. The genesis header should be set when initializing the contract.
     function setGenesisHeader(uint64 height, bytes32 header) external {
         blockHeightToHeaderHash[height] = header;
         latestBlock = height;
     }
 
+    /// @notice Prove the validity of the header at requested block and a data commitment for the block range [latestBlock, requestedBlock).
+    /// @param _requestedBlock The block to skip to.
+    /// @dev Skip proof is valid if at least 1/3 of the voting power signed on requestedBlock is from validators in the validator set for latestBlock.
+    /// Request will fail if the requested block is more than DATA_COMMITMENT_MAX blocks ahead of the latest block.
+    /// Pass both the latest block and the requested block as context, as the latest block may change before the request is fulfilled.
     function requestCombinedSkip(uint64 _requestedBlock) external payable {
         bytes32 latestHeader = blockHeightToHeaderHash[latestBlock];
         if (latestHeader == bytes32(0)) {
-            revert("Trusted header not found");
+            revert("Latest header not found");
         }
         bytes32 id = functionNameToId["combinedSkip"];
         if (id == bytes32(0)) {
             revert("Function ID for combined skip not found");
         }
 
-        emit FunctionId("combinedSkip", id);
-
-        require(_requestedBlock - latestBlock <= DATA_COMMITMENT_MAX); // TODO: change this constant (should match max number of blocks in a data commitment)
+        // A request can be at most DATA_COMMITMENT_MAX blocks ahead of the latest block.
+        require(_requestedBlock - latestBlock <= DATA_COMMITMENT_MAX);
         require(_requestedBlock > latestBlock);
+
         bytes32 requestId = IFunctionGateway(gateway).request{value: msg.value}(
             id,
             abi.encodePacked(latestBlock, latestHeader, _requestedBlock),
             this.callbackCombinedSkip.selector,
-            abi.encode(_requestedBlock)
+            abi.encode(latestBlock, _requestedBlock)
         );
         emit CombinedSkipRequested(latestBlock, _requestedBlock, requestId);
     }
 
+    /// @notice Stores the new header for requestedBlock and the data commitment for the block range [latestBlock, requestedBlock).
+    /// @param requestResult Contains the new header and data commitment.
+    /// @param context Contains the latestBlock when skip was requested, and the requestedBlock to skip to.
     function callbackCombinedSkip(
         bytes memory requestResult,
         bytes memory context
     ) external onlyGateway {
-        uint64 requestedBlock = abi.decode(context, (uint64));
+        (uint64 skipStartBlock, uint64 skipTargetBlock) = abi.decode(
+            context,
+            (uint64)
+        );
         (bytes32 newHeader, bytes32 dataCommitment) = abi.decode(
             requestResult,
             (bytes32, bytes32)
         );
 
-        blockHeightToHeaderHash[requestedBlock] = newHeader;
+        require(
+            skipTargetBlock > latestBlock,
+            "skipTargetBlock must be greater than latest block"
+        );
 
+        blockHeightToHeaderHash[skipTargetBlock] = newHeader;
         dataCommitments[
-            keccak256(abi.encode(latestBlock, requestedBlock))
+            keccak256(abi.encode(skipStartBlock, skipTargetBlock))
         ] = dataCommitment;
+        latestBlock = skipTargetBlock;
 
-        require(requestedBlock > latestBlock);
-        latestBlock = requestedBlock;
         emit CombinedSkipFulfilled(
-            latestBlock,
-            requestedBlock,
+            skipStartBlock,
+            skipTargetBlock,
             newHeader,
             dataCommitment
         );
     }
 
-    // Needed in the rare case that skip cannot be used--when validator set changes by > 1/3
+    /// @notice Prove the validity of the header at latestBlock + 1 and a data commitment for the block range [latestBlock, latestBlock + 1).
+    /// @dev Only used if 2/3 of voting power in a validator set changes in one block.
     function requestCombinedStep() external payable {
         bytes32 latestHeader = blockHeightToHeaderHash[latestBlock];
-        // Note: Should never happen, deeply concerning if it does.
         if (latestHeader == bytes32(0)) {
             revert("Latest header not found");
         }
@@ -135,16 +180,18 @@ contract Blobstream is IZKTendermintLightClient, IBlobstream {
             revert("Function ID for combined step not found");
         }
 
-        emit FunctionId("combinedStep", id);
         bytes32 requestId = IFunctionGateway(gateway).request{value: msg.value}(
             id,
             abi.encodePacked(latestBlock, latestHeader),
             this.callbackCombinedStep.selector,
             abi.encode(latestBlock)
         );
-        emit CombinedStepRequested(latestBlock, latestBlock + 1, requestId);
+        emit CombinedStepRequested(latestBlock, requestId);
     }
 
+    /// @notice Stores the new header for latestBlock + 1 and the data commitment for the block range [latestBlock, latestBlock + 1).
+    /// @param requestResult Contains the new header and data commitment.
+    /// @param context Contains the latest block when step was requested.
     function callbackCombinedStep(
         bytes memory requestResult,
         bytes memory context
@@ -154,24 +201,30 @@ contract Blobstream is IZKTendermintLightClient, IBlobstream {
             requestResult,
             (bytes32, bytes32)
         );
-
         uint64 nextBlock = prevBlock + 1;
-        blockHeightToHeaderHash[nextBlock] = nextHeader;
 
+        require(nextBlock > latestBlock);
+
+        blockHeightToHeaderHash[nextBlock] = nextHeader;
         dataCommitments[
             keccak256(abi.encode(prevBlock, nextBlock))
         ] = dataCommitment;
-
-        require(nextBlock > latestBlock);
         latestBlock = nextBlock;
-        emit CombinedStepFulfilled(
-            prevBlock,
-            nextBlock,
-            nextHeader,
-            dataCommitment
-        );
+
+        emit CombinedStepFulfilled(prevBlock, nextHeader, dataCommitment);
     }
 
+    /// @notice Get the function ID for a function name.
+    function getFunctionId(string memory name) external view returns (bytes32) {
+        return functionNameToId[name];
+    }
+
+    /// @notice Get the header hash for a block height.
+    function getHeaderHash(uint64 height) external view returns (bytes32) {
+        return blockHeightToHeaderHash[height];
+    }
+
+    /// @dev See "./IBlobstream.sol"
     function getDataCommitment(
         uint64 startBlock,
         uint64 endBlock
@@ -179,6 +232,7 @@ contract Blobstream is IZKTendermintLightClient, IBlobstream {
         return dataCommitments[keccak256(abi.encode(startBlock, endBlock))];
     }
 
+    /// @dev See "./IBlobstream.sol"
     function verifyMerkleProof(
         uint256 startBlock,
         uint256 endBlock,
