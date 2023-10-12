@@ -5,22 +5,20 @@ import {IFunctionGateway} from "@succinctx/interfaces/IFunctionGateway.sol";
 import {IZKTendermintLightClient} from "./IZKTendermintLightClient.sol";
 
 contract ZKTendermintLightClient is IZKTendermintLightClient {
+    address public gateway;
+    uint64 public latestBlock;
+    mapping(string => bytes32) public functionNameToId;
+    mapping(uint64 => bytes32) public blockHeightToHeaderHash;
+
     event HeaderSkipRequested(
         uint64 indexed trustedBlock,
         uint64 indexed requestedBlock,
         bytes32 requestId
     );
     event HeaderSkipFulfilled(uint64 indexed requestedBlock, bytes32 header);
-
     event HeaderStepRequested(uint64 indexed prevBlock, bytes32 requestId);
     event HeaderStepFulfilled(uint64 indexed nextBlock, bytes32 header);
-
     event FunctionId(string name, bytes32 id);
-    address public gateway;
-    mapping(string => bytes32) public functionNameToId;
-
-    mapping(uint64 => bytes32) public blockHeightToHeaderHash;
-    uint64 latestBlock;
 
     modifier onlyGateway() {
         require(msg.sender == gateway, "Only gateway can call this function");
@@ -29,10 +27,6 @@ contract ZKTendermintLightClient is IZKTendermintLightClient {
 
     constructor(address _gateway) {
         gateway = _gateway;
-    }
-
-    function getLatestBlock() external view returns (uint64) {
-        return latestBlock;
     }
 
     function getFunctionId(string memory name) external view returns (bytes32) {

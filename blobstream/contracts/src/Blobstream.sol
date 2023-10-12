@@ -10,37 +10,30 @@ import {IBlobstream} from "./IBlobstream.sol";
 
 contract Blobstream is IZKTendermintLightClient, IBlobstream {
     address public gateway;
+    uint64 public latestBlock;
+    uint64 public DATA_COMMITMENT_MAX = 1000;
+
     mapping(string => bytes32) public functionNameToId;
-
     mapping(uint64 => bytes32) public blockHeightToHeaderHash;
-
     mapping(bytes32 => bytes32) public dataCommitments;
 
-    uint64 latestBlock;
-
-    uint64 DATA_COMMITMENT_MAX = 1000;
-
     event FunctionId(string name, bytes32 id);
-
     event CombinedStepRequested(
         uint64 indexed startBlock,
         uint64 indexed targetBlock,
         bytes32 requestId
     );
-
     event CombinedStepFulfilled(
         uint64 indexed startBlock,
         uint64 indexed targetBlock,
         bytes32 targetHeader,
         bytes32 dataCommitment
     );
-
     event CombinedSkipRequested(
         uint64 indexed startBlock,
         uint64 indexed targetBlock,
         bytes32 requestId
     );
-
     event CombinedSkipFulfilled(
         uint64 indexed startBlock,
         uint64 indexed targetBlock,
@@ -55,10 +48,6 @@ contract Blobstream is IZKTendermintLightClient, IBlobstream {
 
     constructor(address _gateway) {
         gateway = _gateway;
-    }
-
-    function getLatestBlock() external view override returns (uint64) {
-        return latestBlock;
     }
 
     function getFunctionId(string memory name) external view returns (bytes32) {

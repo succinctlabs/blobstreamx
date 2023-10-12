@@ -6,5 +6,5 @@ interface IZKTendermintLightClient {
 
     function getHeaderHash(uint64) external view returns (bytes32);
 
-    function getLatestBlock() external view returns (uint64);
+    function latestBlock() external view returns (uint64);
 }
