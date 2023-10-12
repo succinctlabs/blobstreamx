@@ -140,10 +140,9 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
         let batch_end_block = data_comm_proof.end_block_height;
         let batch_end_header_hash = data_comm_proof.end_header;
 
-        // Path of the data_hash against a Tendermint header.
+        // Path of the data_hash and last_block_id against the Tendermint header.
         let data_hash_path =
             self.constant::<ArrayVariable<BoolVariable, 4>>(vec![false, true, true, false]);
-        // Path of the last_block_id against a Tendermint header.
         let last_block_id_path =
             self.constant::<ArrayVariable<BoolVariable, 4>>(vec![false, false, true, false]);
 
@@ -160,24 +159,29 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
             let curr_block = self.add(batch_start_block, curr_idx);
 
             let curr_block_disabled = self.not(curr_block_enabled);
-            let is_last_valid_leaf = self.is_equal(last_block_to_process, curr_block);
-            let is_not_last_valid_leaf = self.not(is_last_valid_leaf);
+            let is_last_block = self.is_equal(last_block_to_process, curr_block);
+            let is_not_last_block = self.not(is_last_block);
 
-            // The computed root of the data_hash_proof should be the hash of block (start + i + 1).
+            // Root of data_hash_proofs[i] should be the hash of block (start + i).
             let data_hash_proof_root = self
                 .get_root_from_merkle_proof::<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES>(
                     &data_comm_proof.data_hash_proofs[i],
                     &data_hash_path,
                 );
-            // The computed root of the last_block_id_proof should be the hash of block (start + i + 1).
+            // Root of last_block_id_proofs[i] should be the hash of block (start + i + 1).
             let last_block_id_proof_root = self
                 .get_root_from_merkle_proof::<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES>(
                     &data_comm_proof.last_block_id_proofs[i],
                     &last_block_id_path,
                 );
 
-            // Extract the header hash of block (start + i) from the protobuf encoded last block id proof.
+            // Extract the previous header hash from the leaf of last_block_id_proof. This should be the header hash of block (start + i).
+            // Specifically, the leaf of the last_block_id_proof against block n+1 is the protobuf-encoded last_block_id, which contains the header hash of block n at [2..2+HASH_SIZE].
+            // Skip this check if curr_block >= last_block_to_process (curr_block_disabled).
             let header_hash = &data_comm_proof.last_block_id_proofs[i].leaf[2..2 + HASH_SIZE];
+            let is_valid_prev_header = self.is_equal(curr_header, header_hash.into());
+            let prev_header_check = self.or(curr_block_disabled, is_valid_prev_header);
+            self.assert_is_equal(prev_header_check, true_bool);
 
             // Verify the data hash proof against the header hash of block (start + i).
             let is_valid_data_hash = self.is_equal(data_hash_proof_root, header_hash.into());
@@ -185,25 +189,17 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
             let data_hash_check = self.or(curr_block_disabled, is_valid_data_hash);
             self.assert_is_equal(data_hash_check, true_bool);
 
-            // Verify the header chain.
-
-            // 1) Verify the curr_header matches the extracted header_hash.
-            let is_valid_prev_header = self.is_equal(curr_header, header_hash.into());
-            // Either this leaf is disabled or the prev header matches.
-            let prev_header_check = self.or(curr_block_disabled, is_valid_prev_header);
-            self.assert_is_equal(prev_header_check, true_bool);
-
             // 2) If is_last_valid_leaf is true, then the root of the last_block_id_proof must be the end_header.
             let root_matches_end_header =
                 self.is_equal(last_block_id_proof_root, *global_end_header_hash);
             // If this is the last valid leaf, then the last_block_id_proof_root must be the global_end_header.
-            let end_header_check = self.or(is_not_last_valid_leaf, root_matches_end_header);
+            let end_header_check = self.or(is_not_last_block, root_matches_end_header);
             self.assert_is_equal(end_header_check, true_bool);
 
             // Move curr_prev_header to last_block_id_proof_root.
             curr_header = last_block_id_proof_root;
             // Set is_enabled to false if this is the last valid leaf.
-            curr_block_enabled = self.and(curr_block_enabled, is_not_last_valid_leaf);
+            curr_block_enabled = self.and(curr_block_enabled, is_not_last_block);
         }
 
         // Select the min of the target block and the end block in the batch.
