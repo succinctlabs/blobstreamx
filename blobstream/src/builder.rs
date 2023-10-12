@@ -95,6 +95,7 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
         let num_blocks = self.sub(end_block, start_block);
         let mut leaves = Vec::new();
 
+        // Compute the leaves of the merkle tree.
         for i in 0..MAX_LEAVES {
             let curr_idx = self.constant::<U64Variable>(i as u64);
             let block_height = self.add(start_block, curr_idx);
@@ -133,6 +134,7 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
         let one = self.constant::<U64Variable>(1u64);
         let true_bool = self._true();
 
+        // Get the start block, start header, end block, and end header from the data_comm_proof.
         let batch_start_block = data_comm_proof.start_block_height;
         let batch_start_header_hash = data_comm_proof.start_header;
         let batch_end_block = data_comm_proof.end_block_height;
@@ -145,13 +147,14 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
         let last_block_id_path =
             self.constant::<ArrayVariable<BoolVariable, 4>>(vec![false, false, true, false]);
 
-        // Mark the batch as enabled if batch_start_block < global_end_block.
+        // If batch_start_block < global_end_block, this batch has headers that need to be verified.
         let is_batch_enabled = self.lt(batch_start_block, *global_end_block);
 
         let mut curr_header = batch_start_header_hash;
         let mut curr_block_enabled = is_batch_enabled;
         let last_block_to_process = self.sub(*global_end_block, one);
 
+        // Verify all headers in the batch. If last_block_to_process < batch_end_block, stop verifying at last_block_to_process.
         for i in 0..BATCH_SIZE {
             let curr_idx = self.constant::<U64Variable>(i as u64);
             let curr_block = self.add(batch_start_block, curr_idx);
@@ -290,11 +293,7 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
 
                     builder.prove_subchain(&data_comm_proof, &global_end_block, &global_end_header_hash)
                 },
-                |_, left_output, right_output, builder| {
-                    let left_subchain = left_output;
-
-                    let right_subchain = right_output;
-
+                |_, left_subchain, right_subchain, builder| {
                     let false_var = builder._false();
 
                     let right_empty = builder.is_equal(right_subchain.is_enabled, false_var);
