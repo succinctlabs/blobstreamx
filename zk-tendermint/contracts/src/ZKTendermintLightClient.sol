@@ -147,20 +147,22 @@ contract ZKTendermintLightClient is IZKTendermintLightClient {
         bytes memory requestResult,
         bytes memory context
     ) external onlyGateway {
+        // Read the start block and target block of the skip proof from context.
         (uint64 skipStartBlock, uint64 skipTargetBlock) = abi.decode(
             context,
             (uint64, uint64)
         );
-        bytes32 newHeader = abi.decode(requestResult, (bytes32));
+        // Read the target header from request result.
+        bytes32 targetHeader = abi.decode(requestResult, (bytes32));
 
         if (skipTargetBlock <= latestBlock) {
             revert TargetLessThanLatest();
         }
 
-        blockHeightToHeaderHash[skipTargetBlock] = newHeader;
+        blockHeightToHeaderHash[skipTargetBlock] = targetHeader;
         latestBlock = skipTargetBlock;
 
-        emit HeaderSkipFulfilled(skipStartBlock, skipTargetBlock, newHeader);
+        emit HeaderSkipFulfilled(skipStartBlock, skipTargetBlock, targetHeader);
     }
 
     /// @notice Prove the validity of the header at latestBlock + 1.
@@ -195,18 +197,20 @@ contract ZKTendermintLightClient is IZKTendermintLightClient {
         bytes memory requestResult,
         bytes memory context
     ) external onlyGateway {
+        // Read the prev block of the step proof from context.
         uint64 prevBlock = abi.decode(context, (uint64));
-        bytes32 nextHeader = abi.decode(requestResult, (bytes32));
-        uint64 nextBlock = prevBlock + 1;
+        // Read the new header from request result.
+        bytes32 newHeader = abi.decode(requestResult, (bytes32));
 
+        uint64 nextBlock = prevBlock + 1;
         if (nextBlock <= latestBlock) {
             revert TargetLessThanLatest();
         }
 
-        blockHeightToHeaderHash[nextBlock] = nextHeader;
+        blockHeightToHeaderHash[nextBlock] = newHeader;
         latestBlock = nextBlock;
 
-        emit HeaderStepFulfilled(nextBlock, nextHeader);
+        emit HeaderStepFulfilled(nextBlock, newHeader);
     }
 
     /// @dev See "./IZKTendermintLightClient.sol"

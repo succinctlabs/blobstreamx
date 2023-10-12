@@ -160,11 +160,13 @@ contract ZKBlobstream is IZKTendermintLightClient, IBlobstream {
         bytes memory requestResult,
         bytes memory context
     ) external onlyGateway {
+        // Read the start block and target block of the skip proof from context.
         (uint64 skipStartBlock, uint64 skipTargetBlock) = abi.decode(
             context,
             (uint64, uint64)
         );
-        (bytes32 newHeader, bytes32 dataCommitment) = abi.decode(
+        // Read the target header and data commitment from request result.
+        (bytes32 targetHeader, bytes32 dataCommitment) = abi.decode(
             requestResult,
             (bytes32, bytes32)
         );
@@ -173,7 +175,7 @@ contract ZKBlobstream is IZKTendermintLightClient, IBlobstream {
             revert TargetLessThanLatest();
         }
 
-        blockHeightToHeaderHash[skipTargetBlock] = newHeader;
+        blockHeightToHeaderHash[skipTargetBlock] = targetHeader;
         dataCommitments[
             keccak256(abi.encode(skipStartBlock, skipTargetBlock))
         ] = dataCommitment;
@@ -182,7 +184,7 @@ contract ZKBlobstream is IZKTendermintLightClient, IBlobstream {
         emit CombinedSkipFulfilled(
             skipStartBlock,
             skipTargetBlock,
-            newHeader,
+            targetHeader,
             dataCommitment
         );
     }
@@ -218,13 +220,15 @@ contract ZKBlobstream is IZKTendermintLightClient, IBlobstream {
         bytes memory requestResult,
         bytes memory context
     ) external onlyGateway {
+        // Read the prev block of the step proof from context.
         uint64 prevBlock = abi.decode(context, (uint64));
+        // Read the new header and data commitment from request result.
         (bytes32 nextHeader, bytes32 dataCommitment) = abi.decode(
             requestResult,
             (bytes32, bytes32)
         );
-        uint64 nextBlock = prevBlock + 1;
 
+        uint64 nextBlock = prevBlock + 1;
         if (nextBlock <= latestBlock) {
             revert TargetLessThanLatest();
         }
