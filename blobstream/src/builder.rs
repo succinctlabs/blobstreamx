@@ -34,10 +34,10 @@ pub trait DataCommitmentBuilder<L: PlonkParameters<D>, const D: usize> {
         end_block: U64Variable,
     ) -> Bytes32Variable;
 
-    /// Verify the chain of headers is linked for the subrange specified in data_comm_proof & generate the subrange's data_merkle_root. Skips verification after global_end_block.
+    /// Verify the chain of headers is linked for the subrange in the data commitment proof. & generate the subrange's data_merkle_root. Skip verification after global_end_block.
     ///
-    /// Specifically, a MapReduce circuit with <NB_MAP_JOBS=4, BATCH_SIZE=4> over blocks [0, 16) will invoke prove_subchain 4 times. Each of the prove_subchain calls
-    /// over [0, 4), [4, 8), [8, 12), [12, 16) will 1) prove the chain of headers are linked and 2) output the corresponding data_merkle_root.
+    /// Specifically, a MapReduce circuit with <NB_MAP_JOBS=4, BATCH_SIZE=4> over blocks [0, 16) will invoke prove_subchain 4 times. Each of the 4 prove_subchain calls
+    /// over [0, 4), [4, 8), [8, 12), [12, 16) will 1) prove the subchain of headers are linked and 2) output their corresponding data_merkle_root.
     fn prove_subchain<const BATCH_SIZE: usize>(
         &mut self,
         data_comm_proof: &DataCommitmentProofVariable<BATCH_SIZE>,
@@ -65,21 +65,18 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
         data_hash: &Bytes32Variable,
         height: &U64Variable,
     ) -> BytesVariable<ENC_DATA_ROOT_TUPLE_SIZE_BYTES> {
+        // Encode the data hash and height into a tuple: abi.encode(height, data_hash).
         let mut encoded_tuple = Vec::new();
 
-        // Encode the height.
+        // Encode the height (uses abi.encodePacked).
         let encoded_height = height.encode(self);
 
-        // Pad the abi.encodePacked(height) to 32 bytes. Height is 8 bytes, pad with 32 - 8 = 24 bytes.
+        // Pad abi.encodePacked(height) to 32 bytes. Height is 8 bytes, pad with 32 - 8 = 24 bytes.
         encoded_tuple.extend(
             self.constant::<ArrayVariable<ByteVariable, 24>>(vec![0u8; 24])
                 .as_vec(),
         );
-
-        // Add the abi.encodePacked(height) to the tuple.
         encoded_tuple.extend(encoded_height);
-
-        // Add the data hash to the tuple.
         encoded_tuple.extend(data_hash.as_bytes().to_vec());
 
         // Convert Vec<ByteVariable> to BytesVariable<64>.
@@ -147,10 +144,10 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
             self.constant::<ArrayVariable<BoolVariable, 4>>(vec![false, false, true, false]);
 
         // If batch_start_block < global_end_block, this batch has headers that need to be verified.
+        // If is_batch_enabled is false, in the reduce stage the batch will be considered empty and skipped.
         let is_batch_enabled = self.lt(batch_start_block, *global_end_block);
-
-        let mut curr_header = batch_start_header_hash;
         let mut curr_block_enabled = is_batch_enabled;
+        let mut curr_header = batch_start_header_hash;
         let last_block_to_process = self.sub(*global_end_block, one);
 
         // Verify all headers in the batch. If last_block_to_process < batch_end_block, stop verifying at last_block_to_process.
@@ -162,51 +159,49 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
             let is_last_block = self.is_equal(last_block_to_process, curr_block);
             let is_not_last_block = self.not(is_last_block);
 
-            // Root of data_hash_proofs[i] should be the hash of block (start + i).
+            // Root of data_hash_proofs[i] should be the hash of block N.
             let data_hash_proof_root = self
                 .get_root_from_merkle_proof::<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES>(
                     &data_comm_proof.data_hash_proofs[i],
                     &data_hash_path,
                 );
-            // Root of last_block_id_proofs[i] should be the hash of block (start + i + 1).
+            // Root of last_block_id_proofs[i] should be the hash of block N+1.
             let last_block_id_proof_root = self
                 .get_root_from_merkle_proof::<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES>(
                     &data_comm_proof.last_block_id_proofs[i],
                     &last_block_id_path,
                 );
 
-            // Extract the previous header hash from the leaf of last_block_id_proof. This should be the header hash of block (start + i).
-            // Specifically, the leaf of the last_block_id_proof against block n+1 is the protobuf-encoded last_block_id, which contains the header hash of block n at [2..2+HASH_SIZE].
-            // Skip this check if curr_block >= last_block_to_process (curr_block_disabled).
+            // Extract the previous header hash from the leaf of last_block_id_proof, and verify it is equal to the header hash of block N.
+            // Note: The leaf of the last_block_id_proof against block N+1 is the protobuf-encoded last_block_id, which contains the header hash of block N at [2..2+HASH_SIZE].
+            // Always passes if curr_block >= last_block_to_process (curr_block_disabled).
             let header_hash = &data_comm_proof.last_block_id_proofs[i].leaf[2..2 + HASH_SIZE];
             let is_valid_prev_header = self.is_equal(curr_header, header_hash.into());
             let prev_header_check = self.or(curr_block_disabled, is_valid_prev_header);
             self.assert_is_equal(prev_header_check, true_bool);
 
-            // Verify the data hash proof against the header hash of block (start + i).
-            let is_valid_data_hash = self.is_equal(data_hash_proof_root, header_hash.into());
-            // Either this leaf is disabled or the data hash proof is valid.
-            let data_hash_check = self.or(curr_block_disabled, is_valid_data_hash);
+            // Verify the data hash proof is valid against block N.
+            let is_data_hash_proof_valid = self.is_equal(data_hash_proof_root, header_hash.into());
+            let data_hash_check = self.or(curr_block_disabled, is_data_hash_proof_valid);
             self.assert_is_equal(data_hash_check, true_bool);
 
-            // 2) If is_last_valid_leaf is true, then the root of the last_block_id_proof must be the end_header.
+            // If this is the last valid block, verify the last_block_id_proof_root (header hash of block N+1) is equal to the global_end_header_hash.
+            // This is the final step in the verification that global_start_block -> global_end_block is linked.
             let root_matches_end_header =
                 self.is_equal(last_block_id_proof_root, *global_end_header_hash);
-            // If this is the last valid leaf, then the last_block_id_proof_root must be the global_end_header.
             let end_header_check = self.or(is_not_last_block, root_matches_end_header);
             self.assert_is_equal(end_header_check, true_bool);
 
-            // Move curr_prev_header to last_block_id_proof_root.
+            // Set current header to the hash of block N+1.
             curr_header = last_block_id_proof_root;
-            // Set is_enabled to false if this is the last valid leaf.
+            // If this is the last valid block, set curr_block_enabled to false.
             curr_block_enabled = self.and(curr_block_enabled, is_not_last_block);
         }
 
-        // Select the min of the target block and the end block in the batch.
+        // The end block of the batch's data_merkle_root is min(batch_end_block, global_end_block).
+        // Compute the data_merkle_root for the batch.
         let is_less_than_target = self.lte(batch_end_block, *global_end_block);
         let end_block_num = self.select(is_less_than_target, batch_end_block, *global_end_block);
-
-        // Generate the data_merkle_root for the batch. If the batch is disabled
         let data_merkle_root = self.get_data_commitment::<BATCH_SIZE>(
             &data_comm_proof.data_hashes,
             batch_start_block,
@@ -242,99 +237,90 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
         };
 
         let total_headers = NB_MAP_JOBS * BATCH_SIZE;
-
         let relative_block_nums = (0u64..(total_headers as u64)).collect::<Vec<_>>();
 
-        // The last block in batch i and the start block in batch i+1 are shared.
         let result = self
             .mapreduce::<SubchainVerificationCtx, U64Variable, MapReduceSubchainVariable, C, BATCH_SIZE, _, _>(
                 ctx.clone(),
                 relative_block_nums,
                 |map_ctx, map_relative_block_nums, builder| {
-                    let one = builder.constant::<U64Variable>(1u64);
+                    // The following logic handles the map stage of the mapreduce.
+                    //  1) Fetch the data commitment inputs for the batch.
+                    //  2) Verify the chain of headers is linked for the batch.
+                    //  3) Compute the corresponding data_merkle_root.
 
+                    let one = builder.constant::<U64Variable>(1u64);
                     let global_end_header_hash = map_ctx.end_header_hash;
                     let global_end_block = map_ctx.end_block;
 
-                    // map_relative_block_nums is a [U64Variable; BATCH_SIZE]
                     let start_block =
                         builder.add(map_ctx.start_block, map_relative_block_nums.as_vec()[0]);
-
                     let last_block = builder.add(
                         map_ctx.start_block,
                         map_relative_block_nums.as_vec()[BATCH_SIZE - 1],
                     );
 
-                    // batch_end_block - start_block = BATCH_SIZE.
+                    // The query_end_block = min(batch_end_block, global_end_block) for fetching the data commitment inputs.
+                    // If batch_end_block > global_end_block, data_comm_proof will be filled with dummy values.
+                    // This is because prove_subchain only checks up to global_end_block, and doing so reduces RPC calls.
                     let batch_end_block = builder.add(last_block, one);
-
                     let past_global_end = builder.gt(batch_end_block, global_end_block);
-
-                    // If batch_end_block > global_end_block, then the data_commitment's end is the global_end_block.
                     let query_end_block = builder.select(past_global_end, global_end_block, batch_end_block);
 
+                    // Fetch and read the data commitment inputs.
                     let mut input_stream = VariableStream::new();
                     input_stream.write(&start_block);
                     input_stream.write(&query_end_block);
-
                     let data_comm_fetcher = DataCommitmentOffchainInputs::<BATCH_SIZE> {};
                     let output_stream = builder
                         .async_hint(input_stream, data_comm_fetcher);
-
-                    // If batch_end_block > global_end_block, data_comm_proof will have dummy values.
-                    // This is because prove_subchain only checks up to global_end_block, and doing so reduces RPC calls.
                     let data_comm_proof = output_stream
                         .read::<DataCommitmentProofVariable<BATCH_SIZE>>(builder);
                     let _ = output_stream.read::<Bytes32Variable>(builder);
 
+                    // Verify the chain of headers is linked for the batch & compute the corresponding data_merkle_root.
                     builder.prove_subchain(&data_comm_proof, &global_end_block, &global_end_header_hash)
                 },
                 |_, left_subchain, right_subchain, builder| {
+                    // The following logic handles the reduce stage of the mapreduce.
+                    //  1) Verify the left and right subchains are correctly linked.
+                    //  2) Compute the combined data_merkle_root of the left and right subchains.
+
                     let false_var = builder._false();
+                    let true_var = builder._true();
+                    let is_right_subchain_disabled = builder.is_equal(right_subchain.is_enabled, false_var);
 
-                    let right_empty = builder.is_equal(right_subchain.is_enabled, false_var);
-
-                    // Check to see if the left and right nodes are correctly linked.
-                    let nodes_linked =
+                    // Check the left and right subchains are correctly linked.
+                    // Always passes if the right subchain is disabled.
+                    let subchains_headers_linked =
                         builder.is_equal(left_subchain.end_header, right_subchain.start_header);
+                    let subchains_blocks_linked = builder.is_equal(left_subchain.end_block, right_subchain.start_block);
+                    let subchains_linked = builder.and(subchains_headers_linked, subchains_blocks_linked);
+                    let link_check = builder.or(is_right_subchain_disabled, subchains_linked);
+                    builder.assert_is_equal(link_check, true_var);
 
-                    let nodes_sequential = builder.is_equal(left_subchain.end_block, right_subchain.start_block);
-
-                    let nodes_correctly_linked = builder.and(nodes_linked, nodes_sequential);
-
-                    let link_check = builder.or(right_empty, nodes_correctly_linked);
-                    let true_const = builder._true();
-                    builder.assert_is_equal(link_check, true_const);
-
-                    let end_block = builder.select(right_empty, left_subchain.end_block, right_subchain.end_block);
-                    let end_header_hash =
-                        builder.select(right_empty, left_subchain.end_header, right_subchain.end_header);
-
-                    // Call regular SHA to avoid allocating a Curta gadget.
+                    // Compute Tendermint inner_hash(left_subchain.data_merkle_root, right_subchain.data_merkle_root).
                     let one_byte = ByteVariable::constant(builder, 1u8);
                     let mut encoded_leaf = vec![one_byte];
-                    // Append the left bytes to the one byte.
                     encoded_leaf.extend(left_subchain.data_merkle_root.as_bytes().to_vec());
-                    // Append the right bytes to the bytes so far.
                     encoded_leaf.extend(right_subchain.data_merkle_root.as_bytes().to_vec());
-
+                    // Note: Use sha256 instead of inner_hash to avoid allocating a Curta gadget.
                     let computed_data_merkle_root = builder.sha256(&encoded_leaf);
 
                     // If the right node is empty, then the data_merkle_root is the left node's data_merkle_root.
                     let data_merkle_root = builder.select(
-                        right_empty,
+                        is_right_subchain_disabled,
                         left_subchain.data_merkle_root,
                         computed_data_merkle_root,
                     );
 
-                    let either_enabled = builder.or(left_subchain.is_enabled, right_subchain.is_enabled);
-
                     MapReduceSubchainVariable {
-                        is_enabled: either_enabled,
+                        // If the left_subchain is disabled, then the right_subchain is disabled.
+                        is_enabled: left_subchain.is_enabled,
                         start_block: left_subchain.start_block,
                         start_header: left_subchain.start_header,
-                        end_block,
-                        end_header: end_header_hash,
+                        end_block: right_subchain.end_block,
+                        end_header: right_subchain.end_header,
                         data_merkle_root,
                     }
                 },
