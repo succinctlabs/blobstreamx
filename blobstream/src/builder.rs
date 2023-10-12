@@ -9,8 +9,7 @@ use zk_tendermint::consts::*;
 use crate::commitment::DataCommitmentOffchainInputs;
 use crate::vars::{DataCommitmentProofVariable, MapReduceSubchainVariable};
 
-// Shared context across all mapreduce jobs.
-// In prove_data_commitment, end_block and end_header_hash are referred to as global_end_block and global_end_header_hash.
+// Shared context across all data commitment mapreduce jobs.
 #[derive(Clone, Debug, CircuitVariable)]
 pub struct DataCommitmentSharedCtx {
     pub start_block: U64Variable,
