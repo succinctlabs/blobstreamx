@@ -73,7 +73,7 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
         // Encode the data hash and height into a tuple: abi.encode(height, data_hash).
         let mut encoded_tuple = Vec::new();
 
-        // Encode the height (uses abi.encodePacked).
+        // Encode the height with encodePacked.
         let encoded_height = height.encode(self);
 
         // Pad abi.encodePacked(height) to 32 bytes. Height is 8 bytes, pad with 32 - 8 = 24 bytes.
