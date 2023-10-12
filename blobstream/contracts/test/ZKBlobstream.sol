@@ -2,13 +2,13 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import "../src/Blobstream.sol";
+import "../src/ZKBlobstream.sol";
 
-contract BlobstreamTest is Test {
-    Blobstream public blobstream;
+contract ZKBlobstreamTest is Test {
+    ZKBlobstream public blobstream;
 
     function setUp() public {
-        blobstream = new Blobstream(address(0));
+        blobstream = new ZKBlobstream(address(0));
     }
 
     function testGetEncodePackedCombinedStep() public view {

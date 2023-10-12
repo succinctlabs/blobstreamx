@@ -142,7 +142,7 @@ contract ZKBlobstream is IZKTendermintLightClient, IBlobstream {
     ) external onlyGateway {
         (uint64 skipStartBlock, uint64 skipTargetBlock) = abi.decode(
             context,
-            (uint64)
+            (uint64, uint64)
         );
         (bytes32 newHeader, bytes32 dataCommitment) = abi.decode(
             requestResult,
