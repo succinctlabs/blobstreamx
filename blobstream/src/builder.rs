@@ -241,8 +241,8 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
             end_header_hash,
         };
 
-        let total_headers = NB_MAP_JOBS * BATCH_SIZE;
-        let relative_block_nums = (0u64..(total_headers as u64)).collect::<Vec<_>>();
+        let max_num_blocks = NB_MAP_JOBS * BATCH_SIZE;
+        let relative_block_nums = (0u64..(max_num_blocks as u64)).collect::<Vec<_>>();
 
         let result = self
             .mapreduce::<DataCommitmentSharedCtx, U64Variable, MapReduceSubchainVariable, C, BATCH_SIZE, _, _>(
