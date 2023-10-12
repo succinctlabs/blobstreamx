@@ -128,11 +128,14 @@ contract ZKTendermintLightClient is IZKTendermintLightClient {
             revert TargetLessThanLatest();
         }
 
-        bytes32 requestId = IFunctionGateway(gateway).request{value: msg.value}(
+        bytes32 requestId = IFunctionGateway(gateway).requestCallback{
+            value: msg.value
+        }(
             id,
             abi.encodePacked(latestHeader, latestBlock, _requestedBlock),
+            abi.encode(latestBlock, _requestedBlock),
             this.callbackHeaderSkip.selector,
-            abi.encode(latestBlock, _requestedBlock)
+            500000
         );
         emit HeaderSkipRequested(latestBlock, _requestedBlock, requestId);
     }
@@ -172,11 +175,15 @@ contract ZKTendermintLightClient is IZKTendermintLightClient {
         if (id == bytes32(0)) {
             revert FunctionIdNotFound("step");
         }
-        bytes32 requestId = IFunctionGateway(gateway).request{value: msg.value}(
+
+        bytes32 requestId = IFunctionGateway(gateway).requestCallback{
+            value: msg.value
+        }(
             id,
             abi.encodePacked(latestHeader, latestBlock),
+            abi.encode(latestBlock),
             this.callbackHeaderStep.selector,
-            abi.encode(latestBlock)
+            500000
         );
         emit HeaderStepRequested(latestBlock, requestId);
     }

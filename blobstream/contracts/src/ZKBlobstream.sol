@@ -141,11 +141,14 @@ contract ZKBlobstream is IZKTendermintLightClient, IBlobstream {
             revert TargetLessThanLatest();
         }
 
-        bytes32 requestId = IFunctionGateway(gateway).request{value: msg.value}(
+        bytes32 requestId = IFunctionGateway(gateway).requestCallback{
+            value: msg.value
+        }(
             id,
             abi.encodePacked(latestBlock, latestHeader, _requestedBlock),
+            abi.encode(latestBlock, _requestedBlock),
             this.callbackCombinedSkip.selector,
-            abi.encode(latestBlock, _requestedBlock)
+            500000
         );
         emit CombinedSkipRequested(latestBlock, _requestedBlock, requestId);
     }
@@ -196,11 +199,14 @@ contract ZKBlobstream is IZKTendermintLightClient, IBlobstream {
             revert FunctionIdNotFound("combinedStep");
         }
 
-        bytes32 requestId = IFunctionGateway(gateway).request{value: msg.value}(
+        bytes32 requestId = IFunctionGateway(gateway).requestCallback{
+            value: msg.value
+        }(
             id,
             abi.encodePacked(latestBlock, latestHeader),
+            abi.encode(latestBlock),
             this.callbackCombinedStep.selector,
-            abi.encode(latestBlock)
+            500000
         );
         emit CombinedStepRequested(latestBlock, requestId);
     }
