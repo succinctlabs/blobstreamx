@@ -11,29 +11,34 @@ contract DeployScript is Script {
 
     function run() public {
         vm.startBroadcast();
+        // Note: Update gateway when deployed.
         address gateway = address(0x852a94F8309D445D27222eDb1E92A4E83DdDd2a8);
+        // combined_step_32
         bytes32 combinedStepFunctionId = bytes32(
-            0x405f529e3a9464726d64e23f7579500a6088ca1db5eb69e13b642911ff08b0a0
+            0xde939452e6506cc08d1d7b32ffe1b82cf9d96829b7aa30f0b542f1050651c43c
         );
-
+        // combined_skip_32
         bytes32 combinedSkipFunctionId = bytes32(
-            0x38d95a54c6cf0cf5aad1b8c26ceba15f4514d146722f8eb237dfded3036a4d1a
+            0x6e6d644f9af0228e739c594f889a49f13283043e7f7c0a55379ca212ad0b4609
         );
 
         // Use the below to interact with an already deployed Blobstream
         ZKBlobstream blobstream = ZKBlobstream(
-            0x6822E56Bee9ED802D039851801dc80d21dF15958
+            0xb27328047789FA2320B43e3Ecc78Ec3eFf1DC0eA
         );
+
+        // Update gateway to new address.
+        blobstream.updateGateway(gateway);
 
         // TODO: Add back in when testing a new skip or step.
         uint64 height = 10000;
         bytes32 header = hex"A0123D5E4B8B8888A61F931EE2252D83568B97C223E0ECA9795B29B8BD8CBA2D";
         blobstream.setGenesisHeader(height, header);
 
-        // uint64 height = 100100;
+        // // uint64 height = 100100;
 
-        blobstream.updateFunctionId("combinedStep", combinedStepFunctionId);
-        blobstream.updateFunctionId("combinedSkip", combinedSkipFunctionId);
+        // blobstream.updateFunctionId("combinedStep", combinedStepFunctionId);
+        // blobstream.updateFunctionId("combinedSkip", combinedSkipFunctionId);
 
         uint64 skipHeight = 10100;
         blobstream.requestCombinedSkip{value: 0.1 ether}(skipHeight);
