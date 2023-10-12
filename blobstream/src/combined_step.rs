@@ -124,7 +124,7 @@ mod tests {
     #[test]
     #[cfg_attr(feature = "ci", ignore)]
     fn test_combined_step_small() {
-        const MAX_VALIDATOR_SET_SIZE: usize = 2;
+        const MAX_VALIDATOR_SET_SIZE: usize = 4;
 
         let start_block = 10000u64;
         let start_header_hash =
