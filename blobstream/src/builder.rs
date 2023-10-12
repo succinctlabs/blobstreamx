@@ -9,7 +9,7 @@ use zk_tendermint::consts::*;
 use crate::commitment::DataCommitmentOffchainInputs;
 use crate::vars::{DataCommitmentProofVariable, MapReduceSubchainVariable};
 
-// Shared context across all data commitment mapreduce jobs.
+/// Shared context across all data commitment mapreduce jobs.
 #[derive(Clone, Debug, CircuitVariable)]
 pub struct DataCommitmentSharedCtx {
     pub start_block: U64Variable,
