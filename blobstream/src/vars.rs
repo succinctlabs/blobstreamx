@@ -8,7 +8,7 @@ use zk_tendermint::consts::*;
 
 // The data commitment inputs as a struct.
 // Note: data_hashes, data_hash_proofs should include range (start, end-1).
-// Note: prev_header_proofs should include range (start+1, end).
+// Note: last_block_id_proofs should include range (start+1, end).
 #[derive(Clone, Debug, CircuitVariable)]
 #[value_name(DataCommitmentProofValueType)]
 pub struct DataCommitmentProofVariable<const MAX_LEAVES: usize> {
@@ -21,7 +21,7 @@ pub struct DataCommitmentProofVariable<const MAX_LEAVES: usize> {
         MerkleInclusionProofVariable<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES>,
         MAX_LEAVES,
     >,
-    pub prev_header_proofs: ArrayVariable<
+    pub last_block_id_proofs: ArrayVariable<
         MerkleInclusionProofVariable<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES>,
         MAX_LEAVES,
     >,

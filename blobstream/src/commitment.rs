@@ -41,7 +41,7 @@ impl<const MAX_LEAVES: usize, L: PlonkParameters<D>, const D: usize> AsyncHint<L
             end_block_height: end_block,
             end_header: H256(result.1),
             data_hash_proofs: result.3,
-            prev_header_proofs: result.4,
+            last_block_id_proofs: result.4,
         };
         // Write the inputs to the data commitment circuit.
         output_stream.write_value::<DataCommitmentProofVariable<MAX_LEAVES>>(data_comm_proof);

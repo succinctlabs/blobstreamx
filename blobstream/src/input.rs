@@ -37,7 +37,7 @@ pub trait DataCommitmentInputs {
         [u8; 32],                                                             // end_header_hash
         Vec<[u8; 32]>,                                                        // data_hashes
         Vec<InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES, F>>, // data_hash_proofs
-        Vec<InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, F>>, // prev_header_proofs
+        Vec<InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, F>>, // last_block_id_proofs
         [u8; 32], // expected_data_commitment
     );
 }
@@ -100,12 +100,12 @@ impl DataCommitmentInputs for InputDataFetcher {
         [u8; 32],                                                             // end_header_hash
         Vec<[u8; 32]>,                                                        // data_hashes
         Vec<InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES, F>>, // data_hash_proofs
-        Vec<InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, F>>, // prev_header_proofs
+        Vec<InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, F>>, // last_block_id_proofs
         [u8; 32], // expected_data_commitment
     ) {
         let mut data_hashes = Vec::new();
         let mut data_hash_proofs = Vec::new();
-        let mut prev_header_proofs = Vec::new();
+        let mut last_block_id_proofs = Vec::new();
         for i in start_block_number..end_block_number + 1 {
             let header = self.get_header_from_number(i).await;
             let data_hash = header.data_hash.unwrap();
@@ -117,12 +117,12 @@ impl DataCommitmentInputs for InputDataFetcher {
                 header.data_hash.unwrap().encode_vec(),
             );
             data_hash_proofs.push(data_hash_proof);
-            let prev_header_proof = self.get_inclusion_proof::<PROTOBUF_BLOCK_ID_SIZE_BYTES, F>(
+            let last_block_id_proof = self.get_inclusion_proof::<PROTOBUF_BLOCK_ID_SIZE_BYTES, F>(
                 &header,
                 LAST_BLOCK_ID_INDEX as u64,
                 Protobuf::<RawBlockId>::encode_vec(header.last_block_id.unwrap_or_default()),
             );
-            prev_header_proofs.push(prev_header_proof);
+            last_block_id_proofs.push(last_block_id_proof);
         }
 
         // If there is no data commitment, each of the above vectors will be empty.
@@ -131,8 +131,8 @@ impl DataCommitmentInputs for InputDataFetcher {
             data_hashes.pop();
             data_hash_proofs.pop();
 
-            // Remove prev_header_proof of start_block, as data_commitment does not include it.
-            prev_header_proofs = prev_header_proofs[1..].to_vec();
+            // Remove last_block_id_proof of start_block, as data_commitment does not include it.
+            last_block_id_proofs = last_block_id_proofs[1..].to_vec();
         }
 
         let mut data_hash_proofs_formatted = data_hash_proofs
@@ -145,7 +145,7 @@ impl DataCommitmentInputs for InputDataFetcher {
             )
             .collect_vec();
 
-        let mut prev_header_proofs_formatted = prev_header_proofs
+        let mut last_block_id_proofs_formatted = last_block_id_proofs
             .into_iter()
             .map(
                 |proof| InclusionProof::<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, F> {
@@ -156,7 +156,7 @@ impl DataCommitmentInputs for InputDataFetcher {
             .collect_vec();
 
         let num_so_far = data_hashes.len();
-        // Extend data_hashes, data_hash_proofs, and prev_header_proofs to MAX_LEAVES.
+        // Extend data_hashes, data_hash_proofs, and last_block_id_proofs to MAX_LEAVES.
         for _ in num_so_far..MAX_LEAVES {
             data_hashes.push([0u8; 32]);
             data_hash_proofs_formatted.push(InclusionProof::<
@@ -167,7 +167,7 @@ impl DataCommitmentInputs for InputDataFetcher {
                 proof: [H256::zero(); HEADER_PROOF_DEPTH].to_vec(),
                 leaf: [0u8; PROTOBUF_HASH_SIZE_BYTES],
             });
-            prev_header_proofs_formatted.push(InclusionProof::<
+            last_block_id_proofs_formatted.push(InclusionProof::<
                 HEADER_PROOF_DEPTH,
                 PROTOBUF_BLOCK_ID_SIZE_BYTES,
                 F,
@@ -206,7 +206,7 @@ impl DataCommitmentInputs for InputDataFetcher {
             end_header,
             data_hashes,
             data_hash_proofs_formatted,
-            prev_header_proofs_formatted,
+            last_block_id_proofs_formatted,
             expected_data_commitment,
         )
     }

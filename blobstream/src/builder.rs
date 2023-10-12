@@ -131,77 +131,76 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
         global_end_header_hash: &Bytes32Variable,
     ) -> MapReduceSubchainVariable {
         let one = self.constant::<U64Variable>(1u64);
-        let true_var = self._true();
+        let true_bool = self._true();
 
         let batch_start_block = data_comm_proof.start_block_height;
         let batch_start_header_hash = data_comm_proof.start_header;
         let batch_end_block = data_comm_proof.end_block_height;
         let batch_end_header_hash = data_comm_proof.end_header;
 
+        // Path of the data_hash against a Tendermint header.
         let data_hash_path =
             self.constant::<ArrayVariable<BoolVariable, 4>>(vec![false, true, true, false]);
+        // Path of the last_block_id against a Tendermint header.
         let last_block_id_path =
             self.constant::<ArrayVariable<BoolVariable, 4>>(vec![false, false, true, false]);
 
-        // Only need to check these headers if the batch is enabled.
-        // If the start_block = map_ctx.end_block, we still verify the prev_header_proof against the end_block in reduce.
-        let mut is_enabled = self.lt(batch_start_block, *global_end_block);
-        let is_batch_enabled = is_enabled;
+        // Mark the batch as enabled if batch_start_block < global_end_block.
+        let is_batch_enabled = self.lt(batch_start_block, *global_end_block);
 
         let mut curr_header = batch_start_header_hash;
-
-        // global_end_block - 1 is the last valid leaf.
+        let mut curr_block_enabled = is_batch_enabled;
         let last_block_to_process = self.sub(*global_end_block, one);
 
-        // Verify all data_hash_proofs against headers from prev_header_proofs.
         for i in 0..BATCH_SIZE {
-            let is_disabled = self.not(is_enabled);
             let curr_idx = self.constant::<U64Variable>(i as u64);
             let curr_block = self.add(batch_start_block, curr_idx);
+
+            let curr_block_disabled = self.not(curr_block_enabled);
             let is_last_valid_leaf = self.is_equal(last_block_to_process, curr_block);
             let is_not_last_valid_leaf = self.not(is_last_valid_leaf);
 
-            // data_hash_proof_root should be the header hash of block (start + i).
+            // The computed root of the data_hash_proof should be the hash of block (start + i + 1).
             let data_hash_proof_root = self
                 .get_root_from_merkle_proof::<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES>(
                     &data_comm_proof.data_hash_proofs[i],
                     &data_hash_path,
                 );
-            // prev_header_proof_root should be the header hash of block (start + i + 1).
-            let prev_header_proof_root = self
+            // The computed root of the last_block_id_proof should be the hash of block (start + i + 1).
+            let last_block_id_proof_root = self
                 .get_root_from_merkle_proof::<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES>(
-                    &data_comm_proof.prev_header_proofs[i],
+                    &data_comm_proof.last_block_id_proofs[i],
                     &last_block_id_path,
                 );
 
-            // Header hash of block (start + i).
-            let header_hash = &data_comm_proof.prev_header_proofs[i].leaf[2..2 + HASH_SIZE];
+            // Extract the header hash of block (start + i) from the protobuf encoded last block id proof.
+            let header_hash = &data_comm_proof.last_block_id_proofs[i].leaf[2..2 + HASH_SIZE];
 
             // Verify the data hash proof against the header hash of block (start + i).
             let is_valid_data_hash = self.is_equal(data_hash_proof_root, header_hash.into());
             // Either this leaf is disabled or the data hash proof is valid.
-            let data_hash_check = self.or(is_disabled, is_valid_data_hash);
-            self.assert_is_equal(data_hash_check, true_var);
+            let data_hash_check = self.or(curr_block_disabled, is_valid_data_hash);
+            self.assert_is_equal(data_hash_check, true_bool);
 
             // Verify the header chain.
 
             // 1) Verify the curr_header matches the extracted header_hash.
             let is_valid_prev_header = self.is_equal(curr_header, header_hash.into());
             // Either this leaf is disabled or the prev header matches.
-            let prev_header_check = self.or(is_disabled, is_valid_prev_header);
-            self.assert_is_equal(prev_header_check, true_var);
+            let prev_header_check = self.or(curr_block_disabled, is_valid_prev_header);
+            self.assert_is_equal(prev_header_check, true_bool);
 
-            // 2) If is_last_valid_leaf is true, then the root of the prev_header_proof must be the end_header.
+            // 2) If is_last_valid_leaf is true, then the root of the last_block_id_proof must be the end_header.
             let root_matches_end_header =
-                self.is_equal(prev_header_proof_root, *global_end_header_hash);
-            // If this is the last valid leaf, then the prev_header_proof_root must be the global_end_header.
+                self.is_equal(last_block_id_proof_root, *global_end_header_hash);
+            // If this is the last valid leaf, then the last_block_id_proof_root must be the global_end_header.
             let end_header_check = self.or(is_not_last_valid_leaf, root_matches_end_header);
-            self.assert_is_equal(end_header_check, true_var);
+            self.assert_is_equal(end_header_check, true_bool);
 
-            // Move curr_prev_header to prev_header_proof_root.
-            curr_header = prev_header_proof_root;
+            // Move curr_prev_header to last_block_id_proof_root.
+            curr_header = last_block_id_proof_root;
             // Set is_enabled to false if this is the last valid leaf.
-            is_enabled = self.and(is_enabled, is_not_last_valid_leaf);
+            curr_block_enabled = self.and(curr_block_enabled, is_not_last_valid_leaf);
         }
 
         // Select the min of the target block and the end block in the batch.
@@ -393,7 +392,7 @@ pub(crate) mod tests {
                 end_block_height: (end_height as u64),
                 end_header: H256::from_slice(&result.1),
                 data_hash_proofs: result.3,
-                prev_header_proofs: result.4,
+                last_block_id_proofs: result.4,
             },
             H256(result.5),
         )
