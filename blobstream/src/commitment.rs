@@ -97,6 +97,7 @@ impl<const MAX_LEAVES: usize, L: PlonkParameters<D>, const D: usize> AsyncHint<L
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct DataCommitmentCircuit<const MAX_LEAVES: usize> {
     _config: usize,
 }

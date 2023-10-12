@@ -6,6 +6,10 @@ edition = "2021"
 [lib]
 
 [[bin]]
+name = "zkblobstream"
+path = "bin/zkblobstream.rs"
+
+[[bin]]
 name = "combined_step"
 path = "bin/combined_step.rs"
 

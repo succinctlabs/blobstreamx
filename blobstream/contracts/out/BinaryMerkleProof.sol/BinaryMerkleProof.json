@@ -1,0 +1,147 @@
+{
+  "abi": [],
+  "bytecode": {
+    "object": "0x",
+    "linkReferences": {}
+  },
+  "deployedBytecode": {
+    "object": "0x",
+    "linkReferences": {}
+  },
+  "ast": {
+    "absolutePath": "lib/blobstream-contracts/src/lib/tree/binary/BinaryMerkleProof.sol",
+    "id": 306,
+    "exportedSymbols": {
+      "BinaryMerkleProof": [
+        305
+      ]
+    },
+    "nodeType": "SourceUnit",
+    "src": "39:295:5",
+    "nodes": [
+      {
+        "id": 296,
+        "nodeType": "PragmaDirective",
+        "src": "39:24:5",
+        "nodes": [],
+        "literals": [
+          "solidity",
+          "^",
+          "0.8",
+          ".19"
+        ]
+      },
+      {
+        "id": 305,
+        "nodeType": "StructDefinition",
+        "src": "106:227:5",
+        "nodes": [],
+        "canonicalName": "BinaryMerkleProof",
+        "documentation": {
+          "id": 297,
+          "nodeType": "StructuredDocumentation",
+          "src": "65:41:5",
+          "text": "@notice Merkle Tree Proof structure."
+        },
+        "members": [
+          {
+            "constant": false,
+            "id": 300,
+            "mutability": "mutable",
+            "name": "sideNodes",
+            "nameLocation": "203:9:5",
+            "nodeType": "VariableDeclaration",
+            "scope": 305,
+            "src": "193:19:5",
+            "stateVariable": false,
+            "storageLocation": "default",
+            "typeDescriptions": {
+              "typeIdentifier": "t_array$_t_bytes32_$dyn_storage_ptr",
+              "typeString": "bytes32[]"
+            },
+            "typeName": {
+              "baseType": {
+                "id": 298,
+                "name": "bytes32",
+                "nodeType": "ElementaryTypeName",
+                "src": "193:7:5",
+                "typeDescriptions": {
+                  "typeIdentifier": "t_bytes32",
+                  "typeString": "bytes32"
+                }
+              },
+              "id": 299,
+              "nodeType": "ArrayTypeName",
+              "src": "193:9:5",
+              "typeDescriptions": {
+                "typeIdentifier": "t_array$_t_bytes32_$dyn_storage_ptr",
+                "typeString": "bytes32[]"
+              }
+            },
+            "visibility": "internal"
+          },
+          {
+            "constant": false,
+            "id": 302,
+            "mutability": "mutable",
+            "name": "key",
+            "nameLocation": "264:3:5",
+            "nodeType": "VariableDeclaration",
+            "scope": 305,
+            "src": "256:11:5",
+            "stateVariable": false,
+            "storageLocation": "default",
+            "typeDescriptions": {
+              "typeIdentifier": "t_uint256",
+              "typeString": "uint256"
+            },
+            "typeName": {
+              "id": 301,
+              "name": "uint256",
+              "nodeType": "ElementaryTypeName",
+              "src": "256:7:5",
+              "typeDescriptions": {
+                "typeIdentifier": "t_uint256",
+                "typeString": "uint256"
+              }
+            },
+            "visibility": "internal"
+          },
+          {
+            "constant": false,
+            "id": 304,
+            "mutability": "mutable",
+            "name": "numLeaves",
+            "nameLocation": "321:9:5",
+            "nodeType": "VariableDeclaration",
+            "scope": 305,
+            "src": "313:17:5",
+            "stateVariable": false,
+            "storageLocation": "default",
+            "typeDescriptions": {
+              "typeIdentifier": "t_uint256",
+              "typeString": "uint256"
+            },
+            "typeName": {
+              "id": 303,
+              "name": "uint256",
+              "nodeType": "ElementaryTypeName",
+              "src": "313:7:5",
+              "typeDescriptions": {
+                "typeIdentifier": "t_uint256",
+                "typeString": "uint256"
+              }
+            },
+            "visibility": "internal"
+          }
+        ],
+        "name": "BinaryMerkleProof",
+        "nameLocation": "113:17:5",
+        "scope": 306,
+        "visibility": "public"
+      }
+    ],
+    "license": "Apache-2.0"
+  },
+  "id": 5
+}

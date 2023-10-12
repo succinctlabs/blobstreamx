@@ -5,6 +5,7 @@ use zk_tendermint::step::{StepOffchainInputs, TendermintStepCircuit};
 
 use crate::commitment::{CelestiaDataCommitmentCircuit, DataCommitmentOffchainInputs};
 
+#[derive(Debug, Clone)]
 pub struct CombinedStepCircuit<const MAX_VALIDATOR_SET_SIZE: usize> {
     _config: usize,
 }

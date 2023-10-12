@@ -1,0 +1,465 @@
+[
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "_gateway",
+                "type": "address"
+            }
+        ],
+        "stateMutability": "nonpayable",
+        "type": "constructor"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "string",
+                "name": "name",
+                "type": "string"
+            }
+        ],
+        "name": "FunctionIdNotFound",
+        "type": "error"
+    },
+    {
+        "inputs": [],
+        "name": "LatestHeaderNotFound",
+        "type": "error"
+    },
+    {
+        "inputs": [],
+        "name": "ProofBlockRangeTooLarge",
+        "type": "error"
+    },
+    {
+        "inputs": [],
+        "name": "TargetLessThanLatest",
+        "type": "error"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "internalType": "uint64",
+                "name": "startBlock",
+                "type": "uint64"
+            },
+            {
+                "indexed": true,
+                "internalType": "uint64",
+                "name": "targetBlock",
+                "type": "uint64"
+            },
+            {
+                "indexed": false,
+                "internalType": "bytes32",
+                "name": "targetHeader",
+                "type": "bytes32"
+            },
+            {
+                "indexed": false,
+                "internalType": "bytes32",
+                "name": "dataCommitment",
+                "type": "bytes32"
+            }
+        ],
+        "name": "CombinedSkipFulfilled",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "internalType": "uint64",
+                "name": "startBlock",
+                "type": "uint64"
+            },
+            {
+                "indexed": true,
+                "internalType": "uint64",
+                "name": "targetBlock",
+                "type": "uint64"
+            },
+            {
+                "indexed": false,
+                "internalType": "bytes32",
+                "name": "requestId",
+                "type": "bytes32"
+            }
+        ],
+        "name": "CombinedSkipRequested",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "internalType": "uint64",
+                "name": "startBlock",
+                "type": "uint64"
+            },
+            {
+                "indexed": false,
+                "internalType": "bytes32",
+                "name": "targetHeader",
+                "type": "bytes32"
+            },
+            {
+                "indexed": false,
+                "internalType": "bytes32",
+                "name": "dataCommitment",
+                "type": "bytes32"
+            }
+        ],
+        "name": "CombinedStepFulfilled",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "internalType": "uint64",
+                "name": "startBlock",
+                "type": "uint64"
+            },
+            {
+                "indexed": false,
+                "internalType": "bytes32",
+                "name": "requestId",
+                "type": "bytes32"
+            }
+        ],
+        "name": "CombinedStepRequested",
+        "type": "event"
+    },
+    {
+        "inputs": [],
+        "name": "DATA_COMMITMENT_MAX",
+        "outputs": [
+            {
+                "internalType": "uint64",
+                "name": "",
+                "type": "uint64"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint64",
+                "name": "",
+                "type": "uint64"
+            }
+        ],
+        "name": "blockHeightToHeaderHash",
+        "outputs": [
+            {
+                "internalType": "bytes32",
+                "name": "",
+                "type": "bytes32"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "bytes",
+                "name": "requestResult",
+                "type": "bytes"
+            },
+            {
+                "internalType": "bytes",
+                "name": "context",
+                "type": "bytes"
+            }
+        ],
+        "name": "callbackCombinedSkip",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "bytes",
+                "name": "requestResult",
+                "type": "bytes"
+            },
+            {
+                "internalType": "bytes",
+                "name": "context",
+                "type": "bytes"
+            }
+        ],
+        "name": "callbackCombinedStep",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "bytes32",
+                "name": "",
+                "type": "bytes32"
+            }
+        ],
+        "name": "dataCommitments",
+        "outputs": [
+            {
+                "internalType": "bytes32",
+                "name": "",
+                "type": "bytes32"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "string",
+                "name": "",
+                "type": "string"
+            }
+        ],
+        "name": "functionNameToId",
+        "outputs": [
+            {
+                "internalType": "bytes32",
+                "name": "",
+                "type": "bytes32"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "gateway",
+        "outputs": [
+            {
+                "internalType": "address",
+                "name": "",
+                "type": "address"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint64",
+                "name": "startBlock",
+                "type": "uint64"
+            },
+            {
+                "internalType": "uint64",
+                "name": "endBlock",
+                "type": "uint64"
+            }
+        ],
+        "name": "getDataCommitment",
+        "outputs": [
+            {
+                "internalType": "bytes32",
+                "name": "",
+                "type": "bytes32"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "string",
+                "name": "name",
+                "type": "string"
+            }
+        ],
+        "name": "getFunctionId",
+        "outputs": [
+            {
+                "internalType": "bytes32",
+                "name": "",
+                "type": "bytes32"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint64",
+                "name": "height",
+                "type": "uint64"
+            }
+        ],
+        "name": "getHeaderHash",
+        "outputs": [
+            {
+                "internalType": "bytes32",
+                "name": "",
+                "type": "bytes32"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "latestBlock",
+        "outputs": [
+            {
+                "internalType": "uint64",
+                "name": "",
+                "type": "uint64"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint64",
+                "name": "_requestedBlock",
+                "type": "uint64"
+            }
+        ],
+        "name": "requestCombinedSkip",
+        "outputs": [],
+        "stateMutability": "payable",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "requestCombinedStep",
+        "outputs": [],
+        "stateMutability": "payable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint64",
+                "name": "height",
+                "type": "uint64"
+            },
+            {
+                "internalType": "bytes32",
+                "name": "header",
+                "type": "bytes32"
+            }
+        ],
+        "name": "setGenesisHeader",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "string",
+                "name": "name",
+                "type": "string"
+            },
+            {
+                "internalType": "bytes32",
+                "name": "_functionId",
+                "type": "bytes32"
+            }
+        ],
+        "name": "updateFunctionId",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "_gateway",
+                "type": "address"
+            }
+        ],
+        "name": "updateGateway",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint256",
+                "name": "startBlock",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "endBlock",
+                "type": "uint256"
+            },
+            {
+                "components": [
+                    {
+                        "internalType": "uint256",
+                        "name": "height",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "bytes32",
+                        "name": "dataRoot",
+                        "type": "bytes32"
+                    }
+                ],
+                "internalType": "struct DataRootTuple",
+                "name": "_tuple",
+                "type": "tuple"
+            },
+            {
+                "components": [
+                    {
+                        "internalType": "bytes32[]",
+                        "name": "sideNodes",
+                        "type": "bytes32[]"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "key",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "numLeaves",
+                        "type": "uint256"
+                    }
+                ],
+                "internalType": "struct BinaryMerkleProof",
+                "name": "_proof",
+                "type": "tuple"
+            }
+        ],
+        "name": "verifyMerkleProof",
+        "outputs": [
+            {
+                "internalType": "bool",
+                "name": "",
+                "type": "bool"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    }
+]

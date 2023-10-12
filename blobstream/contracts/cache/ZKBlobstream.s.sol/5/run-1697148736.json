@@ -1,0 +1,13 @@
+{
+  "transactions": [
+    {
+      "rpc": "https://eth-goerli.g.alchemy.com/v2/1McujcoEx42Qt35urJ_-mUqbtQ-GqTIq"
+    },
+    {
+      "rpc": "https://eth-goerli.g.alchemy.com/v2/1McujcoEx42Qt35urJ_-mUqbtQ-GqTIq"
+    },
+    {
+      "rpc": "https://eth-goerli.g.alchemy.com/v2/1McujcoEx42Qt35urJ_-mUqbtQ-GqTIq"
+    }
+  ]
+}

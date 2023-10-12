@@ -1,0 +1,752 @@
+{
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "uint64",
+          "name": "startBlock",
+          "type": "uint64"
+        },
+        {
+          "internalType": "uint64",
+          "name": "endBlock",
+          "type": "uint64"
+        }
+      ],
+      "name": "getDataCommitment",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "startBlock",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "endBlock",
+          "type": "uint256"
+        },
+        {
+          "components": [
+            {
+              "internalType": "uint256",
+              "name": "height",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "dataRoot",
+              "type": "bytes32"
+            }
+          ],
+          "internalType": "struct DataRootTuple",
+          "name": "_tuple",
+          "type": "tuple"
+        },
+        {
+          "components": [
+            {
+              "internalType": "bytes32[]",
+              "name": "sideNodes",
+              "type": "bytes32[]"
+            },
+            {
+              "internalType": "uint256",
+              "name": "key",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "numLeaves",
+              "type": "uint256"
+            }
+          ],
+          "internalType": "struct BinaryMerkleProof",
+          "name": "_proof",
+          "type": "tuple"
+        }
+      ],
+      "name": "verifyMerkleProof",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "bytecode": {
+    "object": "0x",
+    "sourceMap": "",
+    "linkReferences": {}
+  },
+  "deployedBytecode": {
+    "object": "0x",
+    "sourceMap": "",
+    "linkReferences": {}
+  },
+  "methodIdentifiers": {
+    "getDataCommitment(uint64,uint64)": "20154c7d",
+    "verifyMerkleProof(uint256,uint256,(uint256,bytes32),(bytes32[],uint256,uint256))": "8a34aa2b"
+  },
+  "rawMetadata": "{\"compiler\":{\"version\":\"0.8.21+commit.d9974bed\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"startBlock\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"endBlock\",\"type\":\"uint64\"}],\"name\":\"getDataCommitment\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"startBlock\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"endBlock\",\"type\":\"uint256\"},{\"components\":[{\"internalType\":\"uint256\",\"name\":\"height\",\"type\":\"uint256\"},{\"internalType\":\"bytes32\",\"name\":\"dataRoot\",\"type\":\"bytes32\"}],\"internalType\":\"struct DataRootTuple\",\"name\":\"_tuple\",\"type\":\"tuple\"},{\"components\":[{\"internalType\":\"bytes32[]\",\"name\":\"sideNodes\",\"type\":\"bytes32[]\"},{\"internalType\":\"uint256\",\"name\":\"key\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"numLeaves\",\"type\":\"uint256\"}],\"internalType\":\"struct BinaryMerkleProof\",\"name\":\"_proof\",\"type\":\"tuple\"}],\"name\":\"verifyMerkleProof\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"}],\"devdoc\":{\"kind\":\"dev\",\"methods\":{\"verifyMerkleProof(uint256,uint256,(uint256,bytes32),(bytes32[],uint256,uint256))\":{\"params\":{\"_proof\":\"The merkle proof to verify against the data commitment.\",\"_tuple\":\"The data root tuple which is the leaf node of the proof and contains the block's data root.\",\"endBlock\":\"The end block of the block range that contains the proof's block.\",\"startBlock\":\"The start block of the block range that contains the proof's block.\"}}},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{\"getDataCommitment(uint64,uint64)\":{\"notice\":\"Get the data commitment for a block range [startBlock, endBlock).\"},\"verifyMerkleProof(uint256,uint256,(uint256,bytes32),(bytes32[],uint256,uint256))\":{\"notice\":\"Verify a merkle proof for a specific block's data root against a data commitment containing the block.\"}},\"version\":1}},\"settings\":{\"compilationTarget\":{\"src/IBlobstream.sol\":\"IBlobstream\"},\"evmVersion\":\"paris\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\"},\"optimizer\":{\"enabled\":true,\"runs\":200},\"remappings\":[\":@blobstream/=lib/blobstream-contracts/src/\",\":@openzeppelin/contracts/=lib/blobstream-contracts/lib/openzeppelin-contracts-upgradeable/contracts/\",\":@succinctx/=lib/succinctx/contracts/src/\",\":@zk-tendermint/=../../zk-tendermint/contracts/src/\",\":blobstream-contracts/=lib/blobstream-contracts/src/\",\":ds-test/=lib/forge-std/lib/ds-test/src/\",\":erc4626-tests/=lib/blobstream-contracts/lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests/\",\":forge-std/=lib/forge-std/src/\",\":openzeppelin-contracts-upgradeable/=lib/blobstream-contracts/lib/openzeppelin-contracts-upgradeable/\",\":openzeppelin-contracts/=lib/blobstream-contracts/lib/openzeppelin-contracts/\",\":safe-contracts/=lib/succinctx/contracts/lib/safe-contracts/\",\":succinctx/=lib/succinctx/\",\":tree/=lib/blobstream-contracts/src/lib/tree/\",\":verifier/=lib/blobstream-contracts/src/lib/verifier/\"]},\"sources\":{\"lib/blobstream-contracts/src/DataRootTuple.sol\":{\"keccak256\":\"0x08bf8b66721b51448f170a6cfd92d6661eb49764a93e491673bc60a8e7d59ef8\",\"license\":\"Apache-2.0\",\"urls\":[\"bzz-raw://7273fbfb41d53f48c0b4ed2ca3ebbdc5f028cbbe6a65913f16be40a0b91f9293\",\"dweb:/ipfs/Qme2ndjStaqT553ot4h2XnXRpkLgNvGN28Ha9B5bUd9NvH\"]},\"lib/blobstream-contracts/src/lib/tree/Constants.sol\":{\"keccak256\":\"0x2277b51e312dbbc106053f60b5a72faa2c94ab7ebe66d82dc642532ec121de8d\",\"license\":\"Apache-2.0\",\"urls\":[\"bzz-raw://4185bde4a247dc60ac726efd8d5499545f68fbe1e13d232977dd6796aafdf5dd\",\"dweb:/ipfs/QmR92aKT9B7xyJ35gHUYgax5rHa6inHR2M54JRuzGgFyTn\"]},\"lib/blobstream-contracts/src/lib/tree/Types.sol\":{\"keccak256\":\"0x1aaaded931b2fb82a2a85c2a7d82fb5a578fa7ff8562028aa4ed86cd8deb7c99\",\"license\":\"Apache-2.0\",\"urls\":[\"bzz-raw://ccf3fa8380a04e296630b3f16ad40959871b24ce04396d92811099ac24e74dcf\",\"dweb:/ipfs/QmTy8yc5HF9AzQiyV7mesru5BiTbKURHZqpZcKKvuGGEfQ\"]},\"lib/blobstream-contracts/src/lib/tree/Utils.sol\":{\"keccak256\":\"0xe2444838cb83409cfedb773721b5046d4b82967e9e3052f98dad161e3e0f66cd\",\"license\":\"Apache-2.0\",\"urls\":[\"bzz-raw://2a7704ba7b833035f83b42409660d670bcae056da28ae431b48ce7abf97aa2e9\",\"dweb:/ipfs/QmXySEE2d61HE7TqtKk45UGqESrzFZLttv5qFkZWHHJC9m\"]},\"lib/blobstream-contracts/src/lib/tree/binary/BinaryMerkleProof.sol\":{\"keccak256\":\"0xeb9bc95c5159a5e92bbaad61c47aff77e0f81e259a62f4771011048ea2e988d8\",\"license\":\"Apache-2.0\",\"urls\":[\"bzz-raw://637058807c6dd4f5eb8c259b7234db8b83c11f16cf62b8afe86a8a5511e0320b\",\"dweb:/ipfs/QmYixRMioSFb7Dzs8nk7rbqa7TyZrtJq7UoQWLmzPCV413\"]},\"lib/blobstream-contracts/src/lib/tree/binary/BinaryMerkleTree.sol\":{\"keccak256\":\"0xc1e3ec427964d38c3d3d5a18acad270038036b9e8760cd90b8875b7b40bb5875\",\"license\":\"Apache-2.0\",\"urls\":[\"bzz-raw://471b9778bc1751540d62454afe2e285dc097421620649605f5736dab75dc4178\",\"dweb:/ipfs/QmWpTUKo8aFUfcUifcv3CSwBBCphssk7gpKRPUUsPJ24dc\"]},\"lib/blobstream-contracts/src/lib/tree/binary/TreeHasher.sol\":{\"keccak256\":\"0x72e20d12bc13df54cdfe85aa5ed80a1070d8487de22ff1f3ed05888f8331eed6\",\"license\":\"Apache-2.0\",\"urls\":[\"bzz-raw://926755e0048a5a469bf0f59298d35d81816d36f28e5dbb28b9dbd7493fd607f6\",\"dweb:/ipfs/QmZ5qC1qMhbu5NRXif2ZnkVx2sQsLxoGspSoapn26p3534\"]},\"src/IBlobstream.sol\":{\"keccak256\":\"0x0d5acdf586597d4711ac6efb33d5d6cdb4e7c537deb78667c1528edbdc286420\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://afcd78bde785fa401f9c1dfb49b7d0adc0db1661a790def0ee13582cc4304eaf\",\"dweb:/ipfs/QmVoEAeGJ5q3wjy2zeJuEr8tP1oD5M5sQqmHVuZithShkF\"]}},\"version\":1}",
+  "metadata": {
+    "compiler": {
+      "version": "0.8.21+commit.d9974bed"
+    },
+    "language": "Solidity",
+    "output": {
+      "abi": [
+        {
+          "inputs": [
+            {
+              "internalType": "uint64",
+              "name": "startBlock",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint64",
+              "name": "endBlock",
+              "type": "uint64"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getDataCommitment",
+          "outputs": [
+            {
+              "internalType": "bytes32",
+              "name": "",
+              "type": "bytes32"
+            }
+          ]
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "uint256",
+              "name": "startBlock",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "endBlock",
+              "type": "uint256"
+            },
+            {
+              "internalType": "struct DataRootTuple",
+              "name": "_tuple",
+              "type": "tuple",
+              "components": [
+                {
+                  "internalType": "uint256",
+                  "name": "height",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "bytes32",
+                  "name": "dataRoot",
+                  "type": "bytes32"
+                }
+              ]
+            },
+            {
+              "internalType": "struct BinaryMerkleProof",
+              "name": "_proof",
+              "type": "tuple",
+              "components": [
+                {
+                  "internalType": "bytes32[]",
+                  "name": "sideNodes",
+                  "type": "bytes32[]"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "key",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "numLeaves",
+                  "type": "uint256"
+                }
+              ]
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function",
+          "name": "verifyMerkleProof",
+          "outputs": [
+            {
+              "internalType": "bool",
+              "name": "",
+              "type": "bool"
+            }
+          ]
+        }
+      ],
+      "devdoc": {
+        "kind": "dev",
+        "methods": {
+          "verifyMerkleProof(uint256,uint256,(uint256,bytes32),(bytes32[],uint256,uint256))": {
+            "params": {
+              "_proof": "The merkle proof to verify against the data commitment.",
+              "_tuple": "The data root tuple which is the leaf node of the proof and contains the block's data root.",
+              "endBlock": "The end block of the block range that contains the proof's block.",
+              "startBlock": "The start block of the block range that contains the proof's block."
+            }
+          }
+        },
+        "version": 1
+      },
+      "userdoc": {
+        "kind": "user",
+        "methods": {
+          "getDataCommitment(uint64,uint64)": {
+            "notice": "Get the data commitment for a block range [startBlock, endBlock)."
+          },
+          "verifyMerkleProof(uint256,uint256,(uint256,bytes32),(bytes32[],uint256,uint256))": {
+            "notice": "Verify a merkle proof for a specific block's data root against a data commitment containing the block."
+          }
+        },
+        "version": 1
+      }
+    },
+    "settings": {
+      "remappings": [
+        "@blobstream/=lib/blobstream-contracts/src/",
+        "@openzeppelin/contracts/=lib/blobstream-contracts/lib/openzeppelin-contracts-upgradeable/contracts/",
+        "@succinctx/=lib/succinctx/contracts/src/",
+        "@zk-tendermint/=../../zk-tendermint/contracts/src/",
+        "blobstream-contracts/=lib/blobstream-contracts/src/",
+        "ds-test/=lib/forge-std/lib/ds-test/src/",
+        "erc4626-tests/=lib/blobstream-contracts/lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests/",
+        "forge-std/=lib/forge-std/src/",
+        "openzeppelin-contracts-upgradeable/=lib/blobstream-contracts/lib/openzeppelin-contracts-upgradeable/",
+        "openzeppelin-contracts/=lib/blobstream-contracts/lib/openzeppelin-contracts/",
+        "safe-contracts/=lib/succinctx/contracts/lib/safe-contracts/",
+        "succinctx/=lib/succinctx/",
+        "tree/=lib/blobstream-contracts/src/lib/tree/",
+        "verifier/=lib/blobstream-contracts/src/lib/verifier/"
+      ],
+      "optimizer": {
+        "enabled": true,
+        "runs": 200
+      },
+      "metadata": {
+        "bytecodeHash": "ipfs"
+      },
+      "compilationTarget": {
+        "src/IBlobstream.sol": "IBlobstream"
+      },
+      "libraries": {}
+    },
+    "sources": {
+      "lib/blobstream-contracts/src/DataRootTuple.sol": {
+        "keccak256": "0x08bf8b66721b51448f170a6cfd92d6661eb49764a93e491673bc60a8e7d59ef8",
+        "urls": [
+          "bzz-raw://7273fbfb41d53f48c0b4ed2ca3ebbdc5f028cbbe6a65913f16be40a0b91f9293",
+          "dweb:/ipfs/Qme2ndjStaqT553ot4h2XnXRpkLgNvGN28Ha9B5bUd9NvH"
+        ],
+        "license": "Apache-2.0"
+      },
+      "lib/blobstream-contracts/src/lib/tree/Constants.sol": {
+        "keccak256": "0x2277b51e312dbbc106053f60b5a72faa2c94ab7ebe66d82dc642532ec121de8d",
+        "urls": [
+          "bzz-raw://4185bde4a247dc60ac726efd8d5499545f68fbe1e13d232977dd6796aafdf5dd",
+          "dweb:/ipfs/QmR92aKT9B7xyJ35gHUYgax5rHa6inHR2M54JRuzGgFyTn"
+        ],
+        "license": "Apache-2.0"
+      },
+      "lib/blobstream-contracts/src/lib/tree/Types.sol": {
+        "keccak256": "0x1aaaded931b2fb82a2a85c2a7d82fb5a578fa7ff8562028aa4ed86cd8deb7c99",
+        "urls": [
+          "bzz-raw://ccf3fa8380a04e296630b3f16ad40959871b24ce04396d92811099ac24e74dcf",
+          "dweb:/ipfs/QmTy8yc5HF9AzQiyV7mesru5BiTbKURHZqpZcKKvuGGEfQ"
+        ],
+        "license": "Apache-2.0"
+      },
+      "lib/blobstream-contracts/src/lib/tree/Utils.sol": {
+        "keccak256": "0xe2444838cb83409cfedb773721b5046d4b82967e9e3052f98dad161e3e0f66cd",
+        "urls": [
+          "bzz-raw://2a7704ba7b833035f83b42409660d670bcae056da28ae431b48ce7abf97aa2e9",
+          "dweb:/ipfs/QmXySEE2d61HE7TqtKk45UGqESrzFZLttv5qFkZWHHJC9m"
+        ],
+        "license": "Apache-2.0"
+      },
+      "lib/blobstream-contracts/src/lib/tree/binary/BinaryMerkleProof.sol": {
+        "keccak256": "0xeb9bc95c5159a5e92bbaad61c47aff77e0f81e259a62f4771011048ea2e988d8",
+        "urls": [
+          "bzz-raw://637058807c6dd4f5eb8c259b7234db8b83c11f16cf62b8afe86a8a5511e0320b",
+          "dweb:/ipfs/QmYixRMioSFb7Dzs8nk7rbqa7TyZrtJq7UoQWLmzPCV413"
+        ],
+        "license": "Apache-2.0"
+      },
+      "lib/blobstream-contracts/src/lib/tree/binary/BinaryMerkleTree.sol": {
+        "keccak256": "0xc1e3ec427964d38c3d3d5a18acad270038036b9e8760cd90b8875b7b40bb5875",
+        "urls": [
+          "bzz-raw://471b9778bc1751540d62454afe2e285dc097421620649605f5736dab75dc4178",
+          "dweb:/ipfs/QmWpTUKo8aFUfcUifcv3CSwBBCphssk7gpKRPUUsPJ24dc"
+        ],
+        "license": "Apache-2.0"
+      },
+      "lib/blobstream-contracts/src/lib/tree/binary/TreeHasher.sol": {
+        "keccak256": "0x72e20d12bc13df54cdfe85aa5ed80a1070d8487de22ff1f3ed05888f8331eed6",
+        "urls": [
+          "bzz-raw://926755e0048a5a469bf0f59298d35d81816d36f28e5dbb28b9dbd7493fd607f6",
+          "dweb:/ipfs/QmZ5qC1qMhbu5NRXif2ZnkVx2sQsLxoGspSoapn26p3534"
+        ],
+        "license": "Apache-2.0"
+      },
+      "src/IBlobstream.sol": {
+        "keccak256": "0x0d5acdf586597d4711ac6efb33d5d6cdb4e7c537deb78667c1528edbdc286420",
+        "urls": [
+          "bzz-raw://afcd78bde785fa401f9c1dfb49b7d0adc0db1661a790def0ee13582cc4304eaf",
+          "dweb:/ipfs/QmVoEAeGJ5q3wjy2zeJuEr8tP1oD5M5sQqmHVuZithShkF"
+        ],
+        "license": "MIT"
+      }
+    },
+    "version": 1
+  },
+  "ast": {
+    "absolutePath": "src/IBlobstream.sol",
+    "id": 44243,
+    "exportedSymbols": {
+      "BinaryMerkleProof": [
+        305
+      ],
+      "BinaryMerkleTree": [
+        561
+      ],
+      "Constants": [
+        47
+      ],
+      "DataRootTuple": [
+        32
+      ],
+      "IBlobstream": [
+        44242
+      ],
+      "Namespace": [
+        68
+      ],
+      "PARITY_SHARE_NAMESPACE": [
+        60
+      ],
+      "equalTo": [
+        95
+      ],
+      "getStartingBit": [
+        236
+      ],
+      "greaterThan": [
+        135
+      ],
+      "leafDigest": [
+        607
+      ],
+      "lessThan": [
+        115
+      ],
+      "nodeDigest": [
+        587
+      ],
+      "pathLengthFromKey": [
+        294
+      ],
+      "toBytes": [
+        155
+      ],
+      "toNamespace": [
+        203
+      ]
+    },
+    "nodeType": "SourceUnit",
+    "src": "32:1051:29",
+    "nodes": [
+      {
+        "id": 44213,
+        "nodeType": "PragmaDirective",
+        "src": "32:24:29",
+        "nodes": [],
+        "literals": [
+          "solidity",
+          "^",
+          "0.8",
+          ".19"
+        ]
+      },
+      {
+        "id": 44214,
+        "nodeType": "ImportDirective",
+        "src": "58:39:29",
+        "nodes": [],
+        "absolutePath": "lib/blobstream-contracts/src/DataRootTuple.sol",
+        "file": "@blobstream/DataRootTuple.sol",
+        "nameLocation": "-1:-1:-1",
+        "scope": 44243,
+        "sourceUnit": 33,
+        "symbolAliases": [],
+        "unitAlias": ""
+      },
+      {
+        "id": 44215,
+        "nodeType": "ImportDirective",
+        "src": "98:58:29",
+        "nodes": [],
+        "absolutePath": "lib/blobstream-contracts/src/lib/tree/binary/BinaryMerkleTree.sol",
+        "file": "@blobstream/lib/tree/binary/BinaryMerkleTree.sol",
+        "nameLocation": "-1:-1:-1",
+        "scope": 44243,
+        "sourceUnit": 562,
+        "symbolAliases": [],
+        "unitAlias": ""
+      },
+      {
+        "id": 44242,
+        "nodeType": "ContractDefinition",
+        "src": "158:924:29",
+        "nodes": [
+          {
+            "id": 44225,
+            "nodeType": "FunctionDefinition",
+            "src": "268:117:29",
+            "nodes": [],
+            "documentation": {
+              "id": 44216,
+              "nodeType": "StructuredDocumentation",
+              "src": "186:77:29",
+              "text": "@notice Get the data commitment for a block range [startBlock, endBlock)."
+            },
+            "functionSelector": "20154c7d",
+            "implemented": false,
+            "kind": "function",
+            "modifiers": [],
+            "name": "getDataCommitment",
+            "nameLocation": "277:17:29",
+            "parameters": {
+              "id": 44221,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 44218,
+                  "mutability": "mutable",
+                  "name": "startBlock",
+                  "nameLocation": "311:10:29",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 44225,
+                  "src": "304:17:29",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint64",
+                    "typeString": "uint64"
+                  },
+                  "typeName": {
+                    "id": 44217,
+                    "name": "uint64",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "304:6:29",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint64",
+                      "typeString": "uint64"
+                    }
+                  },
+                  "visibility": "internal"
+                },
+                {
+                  "constant": false,
+                  "id": 44220,
+                  "mutability": "mutable",
+                  "name": "endBlock",
+                  "nameLocation": "338:8:29",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 44225,
+                  "src": "331:15:29",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint64",
+                    "typeString": "uint64"
+                  },
+                  "typeName": {
+                    "id": 44219,
+                    "name": "uint64",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "331:6:29",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint64",
+                      "typeString": "uint64"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "294:58:29"
+            },
+            "returnParameters": {
+              "id": 44224,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 44223,
+                  "mutability": "mutable",
+                  "name": "",
+                  "nameLocation": "-1:-1:-1",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 44225,
+                  "src": "376:7:29",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_bytes32",
+                    "typeString": "bytes32"
+                  },
+                  "typeName": {
+                    "id": 44222,
+                    "name": "bytes32",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "376:7:29",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_bytes32",
+                      "typeString": "bytes32"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "375:9:29"
+            },
+            "scope": 44242,
+            "stateMutability": "view",
+            "virtual": false,
+            "visibility": "external"
+          },
+          {
+            "id": 44241,
+            "nodeType": "FunctionDefinition",
+            "src": "886:194:29",
+            "nodes": [],
+            "documentation": {
+              "id": 44226,
+              "nodeType": "StructuredDocumentation",
+              "src": "391:490:29",
+              "text": "@notice Verify a merkle proof for a specific block's data root against a data commitment containing the block.\n @param startBlock The start block of the block range that contains the proof's block.\n @param endBlock The end block of the block range that contains the proof's block.\n @param _tuple The data root tuple which is the leaf node of the proof and contains the block's data root.\n @param _proof The merkle proof to verify against the data commitment."
+            },
+            "functionSelector": "8a34aa2b",
+            "implemented": false,
+            "kind": "function",
+            "modifiers": [],
+            "name": "verifyMerkleProof",
+            "nameLocation": "895:17:29",
+            "parameters": {
+              "id": 44237,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 44228,
+                  "mutability": "mutable",
+                  "name": "startBlock",
+                  "nameLocation": "930:10:29",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 44241,
+                  "src": "922:18:29",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint256",
+                    "typeString": "uint256"
+                  },
+                  "typeName": {
+                    "id": 44227,
+                    "name": "uint256",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "922:7:29",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint256",
+                      "typeString": "uint256"
+                    }
+                  },
+                  "visibility": "internal"
+                },
+                {
+                  "constant": false,
+                  "id": 44230,
+                  "mutability": "mutable",
+                  "name": "endBlock",
+                  "nameLocation": "958:8:29",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 44241,
+                  "src": "950:16:29",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint256",
+                    "typeString": "uint256"
+                  },
+                  "typeName": {
+                    "id": 44229,
+                    "name": "uint256",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "950:7:29",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint256",
+                      "typeString": "uint256"
+                    }
+                  },
+                  "visibility": "internal"
+                },
+                {
+                  "constant": false,
+                  "id": 44233,
+                  "mutability": "mutable",
+                  "name": "_tuple",
+                  "nameLocation": "997:6:29",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 44241,
+                  "src": "976:27:29",
+                  "stateVariable": false,
+                  "storageLocation": "memory",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_struct$_DataRootTuple_$32_memory_ptr",
+                    "typeString": "struct DataRootTuple"
+                  },
+                  "typeName": {
+                    "id": 44232,
+                    "nodeType": "UserDefinedTypeName",
+                    "pathNode": {
+                      "id": 44231,
+                      "name": "DataRootTuple",
+                      "nameLocations": [
+                        "976:13:29"
+                      ],
+                      "nodeType": "IdentifierPath",
+                      "referencedDeclaration": 32,
+                      "src": "976:13:29"
+                    },
+                    "referencedDeclaration": 32,
+                    "src": "976:13:29",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_struct$_DataRootTuple_$32_storage_ptr",
+                      "typeString": "struct DataRootTuple"
+                    }
+                  },
+                  "visibility": "internal"
+                },
+                {
+                  "constant": false,
+                  "id": 44236,
+                  "mutability": "mutable",
+                  "name": "_proof",
+                  "nameLocation": "1038:6:29",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 44241,
+                  "src": "1013:31:29",
+                  "stateVariable": false,
+                  "storageLocation": "memory",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_struct$_BinaryMerkleProof_$305_memory_ptr",
+                    "typeString": "struct BinaryMerkleProof"
+                  },
+                  "typeName": {
+                    "id": 44235,
+                    "nodeType": "UserDefinedTypeName",
+                    "pathNode": {
+                      "id": 44234,
+                      "name": "BinaryMerkleProof",
+                      "nameLocations": [
+                        "1013:17:29"
+                      ],
+                      "nodeType": "IdentifierPath",
+                      "referencedDeclaration": 305,
+                      "src": "1013:17:29"
+                    },
+                    "referencedDeclaration": 305,
+                    "src": "1013:17:29",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_struct$_BinaryMerkleProof_$305_storage_ptr",
+                      "typeString": "struct BinaryMerkleProof"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "912:138:29"
+            },
+            "returnParameters": {
+              "id": 44240,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 44239,
+                  "mutability": "mutable",
+                  "name": "",
+                  "nameLocation": "-1:-1:-1",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 44241,
+                  "src": "1074:4:29",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_bool",
+                    "typeString": "bool"
+                  },
+                  "typeName": {
+                    "id": 44238,
+                    "name": "bool",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "1074:4:29",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_bool",
+                      "typeString": "bool"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "1073:6:29"
+            },
+            "scope": 44242,
+            "stateMutability": "view",
+            "virtual": false,
+            "visibility": "external"
+          }
+        ],
+        "abstract": false,
+        "baseContracts": [],
+        "canonicalName": "IBlobstream",
+        "contractDependencies": [],
+        "contractKind": "interface",
+        "fullyImplemented": false,
+        "linearizedBaseContracts": [
+          44242
+        ],
+        "name": "IBlobstream",
+        "nameLocation": "168:11:29",
+        "scope": 44243,
+        "usedErrors": [],
+        "usedEvents": []
+      }
+    ],
+    "license": "MIT"
+  },
+  "id": 29
+}

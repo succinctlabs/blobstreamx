@@ -1,0 +1,493 @@
+{
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "string",
+          "name": "name",
+          "type": "string"
+        }
+      ],
+      "name": "getFunctionId",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint64",
+          "name": "blockNumber",
+          "type": "uint64"
+        }
+      ],
+      "name": "getHeaderHash",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "latestBlock",
+      "outputs": [
+        {
+          "internalType": "uint64",
+          "name": "",
+          "type": "uint64"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "bytecode": {
+    "object": "0x",
+    "sourceMap": "",
+    "linkReferences": {}
+  },
+  "deployedBytecode": {
+    "object": "0x",
+    "sourceMap": "",
+    "linkReferences": {}
+  },
+  "methodIdentifiers": {
+    "getFunctionId(string)": "ce353b34",
+    "getHeaderHash(uint64)": "78802ef1",
+    "latestBlock()": "07e2da96"
+  },
+  "rawMetadata": "{\"compiler\":{\"version\":\"0.8.21+commit.d9974bed\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[{\"internalType\":\"string\",\"name\":\"name\",\"type\":\"string\"}],\"name\":\"getFunctionId\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"blockNumber\",\"type\":\"uint64\"}],\"name\":\"getHeaderHash\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"latestBlock\",\"outputs\":[{\"internalType\":\"uint64\",\"name\":\"\",\"type\":\"uint64\"}],\"stateMutability\":\"view\",\"type\":\"function\"}],\"devdoc\":{\"kind\":\"dev\",\"methods\":{\"getFunctionId(string)\":{\"params\":{\"name\":\"The name of the function.\"}},\"getHeaderHash(uint64)\":{\"params\":{\"blockNumber\":\"The block number to get the header hash of.\"}}},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{\"getFunctionId(string)\":{\"notice\":\"Gets the ID of a function.\"},\"getHeaderHash(uint64)\":{\"notice\":\"Gets the header hash of a block.\"},\"latestBlock()\":{\"notice\":\"Gets the latest block number updated by the light client.\"}},\"version\":1}},\"settings\":{\"compilationTarget\":{\"../../zk-tendermint/contracts/src/IZKTendermintLightClient.sol\":\"IZKTendermintLightClient\"},\"evmVersion\":\"paris\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\"},\"optimizer\":{\"enabled\":true,\"runs\":200},\"remappings\":[\":@blobstream/=lib/blobstream-contracts/src/\",\":@openzeppelin/contracts/=lib/blobstream-contracts/lib/openzeppelin-contracts-upgradeable/contracts/\",\":@succinctx/=lib/succinctx/contracts/src/\",\":@zk-tendermint/=../../zk-tendermint/contracts/src/\",\":blobstream-contracts/=lib/blobstream-contracts/src/\",\":ds-test/=lib/forge-std/lib/ds-test/src/\",\":erc4626-tests/=lib/blobstream-contracts/lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests/\",\":forge-std/=lib/forge-std/src/\",\":openzeppelin-contracts-upgradeable/=lib/blobstream-contracts/lib/openzeppelin-contracts-upgradeable/\",\":openzeppelin-contracts/=lib/blobstream-contracts/lib/openzeppelin-contracts/\",\":safe-contracts/=lib/succinctx/contracts/lib/safe-contracts/\",\":succinctx/=lib/succinctx/\",\":tree/=lib/blobstream-contracts/src/lib/tree/\",\":verifier/=lib/blobstream-contracts/src/lib/verifier/\"]},\"sources\":{\"../../zk-tendermint/contracts/src/IZKTendermintLightClient.sol\":{\"keccak256\":\"0xaad14089fec76c20fde379e4d5353227bd75ec088f42b3cf28f566bbdcc116b6\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://a6e85d38e034b98f86ae17185706f55764cd1feb7c04c711fcf085888f1bcc61\",\"dweb:/ipfs/QmXQQzpvH5LG7wPjRauX4oEX6wybdhu51fXwNKrMMqaM8b\"]}},\"version\":1}",
+  "metadata": {
+    "compiler": {
+      "version": "0.8.21+commit.d9974bed"
+    },
+    "language": "Solidity",
+    "output": {
+      "abi": [
+        {
+          "inputs": [
+            {
+              "internalType": "string",
+              "name": "name",
+              "type": "string"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getFunctionId",
+          "outputs": [
+            {
+              "internalType": "bytes32",
+              "name": "",
+              "type": "bytes32"
+            }
+          ]
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "uint64",
+              "name": "blockNumber",
+              "type": "uint64"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getHeaderHash",
+          "outputs": [
+            {
+              "internalType": "bytes32",
+              "name": "",
+              "type": "bytes32"
+            }
+          ]
+        },
+        {
+          "inputs": [],
+          "stateMutability": "view",
+          "type": "function",
+          "name": "latestBlock",
+          "outputs": [
+            {
+              "internalType": "uint64",
+              "name": "",
+              "type": "uint64"
+            }
+          ]
+        }
+      ],
+      "devdoc": {
+        "kind": "dev",
+        "methods": {
+          "getFunctionId(string)": {
+            "params": {
+              "name": "The name of the function."
+            }
+          },
+          "getHeaderHash(uint64)": {
+            "params": {
+              "blockNumber": "The block number to get the header hash of."
+            }
+          }
+        },
+        "version": 1
+      },
+      "userdoc": {
+        "kind": "user",
+        "methods": {
+          "getFunctionId(string)": {
+            "notice": "Gets the ID of a function."
+          },
+          "getHeaderHash(uint64)": {
+            "notice": "Gets the header hash of a block."
+          },
+          "latestBlock()": {
+            "notice": "Gets the latest block number updated by the light client."
+          }
+        },
+        "version": 1
+      }
+    },
+    "settings": {
+      "remappings": [
+        "@blobstream/=lib/blobstream-contracts/src/",
+        "@openzeppelin/contracts/=lib/blobstream-contracts/lib/openzeppelin-contracts-upgradeable/contracts/",
+        "@succinctx/=lib/succinctx/contracts/src/",
+        "@zk-tendermint/=../../zk-tendermint/contracts/src/",
+        "blobstream-contracts/=lib/blobstream-contracts/src/",
+        "ds-test/=lib/forge-std/lib/ds-test/src/",
+        "erc4626-tests/=lib/blobstream-contracts/lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests/",
+        "forge-std/=lib/forge-std/src/",
+        "openzeppelin-contracts-upgradeable/=lib/blobstream-contracts/lib/openzeppelin-contracts-upgradeable/",
+        "openzeppelin-contracts/=lib/blobstream-contracts/lib/openzeppelin-contracts/",
+        "safe-contracts/=lib/succinctx/contracts/lib/safe-contracts/",
+        "succinctx/=lib/succinctx/",
+        "tree/=lib/blobstream-contracts/src/lib/tree/",
+        "verifier/=lib/blobstream-contracts/src/lib/verifier/"
+      ],
+      "optimizer": {
+        "enabled": true,
+        "runs": 200
+      },
+      "metadata": {
+        "bytecodeHash": "ipfs"
+      },
+      "compilationTarget": {
+        "../../zk-tendermint/contracts/src/IZKTendermintLightClient.sol": "IZKTendermintLightClient"
+      },
+      "libraries": {}
+    },
+    "sources": {
+      "../../zk-tendermint/contracts/src/IZKTendermintLightClient.sol": {
+        "keccak256": "0xaad14089fec76c20fde379e4d5353227bd75ec088f42b3cf28f566bbdcc116b6",
+        "urls": [
+          "bzz-raw://a6e85d38e034b98f86ae17185706f55764cd1feb7c04c711fcf085888f1bcc61",
+          "dweb:/ipfs/QmXQQzpvH5LG7wPjRauX4oEX6wybdhu51fXwNKrMMqaM8b"
+        ],
+        "license": "MIT"
+      }
+    },
+    "version": 1
+  },
+  "ast": {
+    "absolutePath": "../../zk-tendermint/contracts/src/IZKTendermintLightClient.sol",
+    "id": 25,
+    "exportedSymbols": {
+      "IZKTendermintLightClient": [
+        24
+      ]
+    },
+    "nodeType": "SourceUnit",
+    "src": "32:569:0",
+    "nodes": [
+      {
+        "id": 1,
+        "nodeType": "PragmaDirective",
+        "src": "32:24:0",
+        "nodes": [],
+        "literals": [
+          "solidity",
+          "^",
+          "0.8",
+          ".19"
+        ]
+      },
+      {
+        "id": 24,
+        "nodeType": "ContractDefinition",
+        "src": "58:542:0",
+        "nodes": [
+          {
+            "id": 9,
+            "nodeType": "FunctionDefinition",
+            "src": "188:75:0",
+            "nodes": [],
+            "documentation": {
+              "id": 2,
+              "nodeType": "StructuredDocumentation",
+              "src": "99:84:0",
+              "text": "@notice Gets the ID of a function.\n @param name The name of the function."
+            },
+            "functionSelector": "ce353b34",
+            "implemented": false,
+            "kind": "function",
+            "modifiers": [],
+            "name": "getFunctionId",
+            "nameLocation": "197:13:0",
+            "parameters": {
+              "id": 5,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 4,
+                  "mutability": "mutable",
+                  "name": "name",
+                  "nameLocation": "225:4:0",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 9,
+                  "src": "211:18:0",
+                  "stateVariable": false,
+                  "storageLocation": "memory",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_string_memory_ptr",
+                    "typeString": "string"
+                  },
+                  "typeName": {
+                    "id": 3,
+                    "name": "string",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "211:6:0",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_string_storage_ptr",
+                      "typeString": "string"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "210:20:0"
+            },
+            "returnParameters": {
+              "id": 8,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 7,
+                  "mutability": "mutable",
+                  "name": "",
+                  "nameLocation": "-1:-1:-1",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 9,
+                  "src": "254:7:0",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_bytes32",
+                    "typeString": "bytes32"
+                  },
+                  "typeName": {
+                    "id": 6,
+                    "name": "bytes32",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "254:7:0",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_bytes32",
+                      "typeString": "bytes32"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "253:9:0"
+            },
+            "scope": 24,
+            "stateMutability": "view",
+            "virtual": false,
+            "visibility": "external"
+          },
+          {
+            "id": 17,
+            "nodeType": "FunctionDefinition",
+            "src": "389:75:0",
+            "nodes": [],
+            "documentation": {
+              "id": 10,
+              "nodeType": "StructuredDocumentation",
+              "src": "269:115:0",
+              "text": "@notice Gets the header hash of a block.\n @param blockNumber The block number to get the header hash of."
+            },
+            "functionSelector": "78802ef1",
+            "implemented": false,
+            "kind": "function",
+            "modifiers": [],
+            "name": "getHeaderHash",
+            "nameLocation": "398:13:0",
+            "parameters": {
+              "id": 13,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 12,
+                  "mutability": "mutable",
+                  "name": "blockNumber",
+                  "nameLocation": "419:11:0",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 17,
+                  "src": "412:18:0",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint64",
+                    "typeString": "uint64"
+                  },
+                  "typeName": {
+                    "id": 11,
+                    "name": "uint64",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "412:6:0",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint64",
+                      "typeString": "uint64"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "411:20:0"
+            },
+            "returnParameters": {
+              "id": 16,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 15,
+                  "mutability": "mutable",
+                  "name": "",
+                  "nameLocation": "-1:-1:-1",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 17,
+                  "src": "455:7:0",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_bytes32",
+                    "typeString": "bytes32"
+                  },
+                  "typeName": {
+                    "id": 14,
+                    "name": "bytes32",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "455:7:0",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_bytes32",
+                      "typeString": "bytes32"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "454:9:0"
+            },
+            "scope": 24,
+            "stateMutability": "view",
+            "virtual": false,
+            "visibility": "external"
+          },
+          {
+            "id": 23,
+            "nodeType": "FunctionDefinition",
+            "src": "544:54:0",
+            "nodes": [],
+            "documentation": {
+              "id": 18,
+              "nodeType": "StructuredDocumentation",
+              "src": "470:69:0",
+              "text": "@notice Gets the latest block number updated by the light client."
+            },
+            "functionSelector": "07e2da96",
+            "implemented": false,
+            "kind": "function",
+            "modifiers": [],
+            "name": "latestBlock",
+            "nameLocation": "553:11:0",
+            "parameters": {
+              "id": 19,
+              "nodeType": "ParameterList",
+              "parameters": [],
+              "src": "564:2:0"
+            },
+            "returnParameters": {
+              "id": 22,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 21,
+                  "mutability": "mutable",
+                  "name": "",
+                  "nameLocation": "-1:-1:-1",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 23,
+                  "src": "590:6:0",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint64",
+                    "typeString": "uint64"
+                  },
+                  "typeName": {
+                    "id": 20,
+                    "name": "uint64",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "590:6:0",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint64",
+                      "typeString": "uint64"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "589:8:0"
+            },
+            "scope": 24,
+            "stateMutability": "view",
+            "virtual": false,
+            "visibility": "external"
+          }
+        ],
+        "abstract": false,
+        "baseContracts": [],
+        "canonicalName": "IZKTendermintLightClient",
+        "contractDependencies": [],
+        "contractKind": "interface",
+        "fullyImplemented": false,
+        "linearizedBaseContracts": [
+          24
+        ],
+        "name": "IZKTendermintLightClient",
+        "nameLocation": "68:24:0",
+        "scope": 25,
+        "usedErrors": [],
+        "usedEvents": []
+      }
+    ],
+    "license": "MIT"
+  },
+  "id": 0
+}

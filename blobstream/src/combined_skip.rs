@@ -5,6 +5,7 @@ use zk_tendermint::skip::{SkipOffchainInputs, TendermintSkipCircuit};
 
 use crate::commitment::{CelestiaDataCommitmentCircuit, DataCommitmentOffchainInputs};
 
+#[derive(Debug, Clone)]
 pub struct CombinedSkipCircuit<const MAX_LEAVES: usize, const MAX_VALIDATOR_SET_SIZE: usize> {
     _config: usize,
 }

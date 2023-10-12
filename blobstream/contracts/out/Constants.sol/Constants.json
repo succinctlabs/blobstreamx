@@ -1,0 +1,466 @@
+{
+  "abi": [],
+  "bytecode": {
+    "object": "0x60566037600b82828239805160001a607314602a57634e487b7160e01b600052600060045260246000fd5b30600052607381538281f3fe73000000000000000000000000000000000000000030146080604052600080fdfea26469706673582212202820972c130b0c08f6e56c3c89864c8e7560901fc4e6474b774a3dc91daf733b64736f6c63430008150033",
+    "sourceMap": "88:308:2:-:0;;;;;;;;;;;;;;;-1:-1:-1;;;88:308:2;;;;;;;;;;;;;;;;;",
+    "linkReferences": {}
+  },
+  "deployedBytecode": {
+    "object": "0x73000000000000000000000000000000000000000030146080604052600080fdfea26469706673582212202820972c130b0c08f6e56c3c89864c8e7560901fc4e6474b774a3dc91daf733b64736f6c63430008150033",
+    "sourceMap": "88:308:2:-:0;;;;;;;;",
+    "linkReferences": {}
+  },
+  "methodIdentifiers": {},
+  "rawMetadata": "{\"compiler\":{\"version\":\"0.8.21+commit.d9974bed\"},\"language\":\"Solidity\",\"output\":{\"abi\":[],\"devdoc\":{\"kind\":\"dev\",\"methods\":{},\"stateVariables\":{\"LEAF_PREFIX\":{\"details\":\"The prefixes of leaves and nodes\"},\"MAX_HEIGHT\":{\"details\":\"Maximum tree height\"}},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{},\"version\":1}},\"settings\":{\"compilationTarget\":{\"lib/blobstream-contracts/src/lib/tree/Constants.sol\":\"Constants\"},\"evmVersion\":\"paris\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\"},\"optimizer\":{\"enabled\":true,\"runs\":200},\"remappings\":[\":@blobstream/=lib/blobstream-contracts/src/\",\":@openzeppelin/contracts/=lib/blobstream-contracts/lib/openzeppelin-contracts-upgradeable/contracts/\",\":@succinctx/=lib/succinctx/contracts/src/\",\":@zk-tendermint/=../../zk-tendermint/contracts/src/\",\":blobstream-contracts/=lib/blobstream-contracts/src/\",\":ds-test/=lib/forge-std/lib/ds-test/src/\",\":erc4626-tests/=lib/blobstream-contracts/lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests/\",\":forge-std/=lib/forge-std/src/\",\":openzeppelin-contracts-upgradeable/=lib/blobstream-contracts/lib/openzeppelin-contracts-upgradeable/\",\":openzeppelin-contracts/=lib/blobstream-contracts/lib/openzeppelin-contracts/\",\":safe-contracts/=lib/succinctx/contracts/lib/safe-contracts/\",\":succinctx/=lib/succinctx/\",\":tree/=lib/blobstream-contracts/src/lib/tree/\",\":verifier/=lib/blobstream-contracts/src/lib/verifier/\"]},\"sources\":{\"lib/blobstream-contracts/src/lib/tree/Constants.sol\":{\"keccak256\":\"0x2277b51e312dbbc106053f60b5a72faa2c94ab7ebe66d82dc642532ec121de8d\",\"license\":\"Apache-2.0\",\"urls\":[\"bzz-raw://4185bde4a247dc60ac726efd8d5499545f68fbe1e13d232977dd6796aafdf5dd\",\"dweb:/ipfs/QmR92aKT9B7xyJ35gHUYgax5rHa6inHR2M54JRuzGgFyTn\"]},\"lib/blobstream-contracts/src/lib/tree/Types.sol\":{\"keccak256\":\"0x1aaaded931b2fb82a2a85c2a7d82fb5a578fa7ff8562028aa4ed86cd8deb7c99\",\"license\":\"Apache-2.0\",\"urls\":[\"bzz-raw://ccf3fa8380a04e296630b3f16ad40959871b24ce04396d92811099ac24e74dcf\",\"dweb:/ipfs/QmTy8yc5HF9AzQiyV7mesru5BiTbKURHZqpZcKKvuGGEfQ\"]}},\"version\":1}",
+  "metadata": {
+    "compiler": {
+      "version": "0.8.21+commit.d9974bed"
+    },
+    "language": "Solidity",
+    "output": {
+      "abi": [],
+      "devdoc": {
+        "kind": "dev",
+        "methods": {},
+        "version": 1
+      },
+      "userdoc": {
+        "kind": "user",
+        "methods": {},
+        "version": 1
+      }
+    },
+    "settings": {
+      "remappings": [
+        "@blobstream/=lib/blobstream-contracts/src/",
+        "@openzeppelin/contracts/=lib/blobstream-contracts/lib/openzeppelin-contracts-upgradeable/contracts/",
+        "@succinctx/=lib/succinctx/contracts/src/",
+        "@zk-tendermint/=../../zk-tendermint/contracts/src/",
+        "blobstream-contracts/=lib/blobstream-contracts/src/",
+        "ds-test/=lib/forge-std/lib/ds-test/src/",
+        "erc4626-tests/=lib/blobstream-contracts/lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests/",
+        "forge-std/=lib/forge-std/src/",
+        "openzeppelin-contracts-upgradeable/=lib/blobstream-contracts/lib/openzeppelin-contracts-upgradeable/",
+        "openzeppelin-contracts/=lib/blobstream-contracts/lib/openzeppelin-contracts/",
+        "safe-contracts/=lib/succinctx/contracts/lib/safe-contracts/",
+        "succinctx/=lib/succinctx/",
+        "tree/=lib/blobstream-contracts/src/lib/tree/",
+        "verifier/=lib/blobstream-contracts/src/lib/verifier/"
+      ],
+      "optimizer": {
+        "enabled": true,
+        "runs": 200
+      },
+      "metadata": {
+        "bytecodeHash": "ipfs"
+      },
+      "compilationTarget": {
+        "lib/blobstream-contracts/src/lib/tree/Constants.sol": "Constants"
+      },
+      "libraries": {}
+    },
+    "sources": {
+      "lib/blobstream-contracts/src/lib/tree/Constants.sol": {
+        "keccak256": "0x2277b51e312dbbc106053f60b5a72faa2c94ab7ebe66d82dc642532ec121de8d",
+        "urls": [
+          "bzz-raw://4185bde4a247dc60ac726efd8d5499545f68fbe1e13d232977dd6796aafdf5dd",
+          "dweb:/ipfs/QmR92aKT9B7xyJ35gHUYgax5rHa6inHR2M54JRuzGgFyTn"
+        ],
+        "license": "Apache-2.0"
+      },
+      "lib/blobstream-contracts/src/lib/tree/Types.sol": {
+        "keccak256": "0x1aaaded931b2fb82a2a85c2a7d82fb5a578fa7ff8562028aa4ed86cd8deb7c99",
+        "urls": [
+          "bzz-raw://ccf3fa8380a04e296630b3f16ad40959871b24ce04396d92811099ac24e74dcf",
+          "dweb:/ipfs/QmTy8yc5HF9AzQiyV7mesru5BiTbKURHZqpZcKKvuGGEfQ"
+        ],
+        "license": "Apache-2.0"
+      }
+    },
+    "version": 1
+  },
+  "ast": {
+    "absolutePath": "lib/blobstream-contracts/src/lib/tree/Constants.sol",
+    "id": 61,
+    "exportedSymbols": {
+      "Constants": [
+        47
+      ],
+      "Namespace": [
+        68
+      ],
+      "PARITY_SHARE_NAMESPACE": [
+        60
+      ],
+      "equalTo": [
+        95
+      ],
+      "greaterThan": [
+        135
+      ],
+      "lessThan": [
+        115
+      ],
+      "toBytes": [
+        155
+      ],
+      "toNamespace": [
+        203
+      ]
+    },
+    "nodeType": "SourceUnit",
+    "src": "39:632:2",
+    "nodes": [
+      {
+        "id": 34,
+        "nodeType": "PragmaDirective",
+        "src": "39:24:2",
+        "nodes": [],
+        "literals": [
+          "solidity",
+          "^",
+          "0.8",
+          ".19"
+        ]
+      },
+      {
+        "id": 35,
+        "nodeType": "ImportDirective",
+        "src": "65:21:2",
+        "nodes": [],
+        "absolutePath": "lib/blobstream-contracts/src/lib/tree/Types.sol",
+        "file": "./Types.sol",
+        "nameLocation": "-1:-1:-1",
+        "scope": 61,
+        "sourceUnit": 204,
+        "symbolAliases": [],
+        "unitAlias": ""
+      },
+      {
+        "id": 47,
+        "nodeType": "ContractDefinition",
+        "src": "88:308:2",
+        "nodes": [
+          {
+            "id": 39,
+            "nodeType": "VariableDeclaration",
+            "src": "206:42:2",
+            "nodes": [],
+            "constant": true,
+            "documentation": {
+              "id": 36,
+              "nodeType": "StructuredDocumentation",
+              "src": "173:28:2",
+              "text": "@dev Maximum tree height"
+            },
+            "mutability": "constant",
+            "name": "MAX_HEIGHT",
+            "nameLocation": "232:10:2",
+            "scope": 47,
+            "stateVariable": true,
+            "storageLocation": "default",
+            "typeDescriptions": {
+              "typeIdentifier": "t_uint256",
+              "typeString": "uint256"
+            },
+            "typeName": {
+              "id": 37,
+              "name": "uint256",
+              "nodeType": "ElementaryTypeName",
+              "src": "206:7:2",
+              "typeDescriptions": {
+                "typeIdentifier": "t_uint256",
+                "typeString": "uint256"
+              }
+            },
+            "value": {
+              "hexValue": "323536",
+              "id": 38,
+              "isConstant": false,
+              "isLValue": false,
+              "isPure": true,
+              "kind": "number",
+              "lValueRequested": false,
+              "nodeType": "Literal",
+              "src": "245:3:2",
+              "typeDescriptions": {
+                "typeIdentifier": "t_rational_256_by_1",
+                "typeString": "int_const 256"
+              },
+              "value": "256"
+            },
+            "visibility": "internal"
+          },
+          {
+            "id": 43,
+            "nodeType": "VariableDeclaration",
+            "src": "301:43:2",
+            "nodes": [],
+            "constant": true,
+            "documentation": {
+              "id": 40,
+              "nodeType": "StructuredDocumentation",
+              "src": "255:41:2",
+              "text": "@dev The prefixes of leaves and nodes"
+            },
+            "mutability": "constant",
+            "name": "LEAF_PREFIX",
+            "nameLocation": "326:11:2",
+            "scope": 47,
+            "stateVariable": true,
+            "storageLocation": "default",
+            "typeDescriptions": {
+              "typeIdentifier": "t_bytes1",
+              "typeString": "bytes1"
+            },
+            "typeName": {
+              "id": 41,
+              "name": "bytes1",
+              "nodeType": "ElementaryTypeName",
+              "src": "301:6:2",
+              "typeDescriptions": {
+                "typeIdentifier": "t_bytes1",
+                "typeString": "bytes1"
+              }
+            },
+            "value": {
+              "hexValue": "30783030",
+              "id": 42,
+              "isConstant": false,
+              "isLValue": false,
+              "isPure": true,
+              "kind": "number",
+              "lValueRequested": false,
+              "nodeType": "Literal",
+              "src": "340:4:2",
+              "typeDescriptions": {
+                "typeIdentifier": "t_rational_0_by_1",
+                "typeString": "int_const 0"
+              },
+              "value": "0x00"
+            },
+            "visibility": "internal"
+          },
+          {
+            "id": 46,
+            "nodeType": "VariableDeclaration",
+            "src": "350:43:2",
+            "nodes": [],
+            "constant": true,
+            "mutability": "constant",
+            "name": "NODE_PREFIX",
+            "nameLocation": "375:11:2",
+            "scope": 47,
+            "stateVariable": true,
+            "storageLocation": "default",
+            "typeDescriptions": {
+              "typeIdentifier": "t_bytes1",
+              "typeString": "bytes1"
+            },
+            "typeName": {
+              "id": 44,
+              "name": "bytes1",
+              "nodeType": "ElementaryTypeName",
+              "src": "350:6:2",
+              "typeDescriptions": {
+                "typeIdentifier": "t_bytes1",
+                "typeString": "bytes1"
+              }
+            },
+            "value": {
+              "hexValue": "30783031",
+              "id": 45,
+              "isConstant": false,
+              "isLValue": false,
+              "isPure": true,
+              "kind": "number",
+              "lValueRequested": false,
+              "nodeType": "Literal",
+              "src": "389:4:2",
+              "typeDescriptions": {
+                "typeIdentifier": "t_rational_1_by_1",
+                "typeString": "int_const 1"
+              },
+              "value": "0x01"
+            },
+            "visibility": "internal"
+          }
+        ],
+        "abstract": false,
+        "baseContracts": [],
+        "canonicalName": "Constants",
+        "contractDependencies": [],
+        "contractKind": "library",
+        "fullyImplemented": true,
+        "linearizedBaseContracts": [
+          47
+        ],
+        "name": "Constants",
+        "nameLocation": "96:9:2",
+        "scope": 61,
+        "usedErrors": [],
+        "usedEvents": []
+      },
+      {
+        "id": 60,
+        "nodeType": "FunctionDefinition",
+        "src": "513:157:2",
+        "nodes": [],
+        "body": {
+          "id": 59,
+          "nodeType": "Block",
+          "src": "579:91:2",
+          "nodes": [],
+          "statements": [
+            {
+              "expression": {
+                "arguments": [
+                  {
+                    "hexValue": "30784646",
+                    "id": 55,
+                    "isConstant": false,
+                    "isLValue": false,
+                    "isPure": true,
+                    "kind": "number",
+                    "lValueRequested": false,
+                    "nodeType": "Literal",
+                    "src": "602:4:2",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_rational_255_by_1",
+                      "typeString": "int_const 255"
+                    },
+                    "value": "0xFF"
+                  },
+                  {
+                    "hexValue": "30784646464646464646464646464646464646464646464646464646464646464646464646464646464646464646464646464646464646464646",
+                    "id": 56,
+                    "isConstant": false,
+                    "isLValue": false,
+                    "isPure": true,
+                    "kind": "number",
+                    "lValueRequested": false,
+                    "nodeType": "Literal",
+                    "src": "608:58:2",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_rational_26959946667150639794667015087019630673637144422540572481103610249215_by_1",
+                      "typeString": "int_const 2695...(60 digits omitted)...9215"
+                    },
+                    "value": "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+                  }
+                ],
+                "expression": {
+                  "argumentTypes": [
+                    {
+                      "typeIdentifier": "t_rational_255_by_1",
+                      "typeString": "int_const 255"
+                    },
+                    {
+                      "typeIdentifier": "t_rational_26959946667150639794667015087019630673637144422540572481103610249215_by_1",
+                      "typeString": "int_const 2695...(60 digits omitted)...9215"
+                    }
+                  ],
+                  "id": 54,
+                  "name": "Namespace",
+                  "nodeType": "Identifier",
+                  "overloadedDeclarations": [],
+                  "referencedDeclaration": 68,
+                  "src": "592:9:2",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_type$_t_struct$_Namespace_$68_storage_ptr_$",
+                    "typeString": "type(struct Namespace storage pointer)"
+                  }
+                },
+                "id": 57,
+                "isConstant": false,
+                "isLValue": false,
+                "isPure": true,
+                "kind": "structConstructorCall",
+                "lValueRequested": false,
+                "nameLocations": [],
+                "names": [],
+                "nodeType": "FunctionCall",
+                "src": "592:75:2",
+                "tryCall": false,
+                "typeDescriptions": {
+                  "typeIdentifier": "t_struct$_Namespace_$68_memory_ptr",
+                  "typeString": "struct Namespace memory"
+                }
+              },
+              "functionReturnParameters": 53,
+              "id": 58,
+              "nodeType": "Return",
+              "src": "585:82:2"
+            }
+          ]
+        },
+        "documentation": {
+          "id": 48,
+          "nodeType": "StructuredDocumentation",
+          "src": "398:115:2",
+          "text": "@dev Parity share namespace.\n utility function to provide the parity share namespace as a Namespace struct."
+        },
+        "implemented": true,
+        "kind": "freeFunction",
+        "modifiers": [],
+        "name": "PARITY_SHARE_NAMESPACE",
+        "nameLocation": "522:22:2",
+        "parameters": {
+          "id": 49,
+          "nodeType": "ParameterList",
+          "parameters": [],
+          "src": "544:2:2"
+        },
+        "returnParameters": {
+          "id": 53,
+          "nodeType": "ParameterList",
+          "parameters": [
+            {
+              "constant": false,
+              "id": 52,
+              "mutability": "mutable",
+              "name": "",
+              "nameLocation": "-1:-1:-1",
+              "nodeType": "VariableDeclaration",
+              "scope": 60,
+              "src": "561:16:2",
+              "stateVariable": false,
+              "storageLocation": "memory",
+              "typeDescriptions": {
+                "typeIdentifier": "t_struct$_Namespace_$68_memory_ptr",
+                "typeString": "struct Namespace"
+              },
+              "typeName": {
+                "id": 51,
+                "nodeType": "UserDefinedTypeName",
+                "pathNode": {
+                  "id": 50,
+                  "name": "Namespace",
+                  "nameLocations": [
+                    "561:9:2"
+                  ],
+                  "nodeType": "IdentifierPath",
+                  "referencedDeclaration": 68,
+                  "src": "561:9:2"
+                },
+                "referencedDeclaration": 68,
+                "src": "561:9:2",
+                "typeDescriptions": {
+                  "typeIdentifier": "t_struct$_Namespace_$68_storage_ptr",
+                  "typeString": "struct Namespace"
+                }
+              },
+              "visibility": "internal"
+            }
+          ],
+          "src": "560:18:2"
+        },
+        "scope": 61,
+        "stateMutability": "pure",
+        "virtual": false,
+        "visibility": "internal"
+      }
+    ],
+    "license": "Apache-2.0"
+  },
+  "id": 2
+}

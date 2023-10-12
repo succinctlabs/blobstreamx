@@ -17,7 +17,7 @@
 use std::env;
 
 use blobstream::commitment::DataCommitmentCircuit;
-use plonky2x::backend::function::VerifiableFunction;
+use plonky2x::backend::function::Plonky2xFunction;
 
 fn main() {
     // Celestia's maxmimum data commitment size is 1000: https://github.com/celestiaorg/celestia-core/blob/6933af1ead0ddf4a8c7516690e3674c6cdfa7bd8/pkg/consts/consts.go#L44.
@@ -25,13 +25,13 @@ fn main() {
 
     if env_max_leaves == 1024.to_string() {
         const MAX_LEAVES: usize = 1024;
-        VerifiableFunction::<DataCommitmentCircuit<MAX_LEAVES>>::entrypoint();
+        DataCommitmentCircuit::<MAX_LEAVES>::entrypoint();
     } else if env_max_leaves == 256.to_string() {
         const MAX_LEAVES: usize = 256;
-        VerifiableFunction::<DataCommitmentCircuit<MAX_LEAVES>>::entrypoint();
+        DataCommitmentCircuit::<MAX_LEAVES>::entrypoint();
     } else if env_max_leaves == 4.to_string() {
         const MAX_LEAVES: usize = 4;
-        VerifiableFunction::<DataCommitmentCircuit<MAX_LEAVES>>::entrypoint();
+        DataCommitmentCircuit::<MAX_LEAVES>::entrypoint();
     } else {
         panic!("MAX_LEAVES must be set to 1024, 256, or 4");
     }
