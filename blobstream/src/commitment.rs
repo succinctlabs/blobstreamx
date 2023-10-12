@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use zk_tendermint::input::utils::convert_to_h256;
 use zk_tendermint::input::InputDataFetcher;
 
-use crate::builder::{DataCommitmentBuilder, SubchainVerificationCtx};
+use crate::builder::{DataCommitmentBuilder, DataCommitmentSharedCtx};
 use crate::input::DataCommitmentInputs;
 use crate::vars::*;
 
@@ -84,7 +84,7 @@ impl<const NB_MAP_JOBS: usize, const BATCH_SIZE: usize> Circuit
 
         let mr_id = MapReduceGenerator::<
             L,
-            SubchainVerificationCtx,
+            DataCommitmentSharedCtx,
             U64Variable,
             MapReduceSubchainVariable,
             Self,
@@ -93,7 +93,7 @@ impl<const NB_MAP_JOBS: usize, const BATCH_SIZE: usize> Circuit
         >::id();
         generator_registry.register_simple::<MapReduceGenerator<
             L,
-            SubchainVerificationCtx,
+            DataCommitmentSharedCtx,
             U64Variable,
             MapReduceSubchainVariable,
             Self,

@@ -4,7 +4,7 @@ use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::prelude::{Bytes32Variable, CircuitBuilder, PlonkParameters};
 use zk_tendermint::skip::{SkipOffchainInputs, TendermintSkipCircuit};
 
-use crate::builder::{DataCommitmentBuilder, SubchainVerificationCtx};
+use crate::builder::{DataCommitmentBuilder, DataCommitmentSharedCtx};
 use crate::commitment::DataCommitmentOffchainInputs;
 use crate::vars::MapReduceSubchainVariable;
 
@@ -53,7 +53,7 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize, const NB_MAP_JOBS: usize, const BATCH_
         generator_registry.register_async_hint::<DataCommitmentOffchainInputs<BATCH_SIZE>>();
         let mr_id = MapReduceGenerator::<
             L,
-            SubchainVerificationCtx,
+            DataCommitmentSharedCtx,
             U64Variable,
             MapReduceSubchainVariable,
             Self,
@@ -62,7 +62,7 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize, const NB_MAP_JOBS: usize, const BATCH_
         >::id();
         generator_registry.register_simple::<MapReduceGenerator<
             L,
-            SubchainVerificationCtx,
+            DataCommitmentSharedCtx,
             U64Variable,
             MapReduceSubchainVariable,
             Self,

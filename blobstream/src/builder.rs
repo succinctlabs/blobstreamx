@@ -9,8 +9,10 @@ use zk_tendermint::consts::*;
 use crate::commitment::DataCommitmentOffchainInputs;
 use crate::vars::{DataCommitmentProofVariable, MapReduceSubchainVariable};
 
+// Shared context across all mapreduce jobs.
+// In prove_data_commitment, end_block and end_header_hash are referred to as global_end_block and global_end_header_hash.
 #[derive(Clone, Debug, CircuitVariable)]
-pub struct SubchainVerificationCtx {
+pub struct DataCommitmentSharedCtx {
     pub start_block: U64Variable,
     pub start_header_hash: Bytes32Variable,
     pub end_block: U64Variable,
@@ -18,7 +20,7 @@ pub struct SubchainVerificationCtx {
 }
 
 pub trait DataCommitmentBuilder<L: PlonkParameters<D>, const D: usize> {
-    /// Encodes the data hash and height into a tuple.
+    /// Encodes the data hash and height as a tuple with abi.encode(height, data_hash).
     /// Spec: https://github.com/celestiaorg/celestia-core/blob/6933af1ead0ddf4a8c7516690e3674c6cdfa7bd8/rpc/core/blocks.go#L325-L334
     fn encode_data_root_tuple(
         &mut self,
@@ -26,7 +28,9 @@ pub trait DataCommitmentBuilder<L: PlonkParameters<D>, const D: usize> {
         height: &U64Variable,
     ) -> BytesVariable<ENC_DATA_ROOT_TUPLE_SIZE_BYTES>;
 
-    /// Compute the data commitment from start_block to end_block. Assumes the data hashes correspond to the blocks from start_block to end_block.
+    /// Compute the data commitment from start_block to end_block. Each leaf in the merkle tree is abi.encode(data_hash, height).
+    ///
+    /// MAX_LEAVES is the maximum range of blocks that can be included in the data commitment.
     fn get_data_commitment<const MAX_LEAVES: usize>(
         &mut self,
         data_hashes: &ArrayVariable<Bytes32Variable, MAX_LEAVES>,
@@ -34,7 +38,7 @@ pub trait DataCommitmentBuilder<L: PlonkParameters<D>, const D: usize> {
         end_block: U64Variable,
     ) -> Bytes32Variable;
 
-    /// Verify the chain of headers is linked for the subrange in the data commitment proof. & generate the subrange's data_merkle_root. Skip verification after global_end_block.
+    /// Verify the chain of headers is linked for the subrange in the data commitment proof & generate the subrange's data_merkle_root. Does not include blocks after global_end_block.
     ///
     /// Specifically, a MapReduce circuit with <NB_MAP_JOBS=4, BATCH_SIZE=4> over blocks [0, 16) will invoke prove_subchain 4 times. Each of the 4 prove_subchain calls
     /// over [0, 4), [4, 8), [8, 12), [12, 16) will 1) prove the subchain of headers are linked and 2) output their corresponding data_merkle_root.
@@ -47,6 +51,8 @@ pub trait DataCommitmentBuilder<L: PlonkParameters<D>, const D: usize> {
 
     /// Verify the chain of headers is linked from start_block to end_block, and generate the corresponding data_merkle_root.
     /// NB_MAP_JOBS * BATCH_SIZE is the maximum range of blocks that can be included in the data commitment.
+    ///
+    /// mapreduce is used to parallelize the verification of the chain of headers, by splitting the range of blocks into NB_MAP_JOBS batches of BATCH_SIZE blocks.
     fn prove_data_commitment<C: Circuit, const NB_MAP_JOBS: usize, const BATCH_SIZE: usize>(
         &mut self,
         start_block: U64Variable,
@@ -229,7 +235,7 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
         <<L as PlonkParameters<D>>::Config as GenericConfig<D>>::Hasher:
             AlgebraicHasher<<L as PlonkParameters<D>>::Field>,
     {
-        let ctx = SubchainVerificationCtx {
+        let ctx = DataCommitmentSharedCtx {
             start_block,
             start_header_hash,
             end_block,
@@ -240,7 +246,7 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
         let relative_block_nums = (0u64..(total_headers as u64)).collect::<Vec<_>>();
 
         let result = self
-            .mapreduce::<SubchainVerificationCtx, U64Variable, MapReduceSubchainVariable, C, BATCH_SIZE, _, _>(
+            .mapreduce::<DataCommitmentSharedCtx, U64Variable, MapReduceSubchainVariable, C, BATCH_SIZE, _, _>(
                 ctx.clone(),
                 relative_block_nums,
                 |map_ctx, map_relative_block_nums, builder| {
