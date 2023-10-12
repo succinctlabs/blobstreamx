@@ -129,7 +129,7 @@ contract ZKTendermintLightClient is IZKTendermintLightClient {
     ) external onlyGateway {
         (uint64 skipStartBlock, uint64 skipTargetBlock) = abi.decode(
             context,
-            (uint64)
+            (uint64, uint64)
         );
         bytes32 newHeader = abi.decode(requestResult, (bytes32));
 
