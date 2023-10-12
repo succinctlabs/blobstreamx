@@ -433,7 +433,6 @@ pub(crate) mod tests {
 
         let data_commitment_var = builder.read::<DataCommitmentProofVariable<MAX_LEAVES>>();
 
-        // TODO: Remove clone if performance is an issue.
         builder.prove_subchain::<MAX_LEAVES>(
             &data_commitment_var,
             &data_commitment_var.end_block_height,
