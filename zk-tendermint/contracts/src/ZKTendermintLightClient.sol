@@ -20,9 +20,9 @@ contract ZKTendermintLightClient is IZKTendermintLightClient {
     /// @notice Maps block heights to their header hashes.
     mapping(uint64 => bytes32) public blockHeightToHeaderHash;
 
-    /////////////
+    ////////////
     // Events //
-    /////////////
+    ////////////
 
     /// @notice Emitted when a step is requested.
     /// @param startBlock The start block of the step request.
@@ -64,6 +64,19 @@ contract ZKTendermintLightClient is IZKTendermintLightClient {
         _;
     }
 
+    ////////////
+    // Errors //
+    ////////////
+
+    /// @notice Latest header not found.
+    error LatestHeaderNotFound();
+    /// @notice Function ID for name not found.
+    error FunctionIdNotFound(string name);
+    /// @notice Target block for proof must be greater than latest block.
+    error TargetLessThanLatest();
+    /// @notice The range of blocks in a request is greater than the maximum allowed.
+    error ProofBlockRangeTooLarge();
+
     ///////////////
     // Functions //
     ///////////////
@@ -100,16 +113,20 @@ contract ZKTendermintLightClient is IZKTendermintLightClient {
     function requestHeaderSkip(uint64 _requestedBlock) external payable {
         bytes32 latestHeader = blockHeightToHeaderHash[latestBlock];
         if (latestHeader == bytes32(0)) {
-            revert("Latest header not found");
+            revert LatestHeaderNotFound();
         }
         bytes32 id = functionNameToId["skip"];
         if (id == bytes32(0)) {
-            revert("Function ID for skip not found");
+            revert FunctionIdNotFound("skip");
         }
 
         // A request can be at most SKIP_MAX blocks ahead of the latest block.
-        require(_requestedBlock - latestBlock <= SKIP_MAX);
-        require(_requestedBlock > latestBlock);
+        if (_requestedBlock - latestBlock > SKIP_MAX) {
+            revert ProofBlockRangeTooLarge();
+        }
+        if (_requestedBlock <= latestBlock) {
+            revert TargetLessThanLatest();
+        }
 
         bytes32 requestId = IFunctionGateway(gateway).request{value: msg.value}(
             id,
@@ -133,7 +150,9 @@ contract ZKTendermintLightClient is IZKTendermintLightClient {
         );
         bytes32 newHeader = abi.decode(requestResult, (bytes32));
 
-        require(skipTargetBlock > latestBlock);
+        if (skipTargetBlock <= latestBlock) {
+            revert TargetLessThanLatest();
+        }
 
         blockHeightToHeaderHash[skipTargetBlock] = newHeader;
         latestBlock = skipTargetBlock;
@@ -146,12 +165,12 @@ contract ZKTendermintLightClient is IZKTendermintLightClient {
     function requestHeaderStep() external payable {
         bytes32 latestHeader = blockHeightToHeaderHash[latestBlock];
         if (latestHeader == bytes32(0)) {
-            revert("Latest header not found");
+            revert LatestHeaderNotFound();
         }
 
         bytes32 id = functionNameToId["step"];
         if (id == bytes32(0)) {
-            revert("Function ID for step not found");
+            revert FunctionIdNotFound("step");
         }
         bytes32 requestId = IFunctionGateway(gateway).request{value: msg.value}(
             id,
@@ -173,7 +192,9 @@ contract ZKTendermintLightClient is IZKTendermintLightClient {
         bytes32 nextHeader = abi.decode(requestResult, (bytes32));
         uint64 nextBlock = prevBlock + 1;
 
-        require(nextBlock > latestBlock);
+        if (nextBlock <= latestBlock) {
+            revert TargetLessThanLatest();
+        }
 
         blockHeightToHeaderHash[nextBlock] = nextHeader;
         latestBlock = nextBlock;
