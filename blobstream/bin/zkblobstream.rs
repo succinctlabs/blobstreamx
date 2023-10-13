@@ -34,7 +34,6 @@ async fn main() -> Result<(), ()> {
     let start_block = 1000_u64;
     let header = tendermint_input_fetcher.get_header_from_number(1000).await;
 
-    // TODO: Should run mock prove function here.
     zk_blobstream
         .set_genesis_header(start_block, H256::from_slice(header.hash().as_bytes()).0)
         .send()
@@ -45,13 +44,15 @@ async fn main() -> Result<(), ()> {
 
     // Loop every 30 minutes. Call request_combined_skip every 30 minutes, and incrememnt the block number by 100 each time.
     loop {
+        // TODO: Should run mock prove function here.
+
         zk_blobstream
             .request_combined_skip(curr_block)
             .send()
             .await
             .expect("failed to request combined skip");
 
-        tokio::time::sleep(tokio::time::Duration::from_secs(1800)).await;
+        tokio::time::sleep(tokio::time::Duration::from_secs(60 * 30)).await;
 
         curr_block += 100;
         if curr_block > 1500 {
