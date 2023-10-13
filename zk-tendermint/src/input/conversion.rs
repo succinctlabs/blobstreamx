@@ -1,7 +1,9 @@
 use ed25519_consensus::SigningKey;
 use plonky2x::frontend::ecc::ed25519::gadgets::verify::DUMMY_SIGNATURE;
 use plonky2x::prelude::RichField;
+use tendermint::crypto::default::signature::Verifier;
 use tendermint::crypto::ed25519::VerificationKey;
+use tendermint::crypto::signature::Verifier as _;
 use tendermint::validator::Set as ValidatorSet;
 use tendermint::vote::{SignedVote, ValidatorIndex};
 use tendermint::{private_key, Signature};
@@ -10,7 +12,7 @@ use super::tendermint_utils::{non_absent_vote, SignedBlock};
 use crate::consts::VALIDATOR_MESSAGE_BYTES_LENGTH_MAX;
 use crate::variables::*;
 
-pub fn validator_from_block<const VALIDATOR_SET_SIZE_MAX: usize, F: RichField>(
+pub fn validators_from_block<const VALIDATOR_SET_SIZE_MAX: usize, F: RichField>(
     block: &SignedBlock,
 ) -> Vec<Validator<F>> {
     let mut validators = Vec::new();
@@ -44,6 +46,10 @@ pub fn validator_from_block<const VALIDATOR_SET_SIZE_MAX: usize, F: RichField>(
 
             let sig = signed_vote.signature();
 
+            // Source: https://github.com/informalsystems/tendermint-rs/blob/bcc0b377812b8e53a02dff156988569c5b3c81a2/tendermint/src/crypto/default/signature.rs#L199-L200
+            Verifier::verify(validator.pub_key, &signed_vote.sign_bytes(), sig)
+                .unwrap_or_else(|_| panic!("signature should be valid for validator {}", i));
+
             validators.push(Validator {
                 pubkey: pubkey_to_value_type::<F>(&validator.pub_key.ed25519().unwrap()),
                 signature: signature_to_value_type::<F>(&sig.clone()),
@@ -76,7 +82,7 @@ pub fn validator_from_block<const VALIDATOR_SET_SIZE_MAX: usize, F: RichField>(
 
     // These are empty signatures (not included in val hash)
     for _ in block.commit.signatures.len()..VALIDATOR_SET_SIZE_MAX {
-        let priv_key_bytes = [0u8; 32];
+        let priv_key_bytes = [1u8; 32];
         let signing_key =
             private_key::Ed25519::try_from(&priv_key_bytes[..]).expect("failed to create key");
         let signing_key = SigningKey::try_from(signing_key).unwrap();
