@@ -95,6 +95,7 @@ impl InputDataFetcher {
             }
             InputDataMode::Fixture => {
                 let file_content = fs::read_to_string(file_name.as_str());
+                info!("File name: {}", file_name.as_str());
                 file_content.unwrap()
             }
         };
@@ -130,7 +131,7 @@ impl InputDataFetcher {
             }
             InputDataMode::Fixture => {
                 let file_content = fs::read_to_string(file_name.as_str());
-                println!("Retrieving fixture");
+                info!("Fixture name: {}", file_name.as_str());
                 file_content.unwrap()
             }
         };
@@ -211,7 +212,6 @@ impl InputDataFetcher {
         let last_block_id_hash = next_block.header.last_block_id.unwrap().hash;
         let encoded_last_block_id =
             Protobuf::<RawBlockId>::encode_vec(next_block.header.last_block_id.unwrap_or_default());
-        println!("encoded_last_block_id {:?}", encoded_last_block_id);
         assert_eq!(
             last_block_id_hash.as_bytes(),
             &encoded_last_block_id[2..34],

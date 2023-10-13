@@ -4,6 +4,7 @@ use std::path::Path;
 use async_trait::async_trait;
 use ethers::types::H256;
 use itertools::Itertools;
+use log::info;
 use plonky2x::frontend::merkle::tree::InclusionProof;
 use plonky2x::prelude::RichField;
 use serde::Deserialize;
@@ -30,13 +31,13 @@ pub trait DataCommitmentInputs {
     async fn get_data_commitment_inputs<const MAX_LEAVES: usize, F: RichField>(
         &mut self,
         start_block_number: u64,
-        start_header_hash: H256,
         end_block_number: u64,
-        end_header_hash: H256,
     ) -> (
-        Vec<[u8; 32]>,                                                            // data_hashes
+        [u8; 32],                                                             // start_header_hash
+        [u8; 32],                                                             // end_header_hash
+        Vec<[u8; 32]>,                                                        // data_hashes
         Vec<InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES, F>>, // data_hash_proofs
-        Vec<InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, F>>, // prev_header_proofs
+        Vec<InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, F>>, // last_block_id_proofs
         [u8; 32], // expected_data_commitment
     );
 }
@@ -44,6 +45,12 @@ pub trait DataCommitmentInputs {
 #[async_trait]
 impl DataCommitmentInputs for InputDataFetcher {
     async fn get_data_commitment(&self, start_block: u64, end_block: u64) -> [u8; 32] {
+        // If start_block == end_block, then return a dummy commitment.
+        // This will occur in the context of data commitment's map reduce when leaves that contain blocks beyond the end_block.
+        if end_block <= start_block {
+            return [0u8; 32];
+        }
+
         let file_name = format!(
             "{}/{}-{}/data_commitment.json",
             self.fixture_path,
@@ -58,6 +65,7 @@ impl DataCommitmentInputs for InputDataFetcher {
                     start_block.to_string().as_str(),
                     end_block.to_string().as_str()
                 );
+                info!("Querying url: {}", query_url);
                 let res = reqwest::get(query_url).await.unwrap().text().await.unwrap();
                 if self.save {
                     // Ensure the directory exists
@@ -70,7 +78,7 @@ impl DataCommitmentInputs for InputDataFetcher {
             }
             InputDataMode::Fixture => {
                 let file_content = fs::read_to_string(file_name.as_str());
-                println!("Retrieving fixture");
+                info!("Fixture name: {}", file_name.as_str());
                 file_content.unwrap()
             }
         };
@@ -86,32 +94,18 @@ impl DataCommitmentInputs for InputDataFetcher {
     async fn get_data_commitment_inputs<const MAX_LEAVES: usize, F: RichField>(
         &mut self,
         start_block_number: u64,
-        start_header_hash: H256,
         end_block_number: u64,
-        end_header_hash: H256,
     ) -> (
-        Vec<[u8; 32]>,                                                            // data_hashes
+        [u8; 32],                                                             // start_header_hash
+        [u8; 32],                                                             // end_header_hash
+        Vec<[u8; 32]>,                                                        // data_hashes
         Vec<InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES, F>>, // data_hash_proofs
-        Vec<InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, F>>, // prev_header_proofs
+        Vec<InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, F>>, // last_block_id_proofs
         [u8; 32], // expected_data_commitment
     ) {
-        let start_header = self.get_header_from_number(start_block_number).await;
-        let computed_start_header_hash = start_header.hash();
-        assert_eq!(
-            computed_start_header_hash.as_bytes(),
-            start_header_hash.as_bytes()
-        );
-
-        let end_header = self.get_header_from_number(end_block_number).await;
-        let computed_end_header_hash = end_header.hash();
-        assert_eq!(
-            computed_end_header_hash.as_bytes(),
-            end_header_hash.as_bytes()
-        );
-
         let mut data_hashes = Vec::new();
         let mut data_hash_proofs = Vec::new();
-        let mut prev_header_proofs = Vec::new();
+        let mut last_block_id_proofs = Vec::new();
         for i in start_block_number..end_block_number + 1 {
             let header = self.get_header_from_number(i).await;
             let data_hash = header.data_hash.unwrap();
@@ -123,22 +117,23 @@ impl DataCommitmentInputs for InputDataFetcher {
                 header.data_hash.unwrap().encode_vec(),
             );
             data_hash_proofs.push(data_hash_proof);
-            let prev_header_proof = self.get_inclusion_proof::<PROTOBUF_BLOCK_ID_SIZE_BYTES, F>(
+            let last_block_id_proof = self.get_inclusion_proof::<PROTOBUF_BLOCK_ID_SIZE_BYTES, F>(
                 &header,
                 LAST_BLOCK_ID_INDEX as u64,
                 Protobuf::<RawBlockId>::encode_vec(header.last_block_id.unwrap_or_default()),
             );
-            prev_header_proofs.push(prev_header_proof);
+            last_block_id_proofs.push(last_block_id_proof);
         }
 
-        // Remove end_block's data_hash, as data_commitment does not include it.
-        data_hashes.pop();
+        // If there is no data commitment, each of the above vectors will be empty.
+        if !data_hashes.is_empty() {
+            // Remove the data hash and corresponding proof of end_block, as data_commitment does not include it.
+            data_hashes.pop();
+            data_hash_proofs.pop();
 
-        // Remove end_block's data_hash_proof, as data_commitment does not check it.
-        data_hash_proofs.pop();
-
-        // Remove start_block's prev_header_proof, as data_commitment does not check it.
-        prev_header_proofs = prev_header_proofs[1..].to_vec();
+            // Remove last_block_id_proof of start_block, as data_commitment does not include it.
+            last_block_id_proofs = last_block_id_proofs[1..].to_vec();
+        }
 
         let mut data_hash_proofs_formatted = data_hash_proofs
             .into_iter()
@@ -150,7 +145,7 @@ impl DataCommitmentInputs for InputDataFetcher {
             )
             .collect_vec();
 
-        let mut prev_header_proofs_formatted = prev_header_proofs
+        let mut last_block_id_proofs_formatted = last_block_id_proofs
             .into_iter()
             .map(
                 |proof| InclusionProof::<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, F> {
@@ -160,8 +155,9 @@ impl DataCommitmentInputs for InputDataFetcher {
             )
             .collect_vec();
 
-        // Extend data_hashes, data_hash_proofs, and prev_header_proofs to MAX_LEAVES.
-        for _ in (end_block_number - start_block_number) as usize..MAX_LEAVES {
+        let num_so_far = data_hashes.len();
+        // Extend data_hashes, data_hash_proofs, and last_block_id_proofs to MAX_LEAVES.
+        for _ in num_so_far..MAX_LEAVES {
             data_hashes.push([0u8; 32]);
             data_hash_proofs_formatted.push(InclusionProof::<
                 HEADER_PROOF_DEPTH,
@@ -171,7 +167,7 @@ impl DataCommitmentInputs for InputDataFetcher {
                 proof: [H256::zero(); HEADER_PROOF_DEPTH].to_vec(),
                 leaf: [0u8; PROTOBUF_HASH_SIZE_BYTES],
             });
-            prev_header_proofs_formatted.push(InclusionProof::<
+            last_block_id_proofs_formatted.push(InclusionProof::<
                 HEADER_PROOF_DEPTH,
                 PROTOBUF_BLOCK_ID_SIZE_BYTES,
                 F,
@@ -185,10 +181,32 @@ impl DataCommitmentInputs for InputDataFetcher {
             .get_data_commitment(start_block_number, end_block_number)
             .await;
 
+        let mut start_header = [0u8; 32];
+        let mut end_header = [0u8; 32];
+        // If start_block_number >= end_block_number, then start_header and end_header are dummy values.
+        if start_block_number < end_block_number {
+            start_header = self
+                .get_header_from_number(start_block_number)
+                .await
+                .hash()
+                .as_bytes()
+                .try_into()
+                .unwrap();
+            end_header = self
+                .get_header_from_number(end_block_number)
+                .await
+                .hash()
+                .as_bytes()
+                .try_into()
+                .unwrap();
+        }
+
         (
+            start_header,
+            end_header,
             data_hashes,
             data_hash_proofs_formatted,
-            prev_header_proofs_formatted,
+            last_block_id_proofs_formatted,
             expected_data_commitment,
         )
     }

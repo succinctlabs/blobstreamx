@@ -187,14 +187,12 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         self.verify_header(validators, header, validator_hash_proof, round_present);
 
         // Verify the previous header hash in the block matches the previous header hash in the last block ID.
-        // FIXME: why is Rust compiler being weird
         self.verify_prev_header_in_header(header, *prev_header, last_block_id_proof);
 
         // Extract the validators hash from the validator hash proof
         let validators_hash: Bytes32Variable = validator_hash_proof.leaf[2..2 + HASH_SIZE].into();
 
         // Verify the next validators hash in the previous block matches the current validators hash
-        // FIXME: why is Rust compiler being weird
         self.verify_prev_header_next_validators_hash(
             validators_hash,
             prev_header,
@@ -324,7 +322,6 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
             last_block_id_proof,
             &last_block_id_path.try_into().unwrap(),
         );
-        // TODO: add back a comment here I think
         self.assert_is_equal(header_from_last_block_id_proof, *header);
 
         // Extract prev header hash from the encoded leaf (starts at second byte)
