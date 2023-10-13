@@ -35,10 +35,10 @@ contract DeployScript is Script {
         bytes32 header = hex"A0123D5E4B8B8888A61F931EE2252D83568B97C223E0ECA9795B29B8BD8CBA2D";
         blobstream.setGenesisHeader(height, header);
 
-        // // uint64 height = 100100;
+        // uint64 height = 100100;
 
-        // blobstream.updateFunctionId("combinedStep", combinedStepFunctionId);
-        // blobstream.updateFunctionId("combinedSkip", combinedSkipFunctionId);
+        blobstream.updateFunctionId("combinedStep", combinedStepFunctionId);
+        blobstream.updateFunctionId("combinedSkip", combinedSkipFunctionId);
 
         uint64 skipHeight = 10100;
         blobstream.requestCombinedSkip{value: 0.1 ether}(skipHeight);
