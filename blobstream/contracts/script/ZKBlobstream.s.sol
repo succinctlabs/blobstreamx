@@ -12,7 +12,7 @@ contract DeployScript is Script {
     function run() public {
         vm.startBroadcast();
         // Note: Update gateway when deployed.
-        address gateway = address(0x852a94F8309D445D27222eDb1E92A4E83DdDd2a8);
+        address gateway = address(0xE304f6B116bE5e43424cEC36a5eFd0B642E0dC95);
         // combined_step_32
         bytes32 combinedStepFunctionId = bytes32(
             0xde939452e6506cc08d1d7b32ffe1b82cf9d96829b7aa30f0b542f1050651c43c
@@ -24,7 +24,7 @@ contract DeployScript is Script {
 
         // Use the below to interact with an already deployed Blobstream
         ZKBlobstream blobstream = ZKBlobstream(
-            0xb27328047789FA2320B43e3Ecc78Ec3eFf1DC0eA
+            0x67EA962864cdad3f2202118dc6f65Ff510F7BB4D
         );
 
         // Update gateway to new address.
