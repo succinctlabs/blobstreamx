@@ -11,7 +11,7 @@ contract DeployScript is Script {
 
     function run() public {
         vm.startBroadcast();
-        address gateway = address(0x852a94F8309D445D27222eDb1E92A4E83DdDd2a8);
+        address gateway = address(0xE304f6B116bE5e43424cEC36a5eFd0B642E0dC95);
         bytes32 stepFunctionId = bytes32(
             0xc188574800992a29257de0cf6fc55a8eff0bf9b86333b7a2789f4542f5e7e071
         );
