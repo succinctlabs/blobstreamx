@@ -15,20 +15,20 @@ use crate::variables::*;
 pub trait TendermintStepCircuit<L: PlonkParameters<D>, const D: usize> {
     fn step<const MAX_VALIDATOR_SET_SIZE: usize>(
         &mut self,
-        prev_header_hash: Bytes32Variable,
         prev_block_number: U64Variable,
+        prev_header_hash: Bytes32Variable,
     ) -> Bytes32Variable;
 }
 
 impl<L: PlonkParameters<D>, const D: usize> TendermintStepCircuit<L, D> for CircuitBuilder<L, D> {
     fn step<const MAX_VALIDATOR_SET_SIZE: usize>(
         &mut self,
-        prev_header_hash: Bytes32Variable,
         prev_block_number: U64Variable,
+        prev_header_hash: Bytes32Variable,
     ) -> Bytes32Variable {
         let mut input_stream = VariableStream::new();
-        input_stream.write(&prev_header_hash);
         input_stream.write(&prev_block_number);
+        input_stream.write(&prev_header_hash);
         let output_stream = self.async_hint(
             input_stream,
             StepOffchainInputs::<MAX_VALIDATOR_SET_SIZE> {},
@@ -69,8 +69,8 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize, L: PlonkParameters<D>, const D: usize>
         input_stream: &mut ValueStream<L, D>,
         output_stream: &mut ValueStream<L, D>,
     ) {
-        let prev_header_hash = input_stream.read_value::<Bytes32Variable>();
         let prev_block_number = input_stream.read_value::<U64Variable>();
+        let prev_header_hash = input_stream.read_value::<Bytes32Variable>();
         let mut data_fetcher = InputDataFetcher::new();
         let result = data_fetcher
             .get_step_inputs::<MAX_VALIDATOR_SET_SIZE, L::Field>(
@@ -89,17 +89,18 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize, L: PlonkParameters<D>, const D: usize>
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct StepCircuit<const MAX_VALIDATOR_SET_SIZE: usize> {
     _config: usize,
 }
 
 impl<const MAX_VALIDATOR_SET_SIZE: usize> Circuit for StepCircuit<MAX_VALIDATOR_SET_SIZE> {
     fn define<L: PlonkParameters<D>, const D: usize>(builder: &mut CircuitBuilder<L, D>) {
-        let prev_header_hash = builder.evm_read::<Bytes32Variable>();
         let prev_block_number = builder.evm_read::<U64Variable>();
+        let prev_header_hash = builder.evm_read::<Bytes32Variable>();
 
         let next_header_hash =
-            builder.step::<MAX_VALIDATOR_SET_SIZE>(prev_header_hash, prev_block_number);
+            builder.step::<MAX_VALIDATOR_SET_SIZE>(prev_block_number, prev_header_hash);
 
         builder.evm_write(next_header_hash);
     }
@@ -194,8 +195,8 @@ mod tests {
         log::debug!("Done building circuit");
 
         let mut input = circuit.input();
-        input.evm_write::<Bytes32Variable>(H256::from_slice(header.as_slice()));
         input.evm_write::<U64Variable>(block_height);
+        input.evm_write::<Bytes32Variable>(H256::from_slice(header.as_slice()));
 
         log::debug!("Generating proof");
         let (proof, mut output) = circuit.prove(&input);
