@@ -70,7 +70,7 @@ async fn main() -> Result<(), ()> {
 
     let mut calls_so_far = 0;
 
-    // Loop every 30 minutes. Call request_combined_skip every 30 minutes, and incrememnt the block number by 100 each time.
+    // Loop every 30 minutes. Call request_combined_skip every 30 minutes with the latest block number.
     loop {
         // TODO: Should run mock prove function here.
 
