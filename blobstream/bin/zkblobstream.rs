@@ -26,6 +26,7 @@ async fn main() -> Result<(), ()> {
     let client = SignerMiddleware::new(provider, wallet);
     let client = Arc::new(client);
 
+    // ZKBlobstream on Goerli: https://goerli.etherscan.io/address/0xb27328047789FA2320B43e3Ecc78Ec3eFf1DC0eA#code
     let address = "0xb27328047789FA2320B43e3Ecc78Ec3eFf1DC0eA";
     let address = address.parse::<Address>().expect("invalid address");
 
