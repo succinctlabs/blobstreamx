@@ -5,7 +5,7 @@ use ethers::contract::abigen;
 use ethers::core::types::Address;
 use ethers::prelude::SignerMiddleware;
 use ethers::providers::{Http, Provider};
-use ethers::signers::Wallet;
+use ethers::signers::{LocalWallet, Signer, Wallet};
 use ethers::types::H256;
 use log::info;
 use subtle_encoding::hex;
@@ -42,8 +42,12 @@ async fn main() -> Result<(), ()> {
         Provider::<Http>::try_from(ethereum_rpc_url).expect("could not connect to client");
 
     let private_key = env::var("PRIVATE_KEY").expect("PRIVATE_KEY must be set");
-    let private_key_bytes = &hex::decode(private_key).expect("invalid private key");
-    let wallet = Wallet::from_bytes(private_key_bytes).expect("invalid private key");
+    let wallet: LocalWallet = private_key
+        .parse::<LocalWallet>()
+        .expect("invalid private key")
+        .with_chain_id(5u64);
+
+    info!("Wallet address: {:?}", wallet.address());
 
     let client = SignerMiddleware::new(provider, wallet);
     let client = Arc::new(client);
@@ -68,7 +72,7 @@ async fn main() -> Result<(), ()> {
     //     .await
     //     .expect("failed to set genesis header");
 
-    let mut curr_block = 10100;
+    let mut curr_block = 10300;
 
     let mut calls_so_far = 0;
 
@@ -81,13 +85,15 @@ async fn main() -> Result<(), ()> {
         //     .await
         //     .expect("failed to request combined skip");
 
+        println!("Requesting combined skip for block {}", curr_block);
+
         zk_blobstream
             .request_combined_skip(curr_block)
             .send()
             .await
             .expect("failed to request combined skip");
 
-        tokio::time::sleep(tokio::time::Duration::from_secs(60 * 30)).await;
+        tokio::time::sleep(tokio::time::Duration::from_secs(60 * 20)).await;
 
         calls_so_far += 1;
         if calls_so_far == 20 {
