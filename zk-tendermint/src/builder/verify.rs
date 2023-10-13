@@ -180,24 +180,24 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
     ) {
         assert_eq!(validators.as_vec().len(), include_in_check.len());
 
-        let true_v = self._true();
-
         let validator_voting_power: Vec<U64Variable> =
             validators.as_vec().iter().map(|v| v.voting_power).collect();
+
         // Compute the total voting power of the entire validator set.
         let total_voting_power =
             self.get_total_voting_power::<VALIDATOR_SET_SIZE_MAX>(&validator_voting_power);
 
-        //
-        let check_voting_power_bool = self
-            .is_voting_power_greater_than_threshold::<VALIDATOR_SET_SIZE_MAX>(
-                &validator_voting_power,
-                &include_in_check,
-                &total_voting_power,
-                threshold_numerator,
-                threshold_denominator,
-            );
-        self.assert_is_equal(check_voting_power_bool, true_v);
+        // Compute if the voting power of the included validators is greater than the threshold.
+        let gte_threshold = self.is_voting_power_greater_than_threshold::<VALIDATOR_SET_SIZE_MAX>(
+            &validator_voting_power,
+            &include_in_check,
+            &total_voting_power,
+            threshold_numerator,
+            threshold_denominator,
+        );
+
+        let true_v = self._true();
+        self.assert_is_equal(gte_threshold, true_v);
     }
 
     fn verify_step<const VALIDATOR_SET_SIZE_MAX: usize>(
@@ -214,14 +214,12 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         self.verify_header(validators, header, validator_hash_proof, round_present);
 
         // Verify the previous header hash in the block matches the previous header hash in the last block ID.
-        // FIXME: why is Rust compiler being weird
         self.verify_prev_header_in_header(header, *prev_header, last_block_id_proof);
 
         // Extract the validators hash from the validator hash proof
         let validators_hash: Bytes32Variable = validator_hash_proof.leaf[2..2 + HASH_SIZE].into();
 
         // Verify the next validators hash in the previous block matches the current validators hash
-        // FIXME: why is Rust compiler being weird
         self.verify_prev_header_next_validators_hash(
             validators_hash,
             prev_header,

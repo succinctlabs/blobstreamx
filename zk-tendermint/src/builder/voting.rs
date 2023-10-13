@@ -6,14 +6,13 @@ use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::prelude::{BoolVariable, CircuitBuilder, PlonkParameters};
 
 pub trait TendermintVoting {
-    // Gets the total voting power by summing the voting power of all validators.
+    // Sums the voting power of all validators.
     fn get_total_voting_power<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
         validator_voting_power: &[U64Variable],
     ) -> U64Variable;
 
-    /// Assert the voting power of the enabled validators >
-    /// (threshold_numerator / threshold_denominator) * total voting power.
+    /// Assert the enabled voting power > threshold * total voting power.
     fn is_voting_power_greater_than_threshold<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
         validator_voting_power: &[U64Variable],
@@ -29,7 +28,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVoting for CircuitBuilder<
         &mut self,
         validator_voting_power: &[U64Variable],
     ) -> U64Variable {
-        // TODO: Implement add_many_u32 gate in plonky2x.
+        // Note: This can be made more efficient by implementing the add_many_u32 gate to plonky2x.
         let mut total = self.constant::<U64Variable>(0);
         for i in 0..validator_voting_power.len() {
             total = self.add(total, validator_voting_power[i])
@@ -47,24 +46,19 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVoting for CircuitBuilder<
     ) -> BoolVariable {
         let zero = self.constant::<U64Variable>(0);
 
-        // Accumulate the voting power from the enabled validators.
         let mut accumulated_voting_power = self.constant::<U64Variable>(0);
-
+        // Accumulate the voting power from the enabled validators.
         for i in 0..VALIDATOR_SET_SIZE_MAX {
-            // If the validator is enabled, add their voting power to the accumulated voting power.
             let select_voting_power =
                 self.select(validator_enabled[i], validator_voting_power[i], zero);
             accumulated_voting_power = self.add(accumulated_voting_power, select_voting_power);
         }
 
-        // Compute accumulated_voting_power * threshold_denominator.
         let scaled_accumulated = self.mul(accumulated_voting_power, *threshold_denominator);
-
-        // Compute total_vp * threshold_numerator.
         let scaled_threshold = self.mul(*total_voting_power, *threshold_numerator);
 
-        // Check if accumulated_voting_power > total_vp * (threshold_numerator / threshold_denominator).
-        self.lte(scaled_threshold, scaled_accumulated)
+        // Return accumulated_voting_power >= total_vp * (threshold_numerator / threshold_denominator).
+        self.gte(scaled_accumulated, scaled_threshold)
     }
 }
 
