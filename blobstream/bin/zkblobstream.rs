@@ -48,37 +48,41 @@ async fn main() -> Result<(), ()> {
     let client = SignerMiddleware::new(provider, wallet);
     let client = Arc::new(client);
 
-    // ZKBlobstream on Goerli: https://goerli.etherscan.io/address/0xb27328047789FA2320B43e3Ecc78Ec3eFf1DC0eA#code
-    let address = "0xb27328047789FA2320B43e3Ecc78Ec3eFf1DC0eA";
+    // ZKBlobstream on Goerli: https://goerli.etherscan.io/address/0x67ea962864cdad3f2202118dc6f65ff510f7bb4d#code
+    let address = "0x67ea962864cdad3f2202118dc6f65ff510f7bb4d";
     let address = address.parse::<Address>().expect("invalid address");
 
     let zk_blobstream = ZKBlobstream::new(address, client.clone());
-    let latest_header = get_latest_header(tendermint_rpc_url.clone()).await;
-    let latest_block = latest_header.height.value();
+    // let latest_header = get_latest_header(tendermint_rpc_url.clone()).await;
+    // let latest_block = latest_header.height.value();
 
-    let genesis_header =
-        get_header_from_number(tendermint_rpc_url.clone(), latest_block - 500).await;
+    // let genesis_header =
+    //     get_header_from_number(tendermint_rpc_url.clone(), latest_block - 500).await;
 
-    zk_blobstream
-        .set_genesis_header(
-            latest_block - 500,
-            H256::from_slice(genesis_header.hash().as_bytes()).0,
-        )
-        .send()
-        .await
-        .expect("failed to set genesis header");
+    // zk_blobstream
+    //     .set_genesis_header(
+    //         latest_block - 500,
+    //         H256::from_slice(genesis_header.hash().as_bytes()).0,
+    //     )
+    //     .send()
+    //     .await
+    //     .expect("failed to set genesis header");
+
+    let mut curr_block = 10100;
 
     let mut calls_so_far = 0;
 
-    // Loop every 30 minutes. Call request_combined_skip every 30 minutes with the latest block number.
+    // Loop every 20 minutes. Call request_combined_skip every 30 minutes with the latest block number.
     loop {
-        // TODO: Should run mock prove function here.
-
-        let latest_header = get_latest_header(tendermint_rpc_url.clone()).await;
-        let latest_block = latest_header.height.value();
+        // Verify the call succeeded.
+        // zk_blobstream
+        //     .request_combined_skip(curr_block)
+        //     .call()
+        //     .await
+        //     .expect("failed to request combined skip");
 
         zk_blobstream
-            .request_combined_skip(latest_block)
+            .request_combined_skip(curr_block)
             .send()
             .await
             .expect("failed to request combined skip");
@@ -89,6 +93,7 @@ async fn main() -> Result<(), ()> {
         if calls_so_far == 20 {
             break;
         }
+        curr_block += 100;
     }
 
     Ok(())
