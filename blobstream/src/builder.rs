@@ -37,7 +37,8 @@ pub trait DataCommitmentBuilder<L: PlonkParameters<D>, const D: usize> {
         end_block: U64Variable,
     ) -> Bytes32Variable;
 
-    /// Verify the chain of headers is linked for the subrange in the data commitment proof & generate the subrange's data_merkle_root. Does not include blocks after global_end_block.
+    /// Verify the chain of headers is linked for the subrange in the data commitment proof & generate the subrange's data_merkle_root.
+    /// Verify the header at global_end_block is the global_end_header_hash and don't verify blocks after global_end_block.
     ///
     /// Specifically, a MapReduce circuit with <NB_MAP_JOBS=4, BATCH_SIZE=4> over blocks [0, 16) will invoke prove_subchain 4 times. Each of the 4 prove_subchain calls
     /// over [0, 4), [4, 8), [8, 12), [12, 16) will 1) prove the subchain of headers are linked and 2) output their corresponding data_merkle_root.
