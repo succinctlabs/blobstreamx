@@ -24,7 +24,7 @@ async fn get_latest_header(base_url: String) -> Header {
 }
 
 async fn get_header_from_number(base_url: String, block_number: u64) -> Header {
-    let query_url = format!("{}/header/height?{}", base_url, block_number);
+    let query_url = format!("{}/header?height={}", base_url, block_number);
     info!("Querying url {:?}", query_url.as_str());
     let res = reqwest::get(query_url).await.unwrap().text().await.unwrap();
     let v: HeaderResponse = serde_json::from_str(&res).expect("Failed to parse JSON");
@@ -57,8 +57,10 @@ async fn main() -> Result<(), ()> {
     let address = address.parse::<Address>().expect("invalid address");
 
     let zk_blobstream = ZKBlobstream::new(address, client.clone());
-    // let latest_header = get_latest_header(tendermint_rpc_url.clone()).await;
-    // let latest_block = latest_header.height.value();
+    let latest_header = get_latest_header(tendermint_rpc_url.clone()).await;
+    let latest_block = latest_header.height.value();
+
+    println!("Latest block: {}", latest_block);
 
     // let genesis_header =
     //     get_header_from_number(tendermint_rpc_url.clone(), latest_block - 500).await;
@@ -72,34 +74,34 @@ async fn main() -> Result<(), ()> {
     //     .await
     //     .expect("failed to set genesis header");
 
-    let mut curr_block = 10300;
+    // let mut curr_block = 10300;
 
     let mut calls_so_far = 0;
 
     // Loop every 20 minutes. Call request_combined_skip every 30 minutes with the latest block number.
     loop {
         // Verify the call succeeded.
-        // zk_blobstream
-        //     .request_combined_skip(curr_block)
-        //     .call()
-        //     .await
-        //     .expect("failed to request combined skip");
 
-        println!("Requesting combined skip for block {}", curr_block);
+        let latest_header = get_latest_header(tendermint_rpc_url.clone()).await;
+        let latest_block = latest_header.height.value();
+
+        let block_to_request = latest_block - 10;
+
+        println!("Requesting combined skip for block {}", block_to_request);
 
         zk_blobstream
-            .request_combined_skip(curr_block)
+            .request_combined_skip(block_to_request)
             .send()
             .await
             .expect("failed to request combined skip");
 
-        tokio::time::sleep(tokio::time::Duration::from_secs(60 * 20)).await;
+        tokio::time::sleep(tokio::time::Duration::from_secs(60 * 30)).await;
 
         calls_so_far += 1;
         if calls_so_far == 20 {
             break;
         }
-        curr_block += 100;
+        // curr_block += 100;
     }
 
     Ok(())
