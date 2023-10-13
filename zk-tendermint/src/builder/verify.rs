@@ -122,6 +122,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         &mut self,
         validators: &ArrayVariable<ValidatorHashFieldVariable, VALIDATOR_SET_SIZE_MAX>,
     ) -> TendermintHashVariable {
+        // Extract the necessary fields.
         let byte_lengths: Vec<Variable> = validators
             .as_vec()
             .iter()
@@ -134,7 +135,8 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
             .collect();
         let validators_enabled: Vec<BoolVariable> =
             validators.as_vec().iter().map(|v| v.enabled).collect();
-        // Compute the validators hash
+
+        // Compute the validators hash of the validator set.
         self.hash_validator_set::<VALIDATOR_SET_SIZE_MAX>(
             &marshalled_validators,
             &byte_lengths,
@@ -146,28 +148,26 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         &mut self,
         message: &ValidatorMessageVariable,
         expected_header_hash: Bytes32Variable,
-        // Should be the same for all validators
         round_present_in_message: BoolVariable,
     ) -> BoolVariable {
-        // Logic:
-        //      Verify that header_hash is equal to the hash in the message at the correct index.
-        //      If the round is missing, then the hash starts at index 16.
-        //      If the round is present, then the hash starts at index 25.
-
+        // If the round is missing, the hash starts at index 16.
         const MISSING_ROUND_START_IDX: usize = 16;
         let round_missing_header: Bytes32Variable =
             message[MISSING_ROUND_START_IDX..MISSING_ROUND_START_IDX + HASH_SIZE].into();
 
+        // If the round is present, the hash starts at index 25.
         const INCLUDING_ROUND_START_IDX: usize = 25;
         let round_present_header: Bytes32Variable =
             message[INCLUDING_ROUND_START_IDX..INCLUDING_ROUND_START_IDX + HASH_SIZE].into();
 
+        // Select the correct header hash based on whether the round is present in the message.
         let computed_header = self.select(
             round_present_in_message,
             round_present_header,
             round_missing_header,
         );
 
+        // Assert the computed header hash matches the expected header hash.
         self.is_equal(computed_header, expected_header_hash)
     }
 
@@ -179,23 +179,25 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         include_in_check: Vec<BoolVariable>,
     ) {
         assert_eq!(validators.as_vec().len(), include_in_check.len());
+
+        let true_v = self._true();
+
         let validator_voting_power: Vec<U64Variable> =
             validators.as_vec().iter().map(|v| v.voting_power).collect();
-
+        // Compute the total voting power of the entire validator set.
         let total_voting_power =
             self.get_total_voting_power::<VALIDATOR_SET_SIZE_MAX>(&validator_voting_power);
 
-        // Assert the accumulated voting power is greater than the threshold
-        let check_voting_power_bool = self.check_voting_power::<VALIDATOR_SET_SIZE_MAX>(
-            &validator_voting_power,
-            // Check if the signed validators are greater than the threshold
-            &include_in_check,
-            &total_voting_power,
-            threshold_numerator,
-            threshold_denominator,
-        );
-        let t = self._true();
-        self.assert_is_equal(check_voting_power_bool, t);
+        //
+        let check_voting_power_bool = self
+            .is_voting_power_greater_than_threshold::<VALIDATOR_SET_SIZE_MAX>(
+                &validator_voting_power,
+                &include_in_check,
+                &total_voting_power,
+                threshold_numerator,
+                threshold_denominator,
+            );
+        self.assert_is_equal(check_voting_power_bool, true_v);
     }
 
     fn verify_step<const VALIDATOR_SET_SIZE_MAX: usize>(

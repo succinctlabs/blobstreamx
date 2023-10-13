@@ -12,17 +12,9 @@ pub trait TendermintVoting {
         validator_voting_power: &[U64Variable],
     ) -> U64Variable;
 
-    // Check if accumulated voting power > total voting power * (threshold_numerator / threshold_denominator).
-    fn voting_power_greater_than_threshold(
-        &mut self,
-        accumulated_power: &U64Variable,
-        total_voting_power: &U64Variable,
-        threshold_numerator: &U64Variable,
-        threshold_denominator: &U64Variable,
-    ) -> BoolVariable;
-
-    /// Accumulate voting power from the enabled validators & check the voting power is greater than 2/3 of the total voting power.
-    fn check_voting_power<const VALIDATOR_SET_SIZE_MAX: usize>(
+    /// Assert the voting power of the enabled validators >
+    /// (threshold_numerator / threshold_denominator) * total voting power.
+    fn is_voting_power_greater_than_threshold<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
         validator_voting_power: &[U64Variable],
         validator_enabled: &[BoolVariable],
@@ -45,24 +37,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVoting for CircuitBuilder<
         total
     }
 
-    fn voting_power_greater_than_threshold(
-        &mut self,
-        accumulated_power: &U64Variable,
-        total_voting_power: &U64Variable,
-        threshold_numerator: &U64Variable,
-        threshold_denominator: &U64Variable,
-    ) -> BoolVariable {
-        // Compute accumulated_voting_power * threshold_denominator.
-        let scaled_accumulated = self.mul(*accumulated_power, *threshold_denominator);
-
-        // Compute total_vp * threshold_numerator.
-        let scaled_threshold = self.mul(*total_voting_power, *threshold_numerator);
-
-        // Check if accumulated_voting_power > total_vp * (threshold_numerator / threshold_denominator).
-        self.lte(scaled_threshold, scaled_accumulated)
-    }
-
-    fn check_voting_power<const VALIDATOR_SET_SIZE_MAX: usize>(
+    fn is_voting_power_greater_than_threshold<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
         validator_voting_power: &[U64Variable],
         validator_enabled: &[BoolVariable],
@@ -71,6 +46,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVoting for CircuitBuilder<
         threshold_denominator: &U64Variable,
     ) -> BoolVariable {
         let zero = self.constant::<U64Variable>(0);
+
         // Accumulate the voting power from the enabled validators.
         let mut accumulated_voting_power = self.constant::<U64Variable>(0);
 
@@ -81,12 +57,14 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVoting for CircuitBuilder<
             accumulated_voting_power = self.add(accumulated_voting_power, select_voting_power);
         }
 
-        self.voting_power_greater_than_threshold(
-            &accumulated_voting_power,
-            total_voting_power,
-            threshold_numerator,
-            threshold_denominator,
-        )
+        // Compute accumulated_voting_power * threshold_denominator.
+        let scaled_accumulated = self.mul(accumulated_voting_power, *threshold_denominator);
+
+        // Compute total_vp * threshold_numerator.
+        let scaled_threshold = self.mul(*total_voting_power, *threshold_numerator);
+
+        // Check if accumulated_voting_power > total_vp * (threshold_numerator / threshold_denominator).
+        self.lte(scaled_threshold, scaled_accumulated)
     }
 }
 
@@ -132,14 +110,13 @@ pub(crate) mod tests {
         let total_voting_power = builder.read::<U64Variable>();
         let threshold_numerator = builder.read::<U64Variable>();
         let threshold_denominator = builder.read::<U64Variable>();
-        let result = builder.check_voting_power::<VALIDATOR_SET_SIZE_MAX>(
+        builder.is_voting_power_greater_than_threshold::<VALIDATOR_SET_SIZE_MAX>(
             &validator_voting_power_vec,
             &validator_enabled_vec,
             &total_voting_power,
             &threshold_numerator,
             &threshold_denominator,
         );
-        builder.write(result);
 
         let circuit = builder.build();
 
