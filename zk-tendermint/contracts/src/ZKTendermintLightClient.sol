@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import {IFunctionGateway} from "@succinctx/interfaces/IFunctionGateway.sol";
-import {IZKTendermintLightClient} from "./IZKTendermintLightClient.sol";
+import {IFunctionGateway} from "./interfaces/IFunctionGateway.sol";
+import {IZKTendermintLightClient} from "./interfaces/IZKTendermintLightClient.sol";
 
 contract ZKTendermintLightClient is IZKTendermintLightClient {
     /////////////
