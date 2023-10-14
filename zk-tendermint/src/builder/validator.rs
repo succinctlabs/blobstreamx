@@ -26,20 +26,12 @@ pub trait TendermintValidator<L: PlonkParameters<D>, const D: usize> {
         voting_power: &U64Variable,
     ) -> MarshalledValidatorVariable;
 
-    /// Hashes validator bytes to get the leaf according to the Tendermint spec. (0x00 || validatorBytes)
-    /// Note: This function differs from leaf_hash_stark because the validator bytes length is variable.
+    /// Hash validator bytes as leaf according to the Tendermint spec. (0x00 || validatorBytes)
     fn hash_validator_leaf(
         &mut self,
         validator: &MarshalledValidatorVariable,
         validator_byte_length: Variable,
     ) -> TendermintHashVariable;
-
-    /// Hashes multiple validators to get their leaves according to the Tendermint spec using hash_validator_leaf.
-    fn hash_validator_leaves<const VALIDATOR_SET_SIZE_MAX: usize>(
-        &mut self,
-        validators: &[MarshalledValidatorVariable],
-        validator_byte_lengths: &[Variable],
-    ) -> Vec<TendermintHashVariable>;
 
     /// Compute the expected validator hash from the validator set.
     fn hash_validator_set<const VALIDATOR_SET_SIZE_MAX: usize>(
@@ -56,15 +48,16 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for Circui
         pubkey: &EDDSAPublicKeyVariable,
         voting_power: &U64Variable,
     ) -> MarshalledValidatorVariable {
+        // The encoding is as follows in bytes: 10 34 10 32 <pubkey> 16 <varint>
         let mut res = self
             .constant::<BytesVariable<4>>([10u8, 34u8, 10u8, 32u8])
             .0
             .to_vec();
 
+        // TODO: Update compressed_point to return a Bytes32Variable
         let compressed_point = self.api.compress_point(pubkey);
 
-        // TODO: in the future compressed_point should probably return a Bytes32Variable
-        // We iterate in reverse order because the marshalling expects little-endian
+        // Iterate in reverse order because the marshalling expects little-endian
         // and the bytes are returned as big-endian.
         for i in (0..32).rev() {
             let byte_variable = ByteVariable::from_variables_unsafe(
@@ -92,37 +85,27 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for Circui
         validator: &MarshalledValidatorVariable,
         validator_byte_length: Variable,
     ) -> TendermintHashVariable {
-        let mut prepended_validator_bytes = vec![self.zero::<ByteVariable>()];
-        prepended_validator_bytes.extend(validator.0.to_vec());
-
+        let zero = self.zero::<U32Variable>();
         let one = self.one::<Variable>();
+
+        // The encoding is as follows in bytes: 0x00 || validatorBytes
+        let mut validator_bytes = vec![self.zero::<ByteVariable>()];
+        validator_bytes.extend(validator.0.to_vec());
+
         let enc_validator_byte_length = self.add(one, validator_byte_length);
-        // TODO: note this is a bit unsafe, so perhaps we should change `curta_sha256_variable` to take in a Variable
-        // instead of a U32Variable
+
+        // TODO: This is a bit unsafe, change curta_sha256_variable to take a Variable instead.
         let input_byte_length = U32Variable(enc_validator_byte_length);
 
-        let zero = self.zero::<U32Variable>();
-        prepended_validator_bytes.resize(64, self.zero::<ByteVariable>());
+        // The maximum number of chunks is 1 because the validator byte length is at most 46 bytes.
+        const MAX_NUM_CHUNKS: usize = 1;
 
-        // VALIDATOR_BYTE_LENGTH_MAX = 46 so we only need 1 chunk
-        self.curta_sha256_variable::<1>(&prepended_validator_bytes, zero, input_byte_length)
-    }
+        // Resize the validator bytes to 64 bytes (1 chunk).
+        validator_bytes.resize(64, self.zero::<ByteVariable>());
 
-    fn hash_validator_leaves<const VALIDATOR_SET_SIZE_MAX: usize>(
-        &mut self,
-        validators: &[MarshalledValidatorVariable],
-        validator_byte_lengths: &[Variable],
-    ) -> Vec<TendermintHashVariable> {
-        assert_eq!(validators.len(), VALIDATOR_SET_SIZE_MAX);
-        assert_eq!(validator_byte_lengths.len(), VALIDATOR_SET_SIZE_MAX);
-
-        // Hash each of the validators to get their corresponding leaf hash.
-        let mut validators_leaf_hashes = Vec::new();
-        for i in 0..VALIDATOR_SET_SIZE_MAX {
-            validators_leaf_hashes
-                .push(self.hash_validator_leaf(&validators[i], validator_byte_lengths[i]))
-        }
-        validators_leaf_hashes
+        // Hash the validator bytes, the last chunk is chunk 0.
+        // TODO: Specify in plonky2x that last_chunk is zero-indexed.
+        self.curta_sha256_variable::<MAX_NUM_CHUNKS>(&validator_bytes, zero, input_byte_length)
     }
 
     fn hash_validator_set<const VALIDATOR_SET_SIZE_MAX: usize>(
@@ -135,13 +118,16 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for Circui
         assert_eq!(validator_byte_lengths.len(), VALIDATOR_SET_SIZE_MAX);
         assert_eq!(validator_enabled.len(), VALIDATOR_SET_SIZE_MAX);
 
-        // Hash each of the validators to get their corresponding leaf hash.
-        let current_validator_hashes = self
-            .hash_validator_leaves::<VALIDATOR_SET_SIZE_MAX>(validators, validator_byte_lengths);
+        // Hash each of the validators to get corresponding leaf hash.
+        let mut validators_leaf_hashes = Vec::new();
+        for i in 0..VALIDATOR_SET_SIZE_MAX {
+            validators_leaf_hashes
+                .push(self.hash_validator_leaf(&validators[i], validator_byte_lengths[i]))
+        }
 
         // Return the root hash.
         self.get_root_from_hashed_leaves::<VALIDATOR_SET_SIZE_MAX>(
-            current_validator_hashes,
+            validators_leaf_hashes,
             validator_enabled,
         )
     }
@@ -162,16 +148,13 @@ pub(crate) mod tests {
     use plonky2x::prelude::{
         ArrayVariable, Bytes32Variable, DefaultBuilder, Field, GoldilocksField,
     };
-    use sha2::Sha256;
     use tendermint_proto::types::BlockId as RawBlockId;
     use tendermint_proto::Protobuf;
     use tokio::runtime::Runtime;
 
     use super::*;
     use crate::consts::{HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES};
-    use crate::input::tendermint_utils::{
-        generate_proofs_from_header, hash_all_leaves, proofs_from_byte_slices,
-    };
+    use crate::input::tendermint_utils::{generate_proofs_from_header, proofs_from_byte_slices};
     use crate::input::utils::{convert_to_h256, get_path_indices};
     use crate::input::InputDataFetcher;
     use crate::variables::Ed25519;
@@ -229,65 +212,6 @@ pub(crate) mod tests {
             let expected_value = *expected_marshal.get(i).unwrap_or(&0);
             assert_eq!(output_bytes[i], expected_value);
         }
-    }
-
-    #[test]
-    #[cfg_attr(feature = "ci", ignore)]
-    fn test_hash_validator_leaves() {
-        const VALIDATOR_SET_SIZE_MAX: usize = 4;
-
-        env_logger::try_init().unwrap_or_default();
-
-        // Define the circuit
-        let mut builder = DefaultBuilder::new();
-        let messages =
-            builder.read::<ArrayVariable<MarshalledValidatorVariable, VALIDATOR_SET_SIZE_MAX>>();
-        let val_byte_lengths = builder.read::<ArrayVariable<Variable, VALIDATOR_SET_SIZE_MAX>>();
-        let hashed_leaves = builder.hash_validator_leaves::<VALIDATOR_SET_SIZE_MAX>(
-            &messages.as_vec(),
-            &val_byte_lengths.as_vec(),
-        );
-        let hashed_leaves: ArrayVariable<TendermintHashVariable, VALIDATOR_SET_SIZE_MAX> =
-            hashed_leaves.into();
-        builder.write(hashed_leaves);
-        let circuit = builder.build();
-
-        let validators: Vec<&str> = vec!["6694200ba0e084f7184255abedc39af04463a4ff11e0e0c1326b1b82ea1de50c6b35cf6efa8f7ed3", "739d312e54353379a852b43de497ca4ec52bb49f59b7294a4d6cf19dd648e16cb530b7a7a1e35875d4ab4d90", "4277f2f871f3e041bcd4643c0cf18e5a931c2bfe121ce8983329a289a2b0d2161745a2ddf99bade9a1", "4277f2f871f3e041bcd4643c0cf18e5a931c2bfe121ce8983329a289a2b0d2161745a2ddf99bade9a1"];
-        let validators_bytes = validators
-            .iter()
-            .map(|x| hex::decode(x).unwrap())
-            .collect::<Vec<_>>();
-
-        let validator_byte_lengths = validators_bytes
-            .iter()
-            .map(|x| GoldilocksField::from_canonical_usize(x.len()))
-            .collect::<Vec<_>>();
-
-        let expected_digests_bytes = hash_all_leaves::<Sha256>(&validators_bytes);
-        let expected_digests_bytes = expected_digests_bytes
-            .iter()
-            .map(|x| H256::from_slice(x))
-            .collect::<Vec<_>>();
-
-        // Pad validator bytes to VALIDATOR_BYTE_LENGTH_MAX
-        let padded_validators_bytes: Vec<[u8; VALIDATOR_BYTE_LENGTH_MAX]> = validators_bytes
-            .iter()
-            .map(|x| {
-                let mut validator_bytes = x.clone();
-                validator_bytes.resize(VALIDATOR_BYTE_LENGTH_MAX, 0u8);
-                validator_bytes.try_into().unwrap()
-            })
-            .collect::<Vec<_>>();
-
-        let mut input = circuit.input();
-        input.write::<ArrayVariable<MarshalledValidatorVariable, VALIDATOR_SET_SIZE_MAX>>(
-            padded_validators_bytes,
-        );
-        input.write::<ArrayVariable<Variable, VALIDATOR_SET_SIZE_MAX>>(validator_byte_lengths);
-        let (_, mut output) = circuit.prove(&input);
-        let output_leaves = output.read::<ArrayVariable<Bytes32Variable, VALIDATOR_SET_SIZE_MAX>>();
-
-        assert_eq!(output_leaves, expected_digests_bytes);
     }
 
     #[test]

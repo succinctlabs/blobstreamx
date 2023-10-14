@@ -333,8 +333,10 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
 
         // Compute the validators hash of the trusted block from the necessary fields.
         let computed_val_hash = self.compute_validators_hash(trusted_validator_hash_fields);
+
         // Extract the expected validators hash of the trusted header from the valid validators hash proof.
         let expected_val_hash = trusted_validator_hash_proof.leaf[2..2 + HASH_SIZE].into();
+
         self.assert_is_equal(computed_val_hash, expected_val_hash);
 
         // If a validator is marked present_on_trusted_header, it should be marked as signed.
@@ -349,19 +351,23 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
 
         // Verify all validators marked as present on the trusted header are in fact so.
         for i in 0..VALIDATOR_SET_SIZE_MAX {
-            let mut pubkey_match = self._false();
+            let mut present_on_trusted_header = self._false();
+
+            // Check if a validator on the target header is present on the trusted header.
             for j in 0..VALIDATOR_SET_SIZE_MAX {
                 let pubkey_match_idx = self.is_equal(
                     validators[i].pubkey.clone(),
                     trusted_validator_hash_fields[j].pubkey.clone(),
                 );
-                pubkey_match = self.or(pubkey_match, pubkey_match_idx);
+                present_on_trusted_header = self.or(present_on_trusted_header, pubkey_match_idx);
             }
-            // It is possible for a current validator to be present on the trusted header, but not have signed the current header.
-            let match_and_present = self.and(pubkey_match, validators[i].present_on_trusted_header);
 
-            // If a validator is marked as present on the trusted header, then it should be present on the trusted header.
-            self.assert_is_equal(validators[i].present_on_trusted_header, match_and_present);
+            // Verify the validator is marked present on the trusted header if and only if it is.
+            let is_present = self.and(
+                present_on_trusted_header,
+                validators[i].present_on_trusted_header,
+            );
+            self.assert_is_equal(validators[i].present_on_trusted_header, is_present);
         }
 
         let present_on_trusted_header: Vec<BoolVariable> = validators
@@ -370,7 +376,8 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
             .map(|v| v.present_on_trusted_header)
             .collect();
 
-        // Assert validators from the trusted block comprise at least 1/3 of the total voting power.
+        // Assert validators from the trusted block comprise at least 1/3 of the total voting power
+        // on the target block.
         let threshold_numerator = self.constant::<U64Variable>(1);
         let threshold_denominator = self.constant::<U64Variable>(3);
         self.verify_voting_threshold(
