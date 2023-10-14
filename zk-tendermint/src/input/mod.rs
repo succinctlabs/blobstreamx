@@ -23,7 +23,7 @@ use crate::consts::{
     BLOCK_HEIGHT_INDEX, HEADER_PROOF_DEPTH, LAST_BLOCK_ID_INDEX, NEXT_VALIDATORS_HASH_INDEX,
     PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES, VALIDATORS_HASH_INDEX,
 };
-use crate::input::conversion::{validator_from_block, validator_hash_field_from_block};
+use crate::input::conversion::{validator_hash_field_from_block, validators_from_block};
 use crate::variables::*;
 
 pub enum InputDataMode {
@@ -95,6 +95,7 @@ impl InputDataFetcher {
             }
             InputDataMode::Fixture => {
                 let file_content = fs::read_to_string(file_name.as_str());
+                info!("File name: {}", file_name.as_str());
                 file_content.unwrap()
             }
         };
@@ -130,7 +131,7 @@ impl InputDataFetcher {
             }
             InputDataMode::Fixture => {
                 let file_content = fs::read_to_string(file_name.as_str());
-                println!("Retrieving fixture");
+                info!("Fixture name: {}", file_name.as_str());
                 file_content.unwrap()
             }
         };
@@ -195,7 +196,7 @@ impl InputDataFetcher {
 
         let next_block_header = next_block.header.hash();
 
-        let next_block_validators = validator_from_block::<VALIDATOR_SET_SIZE_MAX, F>(&next_block);
+        let next_block_validators = validators_from_block::<VALIDATOR_SET_SIZE_MAX, F>(&next_block);
         assert_eq!(
             next_block_validators.len(),
             VALIDATOR_SET_SIZE_MAX,
@@ -211,7 +212,6 @@ impl InputDataFetcher {
         let last_block_id_hash = next_block.header.last_block_id.unwrap().hash;
         let encoded_last_block_id =
             Protobuf::<RawBlockId>::encode_vec(next_block.header.last_block_id.unwrap_or_default());
-        println!("encoded_last_block_id {:?}", encoded_last_block_id);
         assert_eq!(
             last_block_id_hash.as_bytes(),
             &encoded_last_block_id[2..34],
@@ -263,7 +263,7 @@ impl InputDataFetcher {
         let target_block_header = target_block.header.hash();
         let round_present = target_block.commit.round.value() != 0;
         let mut target_block_validators =
-            validator_from_block::<VALIDATOR_SET_SIZE_MAX, F>(&target_block);
+            validators_from_block::<VALIDATOR_SET_SIZE_MAX, F>(&target_block);
         update_present_on_trusted_header(
             &mut target_block_validators,
             &target_block,
