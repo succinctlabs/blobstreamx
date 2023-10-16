@@ -28,8 +28,11 @@ contract ZKBlobstream is IZKTendermintLightClient, IZKBlobstream {
     mapping(bytes32 => bytes32) public dataCommitments;
 
     /// @notice Modifier for restricting the gateway as the only caller for a function.
-    modifier onlyGateway() {
-        require(msg.sender == gateway, "Only gateway can call this function");
+    modifier onlyGatewayCallback() {
+        require(
+            msg.sender == gateway && IFunctionGateway(gateway).isCallback(),
+            "Only gateway can call this function as a callback"
+        );
         _;
     }
 
@@ -98,7 +101,7 @@ contract ZKBlobstream is IZKTendermintLightClient, IZKBlobstream {
     function callbackCombinedSkip(
         bytes memory requestResult,
         bytes memory context
-    ) external onlyGateway {
+    ) external onlyGatewayCallback {
         // Read the start block and target block of the skip proof from context.
         (uint64 skipStartBlock, uint64 skipTargetBlock) = abi.decode(
             context,
@@ -158,7 +161,7 @@ contract ZKBlobstream is IZKTendermintLightClient, IZKBlobstream {
     function callbackCombinedStep(
         bytes memory requestResult,
         bytes memory context
-    ) external onlyGateway {
+    ) external onlyGatewayCallback {
         // Read the prev block of the step proof from context.
         uint64 prevBlock = abi.decode(context, (uint64));
         // Read the new header and data commitment from request result.
