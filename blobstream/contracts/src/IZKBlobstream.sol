@@ -7,8 +7,7 @@ import "@blobstream/lib/tree/binary/BinaryMerkleTree.sol";
 interface IZKBlobstream {
     /// @notice Emitted when a combined step is requested.
     /// @param startBlock The start block of the combined step request.
-    /// @param requestId The ID of the request.
-    event CombinedStepRequested(uint64 indexed startBlock, bytes32 requestId);
+    event CombinedStepRequested(uint64 indexed startBlock);
 
     /// @notice Emitted when a combined step is fulfilled.
     /// @param startBlock The start block of the combined step request.
@@ -23,11 +22,9 @@ interface IZKBlobstream {
     /// @notice Emitted when a combined skip is requested.
     /// @param startBlock The start block of the combined skip request.
     /// @param targetBlock The target block of the combined skip request.
-    /// @param requestId The ID of the request.
     event CombinedSkipRequested(
         uint64 indexed startBlock,
-        uint64 indexed targetBlock,
-        bytes32 requestId
+        uint64 indexed targetBlock
     );
 
     /// @notice Emitted when a combined skip is fulfilled.
