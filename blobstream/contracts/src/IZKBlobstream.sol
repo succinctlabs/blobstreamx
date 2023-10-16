@@ -5,11 +5,11 @@ import "@blobstream/DataRootTuple.sol";
 import "@blobstream/lib/tree/binary/BinaryMerkleTree.sol";
 
 interface IZKBlobstream {
-    /// @notice Emitted when a combined step is requested.
-    /// @param startBlock The start block of the combined step request.
-    event NextHeaderRequested(uint64 indexed startBlock);
+    /// @notice Emitted when the next header is requested.
+    /// @param startBlock The start block of the next header request.
+    event NextHeaderProofRequested(uint64 indexed startBlock);
 
-    /// @notice Emitted when a combined step is fulfilled.
+    /// @notice Emitted when a request for the next header is fulfilled.
     /// @param startBlock The start block of the combined step request.
     /// @param targetHeader The header hash of the startBlock + 1.
     /// @param dataCommitment The data commitment of the block range [startBlock, startBlock + 1).
@@ -19,10 +19,10 @@ interface IZKBlobstream {
         bytes32 dataCommitment
     );
 
-    /// @notice Emitted when a combined skip is requested.
+    /// @notice Emitted when a header range proof is requested.
     /// @param startBlock The start block of the combined skip request.
     /// @param targetBlock The target block of the combined skip request.
-    event HeaderRangeRequested(
+    event HeaderRangeProofRequested(
         uint64 indexed startBlock,
         uint64 indexed targetBlock
     );

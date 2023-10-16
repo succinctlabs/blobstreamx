@@ -52,8 +52,8 @@ contract ZKBlobstream is IZKTendermintLightClient, IZKBlobstream {
     }
 
     /// @notice Prove the validity of the header at requested block and a data commitment for the block range [latestBlock, requestedBlock).
-    /// @param _requestedBlock The block to skip to.
-    /// @dev Skip proof is valid if at least 1/3 of the voting power signed on requestedBlock is from validators in the validator set for latestBlock.
+    /// @param _requestedBlock The end block of the header range proof.
+    /// @dev A header range proof is valid if at least 1/3 of the voting power of the requestedBlock is from validators in the validator set for latestBlock.
     /// Request will fail if the requested block is more than DATA_COMMITMENT_MAX blocks ahead of the latest block.
     /// Pass both the latest block and the requested block as context, as the latest block may change before the request is fulfilled.
     function requestHeaderRange(uint64 _requestedBlock) external payable {
@@ -86,7 +86,7 @@ contract ZKBlobstream is IZKTendermintLightClient, IZKBlobstream {
             ),
             500000
         );
-        emit HeaderRangeRequested(latestBlock, _requestedBlock);
+        emit HeaderRangeProofRequested(latestBlock, _requestedBlock);
     }
 
     /// @notice Stores the new header for requestedBlock and the data commitment for the block range [latestBlock, requestedBlock).
@@ -161,7 +161,7 @@ contract ZKBlobstream is IZKTendermintLightClient, IZKBlobstream {
             ),
             500000
         );
-        emit NextHeaderRequested(latestBlock);
+        emit NextHeaderProofRequested(latestBlock);
     }
 
     /// @notice Stores the new header for latestBlock + 1 and the data commitment for the block range [latestBlock, latestBlock + 1).
