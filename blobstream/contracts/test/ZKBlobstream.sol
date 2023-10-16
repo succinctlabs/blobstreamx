@@ -22,7 +22,7 @@ contract ZKBlobstreamTest is Test {
         );
     }
 
-    function testGetEncodePackedCombinedStep() public view {
+    function testGetEncodePackedNextHeader() public view {
         // http://64.227.18.169:26657/block?height=10000
         uint64 height = 10000;
         bytes32 header = hex"A0123D5E4B8B8888A61F931EE2252D83568B97C223E0ECA9795B29B8BD8CBA2D";
@@ -30,7 +30,7 @@ contract ZKBlobstreamTest is Test {
         console.logBytes(encodedInput);
     }
 
-    function testGetEncodePackedCombinedSkip() public view {
+    function testGetEncodePackedHeaderRange() public view {
         // http://64.227.18.169:26657/block?height=10000
         uint64 height = 10000;
         bytes32 header = hex"A0123D5E4B8B8888A61F931EE2252D83568B97C223E0ECA9795B29B8BD8CBA2D";

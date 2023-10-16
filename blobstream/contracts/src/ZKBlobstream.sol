@@ -56,14 +56,14 @@ contract ZKBlobstream is IZKTendermintLightClient, IZKBlobstream {
     /// @dev Skip proof is valid if at least 1/3 of the voting power signed on requestedBlock is from validators in the validator set for latestBlock.
     /// Request will fail if the requested block is more than DATA_COMMITMENT_MAX blocks ahead of the latest block.
     /// Pass both the latest block and the requested block as context, as the latest block may change before the request is fulfilled.
-    function requestCombinedSkip(uint64 _requestedBlock) external payable {
+    function requestHeaderRange(uint64 _requestedBlock) external payable {
         bytes32 latestHeader = blockHeightToHeaderHash[latestBlock];
         if (latestHeader == bytes32(0)) {
             revert LatestHeaderNotFound();
         }
-        bytes32 id = functionNameToId["combinedSkip"];
+        bytes32 id = functionNameToId["headerRange"];
         if (id == bytes32(0)) {
-            revert FunctionIdNotFound("combinedSkip");
+            revert FunctionIdNotFound("headerRange");
         }
 
         // A request can be at most DATA_COMMITMENT_MAX blocks ahead of the latest block.
@@ -79,21 +79,21 @@ contract ZKBlobstream is IZKTendermintLightClient, IZKBlobstream {
             abi.encodePacked(latestBlock, latestHeader, _requestedBlock),
             address(this),
             abi.encodeWithSelector(
-                this.callCombinedSkip.selector,
+                this.commitHeaderRange.selector,
                 latestBlock,
                 latestHeader,
                 _requestedBlock
             ),
             500000
         );
-        emit CombinedSkipRequested(latestBlock, _requestedBlock);
+        emit HeaderRangeRequested(latestBlock, _requestedBlock);
     }
 
     /// @notice Stores the new header for requestedBlock and the data commitment for the block range [latestBlock, requestedBlock).
     /// @param prevBlock The latest block when the request was made.
     /// @param prevHeader The header hash of the latest block when the request was made.
     /// @param requestedBlock The block to skip to.
-    function callCombinedSkip(
+    function commitHeaderRange(
         uint64 prevBlock,
         bytes32 prevHeader,
         uint64 requestedBlock
@@ -107,7 +107,7 @@ contract ZKBlobstream is IZKTendermintLightClient, IZKBlobstream {
 
         // Get the result of the proof from the gateway.
         bytes memory requestResult = IFunctionGateway(gateway).verifiedCall(
-            functionNameToId["combinedStep"],
+            functionNameToId["headerRange"],
             input
         );
 
@@ -130,7 +130,7 @@ contract ZKBlobstream is IZKTendermintLightClient, IZKBlobstream {
         ] = dataCommitment;
         latestBlock = requestedBlock;
 
-        emit CombinedSkipFulfilled(
+        emit HeaderRangeFulfilled(
             prevBlock,
             requestedBlock,
             targetHeader,
@@ -140,14 +140,14 @@ contract ZKBlobstream is IZKTendermintLightClient, IZKBlobstream {
 
     /// @notice Prove the validity of the header at latestBlock + 1 and a data commitment for the block range [latestBlock, latestBlock + 1).
     /// @dev Only used if 2/3 of voting power in a validator set changes in one block.
-    function requestCombinedStep() external payable {
+    function requestNextHeader() external payable {
         bytes32 latestHeader = blockHeightToHeaderHash[latestBlock];
         if (latestHeader == bytes32(0)) {
             revert LatestHeaderNotFound();
         }
-        bytes32 id = functionNameToId["combinedStep"];
+        bytes32 id = functionNameToId["nextHeader"];
         if (id == bytes32(0)) {
-            revert FunctionIdNotFound("combinedStep");
+            revert FunctionIdNotFound("nextHeader");
         }
 
         IFunctionGateway(gateway).requestCall{value: msg.value}(
@@ -155,24 +155,24 @@ contract ZKBlobstream is IZKTendermintLightClient, IZKBlobstream {
             abi.encodePacked(latestBlock, latestHeader),
             address(this),
             abi.encodeWithSelector(
-                this.callCombinedStep.selector,
+                this.commitNextHeader.selector,
                 latestBlock,
                 latestHeader
             ),
             500000
         );
-        emit CombinedStepRequested(latestBlock);
+        emit NextHeaderRequested(latestBlock);
     }
 
     /// @notice Stores the new header for latestBlock + 1 and the data commitment for the block range [latestBlock, latestBlock + 1).
     /// @param prevBlock The latest block when the request was made.
     /// @param prevHeader The header hash of the latest block when the request was made.
-    function callCombinedStep(uint64 prevBlock, bytes32 prevHeader) external {
+    function commitNextHeader(uint64 prevBlock, bytes32 prevHeader) external {
         bytes memory input = abi.encodePacked(prevBlock, prevHeader);
 
         // Call into gateway
         bytes memory requestResult = IFunctionGateway(gateway).verifiedCall(
-            functionNameToId["combinedStep"],
+            functionNameToId["nextHeader"],
             input
         );
 
@@ -193,7 +193,7 @@ contract ZKBlobstream is IZKTendermintLightClient, IZKBlobstream {
         ] = dataCommitment;
         latestBlock = nextBlock;
 
-        emit CombinedStepFulfilled(prevBlock, nextHeader, dataCommitment);
+        emit NextHeaderFulfilled(prevBlock, nextHeader, dataCommitment);
     }
 
     /// @notice Get the function ID for a function name.

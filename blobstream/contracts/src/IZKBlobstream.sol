@@ -7,13 +7,13 @@ import "@blobstream/lib/tree/binary/BinaryMerkleTree.sol";
 interface IZKBlobstream {
     /// @notice Emitted when a combined step is requested.
     /// @param startBlock The start block of the combined step request.
-    event CombinedStepRequested(uint64 indexed startBlock);
+    event NextHeaderRequested(uint64 indexed startBlock);
 
     /// @notice Emitted when a combined step is fulfilled.
     /// @param startBlock The start block of the combined step request.
     /// @param targetHeader The header hash of the startBlock + 1.
     /// @param dataCommitment The data commitment of the block range [startBlock, startBlock + 1).
-    event CombinedStepFulfilled(
+    event NextHeaderFulfilled(
         uint64 indexed startBlock,
         bytes32 targetHeader,
         bytes32 dataCommitment
@@ -22,7 +22,7 @@ interface IZKBlobstream {
     /// @notice Emitted when a combined skip is requested.
     /// @param startBlock The start block of the combined skip request.
     /// @param targetBlock The target block of the combined skip request.
-    event CombinedSkipRequested(
+    event HeaderRangeRequested(
         uint64 indexed startBlock,
         uint64 indexed targetBlock
     );
@@ -32,7 +32,7 @@ interface IZKBlobstream {
     /// @param targetBlock The target block of the combined skip request.
     /// @param targetHeader The header hash of the target block.
     /// @param dataCommitment The data commitment of the block range [startBlock, targetBlock).
-    event CombinedSkipFulfilled(
+    event HeaderRangeFulfilled(
         uint64 indexed startBlock,
         uint64 indexed targetBlock,
         bytes32 targetHeader,
