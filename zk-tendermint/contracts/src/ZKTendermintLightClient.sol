@@ -5,81 +5,20 @@ import {IFunctionGateway} from "./interfaces/IFunctionGateway.sol";
 import {IZKTendermintLightClient} from "./interfaces/IZKTendermintLightClient.sol";
 
 contract ZKTendermintLightClient is IZKTendermintLightClient {
-    /////////////
-    // Storage //
-    /////////////
-
     /// @notice The address of the gateway contract.
     address public gateway;
+
     /// @notice The latest block that has been committed.
     uint64 public latestBlock;
+
     /// @notice The maximum number of blocks that can be skipped in a single request.
     uint64 public SKIP_MAX = 1000;
+
     /// @notice Maps function names to their IDs.
     mapping(string => bytes32) public functionNameToId;
+
     /// @notice Maps block heights to their header hashes.
     mapping(uint64 => bytes32) public blockHeightToHeaderHash;
-
-    ////////////
-    // Events //
-    ////////////
-
-    /// @notice Emitted when a step is requested.
-    /// @param startBlock The start block of the step request.
-    /// @param requestId The ID of the request.
-    event HeaderStepRequested(uint64 indexed startBlock, bytes32 requestId);
-
-    /// @notice Emitted when a step is fulfilled.
-    /// @param startBlock The start block of the step request.
-    /// @param header The header hash of the startBlock + 1.
-    event HeaderStepFulfilled(uint64 indexed startBlock, bytes32 header);
-
-    /// @notice Emitted when a skip is requested.
-    /// @param startBlock The start block of the skip request.
-    /// @param targetBlock The target block of the skip request.
-    /// @param requestId The ID of the request.
-    event HeaderSkipRequested(
-        uint64 indexed startBlock,
-        uint64 indexed targetBlock,
-        bytes32 requestId
-    );
-
-    /// @notice Emitted when a skip is fulfilled.
-    /// @param startBlock The start block of the skip request.
-    /// @param targetBlock The target block of the skip request.
-    /// @param header The header hash of the target block.
-    event HeaderSkipFulfilled(
-        uint64 indexed startBlock,
-        uint64 indexed targetBlock,
-        bytes32 header
-    );
-
-    ///////////////
-    // Modifiers //
-    ///////////////
-
-    /// @notice Modifier for restricting the gateway as the only caller for a function.
-    modifier onlyGateway() {
-        require(msg.sender == gateway, "Only gateway can call this function");
-        _;
-    }
-
-    ////////////
-    // Errors //
-    ////////////
-
-    /// @notice Latest header not found.
-    error LatestHeaderNotFound();
-    /// @notice Function ID for name not found.
-    error FunctionIdNotFound(string name);
-    /// @notice Target block for proof must be greater than latest block.
-    error TargetLessThanLatest();
-    /// @notice The range of blocks in a request is greater than the maximum allowed.
-    error ProofBlockRangeTooLarge();
-
-    ///////////////
-    // Functions //
-    ///////////////
 
     /// @notice Initialize the contract with the address of the gateway contract.
     constructor(address _gateway) {
@@ -110,7 +49,7 @@ contract ZKTendermintLightClient is IZKTendermintLightClient {
     /// @dev Skip proof is valid if at least 1/3 of the voting power signed on requestedBlock is from validators in the validator set for latestBlock.
     /// Request will fail if the requested block is more than SKIP_MAX blocks ahead of the latest block.
     /// Pass both the latest block and the requested block as context, as the latest block may change before the request is fulfilled.
-    function requestHeaderSkip(uint64 _requestedBlock) external payable {
+    function requestSkip(uint64 _requestedBlock) external payable {
         bytes32 latestHeader = blockHeightToHeaderHash[latestBlock];
         if (latestHeader == bytes32(0)) {
             revert LatestHeaderNotFound();
@@ -128,46 +67,60 @@ contract ZKTendermintLightClient is IZKTendermintLightClient {
             revert TargetLessThanLatest();
         }
 
-        bytes32 requestId = IFunctionGateway(gateway).requestCallback{
-            value: msg.value
-        }(
+        IFunctionGateway(gateway).requestCall{value: msg.value}(
             id,
-            abi.encodePacked(latestHeader, latestBlock, _requestedBlock),
-            abi.encode(latestBlock, _requestedBlock),
-            this.callbackHeaderSkip.selector,
+            abi.encodePacked(latestBlock, latestHeader, _requestedBlock),
+            address(this),
+            abi.encodeWithSelector(
+                this.skip.selector,
+                latestBlock,
+                latestHeader,
+                _requestedBlock
+            ),
             500000
         );
-        emit HeaderSkipRequested(latestBlock, _requestedBlock, requestId);
+
+        emit SkipRequested(latestBlock, latestHeader, _requestedBlock);
     }
 
     /// @notice Stores the new header for requestedBlock.
-    /// @param requestResult Contains the new header.
-    /// @param context Contains the latestBlock when skip was requested, and the requestedBlock to skip to.
-    function callbackHeaderSkip(
-        bytes memory requestResult,
-        bytes memory context
-    ) external onlyGateway {
-        // Read the start block and target block of the skip proof from context.
-        (uint64 skipStartBlock, uint64 skipTargetBlock) = abi.decode(
-            context,
-            (uint64, uint64)
+    /// @param prevBlock The latest block when the request was made.
+    /// @param prevHeader The header hash of the latest block when the request was made.
+    /// @param requestedBlock The block to skip to.
+    function skip(
+        uint64 prevBlock,
+        bytes32 prevHeader,
+        uint64 requestedBlock
+    ) external {
+        // Encode the circuit input.
+        bytes memory input = abi.encodePacked(
+            prevBlock,
+            prevHeader,
+            requestedBlock
         );
+
+        // Get the result of the proof from the gateway.
+        bytes memory requestResult = IFunctionGateway(gateway).verifiedCall(
+            functionNameToId["headerRange"],
+            input
+        );
+
         // Read the target header from request result.
         bytes32 targetHeader = abi.decode(requestResult, (bytes32));
 
-        if (skipTargetBlock <= latestBlock) {
+        if (requestedBlock <= latestBlock) {
             revert TargetLessThanLatest();
         }
 
-        blockHeightToHeaderHash[skipTargetBlock] = targetHeader;
-        latestBlock = skipTargetBlock;
+        blockHeightToHeaderHash[requestedBlock] = targetHeader;
+        latestBlock = requestedBlock;
 
-        emit HeaderSkipFulfilled(skipStartBlock, skipTargetBlock, targetHeader);
+        emit HeadUpdate(requestedBlock, targetHeader);
     }
 
     /// @notice Prove the validity of the header at latestBlock + 1.
     /// @dev Only used if 2/3 of voting power in a validator set changes in one block.
-    function requestHeaderStep() external payable {
+    function requestStep() external payable {
         bytes32 latestHeader = blockHeightToHeaderHash[latestBlock];
         if (latestHeader == bytes32(0)) {
             revert LatestHeaderNotFound();
@@ -178,27 +131,32 @@ contract ZKTendermintLightClient is IZKTendermintLightClient {
             revert FunctionIdNotFound("step");
         }
 
-        bytes32 requestId = IFunctionGateway(gateway).requestCallback{
-            value: msg.value
-        }(
+        IFunctionGateway(gateway).requestCall{value: msg.value}(
             id,
-            abi.encodePacked(latestHeader, latestBlock),
-            abi.encode(latestBlock),
-            this.callbackHeaderStep.selector,
+            abi.encodePacked(latestBlock, latestHeader),
+            address(this),
+            abi.encodeWithSelector(
+                this.step.selector,
+                latestBlock,
+                latestHeader
+            ),
             500000
         );
-        emit HeaderStepRequested(latestBlock, requestId);
+        emit StepRequested(latestBlock, latestHeader);
     }
 
     /// @notice Stores the new header for latestBlock + 1.
-    /// @param requestResult Contains the new header.
-    /// @param context Contains the latest block when step was requested.
-    function callbackHeaderStep(
-        bytes memory requestResult,
-        bytes memory context
-    ) external onlyGateway {
-        // Read the prev block of the step proof from context.
-        uint64 prevBlock = abi.decode(context, (uint64));
+    /// @param prevBlock The latest block when the request was made.
+    /// @param prevHeader The header hash of the latest block when the request was made.
+    function step(uint64 prevBlock, bytes32 prevHeader) external {
+        bytes memory input = abi.encodePacked(prevBlock, prevHeader);
+
+        // Call into gateway
+        bytes memory requestResult = IFunctionGateway(gateway).verifiedCall(
+            functionNameToId["nextHeader"],
+            input
+        );
+
         // Read the new header from request result.
         bytes32 newHeader = abi.decode(requestResult, (bytes32));
 
@@ -210,7 +168,7 @@ contract ZKTendermintLightClient is IZKTendermintLightClient {
         blockHeightToHeaderHash[nextBlock] = newHeader;
         latestBlock = nextBlock;
 
-        emit HeaderStepFulfilled(nextBlock, newHeader);
+        emit HeadUpdate(nextBlock, newHeader);
     }
 
     /// @dev See "./IZKTendermintLightClient.sol"
