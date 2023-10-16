@@ -6,93 +6,32 @@ import "@blobstream/lib/tree/binary/BinaryMerkleTree.sol";
 
 import {IFunctionGateway} from "./interfaces/IFunctionGateway.sol";
 import {IZKTendermintLightClient} from "@zk-tendermint/interfaces/IZKTendermintLightClient.sol";
-import {IBlobstream} from "./IBlobstream.sol";
+import {IZKBlobstream} from "./IZKBlobstream.sol";
 
-contract ZKBlobstream is IZKTendermintLightClient, IBlobstream {
-    /////////////
-    // Storage //
-    /////////////
-
+contract ZKBlobstream is IZKTendermintLightClient, IZKBlobstream {
     /// @notice The address of the gateway contract.
     address public gateway;
+
     /// @notice The latest block that has been committed.
     uint64 public latestBlock;
+
     /// @notice The maximum number of blocks that can be skipped in a single request.
     uint64 public DATA_COMMITMENT_MAX = 1000;
+
     /// @notice Maps function names to their IDs.
     mapping(string => bytes32) public functionNameToId;
+
     /// @notice Maps block heights to their header hashes.
     mapping(uint64 => bytes32) public blockHeightToHeaderHash;
+
     /// @notice Maps block ranges to their data commitments. Block ranges are stored as keccak256(abi.encode(startBlock, endBlock)).
     mapping(bytes32 => bytes32) public dataCommitments;
-
-    ////////////
-    // Events //
-    ////////////
-
-    /// @notice Emitted when a combined step is requested.
-    /// @param startBlock The start block of the combined step request.
-    /// @param requestId The ID of the request.
-    event CombinedStepRequested(uint64 indexed startBlock, bytes32 requestId);
-
-    /// @notice Emitted when a combined step is fulfilled.
-    /// @param startBlock The start block of the combined step request.
-    /// @param targetHeader The header hash of the startBlock + 1.
-    /// @param dataCommitment The data commitment of the block range [startBlock, startBlock + 1).
-    event CombinedStepFulfilled(
-        uint64 indexed startBlock,
-        bytes32 targetHeader,
-        bytes32 dataCommitment
-    );
-
-    /// @notice Emitted when a combined skip is requested.
-    /// @param startBlock The start block of the combined skip request.
-    /// @param targetBlock The target block of the combined skip request.
-    /// @param requestId The ID of the request.
-    event CombinedSkipRequested(
-        uint64 indexed startBlock,
-        uint64 indexed targetBlock,
-        bytes32 requestId
-    );
-
-    /// @notice Emitted when a combined skip is fulfilled.
-    /// @param startBlock The start block of the combined skip request.
-    /// @param targetBlock The target block of the combined skip request.
-    /// @param targetHeader The header hash of the target block.
-    /// @param dataCommitment The data commitment of the block range [startBlock, targetBlock).
-    event CombinedSkipFulfilled(
-        uint64 indexed startBlock,
-        uint64 indexed targetBlock,
-        bytes32 targetHeader,
-        bytes32 dataCommitment
-    );
-
-    ////////////
-    // Errors //
-    ////////////
-
-    /// @notice Latest header not found.
-    error LatestHeaderNotFound();
-    /// @notice Function ID for name not found.
-    error FunctionIdNotFound(string name);
-    /// @notice Target block for proof must be greater than latest block.
-    error TargetLessThanLatest();
-    /// @notice The range of blocks in a request is greater than the maximum allowed.
-    error ProofBlockRangeTooLarge();
-
-    ///////////////
-    // Modifiers //
-    ///////////////
 
     /// @notice Modifier for restricting the gateway as the only caller for a function.
     modifier onlyGateway() {
         require(msg.sender == gateway, "Only gateway can call this function");
         _;
     }
-
-    ///////////////
-    // Functions //
-    ///////////////
 
     /// @notice Initialize the contract with the address of the gateway contract.
     constructor(address _gateway) {
