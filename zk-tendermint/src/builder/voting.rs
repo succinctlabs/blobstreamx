@@ -28,7 +28,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVoting for CircuitBuilder<
         &mut self,
         validator_voting_power: &[U64Variable],
     ) -> U64Variable {
-        // Note: This can be made more efficient by implementing the add_many_u32 gate to plonky2x.
+        // Note: This can be made more efficient by implementing the add_many_u32 gate in plonky2x.
         let mut total = self.constant::<U64Variable>(0);
         for i in 0..validator_voting_power.len() {
             total = self.add(total, validator_voting_power[i])
@@ -104,13 +104,14 @@ pub(crate) mod tests {
         let total_voting_power = builder.read::<U64Variable>();
         let threshold_numerator = builder.read::<U64Variable>();
         let threshold_denominator = builder.read::<U64Variable>();
-        builder.is_voting_power_greater_than_threshold::<VALIDATOR_SET_SIZE_MAX>(
+        let result = builder.is_voting_power_greater_than_threshold::<VALIDATOR_SET_SIZE_MAX>(
             &validator_voting_power_vec,
             &validator_enabled_vec,
             &total_voting_power,
             &threshold_numerator,
             &threshold_denominator,
         );
+        builder.write(result);
 
         let circuit = builder.build();
 
