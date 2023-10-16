@@ -27,12 +27,6 @@ contract ZKBlobstream is IZKTendermintLightClient, IZKBlobstream {
     /// @notice Maps block ranges to their data commitments. Block ranges are stored as keccak256(abi.encode(startBlock, endBlock)).
     mapping(bytes32 => bytes32) public dataCommitments;
 
-    /// @notice Modifier for restricting the gateway as the only caller for a function.
-    modifier onlyGateway() {
-        require(msg.sender == gateway, "Only gateway can call this function");
-        _;
-    }
-
     /// @notice Initialize the contract with the address of the gateway contract.
     constructor(address _gateway) {
         gateway = _gateway;
@@ -103,16 +97,23 @@ contract ZKBlobstream is IZKTendermintLightClient, IZKBlobstream {
         uint64 prevBlock,
         bytes32 prevHeader,
         uint64 requestedBlock
-    ) external onlyGateway {
-        bytes memory input = abi.encode(prevBlock, prevHeader, requestedBlock);
+    ) external {
+        // Encode the circuit input.
+        bytes memory input = abi.encodePacked(
+            prevBlock,
+            prevHeader,
+            requestedBlock
+        );
 
-        // Call into gateway
+        // Get the result of the proof from the gateway.
         bytes memory requestResult = IFunctionGateway(gateway).verifiedCall(
             functionNameToId["combinedStep"],
             input
         );
 
         // Read the target header and data commitment from request result.
+        // Note: Don't need implementation of decodePacked because abi.encode(bytes32, bytes32)
+        //  is the same as abi.encodePacked(bytes32, bytes32).
         (bytes32 targetHeader, bytes32 dataCommitment) = abi.decode(
             requestResult,
             (bytes32, bytes32)
@@ -122,6 +123,7 @@ contract ZKBlobstream is IZKTendermintLightClient, IZKBlobstream {
             revert TargetLessThanLatest();
         }
 
+        // Store the new header and data commitment, and update the latest block.
         blockHeightToHeaderHash[requestedBlock] = targetHeader;
         dataCommitments[
             keccak256(abi.encode(prevBlock, requestedBlock))
@@ -165,11 +167,8 @@ contract ZKBlobstream is IZKTendermintLightClient, IZKBlobstream {
     /// @notice Stores the new header for latestBlock + 1 and the data commitment for the block range [latestBlock, latestBlock + 1).
     /// @param prevBlock The latest block when the request was made.
     /// @param prevHeader The header hash of the latest block when the request was made.
-    function callCombinedStep(
-        uint64 prevBlock,
-        bytes32 prevHeader
-    ) external onlyGateway {
-        bytes memory input = abi.encode(prevBlock, prevHeader);
+    function callCombinedStep(uint64 prevBlock, bytes32 prevHeader) external {
+        bytes memory input = abi.encodePacked(prevBlock, prevHeader);
 
         // Call into gateway
         bytes memory requestResult = IFunctionGateway(gateway).verifiedCall(
