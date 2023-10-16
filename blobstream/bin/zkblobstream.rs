@@ -98,7 +98,7 @@ async fn main() -> Result<(), ()> {
         tokio::time::sleep(tokio::time::Duration::from_secs(60 * 30)).await;
 
         calls_so_far += 1;
-        if calls_so_far == 20 {
+        if calls_so_far == 100 {
             break;
         }
         // curr_block += 100;
