@@ -5,38 +5,32 @@ import "@blobstream/DataRootTuple.sol";
 import "@blobstream/lib/tree/binary/BinaryMerkleTree.sol";
 
 interface IZKBlobstream {
-    /// @notice Emitted when the next header is requested.
-    /// @param startBlock The start block of the next header request.
-    event NextHeaderProofRequested(uint64 indexed startBlock);
-
-    /// @notice Emitted when a request for the next header is fulfilled.
-    /// @param startBlock The start block of the combined step request.
-    /// @param targetHeader The header hash of the startBlock + 1.
-    /// @param dataCommitment The data commitment of the block range [startBlock, startBlock + 1).
-    event NextHeaderFulfilled(
+    /// @notice Data commitment for the block range [startBlock, endBlock).
+    /// @param startBlock The start block of the block range.
+    /// @param endBlock The end block of the block range.
+    /// @param dataCommitment The data commitment for the block range.
+    event DataCommitment(
         uint64 indexed startBlock,
-        bytes32 targetHeader,
-        bytes32 dataCommitment
+        uint64 indexed endBlock,
+        bytes32 indexed dataCommitment
     );
 
-    /// @notice Emitted when a header range proof is requested.
-    /// @param startBlock The start block of the combined skip request.
-    /// @param targetBlock The target block of the combined skip request.
-    event HeaderRangeProofRequested(
+    /// @notice Emits event with the inputs of a next header request.
+    /// @param prevBlock The current latest block.
+    /// @param prevHeader The header hash of the current latest block.
+    event NextHeaderRequested(
+        uint64 indexed prevBlock,
+        bytes32 indexed prevHeader
+    );
+
+    /// @notice Emits event with the inputs of a header range request.
+    /// @param startBlock The start block of the header range.
+    /// @param startHeader The header hash of the start block.
+    /// @param targetBlock The target block of the header range.
+    event HeaderRangeRequested(
         uint64 indexed startBlock,
+        bytes32 indexed startHeader,
         uint64 indexed targetBlock
-    );
-
-    /// @notice Emitted when a combined skip is fulfilled.
-    /// @param startBlock The start block of the combined skip request.
-    /// @param targetBlock The target block of the combined skip request.
-    /// @param targetHeader The header hash of the target block.
-    /// @param dataCommitment The data commitment of the block range [startBlock, targetBlock).
-    event HeaderRangeFulfilled(
-        uint64 indexed startBlock,
-        uint64 indexed targetBlock,
-        bytes32 targetHeader,
-        bytes32 dataCommitment
     );
 
     /// @notice Latest header not found.
@@ -52,6 +46,8 @@ interface IZKBlobstream {
     error ProofBlockRangeTooLarge();
 
     /// @notice Get the data commitment for a block range [startBlock, endBlock).
+    /// @param startBlock The start block of the block range.
+    /// @param endBlock The end block of the block range.
     function getDataCommitment(
         uint64 startBlock,
         uint64 endBlock

@@ -51,11 +51,9 @@ contract ZKBlobstream is IZKTendermintLightClient, IZKBlobstream {
         latestBlock = height;
     }
 
-    /// @notice Prove the validity of the header at requested block and a data commitment for the block range [latestBlock, requestedBlock).
+    /// @notice Prove the validity of the header at requestedBlock and a data commitment for the block range [latestBlock, requestedBlock).
     /// @param _requestedBlock The end block of the header range proof.
-    /// @dev A header range proof is valid if at least 1/3 of the voting power of the requestedBlock is from validators in the validator set for latestBlock.
-    /// Request will fail if the requested block is more than DATA_COMMITMENT_MAX blocks ahead of the latest block.
-    /// Pass both the latest block and the requested block as context, as the latest block may change before the request is fulfilled.
+    /// @dev requestHeaderRange is used to skip from the latest block to the requested block.
     function requestHeaderRange(uint64 _requestedBlock) external payable {
         bytes32 latestHeader = blockHeightToHeaderHash[latestBlock];
         if (latestHeader == bytes32(0)) {
@@ -86,10 +84,11 @@ contract ZKBlobstream is IZKTendermintLightClient, IZKBlobstream {
             ),
             500000
         );
-        emit HeaderRangeProofRequested(latestBlock, _requestedBlock);
+
+        emit HeaderRangeRequested(latestBlock, latestHeader, _requestedBlock);
     }
 
-    /// @notice Stores the new header for requestedBlock and the data commitment for the block range [latestBlock, requestedBlock).
+    /// @notice Commits the new header at requestedBlock and the data commitment for the block range [latestBlock, requestedBlock).
     /// @param prevBlock The latest block when the request was made.
     /// @param prevHeader The header hash of the latest block when the request was made.
     /// @param requestedBlock The block to skip to.
@@ -130,16 +129,13 @@ contract ZKBlobstream is IZKTendermintLightClient, IZKBlobstream {
         ] = dataCommitment;
         latestBlock = requestedBlock;
 
-        emit HeaderRangeFulfilled(
-            prevBlock,
-            requestedBlock,
-            targetHeader,
-            dataCommitment
-        );
+        emit HeadUpdate(requestedBlock, targetHeader);
+
+        emit DataCommitment(prevBlock, requestedBlock, dataCommitment);
     }
 
-    /// @notice Prove the validity of the header at latestBlock + 1 and a data commitment for the block range [latestBlock, latestBlock + 1).
-    /// @dev Only used if 2/3 of voting power in a validator set changes in one block.
+    /// @notice Prove the validity of the next header and a data commitment for the block range [latestBlock, latestBlock + 1).
+    /// @dev Rarely used, only if the validator set changes by more than 2/3 in a single block.
     function requestNextHeader() external payable {
         bytes32 latestHeader = blockHeightToHeaderHash[latestBlock];
         if (latestHeader == bytes32(0)) {
@@ -161,10 +157,11 @@ contract ZKBlobstream is IZKTendermintLightClient, IZKBlobstream {
             ),
             500000
         );
-        emit NextHeaderProofRequested(latestBlock);
+
+        emit NextHeaderRequested(latestBlock, latestHeader);
     }
 
-    /// @notice Stores the new header for latestBlock + 1 and the data commitment for the block range [latestBlock, latestBlock + 1).
+    /// @notice Stores the new header for prevBlock + 1 and the data commitment for the block range [prevBlock, prevBlock + 1).
     /// @param prevBlock The latest block when the request was made.
     /// @param prevHeader The header hash of the latest block when the request was made.
     function commitNextHeader(uint64 prevBlock, bytes32 prevHeader) external {
@@ -193,7 +190,9 @@ contract ZKBlobstream is IZKTendermintLightClient, IZKBlobstream {
         ] = dataCommitment;
         latestBlock = nextBlock;
 
-        emit NextHeaderFulfilled(prevBlock, nextHeader, dataCommitment);
+        emit HeadUpdate(nextBlock, nextHeader);
+
+        emit DataCommitment(prevBlock, nextBlock, dataCommitment);
     }
 
     /// @notice Get the function ID for a function name.
