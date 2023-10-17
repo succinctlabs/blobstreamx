@@ -4,9 +4,9 @@ use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::frontend::vars::{ArrayVariable, Bytes32Variable, EvmVariable};
 use plonky2x::prelude::*;
 use tendermint::merkle::HASH_SIZE;
-use tendermintx::consts::*;
 
-use crate::commitment::DataCommitmentOffchainInputs;
+use crate::consts::*;
+use crate::data_commitment::DataCommitmentOffchainInputs;
 use crate::vars::{DataCommitmentProofVariable, MapReduceSubchainVariable};
 
 /// Shared context across all data commitment mapreduce jobs.
@@ -345,11 +345,10 @@ pub(crate) mod tests {
     use ethers::types::H256;
     use plonky2x::backend::circuit::DefaultParameters;
     use tendermintx::input::utils::convert_to_h256;
-    use tendermintx::input::InputDataFetcher;
     use tokio::runtime::Runtime;
 
     use super::*;
-    use crate::input::DataCommitmentInputs;
+    use crate::input::InputDataFetcher;
     use crate::vars::*;
 
     type L = DefaultParameters;

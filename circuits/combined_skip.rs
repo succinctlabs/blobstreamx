@@ -5,7 +5,7 @@ use plonky2x::prelude::{Bytes32Variable, CircuitBuilder, PlonkParameters};
 use tendermintx::skip::{SkipOffchainInputs, TendermintSkipCircuit};
 
 use crate::builder::{DataCommitmentBuilder, DataCommitmentSharedCtx};
-use crate::commitment::DataCommitmentOffchainInputs;
+use crate::data_commitment::DataCommitmentOffchainInputs;
 use crate::vars::MapReduceSubchainVariable;
 
 #[derive(Debug, Clone)]

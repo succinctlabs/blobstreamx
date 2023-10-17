@@ -16,7 +16,7 @@
 //!
 use std::env;
 
-use blobstream::combined_skip::CombinedSkipCircuit;
+use blobstreamx::combined_skip::CombinedSkipCircuit;
 use plonky2x::backend::function::Plonky2xFunction;
 
 fn main() {

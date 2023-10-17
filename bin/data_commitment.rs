@@ -16,7 +16,7 @@
 //!
 use std::env;
 
-use blobstream::commitment::DataCommitmentCircuit;
+use blobstreamx::data_commitment::DataCommitmentCircuit;
 use plonky2x::backend::function::Plonky2xFunction;
 
 fn main() {

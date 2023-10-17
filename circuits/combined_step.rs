@@ -4,7 +4,7 @@ use plonky2x::prelude::{Bytes32Variable, CircuitBuilder, PlonkParameters, Variab
 use tendermintx::step::{StepOffchainInputs, TendermintStepCircuit};
 
 use crate::builder::DataCommitmentBuilder;
-use crate::commitment::DataCommitmentOffchainInputs;
+use crate::data_commitment::DataCommitmentOffchainInputs;
 use crate::vars::DataCommitmentProofVariable;
 
 #[derive(Debug, Clone)]

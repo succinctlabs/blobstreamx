@@ -4,6 +4,7 @@
 pub mod builder;
 pub mod combined_skip;
 pub mod combined_step;
-pub mod commitment;
+pub mod consts;
+pub mod data_commitment;
 pub mod input;
 pub mod vars;

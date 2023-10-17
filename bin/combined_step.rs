@@ -16,7 +16,7 @@
 //!
 use std::env;
 
-use blobstream::combined_step::CombinedStepCircuit;
+use blobstreamx::combined_step::CombinedStepCircuit;
 use plonky2x::backend::function::Plonky2xFunction;
 
 fn main() {
