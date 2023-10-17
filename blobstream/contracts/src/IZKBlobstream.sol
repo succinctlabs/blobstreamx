@@ -33,18 +33,6 @@ interface IZKBlobstream {
         uint64 indexed targetBlock
     );
 
-    /// @notice Latest header not found.
-    error LatestHeaderNotFound();
-
-    /// @notice Function ID for name not found.
-    error FunctionIdNotFound(string name);
-
-    /// @notice Target block for proof must be greater than latest block.
-    error TargetLessThanLatest();
-
-    /// @notice The range of blocks in a request is greater than the maximum allowed.
-    error ProofBlockRangeTooLarge();
-
     /// @notice Get the data commitment for a block range [startBlock, endBlock).
     /// @param startBlock The start block of the block range.
     /// @param endBlock The end block of the block range.
