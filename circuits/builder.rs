@@ -344,11 +344,10 @@ pub(crate) mod tests {
 
     use ethers::types::H256;
     use plonky2x::backend::circuit::DefaultParameters;
-    use tendermintx::input::utils::convert_to_h256;
     use tokio::runtime::Runtime;
 
     use super::*;
-    use crate::input::InputDataFetcher;
+    use crate::input::{convert_to_h256, InputDataFetcher};
     use crate::vars::*;
 
     type L = DefaultParameters;

@@ -14,7 +14,6 @@ use tendermint_proto::Protobuf;
 use tendermintx::input::tendermint_utils::{
     generate_proofs_from_header, Hash, HeaderResponse, Proof,
 };
-use tendermintx::input::utils::convert_to_h256;
 
 use crate::consts::*;
 
@@ -304,4 +303,12 @@ impl InputDataFetcher {
             expected_data_commitment,
         )
     }
+}
+
+pub fn convert_to_h256(aunts: Vec<[u8; 32]>) -> Vec<H256> {
+    let mut aunts_h256 = Vec::new();
+    for aunt in aunts {
+        aunts_h256.push(H256::from_slice(&aunt));
+    }
+    aunts_h256
 }
