@@ -2,7 +2,7 @@
 Implementation of zero-knowledge proof circuits for [Blobstream](https://docs.celestia.org/nodes/blobstream-intro/), Celestia's data availability solution for Ethereum.
 
 ## Overview (wip)
-Blobstream X's core contract is `ZKBlobstream`, which stores commitments to ranges of data roots from Celestia blocks. Users can query the for the validity of a data root of a specific block height via `verifyMerkleProof`, which proves that the data root is a leaf in the Merkle tree for the block range the specific block height is in.
+Blobstream X's core contract is `ZKBlobstream`, which stores commitments to ranges of data roots from Celestia blocks. Users can query the for the validity of a data root of a specific block height via `verifyAttestation`, which proves that the data root is a leaf in the Merkle tree for the block range the specific block height is in.
 
 ### headerRange (wip)
 `headerRange` is used to generate the data root of a block range. The data root is the root of a Merkle tree of the data roots of all the blocks in the block range. 
