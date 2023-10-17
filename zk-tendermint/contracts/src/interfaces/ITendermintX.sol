@@ -6,17 +6,20 @@ interface ITendermintX {
     event HeadUpdate(uint64 blockNumber, bytes32 headerHash);
 
     /// @notice Inputs of a step request.
-    /// @param prevBlock The current latest block.
-    /// @param prevHeader The header hash of the current latest block.
-    event StepRequested(uint64 indexed prevBlock, bytes32 indexed prevHeader);
+    /// @param trustedBlock The trusted block for the skip.
+    /// @param trustedHeader The header hash of the trusted block.
+    event StepRequested(
+        uint64 indexed trustedBlock,
+        bytes32 indexed trustedHeader
+    );
 
     /// @notice Inputs of a skip request.
-    /// @param startBlock The trusted block for the skip.
-    /// @param startHeader The header hash of the trusted block.
+    /// @param trustedBlock The trusted block for the skip.
+    /// @param trustedHeader The header hash of the trusted block.
     /// @param targetBlock The target block of the skip.
     event SkipRequested(
-        uint64 indexed startBlock,
-        bytes32 indexed startHeader,
+        uint64 indexed trustedBlock,
+        bytes32 indexed trustedHeader,
         uint64 indexed targetBlock
     );
 

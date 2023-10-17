@@ -16,20 +16,20 @@ interface IBlobstreamX {
     );
 
     /// @notice Emits event with the inputs of a next header request.
-    /// @param prevBlock The current latest block.
-    /// @param prevHeader The header hash of the current latest block.
+    /// @param trustedBlock The trusted block for the next header request.
+    /// @param trustedHeader The header hash of the trusted block.
     event NextHeaderRequested(
-        uint64 indexed prevBlock,
-        bytes32 indexed prevHeader
+        uint64 indexed trustedBlock,
+        bytes32 indexed trustedHeader
     );
 
     /// @notice Emits event with the inputs of a header range request.
-    /// @param startBlock The start block of the header range.
-    /// @param startHeader The header hash of the start block.
-    /// @param targetBlock The target block of the header range.
+    /// @param trustedBlock The trusted block for the header range request.
+    /// @param trustedHeader The header hash of the trusted block.
+    /// @param targetBlock The target block of the header range request.
     event HeaderRangeRequested(
-        uint64 indexed startBlock,
-        bytes32 indexed startHeader,
+        uint64 indexed trustedBlock,
+        bytes32 indexed trustedHeader,
         uint64 indexed targetBlock
     );
 

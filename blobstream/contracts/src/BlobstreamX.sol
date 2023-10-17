@@ -51,61 +51,61 @@ contract BlobstreamX is ITendermintX, IBlobstreamX {
     }
 
     /// Note: Only for testnet. The genesis header should be set when initializing the contract.
-    function setGenesisHeader(uint64 height, bytes32 header) external {
-        blockHeightToHeaderHash[height] = header;
-        latestBlock = height;
+    function setGenesisHeader(uint64 _height, bytes32 _header) external {
+        blockHeightToHeaderHash[_height] = _header;
+        latestBlock = _height;
     }
 
-    /// @notice Prove the validity of the header at requestedBlock and a data commitment for the block range [latestBlock, requestedBlock).
-    /// @param _requestedBlock The end block of the header range proof.
-    /// @dev requestHeaderRange is used to skip from the latest block to the requested block.
-    function requestHeaderRange(uint64 _requestedBlock) external payable {
+    /// @notice Prove the validity of the header at the target block and a data commitment for the block range [latestBlock, _targetBlock).
+    /// @param _targetBlock The end block of the header range proof.
+    /// @dev requestHeaderRange is used to skip from the latest block to the target block.
+    function requestHeaderRange(uint64 _targetBlock) external payable {
         bytes32 latestHeader = blockHeightToHeaderHash[latestBlock];
         if (latestHeader == bytes32(0)) {
             revert LatestHeaderNotFound();
         }
 
         // A request can be at most DATA_COMMITMENT_MAX blocks ahead of the latest block.
-        if (_requestedBlock - latestBlock > DATA_COMMITMENT_MAX) {
+        if (_targetBlock - latestBlock > DATA_COMMITMENT_MAX) {
             revert ProofBlockRangeTooLarge();
         }
-        if (_requestedBlock <= latestBlock) {
+        if (_targetBlock <= latestBlock) {
             revert TargetLessThanLatest();
         }
 
         IFunctionGateway(gateway).requestCall{value: msg.value}(
             headerRangeFunctionId,
-            abi.encodePacked(latestBlock, latestHeader, _requestedBlock),
+            abi.encodePacked(latestBlock, latestHeader, _targetBlock),
             address(this),
             abi.encodeWithSelector(
                 this.commitHeaderRange.selector,
                 latestBlock,
                 latestHeader,
-                _requestedBlock
+                _targetBlock
             ),
             500000
         );
 
-        emit HeaderRangeRequested(latestBlock, latestHeader, _requestedBlock);
+        emit HeaderRangeRequested(latestBlock, latestHeader, _targetBlock);
     }
 
-    /// @notice Commits the new header at requestedBlock and the data commitment for the block range [latestBlock, requestedBlock).
-    /// @param prevBlock The latest block when the request was made.
-    /// @param prevHeader The header hash of the latest block when the request was made.
-    /// @param requestedBlock The block to skip to.
+    /// @notice Commits the new header at targetBlock and the data commitment for the block range [trustedBlock, targetBlock).
+    /// @param _trustedBlock The latest block when the request was made.
+    /// @param _trustedHeader The header hash of the latest block when the request was made.
+    /// @param _targetBlock The end block of the header range request.
     function commitHeaderRange(
-        uint64 prevBlock,
-        bytes32 prevHeader,
-        uint64 requestedBlock
+        uint64 _trustedBlock,
+        bytes32 _trustedHeader,
+        uint64 _targetBlock
     ) external {
         // Encode the circuit input.
         bytes memory input = abi.encodePacked(
-            prevBlock,
-            prevHeader,
-            requestedBlock
+            _trustedBlock,
+            _trustedHeader,
+            _targetBlock
         );
 
-        // Get the result of the proof from the gateway.
+        // Call gateway to get the proof result.
         bytes memory requestResult = IFunctionGateway(gateway).verifiedCall(
             headerRangeFunctionId,
             input
@@ -119,20 +119,20 @@ contract BlobstreamX is ITendermintX, IBlobstreamX {
             (bytes32, bytes32)
         );
 
-        if (requestedBlock <= latestBlock) {
+        if (_targetBlock <= latestBlock) {
             revert TargetLessThanLatest();
         }
 
         // Store the new header and data commitment, and update the latest block.
-        blockHeightToHeaderHash[requestedBlock] = targetHeader;
+        blockHeightToHeaderHash[_targetBlock] = targetHeader;
         dataCommitments[
-            keccak256(abi.encode(prevBlock, requestedBlock))
+            keccak256(abi.encode(_trustedBlock, _targetBlock))
         ] = dataCommitment;
-        latestBlock = requestedBlock;
+        latestBlock = _targetBlock;
 
-        emit HeadUpdate(requestedBlock, targetHeader);
+        emit HeadUpdate(_targetBlock, targetHeader);
 
-        emit DataCommitmentStored(prevBlock, requestedBlock, dataCommitment);
+        emit DataCommitmentStored(_trustedBlock, _targetBlock, dataCommitment);
     }
 
     /// @notice Prove the validity of the next header and a data commitment for the block range [latestBlock, latestBlock + 1).
@@ -158,13 +158,16 @@ contract BlobstreamX is ITendermintX, IBlobstreamX {
         emit NextHeaderRequested(latestBlock, latestHeader);
     }
 
-    /// @notice Stores the new header for prevBlock + 1 and the data commitment for the block range [prevBlock, prevBlock + 1).
-    /// @param prevBlock The latest block when the request was made.
-    /// @param prevHeader The header hash of the latest block when the request was made.
-    function commitNextHeader(uint64 prevBlock, bytes32 prevHeader) external {
-        bytes memory input = abi.encodePacked(prevBlock, prevHeader);
+    /// @notice Stores the new header for _trustedBlock + 1 and the data commitment for the block range [_trustedBlock, _trustedBlock + 1).
+    /// @param _trustedBlock The latest block when the request was made.
+    /// @param _trustedHeader The header hash of the latest block when the request was made.
+    function commitNextHeader(
+        uint64 _trustedBlock,
+        bytes32 _trustedHeader
+    ) external {
+        bytes memory input = abi.encodePacked(_trustedBlock, _trustedHeader);
 
-        // Call into gateway
+        // Call gateway to get the proof result.
         bytes memory requestResult = IFunctionGateway(gateway).verifiedCall(
             nextHeaderFunctionId,
             input
@@ -176,50 +179,50 @@ contract BlobstreamX is ITendermintX, IBlobstreamX {
             (bytes32, bytes32)
         );
 
-        uint64 nextBlock = prevBlock + 1;
+        uint64 nextBlock = _trustedBlock + 1;
         if (nextBlock <= latestBlock) {
             revert TargetLessThanLatest();
         }
 
         blockHeightToHeaderHash[nextBlock] = nextHeader;
         dataCommitments[
-            keccak256(abi.encode(prevBlock, nextBlock))
+            keccak256(abi.encode(_trustedBlock, nextBlock))
         ] = dataCommitment;
         latestBlock = nextBlock;
 
         emit HeadUpdate(nextBlock, nextHeader);
 
-        emit DataCommitmentStored(prevBlock, nextBlock, dataCommitment);
+        emit DataCommitmentStored(_trustedBlock, nextBlock, dataCommitment);
     }
 
     /// @notice Get the header hash for a block height.
-    function getHeaderHash(uint64 height) external view returns (bytes32) {
-        return blockHeightToHeaderHash[height];
+    function getHeaderHash(uint64 _height) external view returns (bytes32) {
+        return blockHeightToHeaderHash[_height];
     }
 
     /// @dev See "./IBlobstream.sol"
     function getDataCommitment(
-        uint64 startBlock,
-        uint64 endBlock
+        uint64 _startBlock,
+        uint64 _endBlock
     ) external view returns (bytes32) {
-        return dataCommitments[keccak256(abi.encode(startBlock, endBlock))];
+        return dataCommitments[keccak256(abi.encode(_startBlock, _endBlock))];
     }
 
     /// @dev See "./IBlobstream.sol"
     function verifyAttestation(
-        uint256 startBlock,
-        uint256 endBlock,
+        uint256 _startBlock,
+        uint256 _endBlock,
         DataRootTuple memory _tuple,
         BinaryMerkleProof memory _proof
     ) external view returns (bool) {
         // Tuple must have been committed before.
-        if (endBlock > latestBlock) {
+        if (_endBlock > latestBlock) {
             return false;
         }
 
         // Load the tuple root at the given index from storage.
         bytes32 root = dataCommitments[
-            keccak256(abi.encode(startBlock, endBlock))
+            keccak256(abi.encode(_startBlock, _endBlock))
         ];
 
         // Verify the proof.

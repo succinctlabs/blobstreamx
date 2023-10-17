@@ -32,12 +32,12 @@ contract DeployScript is Script {
 
         uint64 height = 100100;
 
-        lightClient.updateFunctionId("step", stepFunctionId);
-        lightClient.updateFunctionId("skip", skipFunctionId);
+        lightClient.updateStepId(stepFunctionId);
+        lightClient.updateSkipId(skipFunctionId);
 
         // lightClient.requestHeaderStep{value: 0.1 ether}();
 
         uint64 skipHeight = 100200;
-        lightClient.requestHeaderSkip{value: 0.1 ether}(skipHeight);
+        lightClient.requestSkip{value: 0.1 ether}(skipHeight);
     }
 }
