@@ -417,7 +417,8 @@ pub fn non_absent_vote(
     })
 }
 
-pub fn is_valid_skip(target_block: &SignedBlock, start_block: &SignedBlock) -> bool {
+/// Determines if a valid skip is possible between start_block and target_block.
+pub fn is_valid_skip(start_block: &SignedBlock, target_block: &SignedBlock) -> bool {
     let threshold = 1_f64 / 3_f64;
 
     let mut shared_voting_power = 0;
