@@ -214,7 +214,7 @@ contract ZKBlobstream is IZKTendermintLightClient, IZKBlobstream {
     }
 
     /// @dev See "./IBlobstream.sol"
-    function verifyMerkleProof(
+    function verifyAttestation(
         uint256 startBlock,
         uint256 endBlock,
         DataRootTuple memory _tuple,

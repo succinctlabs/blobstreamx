@@ -46,7 +46,7 @@ interface IZKBlobstream {
     /// @param endBlock The end block of the block range that contains the proof's block.
     /// @param _tuple The data root tuple which is the leaf node of the proof and contains the block's data root.
     /// @param _proof The merkle proof to verify against the data commitment.
-    function verifyMerkleProof(
+    function verifyAttestation(
         uint256 startBlock,
         uint256 endBlock,
         DataRootTuple memory _tuple,
