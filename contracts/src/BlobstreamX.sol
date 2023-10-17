@@ -5,7 +5,7 @@ import "@blobstream/DataRootTuple.sol";
 import "@blobstream/lib/tree/binary/BinaryMerkleTree.sol";
 
 import {IFunctionGateway} from "./interfaces/IFunctionGateway.sol";
-import {ITendermintX} from "@zk-tendermint/interfaces/ITendermintX.sol";
+import {ITendermintX} from "@tendermintx/interfaces/ITendermintX.sol";
 import {IBlobstreamX} from "./interfaces/IBlobstreamX.sol";
 
 contract BlobstreamX is ITendermintX, IBlobstreamX {
