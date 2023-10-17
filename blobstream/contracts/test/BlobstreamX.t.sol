@@ -2,16 +2,27 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import "../src/ZKTendermintLightClient.sol";
+import "../src/BlobstreamX.sol";
 
-contract ZKTendermintLightClientTest is Test {
-    ZKTendermintLightClient public lightClient;
+contract BlobstreamXTest is Test {
+    BlobstreamX public blobstream;
 
     function setUp() public {
-        lightClient = new ZKTendermintLightClient(address(0));
+        blobstream = new BlobstreamX(address(0));
     }
 
-    function testGetEncodePackedStep() public view {
+    function testPacked() public pure {
+        bytes32 header = hex"A0123D5E4B8B8888A61F931EE2252D83568B97C223E0ECA9795B29B8BD8CBA2D";
+
+        bytes memory encodedInput = abi.encode(header, header);
+        bytes memory packedEncodedInput = abi.encodePacked(header, header);
+        require(
+            keccak256(encodedInput) == keccak256(packedEncodedInput),
+            "packed matches"
+        );
+    }
+
+    function testGetEncodePackedNextHeader() public view {
         // http://64.227.18.169:26657/block?height=10000
         uint64 height = 10000;
         bytes32 header = hex"A0123D5E4B8B8888A61F931EE2252D83568B97C223E0ECA9795B29B8BD8CBA2D";
@@ -19,7 +30,7 @@ contract ZKTendermintLightClientTest is Test {
         console.logBytes(encodedInput);
     }
 
-    function testGetEncodePackedSkip() public view {
+    function testGetEncodePackedHeaderRange() public view {
         // http://64.227.18.169:26657/block?height=10000
         uint64 height = 10000;
         bytes32 header = hex"A0123D5E4B8B8888A61F931EE2252D83568B97C223E0ECA9795B29B8BD8CBA2D";
