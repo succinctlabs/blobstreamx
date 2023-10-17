@@ -1,0 +1,3 @@
+@succinctx/=lib/succinctx/contracts/src/
+@blobstream/=lib/blobstream-contracts/src/
+@zk-tendermint=../../zk-tendermint/contracts/src/
