@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-interface IZKTendermintLightClient {
+interface ITendermintX {
     /// @notice Emits event with the new head update.
     event HeadUpdate(uint64 blockNumber, bytes32 headerHash);
 

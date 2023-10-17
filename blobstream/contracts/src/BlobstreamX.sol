@@ -6,9 +6,9 @@ import "@blobstream/lib/tree/binary/BinaryMerkleTree.sol";
 
 import {IFunctionGateway} from "./interfaces/IFunctionGateway.sol";
 import {IZKTendermintLightClient} from "@zk-tendermint/interfaces/IZKTendermintLightClient.sol";
-import {IZKBlobstream} from "./IZKBlobstream.sol";
+import {IBlobstreamX} from "./interfaces/IBlobstreamX.sol";
 
-contract ZKBlobstream is IZKTendermintLightClient, IZKBlobstream {
+contract BlobstreamX is IZKTendermintLightClient, IBlobstreamX {
     /// @notice The address of the gateway contract.
     address public gateway;
 

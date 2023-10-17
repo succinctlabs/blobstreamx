@@ -2,9 +2,9 @@
 pragma solidity ^0.8.13;
 
 import {IFunctionGateway} from "./interfaces/IFunctionGateway.sol";
-import {IZKTendermintLightClient} from "./interfaces/IZKTendermintLightClient.sol";
+import {ITendermintX} from "./interfaces/ITendermintX.sol";
 
-contract ZKTendermintLightClient is IZKTendermintLightClient {
+contract TendermintX is ITendermintX {
     /// @notice The address of the gateway contract.
     address public gateway;
 
