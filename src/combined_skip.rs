@@ -2,7 +2,7 @@ use plonky2x::backend::circuit::Circuit;
 use plonky2x::frontend::mapreduce::generator::MapReduceGenerator;
 use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::prelude::{Bytes32Variable, CircuitBuilder, PlonkParameters};
-use zk_tendermint::skip::{SkipOffchainInputs, TendermintSkipCircuit};
+use tendermintx::skip::{SkipOffchainInputs, TendermintSkipCircuit};
 
 use crate::builder::{DataCommitmentBuilder, DataCommitmentSharedCtx};
 use crate::commitment::DataCommitmentOffchainInputs;

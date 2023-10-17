@@ -1,7 +1,7 @@
 use plonky2x::backend::circuit::Circuit;
 use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::prelude::{Bytes32Variable, CircuitBuilder, PlonkParameters, VariableStream};
-use zk_tendermint::step::{StepOffchainInputs, TendermintStepCircuit};
+use tendermintx::step::{StepOffchainInputs, TendermintStepCircuit};
 
 use crate::builder::DataCommitmentBuilder;
 use crate::commitment::DataCommitmentOffchainInputs;

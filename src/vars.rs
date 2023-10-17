@@ -4,7 +4,7 @@ use plonky2x::prelude::{
     ArrayVariable, BoolVariable, Bytes32Variable, CircuitBuilder, CircuitVariable, PlonkParameters,
     RichField, Variable,
 };
-use zk_tendermint::consts::*;
+use tendermintx::consts::*;
 
 // The data commitment inputs as a struct.
 // Note: data_hashes, data_hash_proofs should include range (start, end-1).

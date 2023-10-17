@@ -4,7 +4,7 @@ use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::frontend::vars::{ArrayVariable, Bytes32Variable, EvmVariable};
 use plonky2x::prelude::*;
 use tendermint::merkle::HASH_SIZE;
-use zk_tendermint::consts::*;
+use tendermintx::consts::*;
 
 use crate::commitment::DataCommitmentOffchainInputs;
 use crate::vars::{DataCommitmentProofVariable, MapReduceSubchainVariable};
@@ -344,9 +344,9 @@ pub(crate) mod tests {
 
     use ethers::types::H256;
     use plonky2x::backend::circuit::DefaultParameters;
+    use tendermintx::input::utils::convert_to_h256;
+    use tendermintx::input::InputDataFetcher;
     use tokio::runtime::Runtime;
-    use zk_tendermint::input::utils::convert_to_h256;
-    use zk_tendermint::input::InputDataFetcher;
 
     use super::*;
     use crate::input::DataCommitmentInputs;

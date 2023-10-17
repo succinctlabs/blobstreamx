@@ -6,8 +6,8 @@ use plonky2x::frontend::mapreduce::generator::MapReduceGenerator;
 use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::prelude::{Bytes32Variable, CircuitBuilder, PlonkParameters, ValueStream};
 use serde::{Deserialize, Serialize};
-use zk_tendermint::input::utils::convert_to_h256;
-use zk_tendermint::input::InputDataFetcher;
+use tendermintx::input::utils::convert_to_h256;
+use tendermintx::input::InputDataFetcher;
 
 use crate::builder::{DataCommitmentBuilder, DataCommitmentSharedCtx};
 use crate::input::DataCommitmentInputs;

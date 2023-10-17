@@ -11,8 +11,8 @@ use serde::Deserialize;
 use subtle_encoding::hex;
 use tendermint_proto::types::BlockId as RawBlockId;
 use tendermint_proto::Protobuf;
-use zk_tendermint::consts::*;
-use zk_tendermint::input::{InputDataFetcher, InputDataMode};
+use tendermintx::consts::*;
+use tendermintx::input::{InputDataFetcher, InputDataMode};
 
 #[derive(Debug, Deserialize)]
 pub struct DataCommitmentResponse {
