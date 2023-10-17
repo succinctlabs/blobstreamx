@@ -308,25 +308,3 @@ impl InputDataFetcher {
         )
     }
 }
-
-mod test {
-
-    // Run with cargo test --lib input_data::test::test_fixture_generation_asdf -- --nocapture
-    #[tokio::test]
-    async fn test_fixture_generation_asdf() {
-        // Clippy does not recognize imports in Tokio tests.
-        use std::env;
-
-        use crate::input::InputDataFetcher;
-
-        env::set_var(
-            "RPC_MOCHA_4",
-            "http://rpc.testnet.celestia.citizencosmos.space",
-        );
-
-        let block_height = 11105u64;
-        let mut fetcher = InputDataFetcher::new();
-        fetcher.set_save(true);
-        let _block = fetcher.get_block_from_number(block_height).await;
-    }
-}

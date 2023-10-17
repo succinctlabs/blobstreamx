@@ -15,7 +15,7 @@ pub trait TendermintHeader<L: PlonkParameters<D>, const D: usize> {
     ) -> [ByteVariable; VARINT_BYTES_LENGTH_MAX];
 
     /// Encodes the marshalled height into a BytesVariable<11> that can be hashed according to the Tendermint spec.
-    /// Prepends a 0x00 byte for the leaf prefix and a 0x08 byte to the marshalled varint.
+    /// Prepends a 0x00 byte for the leaf prefix and a 0x08 byte for the marshalled varint encoding.
     fn leaf_encode_marshalled_varint(
         &mut self,
         marshalled_varint: &BytesVariable<9>,
@@ -36,6 +36,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintHeader<L, D> for CircuitBu
         &mut self,
         value: &U64Variable,
     ) -> [ByteVariable; VARINT_BYTES_LENGTH_MAX] {
+        // TODO: Assert the value is less than 2^63 - 1.
         let zero = self.zero::<Variable>();
         let one = self.one::<Variable>();
 
@@ -122,14 +123,13 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintHeader<L, D> for CircuitBu
         &mut self,
         marshalled_varint: &BytesVariable<9>,
     ) -> BytesVariable<11> {
-        // Prepends a 0x00 byte for the leaf prefix then a 0x08 byte for the protobuf varint encoding to the marshalled varint.
+        // Prepends a 0x00 byte for the leaf prefix then a 0x08 byte for the protobuf varint encoding.
         let mut encoded_marshalled_varint =
             self.constant::<BytesVariable<2>>([0x00, 0x08]).0.to_vec();
         encoded_marshalled_varint.extend_from_slice(&marshalled_varint.0);
         BytesVariable(encoded_marshalled_varint.try_into().unwrap())
     }
 
-    /// Verifies the block height against the header.
     fn verify_block_height(
         &mut self,
         header: Bytes32Variable,
@@ -141,40 +141,42 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintHeader<L, D> for CircuitBu
         let true_t = self._true();
         let block_height_path = vec![false_t, true_t, false_t, false_t];
 
-        // Verify the current header height proof against the current header.
+        // Marshal the block height into bytes, then encode it as a leaf.
         let encoded_height = self.marshal_int64_varint(height);
         let encoded_height = self.leaf_encode_marshalled_varint(&BytesVariable(encoded_height));
 
-        // Extend encoded_height to 64 bytes for curta_sha256_variable.
-        let mut encoded_height_extended = Vec::new();
-        for i in 0..PROTOBUF_VARINT_SIZE_BYTES + 1 {
-            encoded_height_extended.push(encoded_height.0[i]);
-        }
+        // Only one chunk is needed for the encoded height.
+        // Note: This is the maximum number of chunks in the input to the variable SHA circuit.
+        const MAX_NUM_CHUNKS: usize = 1;
+
+        // Extend encoded_height to 64 bytes. Variable SHA256 requires the input length in bytes to
+        // be equal to the specified MAX_NUM_CHUNKS * 64.
+        let mut encoded_height_extended = encoded_height.0.to_vec();
         for _i in PROTOBUF_VARINT_SIZE_BYTES + 1..64 {
             encoded_height_extended.push(self.constant::<ByteVariable>(0u8));
         }
-
-        let last_chunk = self.constant::<U32Variable>(0);
 
         // Add 1 to the encoded height byte length to account for the 0x00 byte.
         let one_u32 = self.constant::<U32Variable>(1);
         let encoded_height_byte_length = self.add(encoded_height_byte_length, one_u32);
 
-        // Only one chunk is needed for the encoded height.
-        const MAX_NUM_CHUNKS: usize = 1;
+        // Hash the encoded height.
+        let last_chunk = self.constant::<U32Variable>(0);
+        // TODO: Update curta_sha256_varible description to describe MAX_NUM_CHUNKS.
         let leaf_hash = self.curta_sha256_variable::<MAX_NUM_CHUNKS>(
             &encoded_height_extended,
             last_chunk,
             encoded_height_byte_length,
         );
 
-        let computed_root = self.get_root_from_merkle_proof_hashed_leaf::<HEADER_PROOF_DEPTH>(
+        // Verify the computed block height against the header.
+        let computed_header = self.get_root_from_merkle_proof_hashed_leaf::<HEADER_PROOF_DEPTH>(
             proof,
             &block_height_path.try_into().unwrap(),
             leaf_hash,
         );
 
-        self.assert_is_equal(computed_root, header);
+        self.assert_is_equal(computed_header, header);
     }
 }
 
