@@ -146,9 +146,11 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintHeader<L, D> for CircuitBu
         let encoded_height = self.leaf_encode_marshalled_varint(&BytesVariable(encoded_height));
 
         // Only one chunk is needed for the encoded height.
+        // Note: This is the maximum number of chunks in the input to the variable SHA circuit.
         const MAX_NUM_CHUNKS: usize = 1;
 
-        // Extend encoded_height to 64 bytes to match MAX_NUM_CHUNKS.
+        // Extend encoded_height to 64 bytes. Variable SHA256 requires the input length in bytes to
+        // be equal to the specified MAX_NUM_CHUNKS * 64.
         let mut encoded_height_extended = encoded_height.0.to_vec();
         for _i in PROTOBUF_VARINT_SIZE_BYTES + 1..64 {
             encoded_height_extended.push(self.constant::<ByteVariable>(0u8));
@@ -160,6 +162,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintHeader<L, D> for CircuitBu
 
         // Hash the encoded height.
         let last_chunk = self.constant::<U32Variable>(0);
+        // TODO: Update curta_sha256_varible description to describe MAX_NUM_CHUNKS.
         let leaf_hash = self.curta_sha256_variable::<MAX_NUM_CHUNKS>(
             &encoded_height_extended,
             last_chunk,
