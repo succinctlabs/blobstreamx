@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [lib]
+path = "circuits/lib.rs"
 
 [[bin]]
 name = "combined_step"
