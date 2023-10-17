@@ -131,7 +131,7 @@ contract ZKBlobstream is IZKTendermintLightClient, IZKBlobstream {
 
         emit HeadUpdate(requestedBlock, targetHeader);
 
-        emit DataCommitment(prevBlock, requestedBlock, dataCommitment);
+        emit DataCommitmentStored(prevBlock, requestedBlock, dataCommitment);
     }
 
     /// @notice Prove the validity of the next header and a data commitment for the block range [latestBlock, latestBlock + 1).
@@ -192,7 +192,7 @@ contract ZKBlobstream is IZKTendermintLightClient, IZKBlobstream {
 
         emit HeadUpdate(nextBlock, nextHeader);
 
-        emit DataCommitment(prevBlock, nextBlock, dataCommitment);
+        emit DataCommitmentStored(prevBlock, nextBlock, dataCommitment);
     }
 
     /// @notice Get the function ID for a function name.

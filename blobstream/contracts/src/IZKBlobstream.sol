@@ -5,11 +5,11 @@ import "@blobstream/DataRootTuple.sol";
 import "@blobstream/lib/tree/binary/BinaryMerkleTree.sol";
 
 interface IZKBlobstream {
-    /// @notice Data commitment for the block range [startBlock, endBlock).
+    /// @notice Data commitment stored for the block range [startBlock, endBlock).
     /// @param startBlock The start block of the block range.
     /// @param endBlock The end block of the block range.
     /// @param dataCommitment The data commitment for the block range.
-    event DataCommitment(
+    event DataCommitmentStored(
         uint64 indexed startBlock,
         uint64 indexed endBlock,
         bytes32 indexed dataCommitment
