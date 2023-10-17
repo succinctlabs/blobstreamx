@@ -1,9 +1,0 @@
-[submodule "blobstream/contracts/lib/blobstream-contracts"]
-	path = blobstream/contracts/lib/blobstream-contracts
-	url = https://github.com/celestiaorg/blobstream-contracts
-[submodule "blobstream/contracts/lib/forge-std"]
-	path = blobstream/contracts/lib/forge-std
-	url = https://github.com/foundry-rs/forge-std
-[submodule "zk-tendermint/contracts/lib/forge-std"]
-	path = zk-tendermint/contracts/lib/forge-std
-	url = https://github.com/foundry-rs/forge-std
