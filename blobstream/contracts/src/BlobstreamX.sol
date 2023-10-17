@@ -5,10 +5,10 @@ import "@blobstream/DataRootTuple.sol";
 import "@blobstream/lib/tree/binary/BinaryMerkleTree.sol";
 
 import {IFunctionGateway} from "./interfaces/IFunctionGateway.sol";
-import {IZKTendermintLightClient} from "@zk-tendermint/interfaces/IZKTendermintLightClient.sol";
+import {ITendermintX} from "@zk-tendermint/interfaces/ITendermintX.sol";
 import {IBlobstreamX} from "./interfaces/IBlobstreamX.sol";
 
-contract BlobstreamX is IZKTendermintLightClient, IBlobstreamX {
+contract BlobstreamX is ITendermintX, IBlobstreamX {
     /// @notice The address of the gateway contract.
     address public gateway;
 
@@ -18,14 +18,17 @@ contract BlobstreamX is IZKTendermintLightClient, IBlobstreamX {
     /// @notice The maximum number of blocks that can be skipped in a single request.
     uint64 public DATA_COMMITMENT_MAX = 1000;
 
-    /// @notice Maps function names to their IDs.
-    mapping(string => bytes32) public functionNameToId;
-
     /// @notice Maps block heights to their header hashes.
     mapping(uint64 => bytes32) public blockHeightToHeaderHash;
 
     /// @notice Maps block ranges to their data commitments. Block ranges are stored as keccak256(abi.encode(startBlock, endBlock)).
     mapping(bytes32 => bytes32) public dataCommitments;
+
+    /// @notice Header range function id.
+    bytes32 public headerRangeFunctionId;
+
+    /// @notice Next header function id.
+    bytes32 public nextHeaderFunctionId;
 
     /// @notice Initialize the contract with the address of the gateway contract.
     constructor(address _gateway) {
@@ -37,12 +40,14 @@ contract BlobstreamX is IZKTendermintLightClient, IBlobstreamX {
         gateway = _gateway;
     }
 
-    /// @notice Update the function ID for a function name.
-    function updateFunctionId(
-        string memory name,
-        bytes32 _functionId
-    ) external {
-        functionNameToId[name] = _functionId;
+    /// @notice Update the function ID for header range.
+    function updateHeaderRangeId(bytes32 _functionId) external {
+        headerRangeFunctionId = _functionId;
+    }
+
+    /// @notice Update the function ID for next header.
+    function updateNextHeaderId(bytes32 _functionId) external {
+        nextHeaderFunctionId = _functionId;
     }
 
     /// Note: Only for testnet. The genesis header should be set when initializing the contract.
@@ -59,10 +64,6 @@ contract BlobstreamX is IZKTendermintLightClient, IBlobstreamX {
         if (latestHeader == bytes32(0)) {
             revert LatestHeaderNotFound();
         }
-        bytes32 id = functionNameToId["headerRange"];
-        if (id == bytes32(0)) {
-            revert FunctionIdNotFound("headerRange");
-        }
 
         // A request can be at most DATA_COMMITMENT_MAX blocks ahead of the latest block.
         if (_requestedBlock - latestBlock > DATA_COMMITMENT_MAX) {
@@ -73,7 +74,7 @@ contract BlobstreamX is IZKTendermintLightClient, IBlobstreamX {
         }
 
         IFunctionGateway(gateway).requestCall{value: msg.value}(
-            id,
+            headerRangeFunctionId,
             abi.encodePacked(latestBlock, latestHeader, _requestedBlock),
             address(this),
             abi.encodeWithSelector(
@@ -106,7 +107,7 @@ contract BlobstreamX is IZKTendermintLightClient, IBlobstreamX {
 
         // Get the result of the proof from the gateway.
         bytes memory requestResult = IFunctionGateway(gateway).verifiedCall(
-            functionNameToId["headerRange"],
+            headerRangeFunctionId,
             input
         );
 
@@ -141,13 +142,9 @@ contract BlobstreamX is IZKTendermintLightClient, IBlobstreamX {
         if (latestHeader == bytes32(0)) {
             revert LatestHeaderNotFound();
         }
-        bytes32 id = functionNameToId["nextHeader"];
-        if (id == bytes32(0)) {
-            revert FunctionIdNotFound("nextHeader");
-        }
 
         IFunctionGateway(gateway).requestCall{value: msg.value}(
-            id,
+            nextHeaderFunctionId,
             abi.encodePacked(latestBlock, latestHeader),
             address(this),
             abi.encodeWithSelector(
@@ -169,7 +166,7 @@ contract BlobstreamX is IZKTendermintLightClient, IBlobstreamX {
 
         // Call into gateway
         bytes memory requestResult = IFunctionGateway(gateway).verifiedCall(
-            functionNameToId["nextHeader"],
+            nextHeaderFunctionId,
             input
         );
 
@@ -193,11 +190,6 @@ contract BlobstreamX is IZKTendermintLightClient, IBlobstreamX {
         emit HeadUpdate(nextBlock, nextHeader);
 
         emit DataCommitmentStored(prevBlock, nextBlock, dataCommitment);
-    }
-
-    /// @notice Get the function ID for a function name.
-    function getFunctionId(string memory name) external view returns (bytes32) {
-        return functionNameToId[name];
     }
 
     /// @notice Get the header hash for a block height.

@@ -23,18 +23,11 @@ interface ITendermintX {
     /// @notice Latest header not found.
     error LatestHeaderNotFound();
 
-    /// @notice Function ID for name not found.
-    error FunctionIdNotFound(string name);
-
     /// @notice Target block for proof must be greater than latest block.
     error TargetLessThanLatest();
 
     /// @notice The range of blocks in a request is greater than the maximum allowed.
     error ProofBlockRangeTooLarge();
-
-    /// @notice Gets the ID of a function.
-    /// @param name The name of the function.
-    function getFunctionId(string memory name) external view returns (bytes32);
 
     /// @notice Gets the header hash of a block.
     /// @param blockNumber The block number to get the header hash of.
