@@ -294,7 +294,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "blobstream"
+name = "blobstreamx"
 version = "0.1.0"
 dependencies = [
  "anyhow",
