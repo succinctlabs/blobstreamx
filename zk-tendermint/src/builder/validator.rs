@@ -119,15 +119,15 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for Circui
         assert_eq!(validator_enabled.len(), VALIDATOR_SET_SIZE_MAX);
 
         // Hash each of the validators to get corresponding leaf hash.
-        let mut validators_leaf_hashes = Vec::new();
+        let mut validator_leaf_hashes = Vec::new();
         for i in 0..VALIDATOR_SET_SIZE_MAX {
-            validators_leaf_hashes
+            validator_leaf_hashes
                 .push(self.hash_validator_leaf(&validators[i], validator_byte_lengths[i]))
         }
 
         // Return the root hash.
         self.get_root_from_hashed_leaves::<VALIDATOR_SET_SIZE_MAX>(
-            validators_leaf_hashes,
+            validator_leaf_hashes,
             validator_enabled,
         )
     }
