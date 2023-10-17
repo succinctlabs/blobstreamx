@@ -6,11 +6,11 @@ use ethers::core::types::Address;
 use ethers::prelude::SignerMiddleware;
 use ethers::providers::{Http, Provider};
 use ethers::signers::{LocalWallet, Signer, Wallet};
-use ethers::types::H256;
+use ethers::types::{H160, H256};
 use log::info;
 use subtle_encoding::hex;
 use tendermint::block::Header;
-use zk_tendermint::input::tendermint_utils::HeaderResponse;
+use zk_tendermint::input::tendermint_utils::{HeaderResponse, SignedBlock, SignedBlockResponse};
 
 // Note: Update ABI when updating contract.
 abigen!(ZKBlobstream, "./abi/ZKBlobstream.abi.json");
@@ -31,8 +31,16 @@ async fn get_header_from_number(base_url: String, block_number: u64) -> Header {
     v.result.header
 }
 
+async fn get_signed_block_from_number(base_url: String, block_number: u64) -> SignedBlock {
+    let query_url = format!("{}/signed_block?height={}", base_url, block_number);
+    info!("Querying url {:?}", query_url.as_str());
+    let res = reqwest::get(query_url).await.unwrap().text().await.unwrap();
+    let v: SignedBlockResponse = serde_json::from_str(&res).expect("Failed to parse JSON");
+    v.result
+}
+
 #[tokio::main]
-async fn main() -> Result<(), ()> {
+async fn main() {
     dotenv::dotenv().ok();
 
     let tendermint_rpc_url = env::var("RPC_MOCHA_4").expect("RPC_MOCHA_4 must be set");
@@ -60,25 +68,30 @@ async fn main() -> Result<(), ()> {
     let latest_header = get_latest_header(tendermint_rpc_url.clone()).await;
     let latest_block = latest_header.height.value();
 
-    println!("Latest block: {}", latest_block);
+    let head = zk_blobstream
+        .latest_block()
+        .call()
+        .await
+        .expect("failed to get head");
 
-    // let genesis_header =
-    //     get_header_from_number(tendermint_rpc_url.clone(), latest_block - 500).await;
+    // TODO: Remove in prod
+    // Set genesis header if we are more than 1000 blocks behind.
+    if (head as u64) < latest_block - 1000 {
+        let genesis_header =
+            get_header_from_number(tendermint_rpc_url.clone(), latest_block - 500).await;
 
-    // zk_blobstream
-    //     .set_genesis_header(
-    //         latest_block - 500,
-    //         H256::from_slice(genesis_header.hash().as_bytes()).0,
-    //     )
-    //     .send()
-    //     .await
-    //     .expect("failed to set genesis header");
+        zk_blobstream
+            .set_genesis_header(
+                latest_block - 500,
+                H256::from_slice(genesis_header.hash().as_bytes()).0,
+            )
+            .send()
+            .await
+            .expect("failed to set genesis header");
+    }
 
-    // let mut curr_block = 10300;
-
-    let mut calls_so_far = 0;
-
-    // Loop every 20 minutes. Call request_combined_skip every 30 minutes with the latest block number.
+    // Loop every 30 minutes. Call request_combined_skip every 30 minutes with the latest block number.
+    let increment = 30;
     loop {
         // Verify the call succeeded.
 
@@ -95,14 +108,6 @@ async fn main() -> Result<(), ()> {
             .await
             .expect("failed to request combined skip");
 
-        tokio::time::sleep(tokio::time::Duration::from_secs(60 * 30)).await;
-
-        calls_so_far += 1;
-        if calls_so_far == 100 {
-            break;
-        }
-        // curr_block += 100;
+        tokio::time::sleep(tokio::time::Duration::from_secs(60 * increment)).await;
     }
-
-    Ok(())
 }
