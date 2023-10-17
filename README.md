@@ -25,3 +25,6 @@ Deployed for a maximum validator set size of 128 validators.
 Step with 128 validators: 717s (~12 minutes)
 
 Skip with 128 validators: 927s (~15 minutes) 
+
+## Contracts
+Run `forge install` to install dependencies.

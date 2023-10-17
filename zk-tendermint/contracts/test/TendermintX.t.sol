@@ -2,13 +2,13 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import "../src/ZKTendermintLightClient.sol";
+import "../src/TendermintX.sol";
 
-contract ZKTendermintLightClientTest is Test {
-    ZKTendermintLightClient public lightClient;
+contract TendermintXTest is Test {
+    TendermintX public lightClient;
 
     function setUp() public {
-        lightClient = new ZKTendermintLightClient(address(0));
+        lightClient = new TendermintX(address(0));
     }
 
     function testGetEncodePackedStep() public view {
