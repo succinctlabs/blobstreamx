@@ -23,7 +23,6 @@ The circuits are currently available on Succinct X [here](https://alpha.succinct
 
 There are currently ZK Tendermint light clients tracking the following networks on Goerli:
 - [Celestia Mocha-4 Testnet](https://goerli.etherscan.io/address/0x67ea962864cdad3f2202118dc6f65ff510f7bb4d)
-- [Osmosis Mainnet]
 
 
 # Blobstream X
