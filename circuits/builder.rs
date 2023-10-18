@@ -340,14 +340,14 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
 // Alternatively, add env::set_var("RUST_LOG", "debug") to the top of the test.
 #[cfg(test)]
 pub(crate) mod tests {
-    use std::env;
-
     use ethers::types::H256;
     use plonky2x::backend::circuit::DefaultParameters;
+    use tendermintx::input::utils::convert_to_h256;
+    use tendermintx::input::InputDataFetcher;
     use tokio::runtime::Runtime;
 
     use super::*;
-    use crate::input::{convert_to_h256, InputDataFetcher};
+    use crate::input::DataCommitmentInputs;
     use crate::vars::*;
 
     type L = DefaultParameters;
@@ -358,8 +358,9 @@ pub(crate) mod tests {
         start_height: usize,
         end_height: usize,
     ) -> (DataCommitmentProofValueType<MAX_LEAVES, F>, H256) {
-        env::set_var("RPC_MOCHA_4", "fixture"); // Use fixture during testing
-        let mut input_data_fetcher = InputDataFetcher::new();
+        // env::set_var("RPC_MOCHA_4", "fixture"); // Use fixture during testing
+        dotenv::dotenv().ok();
+        let mut input_data_fetcher = InputDataFetcher::default();
 
         let rt = Runtime::new().expect("failed to create tokio runtime");
 

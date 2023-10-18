@@ -89,7 +89,7 @@ mod tests {
     ) {
         env::set_var("RUST_LOG", "debug");
         env_logger::try_init().unwrap_or_default();
-        env::set_var("RPC_MOCHA_4", "fixture"); // Use fixture during testing
+        // env::set_var("RPC_MOCHA_4", "fixture"); // Use fixture during testing
 
         let mut builder = DefaultBuilder::new();
 

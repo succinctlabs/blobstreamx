@@ -6,9 +6,11 @@ use plonky2x::frontend::mapreduce::generator::MapReduceGenerator;
 use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::prelude::{Bytes32Variable, CircuitBuilder, PlonkParameters, ValueStream};
 use serde::{Deserialize, Serialize};
+use tendermintx::input::utils::convert_to_h256;
+use tendermintx::input::InputDataFetcher;
 
 use crate::builder::{DataCommitmentBuilder, DataCommitmentSharedCtx};
-use crate::input::{convert_to_h256, InputDataFetcher};
+use crate::input::DataCommitmentInputs;
 use crate::vars::*;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -26,7 +28,7 @@ impl<const MAX_LEAVES: usize, L: PlonkParameters<D>, const D: usize> AsyncHint<L
         let start_block = input_stream.read_value::<U64Variable>();
         let end_block = input_stream.read_value::<U64Variable>();
 
-        let mut data_fetcher = InputDataFetcher::new();
+        let mut data_fetcher = InputDataFetcher::default();
 
         let result = data_fetcher
             .get_data_commitment_inputs::<MAX_LEAVES, L::Field>(start_block, end_block)
@@ -142,7 +144,7 @@ mod tests {
     ) {
         env::set_var("RUST_LOG", "debug");
         env_logger::try_init().unwrap_or_default();
-        env::set_var("RPC_MOCHA_4", "fixture"); // Use fixture during testing
+        // env::set_var("RPC_MOCHA_4", "fixture"); // Use fixture during testing
 
         let mut builder = DefaultBuilder::new();
 
