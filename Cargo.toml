@@ -1,6 +1,25 @@
-[workspace]
-members = ["zk-tendermint", "blobstream"]
-resolver = "2"
+[package]
+name = "blobstreamx"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+path = "circuits/lib.rs"
+
+[[bin]]
+name = "combined_step"
+path = "bin/combined_step.rs"
+
+[[bin]]
+name = "combined_skip"
+path = "bin/combined_skip.rs"
+
+[[bin]]
+name = "data_commitment"
+path = "bin/data_commitment.rs"
+
+[features]
+ci = []
 
 [profile.release]
 opt-level = 3
@@ -10,3 +29,29 @@ incremental = true
 
 [profile.bench]
 opt-level = 3
+
+[dependencies]
+anyhow = "1.0.71"
+clap = { version = "4.3.18", features = ["derive"] }
+curta = { git = "https://github.com/succinctlabs/curta.git" }
+digest = "0.10.7"
+dotenv = "0.15.0"
+ed25519-consensus = "2.1.0"
+env_logger = "0.10.0"
+ethers = "2.0.9"
+itertools = "0.11.0"
+log = "0.4.19"
+num = "0.4.1"
+plonky2 = { git = "https://github.com/mir-protocol/plonky2.git" }
+plonky2x = { git = "https://github.com/succinctlabs/succinctx.git" }
+rand = "0.8.5"
+reqwest = "0.11.18"
+serde = "1.0.175"
+serde_json = "1.0.103"
+sha2 = "0.10.7"
+subtle-encoding = "0.5.1"
+tendermint = "0.33.0"
+tendermint-proto = "0.33.0"
+tokio = { version = "1.29.1", features = ["full"] }
+tendermintx = { git = "ssh://git@github.com/succinctlabs/tendermintx.git" }
+async-trait = "0.1.73"
