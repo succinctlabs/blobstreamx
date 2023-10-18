@@ -3885,7 +3885,7 @@ dependencies = [
 [[package]]
 name = "tendermintx"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/tendermintx.git#2271c433d4b9aebfaaf1fedd9cc8e26b5395b4ce"
+source = "git+ssh://git@github.com/succinctlabs/tendermintx.git#3c85d776490268cc4eb3ea4a7bf6b54e16d8bb3b"
 dependencies = [
  "anyhow",
  "async-trait",
