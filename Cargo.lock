@@ -2773,7 +2773,7 @@ source = "git+https://github.com/mir-protocol/plonky2.git#29fdd3e372c721d65ada73
 [[package]]
 name = "plonky2x"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git#d413b17f678663b6cba25ed4c1a0306bd513f04f"
+source = "git+https://github.com/succinctlabs/succinctx.git#12996cbac05795650dd6ee2226ba03d781025e83"
 dependencies = [
  "anyhow",
  "array-macro",
@@ -2809,13 +2809,13 @@ dependencies = [
  "sha256",
  "tokio",
  "tracing",
- "uuid 1.4.1",
+ "uuid 1.5.0",
 ]
 
 [[package]]
 name = "plonky2x-derive"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git#d413b17f678663b6cba25ed4c1a0306bd513f04f"
+source = "git+https://github.com/succinctlabs/succinctx.git#12996cbac05795650dd6ee2226ba03d781025e83"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3885,7 +3885,7 @@ dependencies = [
 [[package]]
 name = "tendermintx"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/tendermintx.git#acac9697c6757f47cf79747abed185cd66501a23"
+source = "git+ssh://git@github.com/succinctlabs/tendermintx.git#12a9ed1fa04bc290802d7dc48e4cfdc5a91ea5fd"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -4324,9 +4324,9 @@ dependencies = [
 
 [[package]]
 name = "uuid"
-version = "1.4.1"
+version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "79daa5ed5740825c40b389c5e50312b9c86df53fccd33f281df655642b43869d"
+checksum = "88ad59a7560b41a70d191093a945f0b87bc1deeda46fb237479708a1d6b6cdfc"
 dependencies = [
  "serde",
 ]
