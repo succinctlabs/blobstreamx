@@ -17,6 +17,7 @@ contract BlobstreamX is ITendermintX, IBlobstreamX, IDAOracle {
     uint64 public latestBlock;
 
     /// @notice The maximum number of blocks that can be skipped in a single request.
+    /// Source: https://github.com/celestiaorg/celestia-core/blob/main/pkg/consts/consts.go#L43-L44
     uint64 public DATA_COMMITMENT_MAX = 1000;
 
     /// @notice Nonce for proof events. Must be incremented sequentially.
