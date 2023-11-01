@@ -33,6 +33,9 @@ interface IBlobstreamX {
         uint64 indexed targetBlock
     );
 
+    /// @notice Trusted header not found.
+    error TrustedHeaderNotFound();
+
     /// @notice Get the data commitment for a block range [startBlock, endBlock).
     /// @param startBlock The start block of the block range.
     /// @param endBlock The end block of the block range.

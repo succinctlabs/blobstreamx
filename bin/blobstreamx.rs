@@ -33,6 +33,12 @@ struct OffchainInput {
     input: String,
 }
 
+type NextHeaderCalldataTuple = sol! { tuple(uint64) };
+type NextHeaderInputTuple = sol! { tuple(uint64, bytes32) };
+
+type HeaderRangeCalldataTuple = sol! { tuple(uint64, uint64) };
+type HeaderRangeInputTuple = sol! { tuple(uint64, bytes32, uint64) };
+
 async fn get_latest_header(base_url: &str) -> Header {
     let query_url = format!("{}/header", base_url);
     info!("Querying url {:?}", query_url.as_str());

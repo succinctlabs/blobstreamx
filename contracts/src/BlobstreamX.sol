@@ -80,7 +80,6 @@ contract BlobstreamX is ITendermintX, IBlobstreamX {
             abi.encodeWithSelector(
                 this.commitHeaderRange.selector,
                 latestBlock,
-                latestHeader,
                 _targetBlock
             ),
             500000
@@ -91,17 +90,20 @@ contract BlobstreamX is ITendermintX, IBlobstreamX {
 
     /// @notice Commits the new header at targetBlock and the data commitment for the block range [trustedBlock, targetBlock).
     /// @param _trustedBlock The latest block when the request was made.
-    /// @param _trustedHeader The header hash of the latest block when the request was made.
     /// @param _targetBlock The end block of the header range request.
     function commitHeaderRange(
         uint64 _trustedBlock,
-        bytes32 _trustedHeader,
         uint64 _targetBlock
     ) external {
+        bytes32 trustedHeader = blockHeightToHeaderHash[_trustedBlock];
+        if (trustedHeader == bytes32(0)) {
+            revert TrustedHeaderNotFound();
+        }
+
         // Encode the circuit input.
         bytes memory input = abi.encodePacked(
             _trustedBlock,
-            _trustedHeader,
+            trustedHeader,
             _targetBlock
         );
 
@@ -147,11 +149,7 @@ contract BlobstreamX is ITendermintX, IBlobstreamX {
             nextHeaderFunctionId,
             abi.encodePacked(latestBlock, latestHeader),
             address(this),
-            abi.encodeWithSelector(
-                this.commitNextHeader.selector,
-                latestBlock,
-                latestHeader
-            ),
+            abi.encodeWithSelector(this.commitNextHeader.selector, latestBlock),
             500000
         );
 
@@ -160,12 +158,13 @@ contract BlobstreamX is ITendermintX, IBlobstreamX {
 
     /// @notice Stores the new header for _trustedBlock + 1 and the data commitment for the block range [_trustedBlock, _trustedBlock + 1).
     /// @param _trustedBlock The latest block when the request was made.
-    /// @param _trustedHeader The header hash of the latest block when the request was made.
-    function commitNextHeader(
-        uint64 _trustedBlock,
-        bytes32 _trustedHeader
-    ) external {
-        bytes memory input = abi.encodePacked(_trustedBlock, _trustedHeader);
+    function commitNextHeader(uint64 _trustedBlock) external {
+        bytes32 trustedHeader = blockHeightToHeaderHash[_trustedBlock];
+        if (trustedHeader == bytes32(0)) {
+            revert TrustedHeaderNotFound();
+        }
+
+        bytes memory input = abi.encodePacked(_trustedBlock, trustedHeader);
 
         // Call gateway to get the proof result.
         bytes memory requestResult = IFunctionGateway(gateway).verifiedCall(
