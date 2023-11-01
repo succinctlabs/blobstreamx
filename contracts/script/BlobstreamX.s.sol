@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.22;
 
 import "forge-std/Script.sol";
 import {BlobstreamX} from "../src/BlobstreamX.sol";
 
-// forge script script/TendermintX.s.sol --verifier etherscan --private-key
-// forge verify-contract <address> TendermintX --chain 5 --etherscan-api-key ${ETHERSCAN_API_KEY} --constructor-args "0x000000000000000000000000852a94f8309d445d27222edb1e92a4e83dddd2a8"
+// forge script script/BlobstreamX.s.sol --verifier etherscan --private-key
+// forge verify-contract <address> BlobstreamX --chain 5 --etherscan-api-key ${ETHERSCAN_API_KEY} --constructor-args "0x000000000000000000000000852a94f8309d445d27222edb1e92a4e83dddd2a8"
 contract DeployScript is Script {
     function setUp() public {}
 

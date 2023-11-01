@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.19;
+pragma solidity ^0.8.22;
 
 import "@blobstream/DataRootTuple.sol";
 import "@blobstream/lib/tree/binary/BinaryMerkleTree.sol";
 
 import {IFunctionGateway} from "./interfaces/IFunctionGateway.sol";
-import {ITendermintX} from "@tendermintx/interfaces/ITendermintX.sol";
+import {ITendermintX} from "./interfaces/ITendermintX.sol";
 import {IBlobstreamX} from "./interfaces/IBlobstreamX.sol";
 
 contract BlobstreamX is ITendermintX, IBlobstreamX {

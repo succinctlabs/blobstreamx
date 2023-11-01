@@ -1,2 +1,1 @@
 @blobstream/=lib/blobstream-contracts/src/
-@tendermintx=lib/tendermintx/contracts/src/

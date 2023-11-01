@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.19;
+pragma solidity ^0.8.22;
 
 import "@blobstream/DataRootTuple.sol";
 import "@blobstream/lib/tree/binary/BinaryMerkleTree.sol";
@@ -32,9 +32,6 @@ interface IBlobstreamX {
         bytes32 indexed trustedHeader,
         uint64 indexed targetBlock
     );
-
-    /// @notice Trusted header not found.
-    error TrustedHeaderNotFound();
 
     /// @notice Get the data commitment for a block range [startBlock, endBlock).
     /// @param startBlock The start block of the block range.
