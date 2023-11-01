@@ -16,6 +16,23 @@ use tendermintx::input::tendermint_utils::{
 // Note: Update ABI when updating contract.
 abigen!(BlobstreamX, "./abi/BlobstreamX.abi.json");
 
+struct BlobstreamConfig {
+    address: Address,
+    chain_id: u32,
+    next_header_function_id: H256,
+    header_range_function_id: H256,
+}
+
+#[allow(non_snake_case)]
+#[derive(serde::Serialize, serde::Deserialize)]
+struct OffchainInput {
+    chainId: u32,
+    to: String,
+    data: String,
+    functionId: String,
+    input: String,
+}
+
 async fn get_latest_header(base_url: &str) -> Header {
     let query_url = format!("{}/header", base_url);
     info!("Querying url {:?}", query_url.as_str());
