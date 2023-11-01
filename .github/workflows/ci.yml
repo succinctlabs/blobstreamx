@@ -18,6 +18,9 @@ jobs:
     steps:
       - name: Checkout sources
         uses: actions/checkout@v2
+        with:
+          submodules: recursive
+          token: ${{ secrets.TENDERMINTX_DEPLOY_KEY }}
 
       - name: rust-cache
         uses: buildjet/cache@v3
@@ -56,6 +59,9 @@ jobs:
     steps:
       - name: Checkout sources
         uses: actions/checkout@v2
+        with:
+          submodules: recursive
+          token: ${{ secrets.TENDERMINTX_DEPLOY_KEY }}
  
       - name: rust-cache
         uses: buildjet/cache@v3
