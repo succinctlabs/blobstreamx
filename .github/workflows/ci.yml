@@ -16,11 +16,13 @@ jobs:
     runs-on: buildjet-32vcpu-ubuntu-2204
     if: "! contains(toJSON(github.event.commits.*.message), '[skip-ci]')"
     steps:
-      - name: Checkout sources
-        uses: actions/checkout@v3
+      - name: Checkout private repository
+        uses: wei/ssh-action@v0.2.1
         with:
-          submodules: recursive
-          token: ${{ secrets.TENDERMINTX_DEPLOY_KEY }}
+          key: ${{ secrets.TENDERMINTX_DEPLOY_KEY }}
+          host: github.com
+          username: git
+          repo: succinctlabs/tendermintx.git
 
       - name: rust-cache
         uses: buildjet/cache@v3
