@@ -922,7 +922,7 @@ dependencies = [
 [[package]]
 name = "curta"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/curta.git#aea75fe417f52fae7aa6be00ed663b712d70361a"
+source = "git+https://github.com/succinctlabs/curta.git#7b10c6d041bb33ec1a3f7a85fc6f74e27cf655d4"
 dependencies = [
  "anyhow",
  "bincode",
@@ -2716,9 +2716,9 @@ dependencies = [
 
 [[package]]
 name = "openssl"
-version = "0.10.57"
+version = "0.10.59"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bac25ee399abb46215765b1cb35bc0212377e58a061560d8b29b024fd0430e7c"
+checksum = "7a257ad03cd8fb16ad4172fedf8094451e1af1c4b70097636ef2eac9a5f0cc33"
 dependencies = [
  "bitflags 2.4.1",
  "cfg-if",
@@ -2748,9 +2748,9 @@ checksum = "ff011a302c396a5197692431fc1948019154afc178baf7d8e37367442a4601cf"
 
 [[package]]
 name = "openssl-sys"
-version = "0.9.93"
+version = "0.9.95"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "db4d56a4c0478783083cfafcc42493dd4a981d41669da64b4572a2a089b51b1d"
+checksum = "40a4130519a360279579c2053038317e40eff64d13fd3f004f9e1b72b8a6aaf9"
 dependencies = [
  "cc",
  "libc",
@@ -3011,14 +3011,14 @@ checksum = "26072860ba924cbfa98ea39c8c19b4dd6a4a25423dbdf219c1eca91aa0cf6964"
 
 [[package]]
 name = "platforms"
-version = "3.1.2"
+version = "3.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4503fa043bf02cee09a9582e9554b4c6403b2ef55e4612e96561d294419429f8"
+checksum = "14e6ab3f592e6fb464fc9712d8d6e6912de6473954635fd76a589d832cffcbb0"
 
 [[package]]
 name = "plonky2"
 version = "0.1.4"
-source = "git+https://github.com/mir-protocol/plonky2.git#1e8ed78f5afd2df49666f9efed1f9038c2a077ca"
+source = "git+https://github.com/mir-protocol/plonky2.git#d2b549affcd44a9b1d12232b7e4bb62f433f9c2a"
 dependencies = [
  "ahash",
  "anyhow",
@@ -3042,7 +3042,7 @@ dependencies = [
 [[package]]
 name = "plonky2_field"
 version = "0.1.1"
-source = "git+https://github.com/mir-protocol/plonky2.git#1e8ed78f5afd2df49666f9efed1f9038c2a077ca"
+source = "git+https://github.com/mir-protocol/plonky2.git#d2b549affcd44a9b1d12232b7e4bb62f433f9c2a"
 dependencies = [
  "anyhow",
  "itertools 0.11.0",
@@ -3066,7 +3066,7 @@ dependencies = [
 [[package]]
 name = "plonky2_maybe_rayon"
 version = "0.1.1"
-source = "git+https://github.com/mir-protocol/plonky2.git#1e8ed78f5afd2df49666f9efed1f9038c2a077ca"
+source = "git+https://github.com/mir-protocol/plonky2.git#d2b549affcd44a9b1d12232b7e4bb62f433f9c2a"
 dependencies = [
  "rayon",
 ]
@@ -3074,12 +3074,12 @@ dependencies = [
 [[package]]
 name = "plonky2_util"
 version = "0.1.1"
-source = "git+https://github.com/mir-protocol/plonky2.git#1e8ed78f5afd2df49666f9efed1f9038c2a077ca"
+source = "git+https://github.com/mir-protocol/plonky2.git#d2b549affcd44a9b1d12232b7e4bb62f433f9c2a"
 
 [[package]]
 name = "plonky2x"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git#71d75ca3bd45d1d712dbe5bd0a118caaf82427d8"
+source = "git+https://github.com/succinctlabs/succinctx.git#598e609dcfc7985afcb706c8775346ec9de081cb"
 dependencies = [
  "anyhow",
  "array-macro",
@@ -3121,7 +3121,7 @@ dependencies = [
 [[package]]
 name = "plonky2x-derive"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git#71d75ca3bd45d1d712dbe5bd0a118caaf82427d8"
+source = "git+https://github.com/succinctlabs/succinctx.git#598e609dcfc7985afcb706c8775346ec9de081cb"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4330,7 +4330,7 @@ dependencies = [
 [[package]]
 name = "tendermintx"
 version = "0.1.0"
-source = "git+ssh://git@github.com/succinctlabs/tendermintx.git#2b88add65569e95f53f003422228b7f41e9529bb"
+source = "git+ssh://git@github.com/succinctlabs/tendermintx.git#4f92649d14b59878f7b829d9ce7046831a73fce6"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -5047,9 +5047,9 @@ checksum = "ed94fce61571a4006852b7389a063ab983c02eb1bb37b47f8272ce92d06d9538"
 
 [[package]]
 name = "winnow"
-version = "0.5.18"
+version = "0.5.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "176b6138793677221d420fd2f0aeeced263f197688b36484660da767bca2fa32"
+checksum = "829846f3e3db426d4cee4510841b71a8e58aa2a76b1132579487ae430ccd9c7b"
 dependencies = [
  "memchr",
 ]
@@ -5100,18 +5100,18 @@ checksum = "09041cd90cf85f7f8b2df60c646f853b7f535ce68f85244eb6731cf89fa498ec"
 
 [[package]]
 name = "zerocopy"
-version = "0.7.21"
+version = "0.7.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "686b7e407015242119c33dab17b8f61ba6843534de936d94368856528eae4dcc"
+checksum = "092cd76b01a033a9965b9097da258689d9e17c69ded5dcf41bca001dd20ebc6d"
 dependencies = [
  "zerocopy-derive",
 ]
 
 [[package]]
 name = "zerocopy-derive"
-version = "0.7.21"
+version = "0.7.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "020f3dfe25dfc38dfea49ce62d5d45ecdd7f0d8a724fa63eb36b6eba4ec76806"
+checksum = "a13a20a7c6a90e2034bcc65495799da92efcec6a8dd4f3fcb6f7a48988637ead"
 dependencies = [
  "proc-macro2",
  "quote",

@@ -16,8 +16,13 @@ jobs:
     runs-on: buildjet-32vcpu-ubuntu-2204
     if: "! contains(toJSON(github.event.commits.*.message), '[skip-ci]')"
     steps:
-      - name: Checkout sources
-        uses: actions/checkout@v2
+      - uses: webfactory/ssh-agent@v0.8.0
+        with:
+          ssh-private-key: ${{ secrets.TENDERMINTX_DEPLOY_KEY }}
+
+      - uses: actions/checkout@v3
+        with:
+          submodules: recursive
 
       - name: rust-cache
         uses: buildjet/cache@v3
@@ -54,8 +59,13 @@ jobs:
     runs-on: buildjet-32vcpu-ubuntu-2204
     if: "! contains(toJSON(github.event.commits.*.message), '[skip-ci]')"
     steps:
-      - name: Checkout sources
-        uses: actions/checkout@v2
+      - uses: webfactory/ssh-agent@v0.8.0
+        with:
+          ssh-private-key: ${{ secrets.TENDERMINTX_DEPLOY_KEY }}
+
+      - uses: actions/checkout@v3
+        with:
+          submodules: recursive
  
       - name: rust-cache
         uses: buildjet/cache@v3
