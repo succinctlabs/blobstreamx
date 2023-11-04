@@ -23,6 +23,8 @@ jobs:
             ssh-agent -a $SSH_AUTH_SOCK > /dev/null
             ssh-add - <<< "${{ secrets.TENDERMINTX_DEPLOY_KEY }}"
             git config --global --add url."git@github.com:succinctlabs/tendermintx".insteadOf "https://github.com/succinctlabs/tendermintx"
+      - run: GIT_SSH_COMMAND="ssh -v" git clone git@github.com:succinctlabs/tendermintx.git
+
       - uses: actions/checkout@v3
         env:
           SSH_AUTH_SOCK: /tmp/ssh_agent.sock
