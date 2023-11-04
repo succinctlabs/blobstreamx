@@ -16,13 +16,16 @@ jobs:
     runs-on: buildjet-32vcpu-ubuntu-2204
     if: "! contains(toJSON(github.event.commits.*.message), '[skip-ci]')"
     steps:
-      - name: Checkout TendermintX
-        uses: webfactory/ssh-agent@v0.8.0
-        with:
-          ssh-private-key: ${{ secrets.TENDERMINTX_DEPLOY_KEY }}
-      
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - name: Add SSH key
+        env:
+            SSH_AUTH_SOCK: /tmp/ssh_agent.sock
+        run: |
+            ssh-agent -a $SSH_AUTH_SOCK > /dev/null
+            ssh-add - <<< "${{ secrets.TENDERMINTX_DEPLOY_KEY }}"
+            git config --global --add url."git@github.com:succinctlabs/tendermintx".insteadOf "https://github.com/succinctlabs/tendermintx"
+      - uses: actions/checkout@v3
+        env:
+          SSH_AUTH_SOCK: /tmp/ssh_agent.sock
         with:
           submodules: recursive
 
