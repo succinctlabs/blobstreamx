@@ -26,12 +26,12 @@ contract BlobstreamX is ITendermintX, IBlobstreamX, IDAOracle {
     /// @notice Maps block heights to their header hashes.
     mapping(uint64 => bytes32) public blockHeightToHeaderHash;
 
-    /// @notice Maps block ranges to their data root tuple root nonces. Block ranges are stored as
+    /// @notice Maps block ranges to their data commitments. Block ranges are stored as
     ///     keccak256(abi.encode(startBlock, endBlock)).
-    mapping(bytes32 => uint256) public dataRootTupleRootNonces;
+    mapping(bytes32 => uint256) public dataCommitmentNonces;
 
-    /// @notice Mapping of data root tuple root nonces to data root tuple roots.
-    mapping(uint256 => bytes32) public state_dataRootTupleRoots;
+    /// @notice Mapping of data commitment nonces to data commitments.
+    mapping(uint256 => bytes32) public state_dataCommitments;
 
     /// @notice Header range function id.
     bytes32 public headerRangeFunctionId;
@@ -136,10 +136,10 @@ contract BlobstreamX is ITendermintX, IBlobstreamX, IDAOracle {
 
         // Store the new header and data commitment, and update the latest block and event nonce.
         blockHeightToHeaderHash[_targetBlock] = targetHeader;
-        dataRootTupleRootNonces[
+        dataCommitmentNonces[
             keccak256(abi.encode(_trustedBlock, _targetBlock))
         ] = state_proofNonce;
-        state_dataRootTupleRoots[state_proofNonce] = dataCommitment;
+        state_dataCommitments[state_proofNonce] = dataCommitment;
 
         emit HeadUpdate(_targetBlock, targetHeader);
 
@@ -203,10 +203,10 @@ contract BlobstreamX is ITendermintX, IBlobstreamX, IDAOracle {
         // Store the next header and data commitment for [_trustedBlock, nextBlock), and update the
         // latest block and event nonce.
         blockHeightToHeaderHash[nextBlock] = nextHeader;
-        dataRootTupleRootNonces[
+        dataCommitmentNonces[
             keccak256(abi.encode(_trustedBlock, nextBlock))
         ] = state_proofNonce;
-        state_dataRootTupleRoots[state_proofNonce] = dataCommitment;
+        state_dataCommitments[state_proofNonce] = dataCommitment;
 
         emit HeadUpdate(nextBlock, nextHeader);
 
@@ -231,30 +231,30 @@ contract BlobstreamX is ITendermintX, IBlobstreamX, IDAOracle {
         uint64 _startBlock,
         uint64 _endBlock
     ) external view returns (bytes32) {
-        uint256 nonce = dataRootTupleRootNonces[
+        uint256 nonce = dataCommitmentNonces[
             keccak256(abi.encode(_startBlock, _endBlock))
         ];
         if (nonce == 0) {
             revert DataCommitmentNotFound();
         }
 
-        return state_dataRootTupleRoots[nonce];
+        return state_dataCommitments[nonce];
     }
 
     /// @dev See "./IDAOracle.sol"
     function verifyAttestation(
-        uint256 _tupleRootNonce,
+        uint256 _proofNonce,
         DataRootTuple memory _tuple,
         BinaryMerkleProof memory _proof
     ) external view returns (bool) {
         // Note: state_proofNonce slightly differs from Blobstream.sol because it is incremented
         //   after each commit.
-        if (_tupleRootNonce >= state_proofNonce) {
+        if (_proofNonce >= state_proofNonce) {
             return false;
         }
 
         // Load the tuple root at the given index from storage.
-        bytes32 root = state_dataRootTupleRoots[_tupleRootNonce];
+        bytes32 root = state_dataCommitments[_proofNonce];
 
         // Verify the proof.
         bool isProofValid = BinaryMerkleTree.verify(
