@@ -38,7 +38,7 @@ interface IBlobstreamX {
     /// @notice Data commitment for specified block range does not exist.
     error DataCommitmentNotFound();
 
-    /// @notice Get the data root tuple root for a block range [startBlock, endBlock).
+    /// @notice Get the data commitment for a block range [startBlock, endBlock).
     /// @param startBlock The start block of the block range.
     /// @param endBlock The end block of the block range.
     function getDataCommitment(
