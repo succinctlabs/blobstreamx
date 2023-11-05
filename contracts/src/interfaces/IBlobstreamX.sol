@@ -6,10 +6,12 @@ import "@blobstream/lib/tree/binary/BinaryMerkleTree.sol";
 
 interface IBlobstreamX {
     /// @notice Data commitment stored for the block range [startBlock, endBlock).
+    /// @param proofNonce The nonce of the proof.
     /// @param startBlock The start block of the block range.
     /// @param endBlock The end block of the block range.
     /// @param dataCommitment The data commitment for the block range.
     event DataCommitmentStored(
+        uint256 proofNonce,
         uint64 indexed startBlock,
         uint64 indexed endBlock,
         bytes32 indexed dataCommitment

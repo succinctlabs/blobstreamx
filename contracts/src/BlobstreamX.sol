@@ -141,12 +141,17 @@ contract BlobstreamX is ITendermintX, IBlobstreamX, IDAOracle {
         ] = state_proofNonce;
         state_dataRootTupleRoots[state_proofNonce] = dataCommitment;
 
-        state_proofNonce++;
-        latestBlock = _targetBlock;
-
         emit HeadUpdate(_targetBlock, targetHeader);
 
-        emit DataCommitmentStored(_trustedBlock, _targetBlock, dataCommitment);
+        emit DataCommitmentStored(
+            state_proofNonce,
+            _trustedBlock,
+            _targetBlock,
+            dataCommitment
+        );
+
+        state_proofNonce++;
+        latestBlock = _targetBlock;
     }
 
     /// @notice Prove the validity of the next header and a data commitment for the block range [latestBlock, latestBlock + 1).
@@ -203,12 +208,17 @@ contract BlobstreamX is ITendermintX, IBlobstreamX, IDAOracle {
         ] = state_proofNonce;
         state_dataRootTupleRoots[state_proofNonce] = dataCommitment;
 
-        state_proofNonce++;
-        latestBlock = nextBlock;
-
         emit HeadUpdate(nextBlock, nextHeader);
 
-        emit DataCommitmentStored(_trustedBlock, nextBlock, dataCommitment);
+        emit DataCommitmentStored(
+            state_proofNonce,
+            _trustedBlock,
+            nextBlock,
+            dataCommitment
+        );
+
+        state_proofNonce++;
+        latestBlock = nextBlock;
     }
 
     /// @notice Get the header hash for a block height.
