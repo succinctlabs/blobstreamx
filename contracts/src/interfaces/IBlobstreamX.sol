@@ -5,7 +5,7 @@ import "@blobstream/DataRootTuple.sol";
 import "@blobstream/lib/tree/binary/BinaryMerkleTree.sol";
 
 interface IBlobstreamX {
-    /// @notice Data commitment stored for the block range [startBlock, endBlock).
+    /// @notice Data commitment stored for the block range [startBlock, endBlock) with proof nonce.
     /// @param proofNonce The nonce of the proof.
     /// @param startBlock The start block of the block range.
     /// @param endBlock The end block of the block range.
