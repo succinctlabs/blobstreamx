@@ -47,6 +47,7 @@ fn get_config() -> BlobstreamConfig {
         &hex::decode("b3f1415062a3543bb1c48d9d6a49f9e005fe415d347a5ba63e40bb1235acfd86").unwrap(),
     );
     let contract_address = env::var("CONTRACT_ADDRESS").expect("CONTRACT_ADDRESS must be set");
+    let chain_id = env::var("CHAIN_ID").expect("CHAIN_ID must be set");
 
     // TODO: BlobstreamX on Goerli: https://goerli.etherscan.io/address/#code
     let address = contract_address
@@ -55,7 +56,7 @@ fn get_config() -> BlobstreamConfig {
 
     BlobstreamConfig {
         address,
-        chain_id: 5,
+        chain_id: chain_id.parse::<u32>().expect("invalid chain id"),
         next_header_function_id,
         header_range_function_id,
     }
