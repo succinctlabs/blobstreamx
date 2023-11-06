@@ -39,13 +39,6 @@ type HeaderRangeCalldataTuple = sol! { tuple(uint64, uint64) };
 type HeaderRangeInputTuple = sol! { tuple(uint64, bytes32, uint64) };
 
 fn get_config() -> BlobstreamConfig {
-    // TODO: Update function id's
-    let next_header_function_id = H256::from_slice(
-        &hex::decode("98a2381f5efeaf7c3e39d749d6f676df1432487578f393161cebd2b03934f43b").unwrap(),
-    );
-    let header_range_function_id = H256::from_slice(
-        &hex::decode("b3f1415062a3543bb1c48d9d6a49f9e005fe415d347a5ba63e40bb1235acfd86").unwrap(),
-    );
     let contract_address = env::var("CONTRACT_ADDRESS").expect("CONTRACT_ADDRESS must be set");
     let chain_id = env::var("CHAIN_ID").expect("CHAIN_ID must be set");
 
@@ -53,6 +46,28 @@ fn get_config() -> BlobstreamConfig {
     let address = contract_address
         .parse::<Address>()
         .expect("invalid address");
+
+    // Load the function IDs.
+    let next_header_id_env =
+        env::var("NEXT_HEADER_FUNCTION_ID").expect("NEXT_HEADER_FUNCTION_ID must be set");
+    let next_header_function_id = H256::from_slice(
+        &hex::decode(
+            next_header_id_env
+                .strip_prefix("0x")
+                .unwrap_or(&next_header_id_env),
+        )
+        .expect("invalid hex for next_header_function_id, expected 0x prefix"),
+    );
+    let header_range_id_env =
+        env::var("HEADER_RANGE_FUNCTION_ID").expect("HEADER_RANGE_FUNCTION_ID must be set");
+    let header_range_function_id = H256::from_slice(
+        &hex::decode(
+            header_range_id_env
+                .strip_prefix("0x")
+                .unwrap_or(&header_range_id_env),
+        )
+        .expect("invalid hex for header_range_function_id, expected 0x prefix"),
+    );
 
     BlobstreamConfig {
         address,
