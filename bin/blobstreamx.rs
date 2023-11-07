@@ -129,10 +129,9 @@ impl BlobstreamXOperator {
             .expect("Failed to send request.");
 
         if res.status().is_success() {
-            // TODO: Log success message. Find structure of output.
             info!("Successfully submitted request.");
         } else {
-            // TODO: Log error message.
+            // TODO: Log more specific error message.
             error!("Failed to submit request.");
         }
     }
