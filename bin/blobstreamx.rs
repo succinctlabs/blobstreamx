@@ -1,6 +1,7 @@
 use std::env;
 
 use alloy_sol_types::{sol, SolType};
+use ethers::abi::AbiEncode;
 use ethers::contract::abigen;
 use ethers::core::types::Address;
 use ethers::providers::{Http, Provider};
@@ -29,10 +30,8 @@ struct OffchainInput {
     input: String,
 }
 
-type NextHeaderCalldataTuple = sol! { tuple(uint64,) };
 type NextHeaderInputTuple = sol! { tuple(uint64, bytes32) };
 
-type HeaderRangeCalldataTuple = sol! { tuple(uint64, uint64) };
 type HeaderRangeInputTuple = sol! { tuple(uint64, bytes32, uint64) };
 
 struct BlobstreamXOperator {
@@ -143,11 +142,11 @@ impl BlobstreamXOperator {
 
         let input = NextHeaderInputTuple::abi_encode_packed(&(trusted_block, trusted_header_hash));
 
-        let function_signature = "commitNextHeader(uint64)";
-        let function_selector = ethers::utils::id(function_signature).to_vec();
-        let encoded_parameters = NextHeaderCalldataTuple::abi_encode_sequence(&(trusted_block,));
-        // Concat function selector and encoded parameters.
-        let function_data = [&function_selector[..], &encoded_parameters[..]].concat();
+        let commit_next_header_call = CommitNextHeaderCall {
+            trusted_block,
+            trusted_header: trusted_header_hash,
+        };
+        let function_data = commit_next_header_call.encode();
 
         self.submit_request(function_data, input, self.config.next_header_function_id)
             .await;
@@ -166,12 +165,12 @@ impl BlobstreamXOperator {
             target_block,
         ));
 
-        let function_signature = "commitHeaderRange(uint64,uint64)";
-        let function_selector = ethers::utils::id(function_signature).to_vec();
-        let encoded_parameters =
-            HeaderRangeCalldataTuple::abi_encode_sequence(&(trusted_block, target_block));
-        // Concat function selector and encoded parameters.
-        let function_data = [&function_selector[..], &encoded_parameters[..]].concat();
+        let commit_header_range_call = CommitHeaderRangeCall {
+            trusted_block,
+            trusted_header: trusted_header_hash,
+            target_block,
+        };
+        let function_data = commit_header_range_call.encode();
 
         self.submit_request(function_data, input, self.config.header_range_function_id)
             .await;
