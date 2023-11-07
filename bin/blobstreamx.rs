@@ -43,8 +43,6 @@ struct BlobstreamXOperator {
 
 impl BlobstreamXOperator {
     pub fn new() -> Self {
-        dotenv::dotenv().ok();
-
         let config = Self::get_config();
 
         let ethereum_rpc_url = env::var("RPC_URL").expect("RPC_URL must be set");
@@ -215,6 +213,7 @@ impl BlobstreamXOperator {
 
 #[tokio::main]
 async fn main() {
+    env::set_var("RUST_LOG", "info");
     dotenv::dotenv().ok();
     env_logger::init();
 
