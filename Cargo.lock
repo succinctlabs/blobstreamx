@@ -4330,8 +4330,9 @@ dependencies = [
 [[package]]
 name = "tendermintx"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/tendermintx.git#4f92649d14b59878f7b829d9ce7046831a73fce6"
+source = "git+https://github.com/succinctlabs/tendermintx.git?branch=ratan/tendermintx-script#59c0a9d61501535a95e46e1ec2b72c6fb0b5ed95"
 dependencies = [
+ "alloy-sol-types",
  "anyhow",
  "async-trait",
  "clap",
