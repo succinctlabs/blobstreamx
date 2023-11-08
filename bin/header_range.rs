@@ -1,6 +1,6 @@
 //! To build the binary:
 //!
-//!     `cargo build --release --bin data_commitment`
+//!     `cargo build --release --bin header_range`
 //!
 //! To build the circuit:
 //!
@@ -14,12 +14,13 @@
 //!
 //!
 //!
-use blobstreamx::data_commitment::DataCommitmentCircuit;
+use blobstreamx::header_range::CombinedSkipCircuit;
 use plonky2x::backend::function::Plonky2xFunction;
 
 fn main() {
     // Celestia's maxmimum data commitment size is 1000: https://github.com/celestiaorg/celestia-core/blob/6933af1ead0ddf4a8c7516690e3674c6cdfa7bd8/pkg/consts/consts.go#L44.
+    const VALIDATOR_SET_SIZE_MAX: usize = 100;
     const NB_MAP_JOBS: usize = 64;
     const BATCH_SIZE: usize = 16;
-    DataCommitmentCircuit::<NB_MAP_JOBS, BATCH_SIZE>::entrypoint();
+    CombinedSkipCircuit::<VALIDATOR_SET_SIZE_MAX, NB_MAP_JOBS, BATCH_SIZE>::entrypoint();
 }
