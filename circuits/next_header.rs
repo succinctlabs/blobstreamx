@@ -63,7 +63,7 @@ mod tests {
 
     #[test]
     #[cfg_attr(feature = "ci", ignore)]
-    fn test_combined_step_serialization() {
+    fn test_next_header_serialization() {
         env::set_var("RUST_LOG", "debug");
         env_logger::try_init().unwrap_or_default();
 
@@ -83,7 +83,7 @@ mod tests {
         circuit.test_serializers(&gate_registry, &hint_registry);
     }
 
-    fn test_combined_step_template<const MAX_VALIDATOR_SET_SIZE: usize>(
+    fn test_next_header_template<const MAX_VALIDATOR_SET_SIZE: usize>(
         prev_block: usize,
         prev_header_hash: [u8; 32],
     ) {
@@ -122,7 +122,7 @@ mod tests {
 
     #[test]
     #[cfg_attr(feature = "ci", ignore)]
-    fn test_combined_step_small() {
+    fn test_next_header_small() {
         const MAX_VALIDATOR_SET_SIZE: usize = 4;
 
         let start_block = 10000u64;
@@ -130,7 +130,7 @@ mod tests {
             hex::decode_upper("A0123D5E4B8B8888A61F931EE2252D83568B97C223E0ECA9795B29B8BD8CBA2D")
                 .unwrap();
 
-        test_combined_step_template::<MAX_VALIDATOR_SET_SIZE>(
+        test_next_header_template::<MAX_VALIDATOR_SET_SIZE>(
             start_block as usize,
             start_header_hash.as_slice().try_into().unwrap(),
         );
@@ -138,15 +138,15 @@ mod tests {
 
     #[test]
     #[cfg_attr(feature = "ci", ignore)]
-    fn test_combined_step_large() {
-        const MAX_VALIDATOR_SET_SIZE: usize = 128;
+    fn test_next_header_large() {
+        const MAX_VALIDATOR_SET_SIZE: usize = 100;
 
         let start_block = 10000u64;
         let start_header_hash =
             hex::decode_upper("A0123D5E4B8B8888A61F931EE2252D83568B97C223E0ECA9795B29B8BD8CBA2D")
                 .unwrap();
 
-        test_combined_step_template::<MAX_VALIDATOR_SET_SIZE>(
+        test_next_header_template::<MAX_VALIDATOR_SET_SIZE>(
             start_block as usize,
             start_header_hash.as_slice().try_into().unwrap(),
         );
@@ -154,7 +154,7 @@ mod tests {
 
     #[test]
     #[cfg_attr(feature = "ci", ignore)]
-    fn test_combined_step_medium() {
+    fn test_next_header_medium() {
         const MAX_VALIDATOR_SET_SIZE: usize = 32;
 
         let start_block = 10000u64;
@@ -162,7 +162,7 @@ mod tests {
             hex::decode_upper("A0123D5E4B8B8888A61F931EE2252D83568B97C223E0ECA9795B29B8BD8CBA2D")
                 .unwrap();
 
-        test_combined_step_template::<MAX_VALIDATOR_SET_SIZE>(
+        test_next_header_template::<MAX_VALIDATOR_SET_SIZE>(
             start_block as usize,
             start_header_hash.as_slice().try_into().unwrap(),
         );

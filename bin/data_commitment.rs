@@ -14,28 +14,12 @@
 //!
 //!
 //!
-use std::env;
-
 use blobstreamx::data_commitment::DataCommitmentCircuit;
 use plonky2x::backend::function::Plonky2xFunction;
 
 fn main() {
     // Celestia's maxmimum data commitment size is 1000: https://github.com/celestiaorg/celestia-core/blob/6933af1ead0ddf4a8c7516690e3674c6cdfa7bd8/pkg/consts/consts.go#L44.
-    let env_max_leaves = env::var("MAX_LEAVES").unwrap_or(0.to_string());
-
-    if env_max_leaves == 1024.to_string() {
-        const NB_MAP_JOBS: usize = 64;
-        const BATCH_SIZE: usize = 16;
-        DataCommitmentCircuit::<NB_MAP_JOBS, BATCH_SIZE>::entrypoint();
-    } else if env_max_leaves == 256.to_string() {
-        const NB_MAP_JOBS: usize = 16;
-        const BATCH_SIZE: usize = 16;
-        DataCommitmentCircuit::<NB_MAP_JOBS, BATCH_SIZE>::entrypoint();
-    } else if env_max_leaves == 4.to_string() {
-        const NB_MAP_JOBS: usize = 2;
-        const BATCH_SIZE: usize = 2;
-        DataCommitmentCircuit::<NB_MAP_JOBS, BATCH_SIZE>::entrypoint();
-    } else {
-        panic!("MAX_LEAVES must be set to 1024, 256, or 4");
-    }
+    const NB_MAP_JOBS: usize = 64;
+    const BATCH_SIZE: usize = 16;
+    DataCommitmentCircuit::<NB_MAP_JOBS, BATCH_SIZE>::entrypoint();
 }

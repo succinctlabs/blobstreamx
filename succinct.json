@@ -12,20 +12,20 @@
             ]
         },
         {
-            "name": "combined_step",
+            "name": "next_header",
             "framework": "plonky2x",
             "baseDir": ".",
-            "buildCommand": "mkdir -p build && RUST_LOG=debug cargo run --bin combined_step --release build && mv ./target/release/combined_step ./build/combined_step",
-            "proveCommand": "RUST_LOG=info ./build/combined_step prove input.json"
+            "buildCommand": "mkdir -p build && RUST_LOG=debug cargo run --bin next_header --release build && mv ./target/release/next_header ./build/next_header",
+            "proveCommand": "RUST_LOG=info ./build/next_header prove input.json"
         },
         {
-            "name": "combined_skip",
+            "name": "header_range",
             "framework": "plonky2x",
             "baseDir": ".",
-            "buildCommand": "mkdir -p build && RUST_LOG=debug cargo run --bin combined_skip --release build && mv ./target/release/combined_skip ./build/combined_skip",
-            "proveCommand": "RUST_LOG=info ./build/combined_skip prove input.json",
+            "buildCommand": "mkdir -p build && RUST_LOG=debug cargo run --bin header_range --release build && mv ./target/release/header_range ./build/header_range",
+            "proveCommand": "RUST_LOG=info ./build/header_range prove input.json",
             "requiredArtifacts": [
-                "combined_skip"
+                "header_range"
             ]
         }
     ]

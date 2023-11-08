@@ -84,7 +84,7 @@ mod tests {
 
     #[test]
     #[cfg_attr(feature = "ci", ignore)]
-    fn test_combined_skip_serialization() {
+    fn test_header_range_serialization() {
         env::set_var("RUST_LOG", "debug");
         env_logger::try_init().unwrap_or_default();
 
@@ -112,7 +112,7 @@ mod tests {
         circuit.test_serializers(&gate_registry, &hint_registry);
     }
 
-    fn test_combined_skip_template<
+    fn test_header_range_template<
         const MAX_VALIDATOR_SET_SIZE: usize,
         const NB_MAP_JOBS: usize,
         const BATCH_SIZE: usize,
@@ -158,7 +158,7 @@ mod tests {
 
     #[test]
     #[cfg_attr(feature = "ci", ignore)]
-    fn test_combined_skip_small() {
+    fn test_header_range_small() {
         // Test variable length NUM_BLOCKS.
         const MAX_VALIDATOR_SET_SIZE: usize = 4;
         const NB_MAP_JOBS: usize = 2;
@@ -173,7 +173,7 @@ mod tests {
             hex::decode_upper("FCDA37FA6306C77737DD911E6101B612E2DBD837F29ED4F4E1C30919FBAC9D05")
                 .unwrap();
 
-        test_combined_skip_template::<MAX_VALIDATOR_SET_SIZE, NB_MAP_JOBS, BATCH_SIZE>(
+        test_header_range_template::<MAX_VALIDATOR_SET_SIZE, NB_MAP_JOBS, BATCH_SIZE>(
             start_block as usize,
             start_header_hash.as_slice().try_into().unwrap(),
             end_block as usize,
@@ -182,9 +182,9 @@ mod tests {
 
     #[test]
     #[cfg_attr(feature = "ci", ignore)]
-    fn test_combined_skip_large() {
+    fn test_header_range_large() {
         // Test variable length NUM_BLOCKS.
-        const MAX_VALIDATOR_SET_SIZE: usize = 128;
+        const MAX_VALIDATOR_SET_SIZE: usize = 100;
         const NB_MAP_JOBS: usize = 16;
         const BATCH_SIZE: usize = 64;
 
@@ -197,7 +197,7 @@ mod tests {
             hex::decode_upper("FCDA37FA6306C77737DD911E6101B612E2DBD837F29ED4F4E1C30919FBAC9D05")
                 .unwrap();
 
-        test_combined_skip_template::<MAX_VALIDATOR_SET_SIZE, NB_MAP_JOBS, BATCH_SIZE>(
+        test_header_range_template::<MAX_VALIDATOR_SET_SIZE, NB_MAP_JOBS, BATCH_SIZE>(
             start_block as usize,
             start_header_hash.as_slice().try_into().unwrap(),
             end_block as usize,
@@ -206,7 +206,7 @@ mod tests {
 
     #[test]
     #[cfg_attr(feature = "ci", ignore)]
-    fn test_combined_skip_medium() {
+    fn test_header_range_medium() {
         // Test variable length NUM_BLOCKS.
         const MAX_VALIDATOR_SET_SIZE: usize = 32;
         const NB_MAP_JOBS: usize = 8;
@@ -221,7 +221,7 @@ mod tests {
             hex::decode_upper("FCDA37FA6306C77737DD911E6101B612E2DBD837F29ED4F4E1C30919FBAC9D05")
                 .unwrap();
 
-        test_combined_skip_template::<MAX_VALIDATOR_SET_SIZE, NB_MAP_JOBS, BATCH_SIZE>(
+        test_header_range_template::<MAX_VALIDATOR_SET_SIZE, NB_MAP_JOBS, BATCH_SIZE>(
             start_block as usize,
             start_header_hash.as_slice().try_into().unwrap(),
             end_block as usize,

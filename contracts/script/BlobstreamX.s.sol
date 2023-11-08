@@ -13,11 +13,11 @@ contract DeployScript is Script {
         vm.startBroadcast();
         // Note: Update gateway when deployed.
         address gateway = address(0xE304f6B116bE5e43424cEC36a5eFd0B642E0dC95);
-        // combined_step_32
+        // next_header_32
         bytes32 nextHeaderFunctionId = bytes32(
             0xde939452e6506cc08d1d7b32ffe1b82cf9d96829b7aa30f0b542f1050651c43c
         );
-        // combined_skip_32
+        // header_range_32
         bytes32 headerRangeFunctionId = bytes32(
             0x6e6d644f9af0228e739c594f889a49f13283043e7f7c0a55379ca212ad0b4609
         );
