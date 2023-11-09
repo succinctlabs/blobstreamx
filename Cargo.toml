@@ -57,8 +57,7 @@ subtle-encoding = "0.5.1"
 tendermint = "0.33.0"
 tendermint-proto = "0.33.0"
 tokio = { version = "1.29.1", features = ["full"] }
-# TODO: Change back to main once branch is merged.
-tendermintx = { git = "https://github.com/succinctlabs/tendermintx.git", branch = "ratan/tendermintx-script" }
+tendermintx = { git = "https://github.com/succinctlabs/tendermintx.git" }
 async-trait = "0.1.73"
 alloy-sol-types = "0.4.2"
 alloy-primitives = "0.4.2"

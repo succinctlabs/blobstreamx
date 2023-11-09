@@ -1679,9 +1679,9 @@ dependencies = [
 
 [[package]]
 name = "fiat-crypto"
-version = "0.2.2"
+version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a481586acf778f1b1455424c343f71124b048ffa5f4fc3f8f6ae9dc432dcb3c7"
+checksum = "f69037fe1b785e84986b4f2cbcf647381876a00671d25ceef715d7812dd7e1dd"
 
 [[package]]
 name = "fixed-hash"
@@ -3018,7 +3018,7 @@ checksum = "14e6ab3f592e6fb464fc9712d8d6e6912de6473954635fd76a589d832cffcbb0"
 [[package]]
 name = "plonky2"
 version = "0.1.4"
-source = "git+https://github.com/mir-protocol/plonky2.git#605932d149eeba4558b404b52180e9ac20daca87"
+source = "git+https://github.com/mir-protocol/plonky2.git#5d5628b59d99c7119333f85b39f24c82ca541c10"
 dependencies = [
  "ahash",
  "anyhow",
@@ -3042,7 +3042,7 @@ dependencies = [
 [[package]]
 name = "plonky2_field"
 version = "0.1.1"
-source = "git+https://github.com/mir-protocol/plonky2.git#605932d149eeba4558b404b52180e9ac20daca87"
+source = "git+https://github.com/mir-protocol/plonky2.git#5d5628b59d99c7119333f85b39f24c82ca541c10"
 dependencies = [
  "anyhow",
  "itertools 0.11.0",
@@ -3066,7 +3066,7 @@ dependencies = [
 [[package]]
 name = "plonky2_maybe_rayon"
 version = "0.1.1"
-source = "git+https://github.com/mir-protocol/plonky2.git#605932d149eeba4558b404b52180e9ac20daca87"
+source = "git+https://github.com/mir-protocol/plonky2.git#5d5628b59d99c7119333f85b39f24c82ca541c10"
 dependencies = [
  "rayon",
 ]
@@ -3074,7 +3074,7 @@ dependencies = [
 [[package]]
 name = "plonky2_util"
 version = "0.1.1"
-source = "git+https://github.com/mir-protocol/plonky2.git#605932d149eeba4558b404b52180e9ac20daca87"
+source = "git+https://github.com/mir-protocol/plonky2.git#5d5628b59d99c7119333f85b39f24c82ca541c10"
 
 [[package]]
 name = "plonky2x"
@@ -4192,9 +4192,9 @@ dependencies = [
 
 [[package]]
 name = "svm-rs"
-version = "0.3.2"
+version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d0cc95be7cc2c384a2f57cac56548d2178650905ebe5725bc8970ccc25529060"
+checksum = "20689c7d03b6461b502d0b95d6c24874c7d24dea2688af80486a130a06af3b07"
 dependencies = [
  "dirs",
  "fs2",
@@ -4334,7 +4334,7 @@ dependencies = [
 [[package]]
 name = "tendermintx"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/tendermintx.git?branch=ratan/tendermintx-script#69a1c5645efc06f8dfa629b5b499460320546b7a"
+source = "git+https://github.com/succinctlabs/tendermintx.git#8df5f8f51a839256fee4f0d413f44714cfa0d3b0"
 dependencies = [
  "alloy-primitives",
  "alloy-sol-types",
