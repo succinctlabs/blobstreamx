@@ -115,8 +115,6 @@ impl DataCommitmentInputs for InputDataFetcher {
                 let data_hash = header.data_hash.unwrap();
                 data_hashes.push(data_hash.as_bytes().try_into().unwrap());
 
-                debug!("data_hash: {:?}", data_hash.as_bytes());
-
                 let data_hash_proof = self.get_inclusion_proof::<PROTOBUF_HASH_SIZE_BYTES, F>(
                     &header,
                     DATA_HASH_INDEX as u64,
@@ -127,10 +125,6 @@ impl DataCommitmentInputs for InputDataFetcher {
 
             // Don't include last_block_id of start, as data_commitment does not include it.
             if i > start_block_number {
-                debug!(
-                    "last block id: {:?}",
-                    Protobuf::<RawBlockId>::encode_vec(header.last_block_id.unwrap_or_default())
-                );
                 let last_block_id_proof = self
                     .get_inclusion_proof::<PROTOBUF_BLOCK_ID_SIZE_BYTES, F>(
                         &header,
