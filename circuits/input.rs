@@ -3,7 +3,7 @@ use std::path::Path;
 
 use async_trait::async_trait;
 use ethers::types::H256;
-use log::{debug, info};
+use log::info;
 use plonky2x::frontend::merkle::tree::InclusionProof;
 use plonky2x::prelude::RichField;
 use serde::Deserialize;
