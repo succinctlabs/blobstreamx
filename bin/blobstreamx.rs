@@ -104,10 +104,7 @@ impl BlobstreamXOperator {
 
         let input = NextHeaderInputTuple::abi_encode_packed(&(trusted_block, trusted_header_hash));
 
-        let commit_next_header_call = CommitNextHeaderCall {
-            trusted_block,
-            trusted_header: trusted_header_hash,
-        };
+        let commit_next_header_call = CommitNextHeaderCall { trusted_block };
         let function_data = commit_next_header_call.encode();
 
         let request_id = self
@@ -139,7 +136,6 @@ impl BlobstreamXOperator {
 
         let commit_header_range_call = CommitHeaderRangeCall {
             trusted_block,
-            trusted_header: trusted_header_hash,
             target_block,
         };
         let function_data = commit_header_range_call.encode();
