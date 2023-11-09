@@ -159,8 +159,8 @@ impl BlobstreamXOperator {
     }
 
     async fn run(&self) {
-        // Loop every 30 minutes.
-        const LOOP_DELAY: u64 = 30;
+        // Loop every 60 minutes.
+        const LOOP_DELAY: u64 = 60;
 
         let header_range_max = self.contract.data_commitment_max().await.unwrap();
         loop {
