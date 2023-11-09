@@ -109,8 +109,8 @@ impl DataCommitmentInputs for InputDataFetcher {
         for i in start_block_number..end_block_number + 1 {
             let header = self.get_header_from_number(i).await;
 
-            // Don't includce the data hash and corresponding proof of end, as data_commitment does
-            // not include it.
+            // Don't include the data hash and corresponding proof of end_block, as the circuit's
+            // data_commitment is computed over the range [start_block, end_block - 1].
             if i < end_block_number {
                 let data_hash = header.data_hash.unwrap();
                 data_hashes.push(data_hash.as_bytes().try_into().unwrap());
@@ -123,7 +123,10 @@ impl DataCommitmentInputs for InputDataFetcher {
                 data_hash_proofs.push(data_hash_proof);
             }
 
-            // Don't include last_block_id of start, as data_commitment does not include it.
+            // Don't include last_block_id of start, as the data_commitment circuit only requires
+            // the last block id's of blocks in the range [start_block + 1, end_block]. Specifically,
+            // the circuit needs the last_block_id proofs of data_commitment range shifted by one
+            // block to the right.
             if i > start_block_number {
                 let last_block_id_proof = self
                     .get_inclusion_proof::<PROTOBUF_BLOCK_ID_SIZE_BYTES, F>(

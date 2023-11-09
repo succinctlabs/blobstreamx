@@ -15,11 +15,11 @@ contract DeployScript is Script {
         address gateway = address(0x6e4f1e9eA315EBFd69d18C2DB974EEf6105FB803);
         // next_header_32
         bytes32 nextHeaderFunctionId = bytes32(
-            0x447a6e2becb9182a969a946b7e979a5707c546c6bed9d944fec2080ed9d48fac
+            0x24b8f995376d0ef0ddbe13514223d40d7ee2600f5146c91b5fab90ac09a7e6c9
         );
         // header_range_32
         bytes32 headerRangeFunctionId = bytes32(
-            0x59bbb022181c1e6c34aa34d48e393aa0910513f67da981e25787a4bde2bfb1df
+            0xd763b045b1eebfd6799c816e06a1fcf2d519fc3dabea13ae9904fcab357de67e
         );
 
         // Use the below to interact with an already deployed Blobstream
@@ -30,7 +30,6 @@ contract DeployScript is Script {
         // Update gateway to new address.
         blobstream.updateGateway(gateway);
 
-        // TODO: Add back in when testing a new skip or step.
         uint64 height = 1;
         bytes32 header = hex"6be39efd10ba412a9db5288488303f5dd32cf386707a5bef33617f4c43301872";
         blobstream.setGenesisHeader(height, header);
