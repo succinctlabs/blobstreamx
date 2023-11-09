@@ -19,3 +19,21 @@ This is rarely used, as `nextHeader` will only be invoked when the validator set
 The circuits are currently available on Succinct X [here](https://alpha.succinct.xyz/succinctlabs/zkqgb/releases).
 
 Blobstream X is currently deployed for Celestia's Mocha-4 testnet on Goerli [here](https://goerli.etherscan.io/address/0x67ea962864cdad3f2202118dc6f65ff510f7bb4d).
+
+## Integrate
+Deploy a `BlobstreamX` contract.
+```
+forge create --rpc-url $RPC_URL --private-key $PRIVATE_KEY --constructor-args 0x6e4f1e9ea315ebfd69d18c2db974eef6105fb803 --etherscan-api-key $ETHERSCAN_API_KEY --verify BlobstreamX
+```
+
+Initialize `BlobstreamX` contract with genesis parameters from forge script.
+```
+forge script script/BlobstreamX.s.sol --rpc-url $RPC_URL --private-key $PRIVATE_KEY --broadcast
+```
+
+Update .env file with contract address and chain id.
+
+Run `BlobstreamX` script to update the light client continuously.
+```
+cargo run --bin blobstreamx --release
+```

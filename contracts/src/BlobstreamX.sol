@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.19;
+pragma solidity ^0.8.22;
 
 import "@blobstream/DataRootTuple.sol";
 import "@blobstream/lib/tree/binary/BinaryMerkleTree.sol";
 
+import {IDAOracle} from "@blobstream/IDAOracle.sol";
 import {IFunctionGateway} from "./interfaces/IFunctionGateway.sol";
-import {ITendermintX} from "@tendermintx/interfaces/ITendermintX.sol";
+import {ITendermintX} from "./interfaces/ITendermintX.sol";
 import {IBlobstreamX} from "./interfaces/IBlobstreamX.sol";
 
-contract BlobstreamX is ITendermintX, IBlobstreamX {
+contract BlobstreamX is ITendermintX, IBlobstreamX, IDAOracle {
     /// @notice The address of the gateway contract.
     address public gateway;
 
@@ -16,13 +17,21 @@ contract BlobstreamX is ITendermintX, IBlobstreamX {
     uint64 public latestBlock;
 
     /// @notice The maximum number of blocks that can be skipped in a single request.
+    /// Source: https://github.com/celestiaorg/celestia-core/blob/main/pkg/consts/consts.go#L43-L44
     uint64 public DATA_COMMITMENT_MAX = 1000;
+
+    /// @notice Nonce for proof events. Must be incremented sequentially.
+    uint256 public state_proofNonce = 1;
 
     /// @notice Maps block heights to their header hashes.
     mapping(uint64 => bytes32) public blockHeightToHeaderHash;
 
-    /// @notice Maps block ranges to their data commitments. Block ranges are stored as keccak256(abi.encode(startBlock, endBlock)).
-    mapping(bytes32 => bytes32) public dataCommitments;
+    /// @notice Maps block ranges to their data commitments. Block ranges are stored as
+    ///     keccak256(abi.encode(startBlock, endBlock)).
+    mapping(bytes32 => uint256) public dataCommitmentNonces;
+
+    /// @notice Mapping of data commitment nonces to data commitments.
+    mapping(uint256 => bytes32) public state_dataCommitments;
 
     /// @notice Header range function id.
     bytes32 public headerRangeFunctionId;
@@ -80,7 +89,6 @@ contract BlobstreamX is ITendermintX, IBlobstreamX {
             abi.encodeWithSelector(
                 this.commitHeaderRange.selector,
                 latestBlock,
-                latestHeader,
                 _targetBlock
             ),
             500000
@@ -91,17 +99,20 @@ contract BlobstreamX is ITendermintX, IBlobstreamX {
 
     /// @notice Commits the new header at targetBlock and the data commitment for the block range [trustedBlock, targetBlock).
     /// @param _trustedBlock The latest block when the request was made.
-    /// @param _trustedHeader The header hash of the latest block when the request was made.
     /// @param _targetBlock The end block of the header range request.
     function commitHeaderRange(
         uint64 _trustedBlock,
-        bytes32 _trustedHeader,
         uint64 _targetBlock
     ) external {
+        bytes32 trustedHeader = blockHeightToHeaderHash[_trustedBlock];
+        if (trustedHeader == bytes32(0)) {
+            revert TrustedHeaderNotFound();
+        }
+
         // Encode the circuit input.
         bytes memory input = abi.encodePacked(
             _trustedBlock,
-            _trustedHeader,
+            trustedHeader,
             _targetBlock
         );
 
@@ -123,16 +134,24 @@ contract BlobstreamX is ITendermintX, IBlobstreamX {
             revert TargetLessThanLatest();
         }
 
-        // Store the new header and data commitment, and update the latest block.
+        // Store the new header and data commitment, and update the latest block and event nonce.
         blockHeightToHeaderHash[_targetBlock] = targetHeader;
-        dataCommitments[
+        dataCommitmentNonces[
             keccak256(abi.encode(_trustedBlock, _targetBlock))
-        ] = dataCommitment;
-        latestBlock = _targetBlock;
+        ] = state_proofNonce;
+        state_dataCommitments[state_proofNonce] = dataCommitment;
 
         emit HeadUpdate(_targetBlock, targetHeader);
 
-        emit DataCommitmentStored(_trustedBlock, _targetBlock, dataCommitment);
+        emit DataCommitmentStored(
+            state_proofNonce,
+            _trustedBlock,
+            _targetBlock,
+            dataCommitment
+        );
+
+        state_proofNonce++;
+        latestBlock = _targetBlock;
     }
 
     /// @notice Prove the validity of the next header and a data commitment for the block range [latestBlock, latestBlock + 1).
@@ -147,11 +166,7 @@ contract BlobstreamX is ITendermintX, IBlobstreamX {
             nextHeaderFunctionId,
             abi.encodePacked(latestBlock, latestHeader),
             address(this),
-            abi.encodeWithSelector(
-                this.commitNextHeader.selector,
-                latestBlock,
-                latestHeader
-            ),
+            abi.encodeWithSelector(this.commitNextHeader.selector, latestBlock),
             500000
         );
 
@@ -160,12 +175,13 @@ contract BlobstreamX is ITendermintX, IBlobstreamX {
 
     /// @notice Stores the new header for _trustedBlock + 1 and the data commitment for the block range [_trustedBlock, _trustedBlock + 1).
     /// @param _trustedBlock The latest block when the request was made.
-    /// @param _trustedHeader The header hash of the latest block when the request was made.
-    function commitNextHeader(
-        uint64 _trustedBlock,
-        bytes32 _trustedHeader
-    ) external {
-        bytes memory input = abi.encodePacked(_trustedBlock, _trustedHeader);
+    function commitNextHeader(uint64 _trustedBlock) external {
+        bytes32 trustedHeader = blockHeightToHeaderHash[_trustedBlock];
+        if (trustedHeader == bytes32(0)) {
+            revert TrustedHeaderNotFound();
+        }
+
+        bytes memory input = abi.encodePacked(_trustedBlock, trustedHeader);
 
         // Call gateway to get the proof result.
         bytes memory requestResult = IFunctionGateway(gateway).verifiedCall(
@@ -184,15 +200,25 @@ contract BlobstreamX is ITendermintX, IBlobstreamX {
             revert TargetLessThanLatest();
         }
 
+        // Store the next header and data commitment for [_trustedBlock, nextBlock), and update the
+        // latest block and event nonce.
         blockHeightToHeaderHash[nextBlock] = nextHeader;
-        dataCommitments[
+        dataCommitmentNonces[
             keccak256(abi.encode(_trustedBlock, nextBlock))
-        ] = dataCommitment;
-        latestBlock = nextBlock;
+        ] = state_proofNonce;
+        state_dataCommitments[state_proofNonce] = dataCommitment;
 
         emit HeadUpdate(nextBlock, nextHeader);
 
-        emit DataCommitmentStored(_trustedBlock, nextBlock, dataCommitment);
+        emit DataCommitmentStored(
+            state_proofNonce,
+            _trustedBlock,
+            nextBlock,
+            dataCommitment
+        );
+
+        state_proofNonce++;
+        latestBlock = nextBlock;
     }
 
     /// @notice Get the header hash for a block height.
@@ -205,25 +231,30 @@ contract BlobstreamX is ITendermintX, IBlobstreamX {
         uint64 _startBlock,
         uint64 _endBlock
     ) external view returns (bytes32) {
-        return dataCommitments[keccak256(abi.encode(_startBlock, _endBlock))];
+        uint256 nonce = dataCommitmentNonces[
+            keccak256(abi.encode(_startBlock, _endBlock))
+        ];
+        if (nonce == 0) {
+            revert DataCommitmentNotFound();
+        }
+
+        return state_dataCommitments[nonce];
     }
 
-    /// @dev See "./IBlobstream.sol"
+    /// @dev See "./IDAOracle.sol"
     function verifyAttestation(
-        uint256 _startBlock,
-        uint256 _endBlock,
+        uint256 _proofNonce,
         DataRootTuple memory _tuple,
         BinaryMerkleProof memory _proof
     ) external view returns (bool) {
-        // Tuple must have been committed before.
-        if (_endBlock > latestBlock) {
+        // Note: state_proofNonce slightly differs from Blobstream.sol because it is incremented
+        //   after each commit.
+        if (_proofNonce >= state_proofNonce) {
             return false;
         }
 
         // Load the tuple root at the given index from storage.
-        bytes32 root = dataCommitments[
-            keccak256(abi.encode(_startBlock, _endBlock))
-        ];
+        bytes32 root = state_dataCommitments[_proofNonce];
 
         // Verify the proof.
         bool isProofValid = BinaryMerkleTree.verify(
