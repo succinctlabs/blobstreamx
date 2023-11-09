@@ -180,13 +180,13 @@ mod tests {
         const NB_MAP_JOBS: usize = 2;
         const BATCH_SIZE: usize = 8;
 
-        let start_block = 10000u64;
+        let start_block = 1u64;
         let start_header_hash =
-            hex::decode_upper("A0123D5E4B8B8888A61F931EE2252D83568B97C223E0ECA9795B29B8BD8CBA2D")
+            hex::decode_upper("6BE39EFD10BA412A9DB5288488303F5DD32CF386707A5BEF33617F4C43301872")
                 .unwrap();
-        let end_block = 10004u64;
+        let end_block = 5u64;
         let end_header_hash =
-            hex::decode_upper("FCDA37FA6306C77737DD911E6101B612E2DBD837F29ED4F4E1C30919FBAC9D05")
+            hex::decode_upper("6FCBD8C84985E1441F6AFF82DFF9A44B8C756DA5A1F295B444CE19394413D0F8")
                 .unwrap();
 
         test_data_commitment_template::<NB_MAP_JOBS, BATCH_SIZE>(
@@ -205,13 +205,13 @@ mod tests {
         const NB_MAP_JOBS: usize = 16;
         const BATCH_SIZE: usize = 64;
 
-        let start_block = 10000u64;
+        let start_block = 500u64;
         let start_header_hash =
-            hex::decode_upper("A0123D5E4B8B8888A61F931EE2252D83568B97C223E0ECA9795B29B8BD8CBA2D")
+            hex::decode_upper("A4580A5609BD420694FB4718645529AC654470489CD4D8BF144C5208EC08819F")
                 .unwrap();
-        let end_block = 10004u64;
+        let end_block = 504u64;
         let end_header_hash =
-            hex::decode_upper("FCDA37FA6306C77737DD911E6101B612E2DBD837F29ED4F4E1C30919FBAC9D05")
+            hex::decode_upper("D6DA719AE76440DD977D6D7E618F71BEF4239D7C5D24A2B7588DFA6227B1EB38")
                 .unwrap();
 
         test_data_commitment_template::<NB_MAP_JOBS, BATCH_SIZE>(
@@ -230,13 +230,13 @@ mod tests {
         const NB_MAP_JOBS: usize = 16;
         const BATCH_SIZE: usize = 16;
 
-        let start_block = 10000u64;
+        let start_block = 500u64;
         let start_header_hash =
-            hex::decode_upper("A0123D5E4B8B8888A61F931EE2252D83568B97C223E0ECA9795B29B8BD8CBA2D")
+            hex::decode_upper("A4580A5609BD420694FB4718645529AC654470489CD4D8BF144C5208EC08819F")
                 .unwrap();
-        let end_block = 10004u64;
+        let end_block = 504u64;
         let end_header_hash =
-            hex::decode_upper("FCDA37FA6306C77737DD911E6101B612E2DBD837F29ED4F4E1C30919FBAC9D05")
+            hex::decode_upper("D6DA719AE76440DD977D6D7E618F71BEF4239D7C5D24A2B7588DFA6227B1EB38")
                 .unwrap();
 
         test_data_commitment_template::<NB_MAP_JOBS, BATCH_SIZE>(

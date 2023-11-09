@@ -125,9 +125,9 @@ mod tests {
     fn test_next_header_small() {
         const MAX_VALIDATOR_SET_SIZE: usize = 4;
 
-        let start_block = 10000u64;
+        let start_block = 500u64;
         let start_header_hash =
-            hex::decode_upper("A0123D5E4B8B8888A61F931EE2252D83568B97C223E0ECA9795B29B8BD8CBA2D")
+            hex::decode_upper("A4580A5609BD420694FB4718645529AC654470489CD4D8BF144C5208EC08819F")
                 .unwrap();
 
         test_next_header_template::<MAX_VALIDATOR_SET_SIZE>(
@@ -141,9 +141,9 @@ mod tests {
     fn test_next_header_large() {
         const MAX_VALIDATOR_SET_SIZE: usize = 100;
 
-        let start_block = 10000u64;
+        let start_block = 500u64;
         let start_header_hash =
-            hex::decode_upper("A0123D5E4B8B8888A61F931EE2252D83568B97C223E0ECA9795B29B8BD8CBA2D")
+            hex::decode_upper("A4580A5609BD420694FB4718645529AC654470489CD4D8BF144C5208EC08819F")
                 .unwrap();
 
         test_next_header_template::<MAX_VALIDATOR_SET_SIZE>(
@@ -157,9 +157,9 @@ mod tests {
     fn test_next_header_medium() {
         const MAX_VALIDATOR_SET_SIZE: usize = 32;
 
-        let start_block = 10000u64;
+        let start_block = 500u64;
         let start_header_hash =
-            hex::decode_upper("A0123D5E4B8B8888A61F931EE2252D83568B97C223E0ECA9795B29B8BD8CBA2D")
+            hex::decode_upper("A4580A5609BD420694FB4718645529AC654470489CD4D8BF144C5208EC08819F")
                 .unwrap();
 
         test_next_header_template::<MAX_VALIDATOR_SET_SIZE>(
