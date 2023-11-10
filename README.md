@@ -16,9 +16,9 @@ This is rarely used, as `nextHeader` will only be invoked when the validator set
 
 
 ## Deployment
-The circuits are currently available on Succinct X [here](https://alpha.succinct.xyz/succinctlabs/zkqgb/releases).
+The circuits are currently available on Succinct X [here](https://alpha.succinct.xyz/celestia/blobstreamx/releases).
 
-Blobstream X is currently deployed for Celestia's Mocha-4 testnet on Goerli [here](https://goerli.etherscan.io/address/0x67ea962864cdad3f2202118dc6f65ff510f7bb4d).
+Blobstream X is currently deployed for Celestia's Mocha-4 testnet on Goerli [here](https://goerli.etherscan.io/address/0x046120E6c6C48C05627FB369756F5f44858950a5#events).
 
 ## Integrate
 Deploy a `BlobstreamX` contract.
