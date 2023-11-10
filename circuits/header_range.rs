@@ -160,17 +160,17 @@ mod tests {
     #[cfg_attr(feature = "ci", ignore)]
     fn test_header_range_small() {
         // Test variable length NUM_BLOCKS.
-        const MAX_VALIDATOR_SET_SIZE: usize = 4;
+        const MAX_VALIDATOR_SET_SIZE: usize = 8;
         const NB_MAP_JOBS: usize = 2;
         const BATCH_SIZE: usize = 2;
 
-        let start_block = 10000u64;
+        let start_block = 500u64;
         let start_header_hash =
-            hex::decode_upper("A0123D5E4B8B8888A61F931EE2252D83568B97C223E0ECA9795B29B8BD8CBA2D")
+            hex::decode_upper("A4580A5609BD420694FB4718645529AC654470489CD4D8BF144C5208EC08819F")
                 .unwrap();
-        let end_block = 10004u64;
+        let end_block = 504u64;
         let _ =
-            hex::decode_upper("FCDA37FA6306C77737DD911E6101B612E2DBD837F29ED4F4E1C30919FBAC9D05")
+            hex::decode_upper("D6DA719AE76440DD977D6D7E618F71BEF4239D7C5D24A2B7588DFA6227B1EB38")
                 .unwrap();
 
         test_header_range_template::<MAX_VALIDATOR_SET_SIZE, NB_MAP_JOBS, BATCH_SIZE>(
@@ -188,13 +188,13 @@ mod tests {
         const NB_MAP_JOBS: usize = 16;
         const BATCH_SIZE: usize = 64;
 
-        let start_block = 10000u64;
+        let start_block = 500u64;
         let start_header_hash =
-            hex::decode_upper("A0123D5E4B8B8888A61F931EE2252D83568B97C223E0ECA9795B29B8BD8CBA2D")
+            hex::decode_upper("A4580A5609BD420694FB4718645529AC654470489CD4D8BF144C5208EC08819F")
                 .unwrap();
-        let end_block = 10004u64;
+        let end_block = 504u64;
         let _ =
-            hex::decode_upper("FCDA37FA6306C77737DD911E6101B612E2DBD837F29ED4F4E1C30919FBAC9D05")
+            hex::decode_upper("D6DA719AE76440DD977D6D7E618F71BEF4239D7C5D24A2B7588DFA6227B1EB38")
                 .unwrap();
 
         test_header_range_template::<MAX_VALIDATOR_SET_SIZE, NB_MAP_JOBS, BATCH_SIZE>(
@@ -212,13 +212,13 @@ mod tests {
         const NB_MAP_JOBS: usize = 8;
         const BATCH_SIZE: usize = 32;
 
-        let start_block = 10000u64;
+        let start_block = 500u64;
         let start_header_hash =
-            hex::decode_upper("A0123D5E4B8B8888A61F931EE2252D83568B97C223E0ECA9795B29B8BD8CBA2D")
+            hex::decode_upper("A4580A5609BD420694FB4718645529AC654470489CD4D8BF144C5208EC08819F")
                 .unwrap();
-        let end_block = 10004u64;
+        let end_block = 504u64;
         let _ =
-            hex::decode_upper("FCDA37FA6306C77737DD911E6101B612E2DBD837F29ED4F4E1C30919FBAC9D05")
+            hex::decode_upper("D6DA719AE76440DD977D6D7E618F71BEF4239D7C5D24A2B7588DFA6227B1EB38")
                 .unwrap();
 
         test_header_range_template::<MAX_VALIDATOR_SET_SIZE, NB_MAP_JOBS, BATCH_SIZE>(

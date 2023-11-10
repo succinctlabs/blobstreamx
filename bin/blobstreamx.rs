@@ -60,7 +60,6 @@ impl BlobstreamXOperator {
     fn get_config() -> BlobstreamXConfig {
         let contract_address = env::var("CONTRACT_ADDRESS").expect("CONTRACT_ADDRESS must be set");
         let chain_id = env::var("CHAIN_ID").expect("CHAIN_ID must be set");
-        // TODO: BlobstreamX on Goerli: https://goerli.etherscan.io/address/#code
         let address = contract_address
             .parse::<Address>()
             .expect("invalid address");
@@ -104,10 +103,7 @@ impl BlobstreamXOperator {
 
         let input = NextHeaderInputTuple::abi_encode_packed(&(trusted_block, trusted_header_hash));
 
-        let commit_next_header_call = CommitNextHeaderCall {
-            trusted_block,
-            trusted_header: trusted_header_hash,
-        };
+        let commit_next_header_call = CommitNextHeaderCall { trusted_block };
         let function_data = commit_next_header_call.encode();
 
         let request_id = self
@@ -139,7 +135,6 @@ impl BlobstreamXOperator {
 
         let commit_header_range_call = CommitHeaderRangeCall {
             trusted_block,
-            trusted_header: trusted_header_hash,
             target_block,
         };
         let function_data = commit_header_range_call.encode();
@@ -159,8 +154,8 @@ impl BlobstreamXOperator {
     }
 
     async fn run(&self) {
-        // Loop every 30 minutes.
-        const LOOP_DELAY: u64 = 30;
+        // Loop every 60 minutes.
+        const LOOP_DELAY: u64 = 60;
 
         let header_range_max = self.contract.data_commitment_max().await.unwrap();
         loop {

@@ -108,31 +108,36 @@ impl DataCommitmentInputs for InputDataFetcher {
         let mut last_block_id_proofs = Vec::new();
         for i in start_block_number..end_block_number + 1 {
             let header = self.get_header_from_number(i).await;
-            let data_hash = header.data_hash.unwrap();
-            data_hashes.push(data_hash.as_bytes().try_into().unwrap());
 
-            let data_hash_proof = self.get_inclusion_proof::<PROTOBUF_HASH_SIZE_BYTES, F>(
-                &header,
-                DATA_HASH_INDEX as u64,
-                header.data_hash.unwrap().encode_vec(),
-            );
-            data_hash_proofs.push(data_hash_proof);
-            let last_block_id_proof = self.get_inclusion_proof::<PROTOBUF_BLOCK_ID_SIZE_BYTES, F>(
-                &header,
-                LAST_BLOCK_ID_INDEX as u64,
-                Protobuf::<RawBlockId>::encode_vec(header.last_block_id.unwrap_or_default()),
-            );
-            last_block_id_proofs.push(last_block_id_proof);
-        }
+            // Don't include the data hash and corresponding proof of end_block, as the circuit's
+            // data_commitment is computed over the range [start_block, end_block - 1].
+            if i < end_block_number {
+                let data_hash = header.data_hash.unwrap();
+                data_hashes.push(data_hash.as_bytes().try_into().unwrap());
 
-        // If there is no data commitment, each of the above vectors will be empty.
-        if !data_hashes.is_empty() {
-            // Remove the data hash and corresponding proof of end_block, as data_commitment does not include it.
-            data_hashes.pop();
-            data_hash_proofs.pop();
+                let data_hash_proof = self.get_inclusion_proof::<PROTOBUF_HASH_SIZE_BYTES, F>(
+                    &header,
+                    DATA_HASH_INDEX as u64,
+                    header.data_hash.unwrap().encode_vec(),
+                );
+                data_hash_proofs.push(data_hash_proof);
+            }
 
-            // Remove last_block_id_proof of start_block, as data_commitment does not include it.
-            last_block_id_proofs = last_block_id_proofs[1..].to_vec();
+            // Don't include last_block_id of start, as the data_commitment circuit only requires
+            // the last block id's of blocks in the range [start_block + 1, end_block]. Specifically,
+            // the circuit needs the last_block_id proofs of data_commitment range shifted by one
+            // block to the right.
+            if i > start_block_number {
+                let last_block_id_proof = self
+                    .get_inclusion_proof::<PROTOBUF_BLOCK_ID_SIZE_BYTES, F>(
+                        &header,
+                        LAST_BLOCK_ID_INDEX as u64,
+                        Protobuf::<RawBlockId>::encode_vec(
+                            header.last_block_id.unwrap_or_default(),
+                        ),
+                    );
+                last_block_id_proofs.push(last_block_id_proof);
+            }
         }
 
         let mut data_hash_proofs_formatted = data_hash_proofs
