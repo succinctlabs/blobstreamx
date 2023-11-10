@@ -26,9 +26,14 @@ Deploy a `BlobstreamX` contract.
 forge create --rpc-url $RPC_URL --private-key $PRIVATE_KEY --constructor-args 0x6e4f1e9ea315ebfd69d18c2db974eef6105fb803 --etherscan-api-key $ETHERSCAN_API_KEY --verify BlobstreamX
 ```
 
-Initialize `BlobstreamX` contract with genesis parameters from forge script.
+Initialize `BlobstreamX` contract with genesis parameters.
 ```
-forge script script/BlobstreamX.s.sol --rpc-url $RPC_URL --private-key $PRIVATE_KEY --broadcast
+forge script script/Deploy.s.sol --rpc-url $RPC_URL --private-key $PRIVATE_KEY --broadcast
+```
+
+Update the function ID's on the `BlobstreamX` contract.
+```
+forge script script/FunctionId.s.sol --rpc-url $RPC_URL --private-key $PRIVATE_KEY --broadcast
 ```
 
 Update .env file with contract address and chain id.
