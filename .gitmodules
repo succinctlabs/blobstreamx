@@ -1,3 +1,6 @@
 [submodule "contracts/lib/blobstream-contracts"]
 	path = contracts/lib/blobstream-contracts
 	url = https://github.com/celestiaorg/blobstream-contracts
+[submodule "contracts/lib/succinctx"]
+	path = contracts/lib/succinctx
+	url = https://github.com/succinctlabs/succinctx
