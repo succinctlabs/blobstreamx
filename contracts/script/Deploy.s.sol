@@ -16,8 +16,9 @@ contract DeployScript is Script {
         );
         uint64 height = uint64(vm.envUint("GENESIS_HEIGHT"));
         bytes32 header = vm.envBytes32("GENESIS_HEADER");
+
         address gateway = 0x6e4f1e9eA315EBFd69d18C2DB974EEf6105FB803;
-        // Use the below to interact with an already deployed ZK light client.
+        // Initialize the Blobstream X light client.
         BlobstreamX lightClient = new BlobstreamX();
         lightClient.initialize(
             msg.sender,
