@@ -8,7 +8,7 @@ import {IDAOracle} from "@blobstream/IDAOracle.sol";
 import {IFunctionGateway} from "./interfaces/IFunctionGateway.sol";
 import {ITendermintX} from "./interfaces/ITendermintX.sol";
 import {IBlobstreamX} from "./interfaces/IBlobstreamX.sol";
-import {TimelockedUpgradeable} from "@succinctx/upgrades/TimelockedUpgradeable.sol";
+import {TimelockedUpgradeable} from "./TimelockedUpgradeable.sol";
 
 contract BlobstreamX is
     ITendermintX,

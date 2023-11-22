@@ -1,2 +1,2 @@
 @blobstream/=lib/blobstream-contracts/src/
-@succinctx/=lib/succinctx/contracts/src/
+@openzeppelin-upgradeable/=lib/openzeppelin-contracts-upgradeable/
