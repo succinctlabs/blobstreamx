@@ -21,22 +21,14 @@ The circuits are currently available on Succinct X [here](https://alpha.succinct
 Blobstream X is currently deployed for Celestia Mainnet on Goerli [here](https://goerli.etherscan.io/address/0x046120E6c6C48C05627FB369756F5f44858950a5#events).
 
 ## Integrate
-Deploy a `BlobstreamX` contract.
-```
-forge create --rpc-url $RPC_URL --private-key $PRIVATE_KEY --constructor-args 0x6e4f1e9ea315ebfd69d18c2db974eef6105fb803 --etherscan-api-key $ETHERSCAN_API_KEY --verify BlobstreamX
-```
+Add .env variables to `contracts/.env`, following `contracts/.env.example`.
 
 Initialize `BlobstreamX` contract with genesis parameters.
 ```
 forge script script/Deploy.s.sol --rpc-url $RPC_URL --private-key $PRIVATE_KEY --broadcast
 ```
 
-Update the function ID's on the `BlobstreamX` contract.
-```
-forge script script/FunctionId.s.sol --rpc-url $RPC_URL --private-key $PRIVATE_KEY --broadcast
-```
-
-Update .env file with contract address and chain id.
+Add env variables to `.env`, following `.env.example`.
 
 Run `BlobstreamX` script to update the light client continuously.
 ```
