@@ -8,8 +8,14 @@ import {IDAOracle} from "@blobstream/IDAOracle.sol";
 import {IFunctionGateway} from "./interfaces/IFunctionGateway.sol";
 import {ITendermintX} from "./interfaces/ITendermintX.sol";
 import {IBlobstreamX} from "./interfaces/IBlobstreamX.sol";
+import {TimelockedUpgradeable} from "@succinctx/upgrades/TimelockedUpgradeable.sol";
 
-contract BlobstreamX is ITendermintX, IBlobstreamX, IDAOracle {
+contract BlobstreamX is
+    ITendermintX,
+    IBlobstreamX,
+    IDAOracle,
+    TimelockedUpgradeable
+{
     /// @notice The address of the gateway contract.
     address public gateway;
 
@@ -26,10 +32,6 @@ contract BlobstreamX is ITendermintX, IBlobstreamX, IDAOracle {
     /// @notice Maps block heights to their header hashes.
     mapping(uint64 => bytes32) public blockHeightToHeaderHash;
 
-    /// @notice Maps block ranges to their data commitments. Block ranges are stored as
-    ///     keccak256(abi.encode(startBlock, endBlock)).
-    mapping(bytes32 => uint256) public dataCommitmentNonces;
-
     /// @notice Mapping of data commitment nonces to data commitments.
     mapping(uint256 => bytes32) public state_dataCommitments;
 
@@ -39,30 +41,44 @@ contract BlobstreamX is ITendermintX, IBlobstreamX, IDAOracle {
     /// @notice Next header function id.
     bytes32 public nextHeaderFunctionId;
 
-    /// @notice Initialize the contract with the address of the gateway contract.
-    constructor(address _gateway) {
+    /// @dev Initializes the contract.
+    /// @param _guardian The address of the guardian.
+    /// @param _gateway The address of the gateway contract.
+    /// @param _height The height of the genesis block.
+    /// @param _header The header hash of the genesis block.
+    /// @param _nextHeaderFunctionId The function ID for next header.
+    /// @param _headerRangeFunctionId The function ID for header range.
+    function initialize(
+        address _guardian,
+        address _gateway,
+        uint64 _height,
+        bytes32 _header,
+        bytes32 _nextHeaderFunctionId,
+        bytes32 _headerRangeFunctionId
+    ) external initializer {
+        __TimelockedUpgradeable_init(_guardian, _guardian);
+
         gateway = _gateway;
+
+        blockHeightToHeaderHash[_height] = _header;
+        latestBlock = _height;
+        nextHeaderFunctionId = _nextHeaderFunctionId;
+        headerRangeFunctionId = _headerRangeFunctionId;
     }
 
     /// @notice Update the address of the gateway contract.
-    function updateGateway(address _gateway) external {
+    function updateGateway(address _gateway) external onlyGuardian {
         gateway = _gateway;
     }
 
     /// @notice Update the function ID for header range.
-    function updateHeaderRangeId(bytes32 _functionId) external {
+    function updateHeaderRangeId(bytes32 _functionId) external onlyGuardian {
         headerRangeFunctionId = _functionId;
     }
 
     /// @notice Update the function ID for next header.
-    function updateNextHeaderId(bytes32 _functionId) external {
+    function updateNextHeaderId(bytes32 _functionId) external onlyGuardian {
         nextHeaderFunctionId = _functionId;
-    }
-
-    /// Note: Only for testnet. The genesis header should be set when initializing the contract.
-    function setGenesisHeader(uint64 _height, bytes32 _header) external {
-        blockHeightToHeaderHash[_height] = _header;
-        latestBlock = _height;
     }
 
     /// @notice Prove the validity of the header at the target block and a data commitment for the block range [latestBlock, _targetBlock).
@@ -136,9 +152,6 @@ contract BlobstreamX is ITendermintX, IBlobstreamX, IDAOracle {
 
         // Store the new header and data commitment, and update the latest block and event nonce.
         blockHeightToHeaderHash[_targetBlock] = targetHeader;
-        dataCommitmentNonces[
-            keccak256(abi.encode(_trustedBlock, _targetBlock))
-        ] = state_proofNonce;
         state_dataCommitments[state_proofNonce] = dataCommitment;
 
         emit HeadUpdate(_targetBlock, targetHeader);
@@ -203,9 +216,6 @@ contract BlobstreamX is ITendermintX, IBlobstreamX, IDAOracle {
         // Store the next header and data commitment for [_trustedBlock, nextBlock), and update the
         // latest block and event nonce.
         blockHeightToHeaderHash[nextBlock] = nextHeader;
-        dataCommitmentNonces[
-            keccak256(abi.encode(_trustedBlock, nextBlock))
-        ] = state_proofNonce;
         state_dataCommitments[state_proofNonce] = dataCommitment;
 
         emit HeadUpdate(nextBlock, nextHeader);
@@ -224,21 +234,6 @@ contract BlobstreamX is ITendermintX, IBlobstreamX, IDAOracle {
     /// @notice Get the header hash for a block height.
     function getHeaderHash(uint64 _height) external view returns (bytes32) {
         return blockHeightToHeaderHash[_height];
-    }
-
-    /// @dev See "./IBlobstream.sol"
-    function getDataCommitment(
-        uint64 _startBlock,
-        uint64 _endBlock
-    ) external view returns (bytes32) {
-        uint256 nonce = dataCommitmentNonces[
-            keccak256(abi.encode(_startBlock, _endBlock))
-        ];
-        if (nonce == 0) {
-            revert DataCommitmentNotFound();
-        }
-
-        return state_dataCommitments[nonce];
     }
 
     /// @dev See "./IDAOracle.sol"
