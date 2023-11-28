@@ -21,6 +21,11 @@ The circuits are currently available on Succinct X [here](https://alpha.succinct
 Blobstream X is currently deployed for Celestia Mainnet on Goerli [here](https://goerli.etherscan.io/address/0x046120E6c6C48C05627FB369756F5f44858950a5#events).
 
 ## Integrate
+Get the genesis parameters for the `BlobstreamX` contract with a specific Celestia block (with no input defaults to block 1).
+```
+cargo run --bin genesis -- --block 100
+```
+
 Add .env variables to `contracts/.env`, following `contracts/.env.example`.
 
 Initialize `BlobstreamX` contract with genesis parameters.

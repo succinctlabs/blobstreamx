@@ -22,6 +22,10 @@ path = "bin/data_commitment.rs"
 name = "blobstreamx"
 path = "bin/blobstreamx.rs"
 
+[[bin]]
+name = "genesis"
+path = "bin/genesis.rs"
+
 [features]
 ci = []
 
