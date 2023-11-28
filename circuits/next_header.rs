@@ -1,4 +1,5 @@
 use plonky2x::backend::circuit::Circuit;
+use plonky2x::frontend::merkle::tendermint::TendermintMerkleTree;
 use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::prelude::{Bytes32Variable, CircuitBuilder, PlonkParameters, VariableStream};
 use tendermintx::step::{StepOffchainInputs, TendermintStepCircuit};

@@ -1,5 +1,6 @@
 use plonky2::plonk::config::{AlgebraicHasher, GenericConfig};
 use plonky2x::backend::circuit::{Circuit, PlonkParameters};
+use plonky2x::frontend::merkle::tendermint::TendermintMerkleTree;
 use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::frontend::vars::{ArrayVariable, Bytes32Variable, EvmVariable};
 use plonky2x::prelude::*;
