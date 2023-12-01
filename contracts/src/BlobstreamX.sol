@@ -5,10 +5,10 @@ import "@blobstream/DataRootTuple.sol";
 import "@blobstream/lib/tree/binary/BinaryMerkleTree.sol";
 
 import {IDAOracle} from "@blobstream/IDAOracle.sol";
-import {IFunctionGateway} from "./interfaces/IFunctionGateway.sol";
 import {ITendermintX} from "./interfaces/ITendermintX.sol";
 import {IBlobstreamX} from "./interfaces/IBlobstreamX.sol";
 import {TimelockedUpgradeable} from "@succinctx/upgrades/TimelockedUpgradeable.sol";
+import {ISuccinctGateway} from "@succinctx/interfaces/ISuccinctGateway.sol";
 
 contract BlobstreamX is
     ITendermintX,
@@ -98,7 +98,7 @@ contract BlobstreamX is
             revert TargetLessThanLatest();
         }
 
-        IFunctionGateway(gateway).requestCall{value: msg.value}(
+        ISuccinctGateway(gateway).requestCall{value: msg.value}(
             headerRangeFunctionId,
             abi.encodePacked(latestBlock, latestHeader, _targetBlock),
             address(this),
@@ -133,7 +133,7 @@ contract BlobstreamX is
         );
 
         // Call gateway to get the proof result.
-        bytes memory requestResult = IFunctionGateway(gateway).verifiedCall(
+        bytes memory requestResult = ISuccinctGateway(gateway).verifiedCall(
             headerRangeFunctionId,
             input
         );
@@ -175,7 +175,7 @@ contract BlobstreamX is
             revert LatestHeaderNotFound();
         }
 
-        IFunctionGateway(gateway).requestCall{value: msg.value}(
+        ISuccinctGateway(gateway).requestCall{value: msg.value}(
             nextHeaderFunctionId,
             abi.encodePacked(latestBlock, latestHeader),
             address(this),
@@ -197,7 +197,7 @@ contract BlobstreamX is
         bytes memory input = abi.encodePacked(_trustedBlock, trustedHeader);
 
         // Call gateway to get the proof result.
-        bytes memory requestResult = IFunctionGateway(gateway).verifiedCall(
+        bytes memory requestResult = ISuccinctGateway(gateway).verifiedCall(
             nextHeaderFunctionId,
             input
         );
