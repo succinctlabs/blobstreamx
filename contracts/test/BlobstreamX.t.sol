@@ -8,7 +8,7 @@ contract BlobstreamXTest is Test {
     BlobstreamX public blobstream;
 
     function setUp() public {
-        blobstream = new BlobstreamX(address(0));
+        blobstream = new BlobstreamX();
     }
 
     function testPacked() public pure {
