@@ -107,7 +107,7 @@ impl DataCommitmentInputs for InputDataFetcher {
         let mut data_hash_proofs = Vec::new();
         let mut last_block_id_proofs = Vec::new();
         for i in start_block_number..end_block_number + 1 {
-            let header = self.get_header_from_number(i).await;
+            let header = self.get_signed_header_from_number(i).await.header;
 
             // Don't include the data hash and corresponding proof of end_block, as the circuit's
             // data_commitment is computed over the range [start_block, end_block - 1].
@@ -191,15 +191,17 @@ impl DataCommitmentInputs for InputDataFetcher {
         // If start_block_number >= end_block_number, then start_header and end_header are dummy values.
         if start_block_number < end_block_number {
             start_header = self
-                .get_header_from_number(start_block_number)
+                .get_signed_header_from_number(start_block_number)
                 .await
+                .header
                 .hash()
                 .as_bytes()
                 .try_into()
                 .unwrap();
             end_header = self
-                .get_header_from_number(end_block_number)
+                .get_signed_header_from_number(end_block_number)
                 .await
+                .header
                 .hash()
                 .as_bytes()
                 .try_into()
