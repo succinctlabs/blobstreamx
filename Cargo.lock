@@ -4336,7 +4336,7 @@ dependencies = [
 [[package]]
 name = "tendermintx"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/tendermintx.git#a44a989aa19400d861c3359386c810cdf05661f2"
+source = "git+https://github.com/succinctlabs/tendermintx.git#20b3f0e93747ee7984bb8107ad0c4d3a3e5d2eb0"
 dependencies = [
  "alloy-primitives",
  "alloy-sol-types",

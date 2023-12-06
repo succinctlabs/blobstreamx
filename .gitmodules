@@ -4,3 +4,6 @@
 [submodule "contracts/lib/succinctx"]
 	path = contracts/lib/succinctx
 	url = https://github.com/succinctlabs/succinctx
+[submodule "contracts/lib/tendermintx"]
+	path = contracts/lib/tendermintx
+	url = https://github.com/succinctlabs/tendermintx

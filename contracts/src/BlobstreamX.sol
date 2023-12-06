@@ -4,9 +4,9 @@ pragma solidity ^0.8.22;
 import "@blobstream/DataRootTuple.sol";
 import "@blobstream/lib/tree/binary/BinaryMerkleTree.sol";
 
-import {IDAOracle} from "@blobstream/IDAOracle.sol";
-import {ITendermintX} from "./interfaces/ITendermintX.sol";
 import {IBlobstreamX} from "./interfaces/IBlobstreamX.sol";
+import {IDAOracle} from "@blobstream/IDAOracle.sol";
+import {ITendermintX} from "@tendermintx/interfaces/ITendermintX.sol";
 import {TimelockedUpgradeable} from "@succinctx/upgrades/TimelockedUpgradeable.sol";
 import {ISuccinctGateway} from "@succinctx/interfaces/ISuccinctGateway.sol";
 
@@ -91,11 +91,11 @@ contract BlobstreamX is
         }
 
         // A request can be at most DATA_COMMITMENT_MAX blocks ahead of the latest block.
-        if (_targetBlock - latestBlock > DATA_COMMITMENT_MAX) {
-            revert ProofBlockRangeTooLarge();
-        }
-        if (_targetBlock <= latestBlock) {
-            revert TargetLessThanLatest();
+        if (
+            _targetBlock <= latestBlock ||
+            _targetBlock - latestBlock > DATA_COMMITMENT_MAX
+        ) {
+            revert TargetBlockNotInRange();
         }
 
         ISuccinctGateway(gateway).requestCall{value: msg.value}(
@@ -146,8 +146,11 @@ contract BlobstreamX is
             (bytes32, bytes32)
         );
 
-        if (_targetBlock <= latestBlock) {
-            revert TargetLessThanLatest();
+        if (
+            _targetBlock <= latestBlock ||
+            _targetBlock - latestBlock > DATA_COMMITMENT_MAX
+        ) {
+            revert TargetBlockNotInRange();
         }
 
         // Store the new header and data commitment, and update the latest block and event nonce.
@@ -210,7 +213,7 @@ contract BlobstreamX is
 
         uint64 nextBlock = _trustedBlock + 1;
         if (nextBlock <= latestBlock) {
-            revert TargetLessThanLatest();
+            revert TargetBlockNotInRange();
         }
 
         // Store the next header and data commitment for [_trustedBlock, nextBlock), and update the
