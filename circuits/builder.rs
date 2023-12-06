@@ -96,7 +96,15 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
         start_block: U64Variable,
         end_block: U64Variable,
     ) -> Bytes32Variable {
-        let num_blocks = self.sub(end_block, start_block);
+        // If end_block < start_block, then this data commitment will be marked as disabled, and the
+        // output of this function is not used. Therefore, the logic assumes
+        // nb_blocks is always positive.
+        let nb_blocks_in_batch = self.sub(end_block, start_block);
+        self.watch(&nb_blocks_in_batch, "nb_blocks_in_batch");
+
+        // Note: nb_blocks_in_batch is assumed to be less than 2^32 (which is a reasonable
+        // assumption for any data commitment).
+        let nb_blocks_in_batch = nb_blocks_in_batch.limbs[0].variable;
         let mut leaves = Vec::new();
 
         // Compute the leaves of the merkle tree.
@@ -108,24 +116,12 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
             leaves.push(self.encode_data_root_tuple(&data_hashes[i], &block_height));
         }
 
-        let mut leaves_enabled = Vec::new();
-        let mut is_enabled = self.constant::<BoolVariable>(true);
-        for i in 0..MAX_LEAVES {
-            leaves_enabled.push(is_enabled);
-
-            let num_blocks_so_far = self.constant::<U64Variable>((i + 1) as u64);
-
-            let is_last_valid_leaf = self.is_equal(num_blocks, num_blocks_so_far);
-            let is_not_last_valid_leaf = self.not(is_last_valid_leaf);
-
-            // Mark the first num_blocks leaves as enabled.
-            is_enabled = self.and(is_enabled, is_not_last_valid_leaf);
-        }
-
         // Compute the root of the merkle tree over the first num_blocks leaves.
+        // Note: If nb_blocks_in_batch is larger than MAX_LEAVES, this function will
+        // mark all leaves as enabled and compute the root of the merkle tree over all leaves.
         self.compute_root_from_leaves::<MAX_LEAVES, ENC_DATA_ROOT_TUPLE_SIZE_BYTES>(
-            leaves,
-            leaves_enabled,
+            ArrayVariable::<BytesVariable<64>, MAX_LEAVES>::from(leaves),
+            nb_blocks_in_batch,
         )
     }
 
