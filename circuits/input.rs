@@ -107,18 +107,18 @@ impl DataCommitmentInputs for InputDataFetcher {
         let mut data_hash_proofs = Vec::new();
         let mut last_block_id_proofs = Vec::new();
         for i in start_block_number..end_block_number + 1 {
-            let header = self.get_signed_header_from_number(i).await.header;
+            let signed_header = self.get_signed_header_from_number(i).await;
 
             // Don't include the data hash and corresponding proof of end_block, as the circuit's
             // data_commitment is computed over the range [start_block, end_block - 1].
             if i < end_block_number {
-                let data_hash = header.data_hash.unwrap();
+                let data_hash = signed_header.header.data_hash.unwrap();
                 data_hashes.push(data_hash.as_bytes().try_into().unwrap());
 
                 let data_hash_proof = self.get_inclusion_proof::<PROTOBUF_HASH_SIZE_BYTES, F>(
-                    &header,
+                    &signed_header.header,
                     DATA_HASH_INDEX as u64,
-                    header.data_hash.unwrap().encode_vec(),
+                    signed_header.header.data_hash.unwrap().encode_vec(),
                 );
                 data_hash_proofs.push(data_hash_proof);
             }
@@ -130,10 +130,10 @@ impl DataCommitmentInputs for InputDataFetcher {
             if i > start_block_number {
                 let last_block_id_proof = self
                     .get_inclusion_proof::<PROTOBUF_BLOCK_ID_SIZE_BYTES, F>(
-                        &header,
+                        &signed_header.header,
                         LAST_BLOCK_ID_INDEX as u64,
                         Protobuf::<RawBlockId>::encode_vec(
-                            header.last_block_id.unwrap_or_default(),
+                            signed_header.header.last_block_id.unwrap_or_default(),
                         ),
                     );
                 last_block_id_proofs.push(last_block_id_proof);
