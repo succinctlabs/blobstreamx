@@ -32,10 +32,9 @@ pub async fn main() {
 
     let genesis_block = args.block;
 
-    let header_hash = data_fetcher
+    let signed_header = data_fetcher
         .get_signed_header_from_number(genesis_block)
-        .await
-        .header
-        .hash();
+        .await;
+    let header_hash = signed_header.header.hash();
     info!("Block {}'s header hash: {:?}", genesis_block, header_hash);
 }
