@@ -126,9 +126,10 @@ mod tests {
     fn test_next_header_small() {
         const MAX_VALIDATOR_SET_SIZE: usize = 4;
 
+        // This block is on Mocha-4 testnet.
         let start_block = 500u64;
         let start_header_hash =
-            hex::decode_upper("A4580A5609BD420694FB4718645529AC654470489CD4D8BF144C5208EC08819F")
+            hex::decode_upper("46604E5FF15811D674CBAF2067DE6479A381EEC1BA046B90508939A685B40AE7")
                 .unwrap();
 
         test_next_header_template::<MAX_VALIDATOR_SET_SIZE>(
@@ -142,9 +143,10 @@ mod tests {
     fn test_next_header_large() {
         const MAX_VALIDATOR_SET_SIZE: usize = 100;
 
+        // This block is on Mocha-4 testnet.
         let start_block = 500u64;
         let start_header_hash =
-            hex::decode_upper("A4580A5609BD420694FB4718645529AC654470489CD4D8BF144C5208EC08819F")
+            hex::decode_upper("46604E5FF15811D674CBAF2067DE6479A381EEC1BA046B90508939A685B40AE7")
                 .unwrap();
 
         test_next_header_template::<MAX_VALIDATOR_SET_SIZE>(
@@ -158,9 +160,10 @@ mod tests {
     fn test_next_header_medium() {
         const MAX_VALIDATOR_SET_SIZE: usize = 32;
 
+        // This block is on Mocha-4 testnet.
         let start_block = 500u64;
         let start_header_hash =
-            hex::decode_upper("A4580A5609BD420694FB4718645529AC654470489CD4D8BF144C5208EC08819F")
+            hex::decode_upper("46604E5FF15811D674CBAF2067DE6479A381EEC1BA046B90508939A685B40AE7")
                 .unwrap();
 
         test_next_header_template::<MAX_VALIDATOR_SET_SIZE>(
