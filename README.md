@@ -29,9 +29,9 @@ cargo run --bin genesis -- --block 100
 Add .env variables to `contracts/.env`, following `contracts/.env.example`.
 
 Initialize `BlobstreamX` contract with genesis parameters.
-```
-cd contracts
 
+In `contracts/`, run
+```
 forge install
 
 source .env
@@ -44,6 +44,8 @@ forge verify-contract [ADDRESS] BlobstreamX --chain-id 5 --etherscan-api-key $ET
 Add env variables to `.env`, following `.env.example`.
 
 Run `BlobstreamX` script to update the light client continuously.
+
+In `/`, run
 ```
 cargo run --bin blobstreamx --release
 ```
