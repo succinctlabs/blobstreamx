@@ -3,6 +3,7 @@ pragma solidity ^0.8.22;
 
 import "forge-std/Script.sol";
 import {BlobstreamX} from "../src/BlobstreamX.sol";
+import {Proxy} from "@openzeppelin-upgradeable/proxy/contracts/Proxy.sol";
 
 contract DeployScript is Script {
     function setUp() public {}

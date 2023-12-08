@@ -32,7 +32,7 @@ Initialize `BlobstreamX` contract with genesis parameters.
 ```
 forge install
 
-forge script script/Deploy.s.sol --rpc-url $ETHEREUM_RPC_URL --private-key $PRIVATE_KEY --etherscan-api-key $ETHERSCAN_API_KEY --verify BlobstreamX --broadcast
+forge script script/Deploy.s.sol --rpc-url $RPC_URL --private-key $PRIVATE_KEY --etherscan-api-key $ETHERSCAN_API_KEY --verify BlobstreamX --broadcast
 ```
 
 Add env variables to `.env`, following `.env.example`.
