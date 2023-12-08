@@ -33,6 +33,8 @@ Initialize `BlobstreamX` contract with genesis parameters.
 forge install
 
 forge script script/Deploy.s.sol --rpc-url $RPC_URL --private-key $PRIVATE_KEY --broadcast --verify --verifier etherscan --etherscan-api-key $ETHERSCAN_API_KEY
+
+forge verify-contract [ADDRESS] BlobstreamX --chain-id 5 --etherscan-api-key $ETHERSCAN_API_KEY
 ```
 
 Add env variables to `.env`, following `.env.example`.
