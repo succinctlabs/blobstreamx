@@ -1,4 +1,5 @@
 @blobstream/=lib/blobstream-contracts/src/
 @openzeppelin-upgradeable/=lib/succinctx/contracts/lib/openzeppelin-contracts-upgradeable/
+@openzeppelin/=lib/succinctx/contracts/lib/openzeppelin-contracts/
 @succinctx/=lib/succinctx/contracts/src/
 @tendermintx/=lib/tendermintx/contracts/src/

@@ -3,7 +3,7 @@ pragma solidity ^0.8.22;
 
 import "forge-std/Script.sol";
 import {BlobstreamX} from "../src/BlobstreamX.sol";
-import {Proxy} from "@openzeppelin-upgradeable/proxy/contracts/Proxy.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 contract DeployScript is Script {
     function setUp() public {}
@@ -19,8 +19,24 @@ contract DeployScript is Script {
         bytes32 header = vm.envBytes32("GENESIS_HEADER");
 
         address gateway = 0x6e4f1e9eA315EBFd69d18C2DB974EEf6105FB803;
-        // Initialize the Blobstream X light client.
-        BlobstreamX lightClient = new BlobstreamX();
+
+        bytes memory CREATE2_SALT = vm.envBytes("CREATE2_SALT");
+
+        // Deploy contract
+        BlobstreamX lightClientImpl = new BlobstreamX{
+            salt: bytes32(CREATE2_SALT)
+        }();
+        BlobstreamX lightClient;
+        lightClient = BlobstreamX(
+            address(
+                new ERC1967Proxy{salt: bytes32(CREATE2_SALT)}(
+                    address(lightClientImpl),
+                    ""
+                )
+            )
+        );
+        console.logAddress(address(lightClient));
+        console.logAddress(address(lightClientImpl));
         lightClient.initialize(
             msg.sender,
             gateway,
