@@ -159,6 +159,12 @@ impl BlobstreamXOperator {
         const LOOP_DELAY: u64 = 60;
 
         let header_range_max = self.contract.data_commitment_max().await.unwrap();
+
+        // Something is wrong with the contract if this is true.
+        if (header_range_max as u64) == 0 {
+            panic!("header_range_max must be greater than 0");
+        }
+
         loop {
             let current_block = self.contract.latest_block().await.unwrap();
 

@@ -24,10 +24,10 @@ contract BlobstreamX is
 
     /// @notice The maximum number of blocks that can be skipped in a single request.
     /// Source: https://github.com/celestiaorg/celestia-core/blob/main/pkg/consts/consts.go#L43-L44
-    uint64 public DATA_COMMITMENT_MAX = 1000;
+    uint64 public constant DATA_COMMITMENT_MAX = 1000;
 
     /// @notice Nonce for proof events. Must be incremented sequentially.
-    uint256 public state_proofNonce = 1;
+    uint256 public state_proofNonce;
 
     /// @notice Maps block heights to their header hashes.
     mapping(uint64 => bytes32) public blockHeightToHeaderHash;
@@ -64,6 +64,8 @@ contract BlobstreamX is
         latestBlock = _height;
         nextHeaderFunctionId = _nextHeaderFunctionId;
         headerRangeFunctionId = _headerRangeFunctionId;
+
+        state_proofNonce = 1;
     }
 
     /// @notice Update the address of the gateway contract.
