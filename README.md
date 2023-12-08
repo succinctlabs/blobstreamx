@@ -30,6 +30,8 @@ Add .env variables to `contracts/.env`, following `contracts/.env.example`.
 
 Initialize `BlobstreamX` contract with genesis parameters.
 ```
+cd contracts
+
 forge install
 
 source .env
