@@ -37,13 +37,16 @@ contract DeployScript is Script {
         );
         console.logAddress(address(lightClient));
         console.logAddress(address(lightClientImpl));
+
         lightClient.initialize(
-            msg.sender,
-            gateway,
-            height,
-            header,
-            nextHeaderFunctionId,
-            headerRangeFunctionId
+            BlobstreamX.InitParameters({
+                guardian: vm.envAddress("GUARDIAN"),
+                gateway: gateway,
+                height: height,
+                header: header,
+                nextHeaderFunctionId: nextHeaderFunctionId,
+                headerRangeFunctionId: headerRangeFunctionId
+            })
         );
     }
 }
