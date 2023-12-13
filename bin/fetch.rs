@@ -1,6 +1,6 @@
 //! To build the binary:
 //!
-//!     `cargo build --release --bin genesis`
+//!     `cargo build --release --bin fetch`
 //!
 //!
 //!
@@ -14,7 +14,7 @@ use tendermintx::input::InputDataFetcher;
 
 #[derive(Parser, Debug, Clone)]
 #[command(about = "Get the genesis parameters from a block.")]
-pub struct GenesisArgs {
+pub struct FetchArgs {
     #[arg(long, default_value = "1")]
     pub block: u64,
 }
@@ -30,14 +30,21 @@ pub async fn main() {
     data_fetcher.save = true;
     data_fetcher.fixture_path = "./fixtures/celestia".to_string();
 
-    let block = 10;
+    let args = FetchArgs::parse();
+    let fetch_block = args.block;
 
     // Write signed_header to JSON.
-    let _ = data_fetcher.get_signed_header_from_number(block).await;
+    let _ = data_fetcher
+        .get_signed_header_from_number(fetch_block)
+        .await;
 
     // Write validators to JSON.
-    let _ = data_fetcher.get_validator_set_from_number(block).await;
+    let _ = data_fetcher
+        .get_validator_set_from_number(fetch_block)
+        .await;
 
     // Write next_validators to JSON.
-    let _ = data_fetcher.get_validator_set_from_number(block + 1).await;
+    let _ = data_fetcher
+        .get_validator_set_from_number(fetch_block + 1)
+        .await;
 }
