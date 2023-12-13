@@ -24,10 +24,10 @@ contract BlobstreamX is
 
     /// @notice The maximum number of blocks that can be skipped in a single request.
     /// Source: https://github.com/celestiaorg/celestia-core/blob/main/pkg/consts/consts.go#L43-L44
-    uint64 public DATA_COMMITMENT_MAX = 1000;
+    uint64 public constant DATA_COMMITMENT_MAX = 1000;
 
     /// @notice Nonce for proof events. Must be incremented sequentially.
-    uint256 public state_proofNonce = 1;
+    uint256 public state_proofNonce;
 
     /// @notice Maps block heights to their header hashes.
     mapping(uint64 => bytes32) public blockHeightToHeaderHash;
@@ -41,29 +41,28 @@ contract BlobstreamX is
     /// @notice Next header function id.
     bytes32 public nextHeaderFunctionId;
 
+    struct InitParameters {
+        address guardian;
+        address gateway;
+        uint64 height;
+        bytes32 header;
+        bytes32 nextHeaderFunctionId;
+        bytes32 headerRangeFunctionId;
+    }
+
     /// @dev Initializes the contract.
-    /// @param _guardian The address of the guardian.
-    /// @param _gateway The address of the gateway contract.
-    /// @param _height The height of the genesis block.
-    /// @param _header The header hash of the genesis block.
-    /// @param _nextHeaderFunctionId The function ID for next header.
-    /// @param _headerRangeFunctionId The function ID for header range.
-    function initialize(
-        address _guardian,
-        address _gateway,
-        uint64 _height,
-        bytes32 _header,
-        bytes32 _nextHeaderFunctionId,
-        bytes32 _headerRangeFunctionId
-    ) external initializer {
-        __TimelockedUpgradeable_init(_guardian, _guardian);
+    /// @param _params The initialization parameters.
+    function initialize(InitParameters calldata _params) external initializer {
+        __TimelockedUpgradeable_init(_params.guardian, _params.guardian);
 
-        gateway = _gateway;
+        gateway = _params.gateway;
 
-        blockHeightToHeaderHash[_height] = _header;
-        latestBlock = _height;
-        nextHeaderFunctionId = _nextHeaderFunctionId;
-        headerRangeFunctionId = _headerRangeFunctionId;
+        blockHeightToHeaderHash[_params.height] = _params.header;
+        latestBlock = _params.height;
+        nextHeaderFunctionId = _params.nextHeaderFunctionId;
+        headerRangeFunctionId = _params.headerRangeFunctionId;
+
+        state_proofNonce = 1;
     }
 
     /// @notice Update the address of the gateway contract.

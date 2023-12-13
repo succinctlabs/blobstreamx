@@ -26,6 +26,10 @@ path = "bin/blobstreamx.rs"
 name = "genesis"
 path = "bin/genesis.rs"
 
+[[bin]]
+name = "fetch"
+path = "bin/fetch.rs"
+
 [features]
 ci = []
 
