@@ -1,6 +1,7 @@
 use plonky2::plonk::config::{AlgebraicHasher, GenericConfig};
 use plonky2x::backend::circuit::{Circuit, PlonkParameters};
 use plonky2x::frontend::merkle::tendermint::TendermintMerkleTree;
+use plonky2x::frontend::merkle::tree::MerkleInclusionProofVariable;
 use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::frontend::vars::{ArrayVariable, Bytes32Variable, EvmVariable};
 use plonky2x::prelude::*;
@@ -233,6 +234,8 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
         <<L as PlonkParameters<D>>::Config as GenericConfig<D>>::Hasher:
             AlgebraicHasher<<L as PlonkParameters<D>>::Field>,
     {
+        let one = self.constant::<U64Variable>(1u64);
+
         let ctx = DataCommitmentSharedCtx {
             trusted_block,
             trusted_header_hash,
@@ -241,7 +244,7 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
         };
 
         let max_num_blocks = NB_MAP_JOBS * BATCH_SIZE;
-        let relative_block_nums = (1u64..(max_num_blocks + 1 as u64)).collect::<Vec<_>>();
+        let relative_block_nums = (1u64..((max_num_blocks + 1) as u64)).collect::<Vec<_>>();
 
         let result = self
             .mapreduce::<DataCommitmentSharedCtx, U64Variable, MapReduceSubchainVariable, C, BATCH_SIZE, _, _>(
@@ -253,7 +256,6 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
                     //  2) Verify the chain of headers is linked for the batch.
                     //  3) Compute the corresponding data_merkle_root.
 
-                    let one = builder.constant::<U64Variable>(1u64);
                     let global_end_header_hash = map_ctx.end_header_hash;
                     let global_end_block = map_ctx.end_block;
 
@@ -332,11 +334,11 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
 
         let mut input_stream = VariableStream::new();
         input_stream.write(&result.start_block);
-        let last_block_id_proof_fetcher = PrevHeaderHashProofOffchainInputs::<BATCH_SIZE> {};
-        let output_stream = builder.async_hint(input_stream, last_block_id_proof_fetcher);
+        let last_block_id_proof_fetcher = PrevHeaderHashProofOffchainInputs {};
+        let output_stream = self.async_hint(input_stream, last_block_id_proof_fetcher);
         let last_block_id_proof = output_stream
             .read::<MerkleInclusionProofVariable<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES>>(
-                builder,
+                self,
             );
         // Confirm the start_block of the data_commitment's previous header is the trusted_header_hash.
         let last_block_id_path =
@@ -348,7 +350,7 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
             );
         self.assert_is_equal(result.start_header, last_block_id_proof_root);
         self.assert_is_equal(
-            last_block_id_proof.leaf[2..2 + HASH_SIZE],
+            last_block_id_proof.leaf[2..2 + HASH_SIZE].into(),
             trusted_header_hash,
         );
         let expected_start = self.add(trusted_block, one);

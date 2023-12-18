@@ -102,15 +102,13 @@ impl DataCommitmentInputs for InputDataFetcher {
     ) -> InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, F> {
         let curr_header = self.get_signed_header_from_number(block_number).await;
 
-        let prev_header = self.get_signed_header_from_number(block_number - 1).await;
-        let last_block_id_proof = self.get_inclusion_proof::<PROTOBUF_BLOCK_ID_SIZE_BYTES, F>(
+        self.get_inclusion_proof::<PROTOBUF_BLOCK_ID_SIZE_BYTES, F>(
             &curr_header.header,
             LAST_BLOCK_ID_INDEX as u64,
             Protobuf::<RawBlockId>::encode_vec(
                 curr_header.header.last_block_id.unwrap_or_default(),
             ),
-        );
-        last_block_id_proof
+        )
     }
 
     async fn get_data_commitment_inputs<const MAX_LEAVES: usize, F: RichField>(

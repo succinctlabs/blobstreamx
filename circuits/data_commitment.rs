@@ -3,6 +3,7 @@ use ethers::types::H256;
 use plonky2x::backend::circuit::Circuit;
 use plonky2x::frontend::hint::asynchronous::hint::AsyncHint;
 use plonky2x::frontend::mapreduce::generator::MapReduceGenerator;
+use plonky2x::frontend::merkle::tree::MerkleInclusionProofVariable;
 use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::prelude::{Bytes32Variable, CircuitBuilder, PlonkParameters, ValueStream};
 use serde::{Deserialize, Serialize};
@@ -10,6 +11,7 @@ use tendermintx::input::utils::convert_to_h256;
 use tendermintx::input::InputDataFetcher;
 
 use crate::builder::{DataCommitmentBuilder, DataCommitmentSharedCtx};
+use crate::consts::{HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES};
 use crate::input::DataCommitmentInputs;
 use crate::vars::*;
 
@@ -51,12 +53,10 @@ impl<const MAX_LEAVES: usize, L: PlonkParameters<D>, const D: usize> AsyncHint<L
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PrevHeaderHashProofOffchainInputs<const MAX_LEAVES: usize> {}
+pub struct PrevHeaderHashProofOffchainInputs {}
 
 #[async_trait]
-impl<const MAX_LEAVES: usize, L: PlonkParameters<D>, const D: usize> AsyncHint<L, D>
-    for PrevHeaderHashProofOffchainInputs<MAX_LEAVES>
-{
+impl<L: PlonkParameters<D>, const D: usize> AsyncHint<L, D> for PrevHeaderHashProofOffchainInputs {
     async fn hint(
         &self,
         input_stream: &mut ValueStream<L, D>,
@@ -105,6 +105,7 @@ impl<const NB_MAP_JOBS: usize, const BATCH_SIZE: usize> Circuit
         <<L as PlonkParameters<D>>::Config as plonky2::plonk::config::GenericConfig<D>>::Hasher:
             plonky2::plonk::config::AlgebraicHasher<L::Field>,
     {
+        generator_registry.register_async_hint::<PrevHeaderHashProofOffchainInputs>();
         generator_registry.register_async_hint::<DataCommitmentOffchainInputs<BATCH_SIZE>>();
 
         let mr_id = MapReduceGenerator::<
