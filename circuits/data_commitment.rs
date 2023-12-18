@@ -50,6 +50,31 @@ impl<const MAX_LEAVES: usize, L: PlonkParameters<D>, const D: usize> AsyncHint<L
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PrevHeaderHashProofOffchainInputs<const MAX_LEAVES: usize> {}
+
+#[async_trait]
+impl<const MAX_LEAVES: usize, L: PlonkParameters<D>, const D: usize> AsyncHint<L, D>
+    for PrevHeaderHashProofOffchainInputs<MAX_LEAVES>
+{
+    async fn hint(
+        &self,
+        input_stream: &mut ValueStream<L, D>,
+        output_stream: &mut ValueStream<L, D>,
+    ) {
+        let block_number = input_stream.read_value::<U64Variable>();
+
+        let mut data_fetcher = InputDataFetcher::default();
+
+        let result = data_fetcher
+            .get_last_block_id_proof::<L::Field>(block_number)
+            .await;
+
+        // Proof of the prev_header_hash against the header_hash of block_number.
+        output_stream.write_value::<MerkleInclusionProofVariable<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES>>(result);
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct DataCommitmentCircuit<const NB_MAP_JOBS: usize, const BATCH_SIZE: usize> {
     _config: usize,
@@ -59,14 +84,14 @@ impl<const NB_MAP_JOBS: usize, const BATCH_SIZE: usize> Circuit
     for DataCommitmentCircuit<NB_MAP_JOBS, BATCH_SIZE>
 {
     fn define<L: PlonkParameters<D>, const D: usize>(builder: &mut CircuitBuilder<L, D>) where <<L as plonky2x::prelude::PlonkParameters<D>>::Config as plonky2::plonk::config::GenericConfig<D>>::Hasher: plonky2::plonk::config::AlgebraicHasher<<L as plonky2x::prelude::PlonkParameters<D>>::Field>{
-        let start_block_number = builder.evm_read::<U64Variable>();
-        let start_header_hash = builder.evm_read::<Bytes32Variable>();
+        let trusted_block_number = builder.evm_read::<U64Variable>();
+        let trusted_header_hash = builder.evm_read::<Bytes32Variable>();
         let end_block_number = builder.evm_read::<U64Variable>();
         let end_header_hash = builder.evm_read::<Bytes32Variable>();
 
         let data_commitment = builder.prove_data_commitment::<Self, NB_MAP_JOBS, BATCH_SIZE>(
-            start_block_number,
-            start_header_hash,
+            trusted_block_number,
+            trusted_header_hash,
             end_block_number,
             end_header_hash,
         );

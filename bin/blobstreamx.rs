@@ -172,9 +172,9 @@ impl BlobstreamXOperator {
             let latest_signed_header = self.data_fetcher.get_latest_signed_header().await;
             let latest_block = latest_signed_header.header.height.value();
 
-            // Subtract 2 blocks to account for the time it takes for a block to be processed by
+            // Subtract 5 blocks to account for the time it takes for a block to be processed by
             // consensus.
-            let max_end_block = std::cmp::min(latest_block - 2, current_block + header_range_max);
+            let max_end_block = std::cmp::min(latest_block - 5, current_block + header_range_max);
 
             let target_block = self
                 .data_fetcher

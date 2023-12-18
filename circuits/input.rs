@@ -26,6 +26,11 @@ pub struct DataCommitment {
 
 #[async_trait]
 pub trait DataCommitmentInputs {
+    async fn get_last_block_id_proof<F: RichField>(
+        &mut self,
+        block_number: u64,
+    ) -> InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, F>;
+
     async fn get_data_commitment(&self, start_block: u64, end_block: u64) -> [u8; 32];
 
     async fn get_data_commitment_inputs<const MAX_LEAVES: usize, F: RichField>(
@@ -91,6 +96,23 @@ impl DataCommitmentInputs for InputDataFetcher {
             .unwrap()
     }
 
+    async fn get_last_block_id_proof<F: RichField>(
+        &mut self,
+        block_number: u64,
+    ) -> InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, F> {
+        let curr_header = self.get_signed_header_from_number(block_number).await;
+
+        let prev_header = self.get_signed_header_from_number(block_number - 1).await;
+        let last_block_id_proof = self.get_inclusion_proof::<PROTOBUF_BLOCK_ID_SIZE_BYTES, F>(
+            &curr_header.header,
+            LAST_BLOCK_ID_INDEX as u64,
+            Protobuf::<RawBlockId>::encode_vec(
+                curr_header.header.last_block_id.unwrap_or_default(),
+            ),
+        );
+        last_block_id_proof
+    }
+
     async fn get_data_commitment_inputs<const MAX_LEAVES: usize, F: RichField>(
         &mut self,
         start_block_number: u64,
@@ -106,11 +128,11 @@ impl DataCommitmentInputs for InputDataFetcher {
         let mut data_hashes = Vec::new();
         let mut data_hash_proofs = Vec::new();
         let mut last_block_id_proofs = Vec::new();
-        for i in start_block_number..end_block_number + 1 {
+        for i in start_block_number..end_block_number + 2 {
             let signed_header = self.get_signed_header_from_number(i).await;
 
             // Don't include the data hash and corresponding proof of end_block, as the circuit's
-            // data_commitment is computed over the range [start_block, end_block - 1].
+            // data_commitment is computed over the range [start_block, end_block], inclusive.
             if i < end_block_number {
                 let data_hash = signed_header.header.data_hash.unwrap();
                 data_hashes.push(data_hash.as_bytes().try_into().unwrap());
@@ -124,9 +146,9 @@ impl DataCommitmentInputs for InputDataFetcher {
             }
 
             // Don't include last_block_id of start, as the data_commitment circuit only requires
-            // the last block id's of blocks in the range [start_block + 1, end_block]. Specifically,
-            // the circuit needs the last_block_id proofs of data_commitment range shifted by one
-            // block to the right.
+            // the last block id's of blocks in the range [start_block + 1, end_block + 1]. Specifically,
+            // the circuit needs the last_block_id proofs from the next block of every block in the
+            // data_commitment range shifted by one.
             if i > start_block_number {
                 let last_block_id_proof = self
                     .get_inclusion_proof::<PROTOBUF_BLOCK_ID_SIZE_BYTES, F>(
