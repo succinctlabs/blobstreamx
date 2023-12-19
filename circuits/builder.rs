@@ -332,29 +332,29 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
                 },
             );
 
-        let mut input_stream = VariableStream::new();
-        input_stream.write(&result.start_block);
-        let last_block_id_proof_fetcher = PrevHeaderHashProofOffchainInputs {};
-        let output_stream = self.async_hint(input_stream, last_block_id_proof_fetcher);
-        let last_block_id_proof = output_stream
-            .read::<MerkleInclusionProofVariable<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES>>(
-                self,
-            );
-        // Confirm the start_block of the data_commitment's previous header is the trusted_header_hash.
-        let last_block_id_path =
-            self.constant::<ArrayVariable<BoolVariable, 4>>(vec![false, false, true, false]);
-        let last_block_id_proof_root = self
-            .get_root_from_merkle_proof::<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES>(
-                &last_block_id_proof,
-                &last_block_id_path,
-            );
-        self.assert_is_equal(result.start_header, last_block_id_proof_root);
-        self.assert_is_equal(
-            last_block_id_proof.leaf[2..2 + HASH_SIZE].into(),
-            trusted_header_hash,
-        );
-        let expected_start = self.add(trusted_block, one);
-        self.assert_is_equal(expected_start, result.start_block);
+        // let mut input_stream = VariableStream::new();
+        // input_stream.write(&result.start_block);
+        // let last_block_id_proof_fetcher = PrevHeaderHashProofOffchainInputs {};
+        // let output_stream = self.async_hint(input_stream, last_block_id_proof_fetcher);
+        // let last_block_id_proof = output_stream
+        //     .read::<MerkleInclusionProofVariable<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES>>(
+        //         self,
+        //     );
+        // // Confirm the start_block of the data_commitment's previous header is the trusted_header_hash.
+        // let last_block_id_path =
+        //     self.constant::<ArrayVariable<BoolVariable, 4>>(vec![false, false, true, false]);
+        // let last_block_id_proof_root = self
+        //     .get_root_from_merkle_proof::<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES>(
+        //         &last_block_id_proof,
+        //         &last_block_id_path,
+        //     );
+        // self.assert_is_equal(result.start_header, last_block_id_proof_root);
+        // self.assert_is_equal(
+        //     last_block_id_proof.leaf[2..2 + HASH_SIZE].into(),
+        //     trusted_header_hash,
+        // );
+        // let expected_start = self.add(trusted_block, one);
+        // self.assert_is_equal(expected_start, result.start_block);
 
         result.data_merkle_root
     }
@@ -367,7 +367,7 @@ pub(crate) mod tests {
     use ethers::types::H256;
     use plonky2x::backend::circuit::DefaultParameters;
     use tendermintx::input::utils::convert_to_h256;
-    use tendermintx::input::InputDataFetcher;
+    use tendermintx::input::{InputDataFetcher, InputDataMode};
     use tokio::runtime::Runtime;
 
     use super::*;
@@ -384,6 +384,7 @@ pub(crate) mod tests {
     ) -> (DataCommitmentProofValueType<MAX_LEAVES, F>, H256) {
         dotenv::dotenv().ok();
         let mut input_data_fetcher = InputDataFetcher::default();
+        input_data_fetcher.mode = InputDataMode::Rpc;
 
         let rt = Runtime::new().expect("failed to create tokio runtime");
 

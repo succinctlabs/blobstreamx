@@ -31,6 +31,7 @@ pub trait DataCommitmentInputs {
         block_number: u64,
     ) -> InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, F>;
 
+    // Returns the data commitment for [start_block, end_block] inclusive.
     async fn get_data_commitment(&self, start_block: u64, end_block: u64) -> [u8; 32];
 
     async fn get_data_commitment_inputs<const MAX_LEAVES: usize, F: RichField>(
@@ -49,10 +50,10 @@ pub trait DataCommitmentInputs {
 
 #[async_trait]
 impl DataCommitmentInputs for InputDataFetcher {
-    async fn get_data_commitment(&self, start_block: u64, end_block: u64) -> [u8; 32] {
-        // If start_block == end_block, then return a dummy commitment.
-        // This will occur in the context of data commitment's map reduce when leaves that contain blocks beyond the end_block.
-        if end_block <= start_block {
+    async fn get_data_commitment(&self, start_block: u64, block_after_end: u64) -> [u8; 32] {
+        // If block_after_end < start_block, then return a dummy commitment.
+        // This will occur in the context of data commitment's map reduce when leaves that contain blocks beyond the block_after_end.
+        if block_after_end <= start_block {
             return [0u8; 32];
         }
 
@@ -60,7 +61,7 @@ impl DataCommitmentInputs for InputDataFetcher {
             "{}/{}-{}/data_commitment.json",
             self.fixture_path,
             start_block.to_string().as_str(),
-            end_block.to_string().as_str()
+            block_after_end.to_string().as_str()
         );
         let fetched_result = match &self.mode {
             InputDataMode::Rpc => {
@@ -68,7 +69,7 @@ impl DataCommitmentInputs for InputDataFetcher {
                     "{}/data_commitment?start={}&end={}",
                     self.url,
                     start_block.to_string().as_str(),
-                    end_block.to_string().as_str()
+                    block_after_end.to_string().as_str()
                 );
                 info!("Querying url: {}", query_url);
                 let res = reqwest::get(query_url).await.unwrap().text().await.unwrap();
@@ -126,7 +127,7 @@ impl DataCommitmentInputs for InputDataFetcher {
         let mut data_hashes = Vec::new();
         let mut data_hash_proofs = Vec::new();
         let mut last_block_id_proofs = Vec::new();
-        for i in start_block_number..end_block_number + 2 {
+        for i in start_block_number..end_block_number + 1 {
             let signed_header = self.get_signed_header_from_number(i).await;
 
             // Don't include the data hash and corresponding proof of end_block, as the circuit's
@@ -202,8 +203,12 @@ impl DataCommitmentInputs for InputDataFetcher {
             });
         }
 
+        assert_eq!(data_hashes.len(), MAX_LEAVES);
+        assert_eq!(data_hash_proofs_formatted.len(), MAX_LEAVES);
+        assert_eq!(last_block_id_proofs_formatted.len(), MAX_LEAVES);
+
         let expected_data_commitment = self
-            .get_data_commitment(start_block_number, end_block_number)
+            .get_data_commitment(start_block_number, end_block_number + 1)
             .await;
 
         let mut start_header = [0u8; 32];

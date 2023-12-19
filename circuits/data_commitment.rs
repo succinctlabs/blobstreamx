@@ -8,7 +8,7 @@ use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::prelude::{Bytes32Variable, CircuitBuilder, PlonkParameters, ValueStream};
 use serde::{Deserialize, Serialize};
 use tendermintx::input::utils::convert_to_h256;
-use tendermintx::input::InputDataFetcher;
+use tendermintx::input::{InputDataFetcher, InputDataMode};
 
 use crate::builder::{DataCommitmentBuilder, DataCommitmentSharedCtx};
 use crate::consts::{HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES};
@@ -31,6 +31,7 @@ impl<const MAX_LEAVES: usize, L: PlonkParameters<D>, const D: usize> AsyncHint<L
         let end_block = input_stream.read_value::<U64Variable>();
 
         let mut data_fetcher = InputDataFetcher::default();
+        data_fetcher.mode = InputDataMode::Rpc;
 
         let result = data_fetcher
             .get_data_commitment_inputs::<MAX_LEAVES, L::Field>(start_block, end_block)
@@ -206,13 +207,13 @@ mod tests {
         const NB_MAP_JOBS: usize = 2;
         const BATCH_SIZE: usize = 8;
 
-        let start_block = 1u64;
+        let start_block = 354000u64;
         let start_header_hash =
-            hex::decode_upper("6BE39EFD10BA412A9DB5288488303F5DD32CF386707A5BEF33617F4C43301872")
+            hex::decode_upper("F44C7086AE6C317E1C11D89CD0ECEA01BD23821039BC8EC836ECA931C88F6FF2")
                 .unwrap();
-        let end_block = 5u64;
+        let end_block = 354004u64;
         let end_header_hash =
-            hex::decode_upper("6FCBD8C84985E1441F6AFF82DFF9A44B8C756DA5A1F295B444CE19394413D0F8")
+            hex::decode_upper("B15497F60F24513E4384ADC2C83C6135C76ACA613C00E7B1A835761B7445266A")
                 .unwrap();
 
         test_data_commitment_template::<NB_MAP_JOBS, BATCH_SIZE>(
