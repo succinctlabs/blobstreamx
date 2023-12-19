@@ -19,7 +19,7 @@ contract BlobstreamX is
     /// @notice The address of the gateway contract.
     address public gateway;
 
-    /// @notice The latest block that has been committed.
+    /// @notice The block after the latest block that has been committed.
     uint64 public latestBlock;
 
     /// @notice The maximum number of blocks that can be skipped in a single request.

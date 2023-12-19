@@ -29,7 +29,7 @@ pub trait DataCommitmentBuilder<L: PlonkParameters<D>, const D: usize> {
     ) -> BytesVariable<ENC_DATA_ROOT_TUPLE_SIZE_BYTES>;
 
     /// Compute the data commitment from start_block to end_block. Each leaf in the merkle tree is abi.encode(data_hash, height).
-    ///
+    /// Note: Data commitment is exclusive of end_block.
     /// MAX_LEAVES is the maximum range of blocks that can be included in the data commitment.
     fn get_data_commitment<const MAX_LEAVES: usize>(
         &mut self,
@@ -52,7 +52,7 @@ pub trait DataCommitmentBuilder<L: PlonkParameters<D>, const D: usize> {
 
     /// Verify the chain of headers is linked from start_block to end_block, and generate the corresponding data_merkle_root.
     /// NB_MAP_JOBS * BATCH_SIZE is the maximum range of blocks that can be included in the data commitment.
-    ///
+    /// Note: Data commitment is exclusive of end_block.
     /// mapreduce is used to parallelize the verification of the chain of headers, by splitting the range of blocks into NB_MAP_JOBS batches of BATCH_SIZE blocks.
     fn prove_data_commitment<C: Circuit, const NB_MAP_JOBS: usize, const BATCH_SIZE: usize>(
         &mut self,
