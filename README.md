@@ -1,5 +1,5 @@
 # Blobstream X
-Implementation of zero-knowledge proof circuits for [Blobstream](https://docs.celestia.org/nodes/blobstream-intro/), Celestia's data availability solution for Ethereum.
+Implementation of zero-knowledge proof circuits for [Blobstream](https://blog.celestia.org/introducing-blobstream/), Celestia's data availability solution for Ethereum.
 
 ## Overview
 Blobstream X's core contract is `BlobstreamX`, which stores commitments to ranges of data roots from Celestia blocks. Users can query for the validity of a data root of a specific block height via `verifyAttestation`, which proves that the data root is a leaf in the Merkle tree for the block range the specific block height is in.
