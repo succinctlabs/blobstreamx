@@ -25,19 +25,19 @@ impl<const MAX_LEAVES: usize, L: PlonkParameters<D>, const D: usize> AsyncHint<L
         input_stream: &mut ValueStream<L, D>,
         output_stream: &mut ValueStream<L, D>,
     ) {
-        let trusted_block = input_stream.read_value::<U64Variable>();
+        let start_block = input_stream.read_value::<U64Variable>();
         let end_block = input_stream.read_value::<U64Variable>();
 
         let mut data_fetcher = InputDataFetcher::default();
 
         let result = data_fetcher
-            .get_data_commitment_inputs::<MAX_LEAVES, L::Field>(trusted_block, end_block)
+            .get_data_commitment_inputs::<MAX_LEAVES, L::Field>(start_block, end_block)
             .await;
 
         let data_comm_proof = DataCommitmentProofValueType {
             data_hashes: convert_to_h256(result.2),
-            trusted_block_height: trusted_block,
-            trusted_header: H256(result.0),
+            start_block_height: start_block,
+            start_header: H256(result.0),
             end_block_height: end_block,
             end_header: H256(result.1),
             data_hash_proofs: result.3,
@@ -108,6 +108,7 @@ mod tests {
     use std::env;
 
     use ethers::types::H256;
+    use log::info;
     use plonky2x::prelude::{DefaultBuilder, GateRegistry, HintRegistry};
     use subtle_encoding::hex;
 
@@ -170,7 +171,7 @@ mod tests {
 
         circuit.verify(&proof, &input, &output);
         let data_commitment = output.evm_read::<Bytes32Variable>();
-        println!("data_commitment {:?}", data_commitment);
+        info!("data_commitment {:?}", data_commitment);
     }
 
     #[test]

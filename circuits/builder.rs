@@ -233,14 +233,16 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
             AlgebraicHasher<<L as PlonkParameters<D>>::Field>,
     {
         let ctx = DataCommitmentSharedCtx {
-            start_block,
-            start_header_hash,
+            trusted_block: start_block,
+            trusted_header_hash: start_header_hash,
             end_block,
             end_header_hash,
         };
 
+        self.watch(&ctx, "data_commitment_shared_ctx");
+
         let max_num_blocks = NB_MAP_JOBS * BATCH_SIZE;
-        let relative_block_nums = (0u64..(max_num_blocks as u64)).collect::<Vec<_>>();
+        let relative_block_nums = (1u64..((max_num_blocks + 1) as u64)).collect::<Vec<_>>();
 
         let result = self
             .mapreduce::<DataCommitmentSharedCtx, U64Variable, MapReduceSubchainVariable, C, BATCH_SIZE, _, _>(
@@ -257,9 +259,9 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
                     let global_end_block = map_ctx.end_block;
 
                     let start_block =
-                        builder.add(map_ctx.start_block, map_relative_block_nums.as_vec()[0]);
+                        builder.add(map_ctx.trusted_block, map_relative_block_nums.as_vec()[0]);
                     let last_block = builder.add(
-                        map_ctx.start_block,
+                        map_ctx.trusted_block,
                         map_relative_block_nums.as_vec()[BATCH_SIZE - 1],
                     );
 
