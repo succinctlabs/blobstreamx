@@ -25,19 +25,19 @@ impl<const MAX_LEAVES: usize, L: PlonkParameters<D>, const D: usize> AsyncHint<L
         input_stream: &mut ValueStream<L, D>,
         output_stream: &mut ValueStream<L, D>,
     ) {
-        let start_block = input_stream.read_value::<U64Variable>();
+        let trusted_block = input_stream.read_value::<U64Variable>();
         let end_block = input_stream.read_value::<U64Variable>();
 
         let mut data_fetcher = InputDataFetcher::default();
 
         let result = data_fetcher
-            .get_data_commitment_inputs::<MAX_LEAVES, L::Field>(start_block, end_block)
+            .get_data_commitment_inputs::<MAX_LEAVES, L::Field>(trusted_block, end_block)
             .await;
 
         let data_comm_proof = DataCommitmentProofValueType {
             data_hashes: convert_to_h256(result.2),
-            start_block_height: start_block,
-            start_header: H256(result.0),
+            trusted_block_height: trusted_block,
+            trusted_header: H256(result.0),
             end_block_height: end_block,
             end_header: H256(result.1),
             data_hash_proofs: result.3,
@@ -137,8 +137,8 @@ mod tests {
     }
 
     fn test_data_commitment_template<const NB_MAP_JOBS: usize, const BATCH_SIZE: usize>(
-        start_block: usize,
-        start_header_hash: [u8; 32],
+        trusted_block: usize,
+        trusted_header_hash: [u8; 32],
         end_block: usize,
         end_header_hash: [u8; 32],
     ) {
@@ -156,8 +156,8 @@ mod tests {
 
         let mut input = circuit.input();
 
-        input.evm_write::<U64Variable>(start_block as u64);
-        input.evm_write::<Bytes32Variable>(H256::from_slice(start_header_hash.as_slice()));
+        input.evm_write::<U64Variable>(trusted_block as u64);
+        input.evm_write::<Bytes32Variable>(H256::from_slice(trusted_header_hash.as_slice()));
         input.evm_write::<U64Variable>(end_block as u64);
         input.evm_write::<Bytes32Variable>(H256::from_slice(end_header_hash.as_slice()));
 
@@ -180,8 +180,8 @@ mod tests {
         const NB_MAP_JOBS: usize = 2;
         const BATCH_SIZE: usize = 8;
 
-        let start_block = 1u64;
-        let start_header_hash =
+        let trusted_block = 1u64;
+        let trusted_header_hash =
             hex::decode_upper("6BE39EFD10BA412A9DB5288488303F5DD32CF386707A5BEF33617F4C43301872")
                 .unwrap();
         let end_block = 5u64;
@@ -190,8 +190,8 @@ mod tests {
                 .unwrap();
 
         test_data_commitment_template::<NB_MAP_JOBS, BATCH_SIZE>(
-            start_block as usize,
-            start_header_hash.as_slice().try_into().unwrap(),
+            trusted_block as usize,
+            trusted_header_hash.as_slice().try_into().unwrap(),
             end_block as usize,
             end_header_hash.as_slice().try_into().unwrap(),
         );
@@ -205,8 +205,8 @@ mod tests {
         const NB_MAP_JOBS: usize = 16;
         const BATCH_SIZE: usize = 64;
 
-        let start_block = 500u64;
-        let start_header_hash =
+        let trusted_block = 500u64;
+        let trusted_header_hash =
             hex::decode_upper("A4580A5609BD420694FB4718645529AC654470489CD4D8BF144C5208EC08819F")
                 .unwrap();
         let end_block = 504u64;
@@ -215,8 +215,8 @@ mod tests {
                 .unwrap();
 
         test_data_commitment_template::<NB_MAP_JOBS, BATCH_SIZE>(
-            start_block as usize,
-            start_header_hash.as_slice().try_into().unwrap(),
+            trusted_block as usize,
+            trusted_header_hash.as_slice().try_into().unwrap(),
             end_block as usize,
             end_header_hash.as_slice().try_into().unwrap(),
         );
@@ -230,8 +230,8 @@ mod tests {
         const NB_MAP_JOBS: usize = 16;
         const BATCH_SIZE: usize = 16;
 
-        let start_block = 500u64;
-        let start_header_hash =
+        let trusted_block = 500u64;
+        let trusted_header_hash =
             hex::decode_upper("A4580A5609BD420694FB4718645529AC654470489CD4D8BF144C5208EC08819F")
                 .unwrap();
         let end_block = 504u64;
@@ -240,8 +240,8 @@ mod tests {
                 .unwrap();
 
         test_data_commitment_template::<NB_MAP_JOBS, BATCH_SIZE>(
-            start_block as usize,
-            start_header_hash.as_slice().try_into().unwrap(),
+            trusted_block as usize,
+            trusted_header_hash.as_slice().try_into().unwrap(),
             end_block as usize,
             end_header_hash.as_slice().try_into().unwrap(),
         );

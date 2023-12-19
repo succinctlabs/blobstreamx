@@ -13,8 +13,8 @@ use crate::vars::{DataCommitmentProofVariable, MapReduceSubchainVariable};
 /// Shared context across all data commitment mapreduce jobs.
 #[derive(Clone, Debug, CircuitVariable)]
 pub struct DataCommitmentSharedCtx {
-    pub start_block: U64Variable,
-    pub start_header_hash: Bytes32Variable,
+    pub trusted_block: U64Variable,
+    pub trusted_header_hash: Bytes32Variable,
     pub end_block: U64Variable,
     pub end_header_hash: Bytes32Variable,
 }
@@ -28,13 +28,13 @@ pub trait DataCommitmentBuilder<L: PlonkParameters<D>, const D: usize> {
         height: &U64Variable,
     ) -> BytesVariable<ENC_DATA_ROOT_TUPLE_SIZE_BYTES>;
 
-    /// Compute the data commitment from start_block to end_block. Each leaf in the merkle tree is abi.encode(data_hash, height).
+    /// Compute the data commitment from trusted_block + 1 to end_block inclusive. Each leaf in the merkle tree is abi.encode(data_hash, height).
     ///
     /// MAX_LEAVES is the maximum range of blocks that can be included in the data commitment.
     fn get_data_commitment<const MAX_LEAVES: usize>(
         &mut self,
         data_hashes: &ArrayVariable<Bytes32Variable, MAX_LEAVES>,
-        start_block: U64Variable,
+        trusted_block: U64Variable,
         end_block: U64Variable,
     ) -> Bytes32Variable;
 
@@ -50,14 +50,14 @@ pub trait DataCommitmentBuilder<L: PlonkParameters<D>, const D: usize> {
         global_end_header_hash: &Bytes32Variable,
     ) -> MapReduceSubchainVariable;
 
-    /// Verify the chain of headers is linked from start_block to end_block, and generate the corresponding data_merkle_root.
+    /// Verify the chain of headers is linked from trusted_block + 1 to end_block, and generate the corresponding data_merkle_root.
     /// NB_MAP_JOBS * BATCH_SIZE is the maximum range of blocks that can be included in the data commitment.
     ///
     /// mapreduce is used to parallelize the verification of the chain of headers, by splitting the range of blocks into NB_MAP_JOBS batches of BATCH_SIZE blocks.
     fn prove_data_commitment<C: Circuit, const NB_MAP_JOBS: usize, const BATCH_SIZE: usize>(
         &mut self,
-        start_block: U64Variable,
-        start_header_hash: Bytes32Variable,
+        trusted_block: U64Variable,
+        trusted_header_hash: Bytes32Variable,
         end_block: U64Variable,
         end_header_hash: Bytes32Variable,
     ) -> Bytes32Variable
@@ -93,13 +93,13 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
     fn get_data_commitment<const MAX_LEAVES: usize>(
         &mut self,
         data_hashes: &ArrayVariable<Bytes32Variable, MAX_LEAVES>,
-        start_block: U64Variable,
+        trusted_block: U64Variable,
         end_block: U64Variable,
     ) -> Bytes32Variable {
-        // If end_block < start_block, then this data commitment will be marked as disabled, and the
+        // If end_block < trusted_block, then this data commitment will be marked as disabled, and the
         // output of this function is not used. Therefore, the logic assumes
         // nb_blocks is always positive.
-        let nb_blocks_in_batch = self.sub(end_block, start_block);
+        let nb_blocks_in_batch = self.sub(end_block, trusted_block);
         self.watch(&nb_blocks_in_batch, "nb_blocks_in_batch");
 
         // Note: nb_blocks_in_batch is assumed to be less than 2^32 (which is a reasonable
@@ -110,7 +110,7 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
         // Compute the leaves of the merkle tree.
         for i in 0..MAX_LEAVES {
             let curr_idx = self.constant::<U64Variable>(i as u64);
-            let block_height = self.add(start_block, curr_idx);
+            let block_height = self.add(trusted_block, curr_idx);
 
             // Each leaf in Blobstream is abi.encodePacked(height, data_hash).
             leaves.push(self.encode_data_root_tuple(&data_hashes[i], &block_height));

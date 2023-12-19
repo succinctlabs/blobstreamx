@@ -30,10 +30,10 @@ pub trait DataCommitmentInputs {
 
     async fn get_data_commitment_inputs<const MAX_LEAVES: usize, F: RichField>(
         &mut self,
-        start_block_number: u64,
+        trusted_block_number: u64,
         end_block_number: u64,
     ) -> (
-        [u8; 32],                                                             // start_header_hash
+        [u8; 32],                                                             // trusted_header_hash
         [u8; 32],                                                             // end_header_hash
         Vec<[u8; 32]>,                                                        // data_hashes
         Vec<InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES, F>>, // data_hash_proofs
@@ -93,10 +93,10 @@ impl DataCommitmentInputs for InputDataFetcher {
 
     async fn get_data_commitment_inputs<const MAX_LEAVES: usize, F: RichField>(
         &mut self,
-        start_block_number: u64,
+        trusted_block_number: u64,
         end_block_number: u64,
     ) -> (
-        [u8; 32],                                                             // start_header_hash
+        [u8; 32],                                                             // trusted_header_hash
         [u8; 32],                                                             // end_header_hash
         Vec<[u8; 32]>,                                                        // data_hashes
         Vec<InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES, F>>, // data_hash_proofs
@@ -106,7 +106,7 @@ impl DataCommitmentInputs for InputDataFetcher {
         let mut data_hashes = Vec::new();
         let mut data_hash_proofs = Vec::new();
         let mut last_block_id_proofs = Vec::new();
-        for i in start_block_number..end_block_number + 1 {
+        for i in trusted_block_number..end_block_number + 1 {
             let signed_header = self.get_signed_header_from_number(i).await;
 
             // Don't include the data hash and corresponding proof of end_block, as the circuit's
@@ -127,7 +127,7 @@ impl DataCommitmentInputs for InputDataFetcher {
             // the last block id's of blocks in the range [start_block + 1, end_block]. Specifically,
             // the circuit needs the last_block_id proofs of data_commitment range shifted by one
             // block to the right.
-            if i > start_block_number {
+            if i > trusted_block_number {
                 let last_block_id_proof = self
                     .get_inclusion_proof::<PROTOBUF_BLOCK_ID_SIZE_BYTES, F>(
                         &signed_header.header,
@@ -183,15 +183,15 @@ impl DataCommitmentInputs for InputDataFetcher {
         }
 
         let expected_data_commitment = self
-            .get_data_commitment(start_block_number, end_block_number)
+            .get_data_commitment(trusted_block_number, end_block_number)
             .await;
 
-        let mut start_header = [0u8; 32];
+        let mut trusted_header = [0u8; 32];
         let mut end_header = [0u8; 32];
-        // If start_block_number >= end_block_number, then start_header and end_header are dummy values.
-        if start_block_number < end_block_number {
-            start_header = self
-                .get_signed_header_from_number(start_block_number)
+        // If trusted_block_number >= end_block_number, then trusted_header and end_header are dummy values.
+        if trusted_block_number < end_block_number {
+            trusted_header = self
+                .get_signed_header_from_number(trusted_block_number)
                 .await
                 .header
                 .hash()
@@ -209,7 +209,7 @@ impl DataCommitmentInputs for InputDataFetcher {
         }
 
         (
-            start_header,
+            trusted_header,
             end_header,
             data_hashes,
             data_hash_proofs_formatted,
