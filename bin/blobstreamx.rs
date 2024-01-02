@@ -163,6 +163,8 @@ impl BlobstreamXOperator {
         // Attempt to update the contract if it is more than 60 minutes (300 blocks) behind.
         const POST_DELAY_BLOCKS: u64 = 60 * 5;
 
+        info!("Starting BlobstreamX operator");
+
         let header_range_max = self.contract.data_commitment_max().await.unwrap();
 
         // Something is wrong with the contract if this is true.
