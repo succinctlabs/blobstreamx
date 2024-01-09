@@ -69,3 +69,6 @@ tendermintx = { git = "https://github.com/succinctlabs/tendermintx.git" }
 async-trait = "0.1.73"
 alloy-sol-types = "0.4.2"
 alloy-primitives = "0.4.2"
+
+[patch."https://github.com/succinctlabs/succinctx.git"]
+plonky2x = { git = "https://github.com/succinctlabs/succinctx.git?rev=f38abe" }
