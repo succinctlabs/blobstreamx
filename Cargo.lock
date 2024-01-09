@@ -3063,7 +3063,7 @@ source = "git+https://github.com/mir-protocol/plonky2.git#cb19f2199443d9a22c6ab3
 [[package]]
 name = "plonky2x"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git#f38abee54ec17230db710953e36fddbe15fe33bb"
+source = "git+https://github.com/succinctlabs/succinctx.git#9d59459e62a43103c310d77b1155df0fe61a174f"
 dependencies = [
  "anyhow",
  "array-macro",
@@ -3105,7 +3105,7 @@ dependencies = [
 [[package]]
 name = "plonky2x-derive"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git#f38abee54ec17230db710953e36fddbe15fe33bb"
+source = "git+https://github.com/succinctlabs/succinctx.git#9d59459e62a43103c310d77b1155df0fe61a174f"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4154,7 +4154,7 @@ checksum = "734676eb262c623cec13c3155096e08d1f8f29adce39ba17948b18dad1e54142"
 [[package]]
 name = "succinct-client"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git#f38abee54ec17230db710953e36fddbe15fe33bb"
+source = "git+https://github.com/succinctlabs/succinctx.git#9d59459e62a43103c310d77b1155df0fe61a174f"
 dependencies = [
  "alloy-primitives",
  "anyhow",
@@ -4162,6 +4162,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "uuid 1.6.1",
 ]
 
 [[package]]
@@ -4794,6 +4795,7 @@ version = "1.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5e395fcf16a7a3d8127ec99782007af141946b4795001f876d54fb0d55978560"
 dependencies = [
+ "getrandom",
  "serde",
 ]
 
