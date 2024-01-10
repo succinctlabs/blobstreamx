@@ -1900,9 +1900,9 @@ dependencies = [
 
 [[package]]
 name = "getrandom"
-version = "0.2.11"
+version = "0.2.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fe9006bed769170c11f845cf00c7c1e9092aeb3f268e007c3e760ac68008070f"
+checksum = "190092ea657667030ac6a35e305e62fc4dd69fd98ac98631e5d3a2b1575a12b5"
 dependencies = [
  "cfg-if",
  "js-sys",
@@ -3002,7 +3002,7 @@ checksum = "626dec3cac7cc0e1577a2ec3fc496277ec2baa084bebad95bb6fdbfae235f84c"
 [[package]]
 name = "plonky2"
 version = "0.1.4"
-source = "git+https://github.com/mir-protocol/plonky2.git#cb19f2199443d9a22c6ab31f685bd0419d41ab2b"
+source = "git+https://github.com/mir-protocol/plonky2.git#0bf9cd2f868303abb67e2ff10ab0e7802d054ae3"
 dependencies = [
  "ahash",
  "anyhow",
@@ -3026,7 +3026,7 @@ dependencies = [
 [[package]]
 name = "plonky2_field"
 version = "0.1.1"
-source = "git+https://github.com/mir-protocol/plonky2.git#cb19f2199443d9a22c6ab31f685bd0419d41ab2b"
+source = "git+https://github.com/mir-protocol/plonky2.git#0bf9cd2f868303abb67e2ff10ab0e7802d054ae3"
 dependencies = [
  "anyhow",
  "itertools 0.11.0",
@@ -3050,7 +3050,7 @@ dependencies = [
 [[package]]
 name = "plonky2_maybe_rayon"
 version = "0.1.1"
-source = "git+https://github.com/mir-protocol/plonky2.git#cb19f2199443d9a22c6ab31f685bd0419d41ab2b"
+source = "git+https://github.com/mir-protocol/plonky2.git#0bf9cd2f868303abb67e2ff10ab0e7802d054ae3"
 dependencies = [
  "rayon",
 ]
@@ -3058,12 +3058,12 @@ dependencies = [
 [[package]]
 name = "plonky2_util"
 version = "0.1.1"
-source = "git+https://github.com/mir-protocol/plonky2.git#cb19f2199443d9a22c6ab31f685bd0419d41ab2b"
+source = "git+https://github.com/mir-protocol/plonky2.git#0bf9cd2f868303abb67e2ff10ab0e7802d054ae3"
 
 [[package]]
 name = "plonky2x"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git#9d59459e62a43103c310d77b1155df0fe61a174f"
+source = "git+https://github.com/succinctlabs/succinctx.git#542a4535f150a38b6ba0ea686de1e032a00dfd7f"
 dependencies = [
  "anyhow",
  "array-macro",
@@ -3105,7 +3105,7 @@ dependencies = [
 [[package]]
 name = "plonky2x-derive"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git#9d59459e62a43103c310d77b1155df0fe61a174f"
+source = "git+https://github.com/succinctlabs/succinctx.git#542a4535f150a38b6ba0ea686de1e032a00dfd7f"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4154,7 +4154,7 @@ checksum = "734676eb262c623cec13c3155096e08d1f8f29adce39ba17948b18dad1e54142"
 [[package]]
 name = "succinct-client"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git#9d59459e62a43103c310d77b1155df0fe61a174f"
+source = "git+https://github.com/succinctlabs/succinctx.git#542a4535f150a38b6ba0ea686de1e032a00dfd7f"
 dependencies = [
  "alloy-primitives",
  "anyhow",
@@ -4353,9 +4353,9 @@ dependencies = [
 
 [[package]]
 name = "termcolor"
-version = "1.4.0"
+version = "1.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ff1bc3d3f05aff0403e8ac0d92ced918ec05b666a43f83297ccef5bea8a3d449"
+checksum = "06794f8f6c5c898b3275aebefa6b8a1cb24cd2c6c79397ab15774837a0bc5755"
 dependencies = [
  "winapi-util",
 ]
