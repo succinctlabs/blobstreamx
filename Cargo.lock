@@ -1948,9 +1948,9 @@ dependencies = [
 
 [[package]]
 name = "h2"
-version = "0.3.22"
+version = "0.3.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4d6250322ef6e60f93f9a2162799302cd6f68f79f6e5d85c8c16f14d1d958178"
+checksum = "b553656127a00601c8ae5590fcfdc118e4083a7924b6cf4ffc1ea4b99dc429d7"
 dependencies = [
  "bytes",
  "fnv",
@@ -3063,7 +3063,7 @@ source = "git+https://github.com/mir-protocol/plonky2.git#0bf9cd2f868303abb67e2f
 [[package]]
 name = "plonky2x"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git#cc230cf187d139b9952ccd00a586345d93e1a06e"
+source = "git+https://github.com/succinctlabs/succinctx.git#f48e54090999a4a8b0eb08c2747437f3dc272cb8"
 dependencies = [
  "anyhow",
  "array-macro",
@@ -3105,7 +3105,7 @@ dependencies = [
 [[package]]
 name = "plonky2x-derive"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git#cc230cf187d139b9952ccd00a586345d93e1a06e"
+source = "git+https://github.com/succinctlabs/succinctx.git#f48e54090999a4a8b0eb08c2747437f3dc272cb8"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4154,7 +4154,7 @@ checksum = "734676eb262c623cec13c3155096e08d1f8f29adce39ba17948b18dad1e54142"
 [[package]]
 name = "succinct-client"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git#cc230cf187d139b9952ccd00a586345d93e1a06e"
+source = "git+https://github.com/succinctlabs/succinctx.git#f48e54090999a4a8b0eb08c2747437f3dc272cb8"
 dependencies = [
  "alloy-primitives",
  "anyhow",
@@ -5107,9 +5107,9 @@ checksum = "dff9641d1cd4be8d1a070daf9e3773c5f67e78b4d9d42263020c057706765c04"
 
 [[package]]
 name = "winnow"
-version = "0.5.33"
+version = "0.5.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b7520bbdec7211caa7c4e682eb1fbe07abe20cee6756b6e00f537c82c11816aa"
+checksum = "b7cf47b659b318dccbd69cc4797a39ae128f533dce7902a1096044d1967b9c16"
 dependencies = [
  "memchr",
 ]
