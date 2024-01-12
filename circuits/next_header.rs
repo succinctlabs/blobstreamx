@@ -2,6 +2,7 @@ use plonky2x::backend::circuit::Circuit;
 use plonky2x::frontend::merkle::tendermint::TendermintMerkleTree;
 use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::prelude::{Bytes32Variable, CircuitBuilder, PlonkParameters, VariableStream};
+use tendermintx::config::TendermintConfig;
 use tendermintx::step::{StepOffchainInputs, TendermintStepCircuit};
 
 use crate::builder::DataCommitmentBuilder;
@@ -9,11 +10,20 @@ use crate::data_commitment::DataCommitmentOffchainInputs;
 use crate::vars::DataCommitmentProofVariable;
 
 #[derive(Debug, Clone)]
-pub struct CombinedStepCircuit<const MAX_VALIDATOR_SET_SIZE: usize> {
-    _config: usize,
+pub struct CombinedStepCircuit<
+    const MAX_VALIDATOR_SET_SIZE: usize,
+    const CHAIN_ID_SIZE_BYTES: usize,
+    C: TendermintConfig<CHAIN_ID_SIZE_BYTES>,
+> {
+    _phantom: std::marker::PhantomData<C>,
 }
 
-impl<const MAX_VALIDATOR_SET_SIZE: usize> Circuit for CombinedStepCircuit<MAX_VALIDATOR_SET_SIZE> {
+impl<
+        const MAX_VALIDATOR_SET_SIZE: usize,
+        const CHAIN_ID_SIZE_BYTES: usize,
+        C: TendermintConfig<CHAIN_ID_SIZE_BYTES>,
+    > Circuit for CombinedStepCircuit<MAX_VALIDATOR_SET_SIZE, CHAIN_ID_SIZE_BYTES, C>
+{
     fn define<L: PlonkParameters<D>, const D: usize>(builder: &mut CircuitBuilder<L, D>) {
         let prev_block_number = builder.evm_read::<U64Variable>();
         let prev_header_hash = builder.evm_read::<Bytes32Variable>();
@@ -21,8 +31,11 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize> Circuit for CombinedStepCircuit<MAX_VA
         let one = builder.constant::<U64Variable>(1u64);
         let next_block_number = builder.add(prev_block_number, one);
 
-        let next_header_hash =
-            builder.step::<MAX_VALIDATOR_SET_SIZE>(prev_block_number, prev_header_hash);
+        let next_header_hash = builder.step::<MAX_VALIDATOR_SET_SIZE, CHAIN_ID_SIZE_BYTES>(
+            C::CHAIN_ID_BYTES,
+            prev_block_number,
+            prev_header_hash,
+        );
 
         // Compute data commitment (always for 1 leaf).
         let mut input_stream = VariableStream::new();
@@ -44,8 +57,8 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize> Circuit for CombinedStepCircuit<MAX_VA
     fn register_generators<L: PlonkParameters<D>, const D: usize>(
         generator_registry: &mut plonky2x::prelude::HintRegistry<L, D>,
     ) where
-        <<L as PlonkParameters<D>>::Config as plonky2::plonk::config::GenericConfig<D>>::Hasher:
-            plonky2::plonk::config::AlgebraicHasher<L::Field>,
+        <<L as PlonkParameters<D>>::Config as plonky2x::prelude::plonky2::plonk::config::GenericConfig<D>>::Hasher:
+            plonky2x::prelude::plonky2::plonk::config::AlgebraicHasher<L::Field>,
     {
         generator_registry.register_async_hint::<StepOffchainInputs<MAX_VALIDATOR_SET_SIZE>>();
         generator_registry.register_async_hint::<DataCommitmentOffchainInputs<1>>();
