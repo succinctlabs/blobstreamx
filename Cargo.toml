@@ -11,6 +11,10 @@ name = "next_header"
 path = "bin/next_header.rs"
 
 [[bin]]
+name = "local_relay"
+path = "bin/local_relay.rs"
+
+[[bin]]
 name = "header_range"
 path = "bin/header_range.rs"
 
@@ -68,3 +72,4 @@ tendermintx = { git = "https://github.com/succinctlabs/tendermintx.git", branch 
 async-trait = "0.1.73"
 alloy-sol-types = "0.4.2"
 alloy-primitives = "0.4.2"
+regex = "1.10.2"

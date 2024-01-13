@@ -507,6 +507,7 @@ dependencies = [
  "num",
  "plonky2x",
  "rand",
+ "regex",
  "reqwest",
  "serde",
  "serde_json",
@@ -3585,9 +3586,9 @@ dependencies = [
 
 [[package]]
 name = "rustix"
-version = "0.38.28"
+version = "0.38.30"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "72e572a5e8ca657d7366229cdde4bd14c4eb5499a9573d4d366fe1b599daa316"
+checksum = "322394588aaf33c24007e8bb3238ee3e4c5c09c084ab32bc73890b99ff326bca"
 dependencies = [
  "bitflags 2.4.1",
  "errno",
@@ -4152,12 +4153,13 @@ checksum = "734676eb262c623cec13c3155096e08d1f8f29adce39ba17948b18dad1e54142"
 [[package]]
 name = "succinct-client"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git?branch=ratan/submit-local-proofs#86e667639c841566aae430339f92ef80ec9ed83f"
+source = "git+https://github.com/succinctlabs/succinctx.git?branch=ratan/submit-local-proofs#655e77475349e565acbeb07441f01c91eb91adc9"
 dependencies = [
  "alloy-primitives",
  "anyhow",
  "ethers",
  "log",
+ "regex",
  "reqwest",
  "serde",
  "serde_json",
@@ -4323,7 +4325,7 @@ dependencies = [
 [[package]]
 name = "tendermintx"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/tendermintx.git?branch=ratan/verify-chain-id#5ddcef6d7d7680e805f2a1817a9056654b7c37b2"
+source = "git+https://github.com/succinctlabs/tendermintx.git?branch=ratan/verify-chain-id#da970eb56eb8b6c6df62eb9a5f9738375544ded8"
 dependencies = [
  "alloy-primitives",
  "alloy-sol-types",

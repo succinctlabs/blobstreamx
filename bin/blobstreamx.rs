@@ -235,7 +235,7 @@ impl BlobstreamXOperator {
                             info!("Next header request submitted: {}", request_id);
 
                             // If in local mode, this will submit the request on-chain.
-                            let _ = self
+                            let res = self
                                 .client
                                 .relay_proof(
                                     request_id,
@@ -244,6 +244,9 @@ impl BlobstreamXOperator {
                                     None,
                                 )
                                 .await;
+                            if res.is_err() {
+                                error!("Relaying next header request failed: {:?}", res);
+                            }
                         }
                         Err(e) => {
                             error!("Next header request failed: {}", e);
@@ -257,7 +260,7 @@ impl BlobstreamXOperator {
                             info!("Header range request submitted: {}", request_id);
 
                             // If in local mode, this will submit the request on-chain.
-                            let _ = self
+                            let res = self
                                 .client
                                 .relay_proof(
                                     request_id,
@@ -266,6 +269,9 @@ impl BlobstreamXOperator {
                                     None,
                                 )
                                 .await;
+                            if res.is_err() {
+                                error!("Relaying header range request failed: {:?}", res);
+                            }
                         }
                         Err(e) => {
                             error!("Header range request failed: {}", e);
