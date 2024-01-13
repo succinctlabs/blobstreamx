@@ -32,7 +32,7 @@ type HeaderRangeInputTuple = sol! { tuple(uint64, bytes32, uint64) };
 struct BlobstreamXOperator {
     config: BlobstreamXConfig,
     ethereum_rpc_url: String,
-    wallet: LocalWallet,
+    wallet: Option<LocalWallet>,
     contract: BlobstreamX<Provider<Http>>,
     client: SuccinctClient,
     data_fetcher: InputDataFetcher,
@@ -45,9 +45,6 @@ impl BlobstreamXOperator {
         let ethereum_rpc_url = env::var("RPC_URL").expect("RPC_URL must be set");
         let provider = Provider::<Http>::try_from(ethereum_rpc_url.clone())
             .expect("could not connect to client");
-        let private_key =
-            env::var("PRIVATE_KEY").unwrap_or(String::from("0x00000000000000000000000000000000"));
-        let wallet = LocalWallet::from_str(&private_key).expect("invalid private key");
 
         let contract = BlobstreamX::new(config.address.0 .0, provider.into());
 
@@ -57,6 +54,20 @@ impl BlobstreamXOperator {
 
         let succinct_rpc_url = env::var("SUCCINCT_RPC_URL").expect("SUCCINCT_RPC_URL must be set");
         let succinct_api_key = env::var("SUCCINCT_API_KEY").expect("SUCCINCT_API_KEY must be set");
+
+        let private_key: Option<String>;
+        let wallet: Option<LocalWallet>;
+
+        if config.local_relay_mode {
+            // If true, set the variables with the required values
+            private_key = Some(env::var("PRIVATE_KEY").expect("PRIVATE_KEY must be set"));
+            wallet = Some(
+                LocalWallet::from_str(private_key.as_ref().unwrap()).expect("invalid private key"),
+            );
+        } else {
+            wallet = None;
+        }
+
         let client = SuccinctClient::new(
             succinct_rpc_url,
             succinct_api_key,
@@ -240,7 +251,7 @@ impl BlobstreamXOperator {
                                 .relay_proof(
                                     request_id,
                                     Some(self.ethereum_rpc_url.as_ref()),
-                                    Some(self.wallet.clone()),
+                                    self.wallet.clone(),
                                     None,
                                 )
                                 .await;
@@ -265,7 +276,7 @@ impl BlobstreamXOperator {
                                 .relay_proof(
                                     request_id,
                                     Some(self.ethereum_rpc_url.as_ref()),
-                                    Some(self.wallet.clone()),
+                                    self.wallet.clone(),
                                     None,
                                 )
                                 .await;
