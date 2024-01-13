@@ -89,6 +89,7 @@ mod tests {
     use ethers::types::H256;
     use plonky2x::prelude::{DefaultBuilder, GateRegistry, HintRegistry};
     use subtle_encoding::hex;
+    use tendermintx::config::{Mocha4Config, MOCHA_4_CHAIN_ID_SIZE_BYTES};
 
     use super::*;
 
@@ -104,20 +105,32 @@ mod tests {
         let mut builder = DefaultBuilder::new();
 
         log::debug!("Defining circuit");
-        CombinedSkipCircuit::<MAX_VALIDATOR_SET_SIZE, NB_MAP_JOBS, BATCH_SIZE>::define(
-            &mut builder,
-        );
+        CombinedSkipCircuit::<
+            MAX_VALIDATOR_SET_SIZE,
+            MOCHA_4_CHAIN_ID_SIZE_BYTES,
+            Mocha4Config,
+            NB_MAP_JOBS,
+            BATCH_SIZE,
+        >::define(&mut builder);
         let circuit = builder.build();
         log::debug!("Done building circuit");
 
         let mut hint_registry = HintRegistry::new();
         let mut gate_registry = GateRegistry::new();
-        CombinedSkipCircuit::<MAX_VALIDATOR_SET_SIZE, NB_MAP_JOBS, BATCH_SIZE>::register_generators(
-            &mut hint_registry,
-        );
-        CombinedSkipCircuit::<MAX_VALIDATOR_SET_SIZE, NB_MAP_JOBS, BATCH_SIZE>::register_gates(
-            &mut gate_registry,
-        );
+        CombinedSkipCircuit::<
+            MAX_VALIDATOR_SET_SIZE,
+            MOCHA_4_CHAIN_ID_SIZE_BYTES,
+            Mocha4Config,
+            NB_MAP_JOBS,
+            BATCH_SIZE,
+        >::register_generators(&mut hint_registry);
+        CombinedSkipCircuit::<
+            MAX_VALIDATOR_SET_SIZE,
+            MOCHA_4_CHAIN_ID_SIZE_BYTES,
+            Mocha4Config,
+            NB_MAP_JOBS,
+            BATCH_SIZE,
+        >::register_gates(&mut gate_registry);
 
         circuit.test_serializers(&gate_registry, &hint_registry);
     }
@@ -137,9 +150,13 @@ mod tests {
         let mut builder = DefaultBuilder::new();
 
         log::debug!("Defining circuit");
-        CombinedSkipCircuit::<MAX_VALIDATOR_SET_SIZE, NB_MAP_JOBS, BATCH_SIZE>::define(
-            &mut builder,
-        );
+        CombinedSkipCircuit::<
+            MAX_VALIDATOR_SET_SIZE,
+            MOCHA_4_CHAIN_ID_SIZE_BYTES,
+            Mocha4Config,
+            NB_MAP_JOBS,
+            BATCH_SIZE,
+        >::define(&mut builder);
 
         log::debug!("Building circuit");
         let circuit = builder.build();
