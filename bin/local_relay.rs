@@ -3,12 +3,10 @@
 use std::env;
 use std::str::FromStr;
 
-use alloy_primitives::{Address, Bytes, B256};
 use clap::Parser;
 use ethers::contract::abigen;
 use ethers::signers::LocalWallet;
 use log::info;
-use serde::{Deserialize, Serialize};
 use succinct_client::request::SuccinctClient;
 
 // Note: Update ABI when updating contract.
