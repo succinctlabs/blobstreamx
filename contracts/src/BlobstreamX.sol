@@ -10,12 +10,7 @@ import {ITendermintX} from "@tendermintx/interfaces/ITendermintX.sol";
 import {TimelockedUpgradeable} from "@succinctx/upgrades/TimelockedUpgradeable.sol";
 import {ISuccinctGateway} from "@succinctx/interfaces/ISuccinctGateway.sol";
 
-contract BlobstreamX is
-    ITendermintX,
-    IBlobstreamX,
-    IDAOracle,
-    TimelockedUpgradeable
-{
+contract BlobstreamX is ITendermintX, IBlobstreamX, IDAOracle, TimelockedUpgradeable {
     /// @notice The address of the gateway contract.
     address public gateway;
 
@@ -90,10 +85,7 @@ contract BlobstreamX is
         }
 
         // A request can be at most DATA_COMMITMENT_MAX blocks ahead of the latest block.
-        if (
-            _targetBlock <= latestBlock ||
-            _targetBlock - latestBlock > DATA_COMMITMENT_MAX
-        ) {
+        if (_targetBlock <= latestBlock || _targetBlock - latestBlock > DATA_COMMITMENT_MAX) {
             revert TargetBlockNotInRange();
         }
 
@@ -101,11 +93,7 @@ contract BlobstreamX is
             headerRangeFunctionId,
             abi.encodePacked(latestBlock, latestHeader, _targetBlock),
             address(this),
-            abi.encodeWithSelector(
-                this.commitHeaderRange.selector,
-                latestBlock,
-                _targetBlock
-            ),
+            abi.encodeWithSelector(this.commitHeaderRange.selector, latestBlock, _targetBlock),
             500000
         );
 
@@ -115,40 +103,24 @@ contract BlobstreamX is
     /// @notice Commits the new header at targetBlock and the data commitment for the block range [trustedBlock, targetBlock).
     /// @param _trustedBlock The latest block when the request was made.
     /// @param _targetBlock The end block of the header range request.
-    function commitHeaderRange(
-        uint64 _trustedBlock,
-        uint64 _targetBlock
-    ) external {
+    function commitHeaderRange(uint64 _trustedBlock, uint64 _targetBlock) external {
         bytes32 trustedHeader = blockHeightToHeaderHash[_trustedBlock];
         if (trustedHeader == bytes32(0)) {
             revert TrustedHeaderNotFound();
         }
 
         // Encode the circuit input.
-        bytes memory input = abi.encodePacked(
-            _trustedBlock,
-            trustedHeader,
-            _targetBlock
-        );
+        bytes memory input = abi.encodePacked(_trustedBlock, trustedHeader, _targetBlock);
 
         // Call gateway to get the proof result.
-        bytes memory requestResult = ISuccinctGateway(gateway).verifiedCall(
-            headerRangeFunctionId,
-            input
-        );
+        bytes memory requestResult = ISuccinctGateway(gateway).verifiedCall(headerRangeFunctionId, input);
 
         // Read the target header and data commitment from request result.
         // Note: Don't need implementation of decodePacked because abi.encode(bytes32, bytes32)
         //  is the same as abi.encodePacked(bytes32, bytes32).
-        (bytes32 targetHeader, bytes32 dataCommitment) = abi.decode(
-            requestResult,
-            (bytes32, bytes32)
-        );
+        (bytes32 targetHeader, bytes32 dataCommitment) = abi.decode(requestResult, (bytes32, bytes32));
 
-        if (
-            _targetBlock <= latestBlock ||
-            _targetBlock - latestBlock > DATA_COMMITMENT_MAX
-        ) {
+        if (_targetBlock <= latestBlock || _targetBlock - latestBlock > DATA_COMMITMENT_MAX) {
             revert TargetBlockNotInRange();
         }
 
@@ -158,12 +130,7 @@ contract BlobstreamX is
 
         emit HeadUpdate(_targetBlock, targetHeader);
 
-        emit DataCommitmentStored(
-            state_proofNonce,
-            _trustedBlock,
-            _targetBlock,
-            dataCommitment
-        );
+        emit DataCommitmentStored(state_proofNonce, _trustedBlock, _targetBlock, dataCommitment);
 
         state_proofNonce++;
         latestBlock = _targetBlock;
@@ -199,16 +166,10 @@ contract BlobstreamX is
         bytes memory input = abi.encodePacked(_trustedBlock, trustedHeader);
 
         // Call gateway to get the proof result.
-        bytes memory requestResult = ISuccinctGateway(gateway).verifiedCall(
-            nextHeaderFunctionId,
-            input
-        );
+        bytes memory requestResult = ISuccinctGateway(gateway).verifiedCall(nextHeaderFunctionId, input);
 
         // Read the new header and data commitment from request result.
-        (bytes32 nextHeader, bytes32 dataCommitment) = abi.decode(
-            requestResult,
-            (bytes32, bytes32)
-        );
+        (bytes32 nextHeader, bytes32 dataCommitment) = abi.decode(requestResult, (bytes32, bytes32));
 
         uint64 nextBlock = _trustedBlock + 1;
         if (nextBlock <= latestBlock) {
@@ -222,12 +183,7 @@ contract BlobstreamX is
 
         emit HeadUpdate(nextBlock, nextHeader);
 
-        emit DataCommitmentStored(
-            state_proofNonce,
-            _trustedBlock,
-            nextBlock,
-            dataCommitment
-        );
+        emit DataCommitmentStored(state_proofNonce, _trustedBlock, nextBlock, dataCommitment);
 
         state_proofNonce++;
         latestBlock = nextBlock;
@@ -239,11 +195,11 @@ contract BlobstreamX is
     }
 
     /// @dev See "./IDAOracle.sol"
-    function verifyAttestation(
-        uint256 _proofNonce,
-        DataRootTuple memory _tuple,
-        BinaryMerkleProof memory _proof
-    ) external view returns (bool) {
+    function verifyAttestation(uint256 _proofNonce, DataRootTuple memory _tuple, BinaryMerkleProof memory _proof)
+        external
+        view
+        returns (bool)
+    {
         // Note: state_proofNonce slightly differs from Blobstream.sol because it is incremented
         //   after each commit.
         if (_proofNonce >= state_proofNonce) {
@@ -254,11 +210,7 @@ contract BlobstreamX is
         bytes32 root = state_dataCommitments[_proofNonce];
 
         // Verify the proof.
-        bool isProofValid = BinaryMerkleTree.verify(
-            root,
-            _proof,
-            abi.encode(_tuple)
-        );
+        bool isProofValid = BinaryMerkleTree.verify(root, _proof, abi.encode(_tuple));
 
         return isProofValid;
     }

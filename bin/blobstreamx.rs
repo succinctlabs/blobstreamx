@@ -155,13 +155,20 @@ impl BlobstreamXOperator {
     }
 
     async fn run(&self) {
+        info!("Starting BlobstreamX operator");
         // Check every 20 minutes.
         // Note: This should be longer than the time to generate a proof to avoid concurrent proof
         // requests.
         const LOOP_DELAY: u64 = 20;
 
-        // Attempt to update the contract if it is more than 60 minutes (300 blocks) behind.
-        const POST_DELAY_BLOCKS: u64 = 60 * 5;
+        let post_delay_minutes = env::var("POST_DELAY_MINUTES")
+            .expect("POST_DELAY_MINUTES must be set")
+            .parse::<u64>()
+            .expect("invalid POST_DELAY_MINUTES");
+
+        // Attempt to update the contract if it is more than post_delay_minutes behind the head of
+        // the chain.
+        let post_delay_blocks = post_delay_minutes * 5;
 
         info!("Starting BlobstreamX operator");
 
@@ -174,6 +181,7 @@ impl BlobstreamXOperator {
 
         loop {
             let current_block = self.contract.latest_block().await.unwrap();
+            info!("The latest block stored the contract is: {}", current_block);
 
             // Get the head of the chain.
             let latest_signed_header = self.data_fetcher.get_latest_signed_header().await;
@@ -182,8 +190,11 @@ impl BlobstreamXOperator {
             // Subtract 5 blocks to account for the time it takes for a block to be processed by
             // consensus.
             let latest_stable_block = latest_block - 5;
+            info!("The latest stable block is: {}", latest_stable_block);
 
-            if latest_stable_block - current_block >= POST_DELAY_BLOCKS {
+            let delay = latest_stable_block - current_block;
+
+            if delay >= post_delay_blocks {
                 // The block with the greatest height that the contract can step to.
                 let max_end_block =
                     std::cmp::min(latest_stable_block, current_block + header_range_max);
@@ -216,6 +227,8 @@ impl BlobstreamXOperator {
                         }
                     };
                 }
+            } else {
+                info!("The delay between the contract and the chain is {}, less than set delay of {} blocks. Sleeping.", delay, post_delay_blocks);
             }
 
             tokio::time::sleep(tokio::time::Duration::from_secs(60 * LOOP_DELAY)).await;
