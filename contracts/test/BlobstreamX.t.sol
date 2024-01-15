@@ -16,10 +16,7 @@ contract BlobstreamXTest is Test {
 
         bytes memory encodedInput = abi.encode(header, header);
         bytes memory packedEncodedInput = abi.encodePacked(header, header);
-        require(
-            keccak256(encodedInput) == keccak256(packedEncodedInput),
-            "packed matches"
-        );
+        require(keccak256(encodedInput) == keccak256(packedEncodedInput), "packed matches");
     }
 
     function testGetEncodePackedNextHeader() public view {
@@ -35,11 +32,7 @@ contract BlobstreamXTest is Test {
         uint64 height = 10000;
         bytes32 header = hex"A0123D5E4B8B8888A61F931EE2252D83568B97C223E0ECA9795B29B8BD8CBA2D";
         uint64 requestedHeight = 10004;
-        bytes memory encodedInput = abi.encodePacked(
-            height,
-            header,
-            requestedHeight
-        );
+        bytes memory encodedInput = abi.encodePacked(height, header, requestedHeight);
         console.logBytes(encodedInput);
     }
 }
