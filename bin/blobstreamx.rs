@@ -170,8 +170,6 @@ impl BlobstreamXOperator {
         // the chain.
         let post_delay_blocks = post_delay_minutes * 5;
 
-        info!("Starting BlobstreamX operator");
-
         let header_range_max = self.contract.data_commitment_max().await.unwrap();
 
         // Something is wrong with the contract if this is true.
