@@ -4325,7 +4325,7 @@ dependencies = [
 [[package]]
 name = "tendermintx"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/tendermintx.git?branch=ratan/verify-chain-id#da970eb56eb8b6c6df62eb9a5f9738375544ded8"
+source = "git+https://github.com/succinctlabs/tendermintx.git#cc9544454a3f82224d91826fbd72d1d4fbe0e545"
 dependencies = [
  "alloy-primitives",
  "alloy-sol-types",
