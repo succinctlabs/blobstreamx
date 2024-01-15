@@ -6,7 +6,7 @@
             "framework": "plonky2x",
             "baseDir": ".",
             "buildCommand": "mkdir -p build && RUST_LOG=debug cargo run --bin data_commitment --release build && mv ./target/release/data_commitment ./build/data_commitment",
-            "proveCommand": "RUST_LOG=info ./build/data_commitment prove input.json",
+            "proveCommand": "RUST_LOG=debug ./build/data_commitment prove input.json",
             "requiredArtifacts": [
                 "data_commitment"
             ]
@@ -16,14 +16,14 @@
             "framework": "plonky2x",
             "baseDir": ".",
             "buildCommand": "mkdir -p build && RUST_LOG=debug cargo run --bin next_header --release build && mv ./target/release/next_header ./build/next_header",
-            "proveCommand": "RUST_LOG=info ./build/next_header prove input.json"
+            "proveCommand": "RUST_LOG=debug ./build/next_header prove input.json"
         },
         {
             "name": "header_range",
             "framework": "plonky2x",
             "baseDir": ".",
             "buildCommand": "mkdir -p build && RUST_LOG=debug cargo run --bin header_range --release build && mv ./target/release/header_range ./build/header_range",
-            "proveCommand": "RUST_LOG=info ./build/header_range prove input.json",
+            "proveCommand": "RUST_LOG=debug ./build/header_range prove input.json",
             "requiredArtifacts": [
                 "header_range"
             ]

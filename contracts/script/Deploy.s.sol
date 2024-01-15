@@ -16,7 +16,8 @@ contract DeployScript is Script {
         uint64 height = uint64(vm.envUint("GENESIS_HEIGHT"));
         bytes32 header = vm.envBytes32("GENESIS_HEADER");
 
-        address gateway = 0x6e4f1e9eA315EBFd69d18C2DB974EEf6105FB803;
+        address gateway = vm.envAddress("GATEWAY_ADDRESS");
+        address guardian = msg.sender;
 
         bytes32 CREATE2_SALT = bytes32(vm.envBytes("CREATE2_SALT"));
 
@@ -29,7 +30,7 @@ contract DeployScript is Script {
 
         lightClient.initialize(
             BlobstreamX.InitParameters({
-                guardian: vm.envAddress("GUARDIAN"),
+                guardian: guardian,
                 gateway: gateway,
                 height: height,
                 header: header,
