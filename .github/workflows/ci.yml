@@ -16,10 +16,6 @@ jobs:
     runs-on: buildjet-32vcpu-ubuntu-2204
     if: "! contains(toJSON(github.event.commits.*.message), '[skip-ci]')"
     steps:
-      - uses: webfactory/ssh-agent@v0.8.0
-        with:
-          ssh-private-key: ${{ secrets.TENDERMINTX_DEPLOY_KEY }}
-
       - uses: actions/checkout@v3
         with:
           submodules: recursive
