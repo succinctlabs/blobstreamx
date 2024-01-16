@@ -668,9 +668,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.4.17"
+version = "4.4.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "80932e03c33999b9235edb8655bc9df3204adc9887c2f95b50cb1deb9fd54253"
+checksum = "1e578d6ec4194633722ccf9544794b71b1385c3c027efe0c55db226fc880865c"
 dependencies = [
  "clap_builder",
  "clap_derive",
@@ -678,9 +678,9 @@ dependencies = [
 
 [[package]]
 name = "clap_builder"
-version = "4.4.17"
+version = "4.4.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d6c0db58c659eef1c73e444d298c27322a1b52f6927d2ad470c0c0f96fa7b8fa"
+checksum = "4df4df40ec50c46000231c914968278b1eb05098cf8f1b3a518a95030e71d1c7"
 dependencies = [
  "anstream",
  "anstyle",
@@ -3061,7 +3061,7 @@ source = "git+https://github.com/mir-protocol/plonky2.git?rev=2d36559d#2d36559da
 [[package]]
 name = "plonky2x"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git#a2a929c57497fe53aeb4de8d03e2df2388b817a8"
+source = "git+https://github.com/succinctlabs/succinctx.git#3a074efa7fc495cba818d04468eee5ff106e3500"
 dependencies = [
  "anyhow",
  "array-macro",
@@ -3103,7 +3103,7 @@ dependencies = [
 [[package]]
 name = "plonky2x-derive"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git#a2a929c57497fe53aeb4de8d03e2df2388b817a8"
+source = "git+https://github.com/succinctlabs/succinctx.git#3a074efa7fc495cba818d04468eee5ff106e3500"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4152,7 +4152,7 @@ checksum = "734676eb262c623cec13c3155096e08d1f8f29adce39ba17948b18dad1e54142"
 [[package]]
 name = "succinct-client"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git#a2a929c57497fe53aeb4de8d03e2df2388b817a8"
+source = "git+https://github.com/succinctlabs/succinctx.git#3a074efa7fc495cba818d04468eee5ff106e3500"
 dependencies = [
  "alloy-primitives",
  "anyhow",
@@ -4310,7 +4310,7 @@ dependencies = [
 [[package]]
 name = "tendermintx"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/tendermintx.git#cc9544454a3f82224d91826fbd72d1d4fbe0e545"
+source = "git+https://github.com/succinctlabs/tendermintx.git#797cdafe5cab971fae41f8277bcc147f62faae8f"
 dependencies = [
  "alloy-primitives",
  "alloy-sol-types",
