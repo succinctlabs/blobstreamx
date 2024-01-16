@@ -49,3 +49,16 @@ In `/`, run
 ```
 cargo run --bin blobstreamx --release
 ```
+
+## Local Proving & Relaying
+To enable local proving & local relaying of proofs, simply add the following to your `.env`:
+```
+LOCAL_PROVE_MODE=true
+LOCAL_RELAY_MODE=true
+
+# Add the path to each proving key binary
+PROVE_BINARY_0xFILL_IN_NEXT_HEADER_FUNCTION_ID=
+PROVE_BINARY_0xFILL_IN_HEADER_RANGE_FUNCTION_ID=
+WRAPPER_BINARY=
+```
+

@@ -58,7 +58,7 @@ pub struct DataCommitmentCircuit<const NB_MAP_JOBS: usize, const BATCH_SIZE: usi
 impl<const NB_MAP_JOBS: usize, const BATCH_SIZE: usize> Circuit
     for DataCommitmentCircuit<NB_MAP_JOBS, BATCH_SIZE>
 {
-    fn define<L: PlonkParameters<D>, const D: usize>(builder: &mut CircuitBuilder<L, D>) where <<L as plonky2x::prelude::PlonkParameters<D>>::Config as plonky2::plonk::config::GenericConfig<D>>::Hasher: plonky2::plonk::config::AlgebraicHasher<<L as plonky2x::prelude::PlonkParameters<D>>::Field>{
+    fn define<L: PlonkParameters<D>, const D: usize>(builder: &mut CircuitBuilder<L, D>) where <<L as plonky2x::prelude::PlonkParameters<D>>::Config as plonky2x::prelude::plonky2::plonk::config::GenericConfig<D>>::Hasher: plonky2x::prelude::plonky2::plonk::config::AlgebraicHasher<<L as plonky2x::prelude::PlonkParameters<D>>::Field>{
         let start_block_number = builder.evm_read::<U64Variable>();
         let start_header_hash = builder.evm_read::<Bytes32Variable>();
         let end_block_number = builder.evm_read::<U64Variable>();
@@ -77,8 +77,8 @@ impl<const NB_MAP_JOBS: usize, const BATCH_SIZE: usize> Circuit
     fn register_generators<L: PlonkParameters<D>, const D: usize>(
         generator_registry: &mut plonky2x::prelude::HintRegistry<L, D>,
     ) where
-        <<L as PlonkParameters<D>>::Config as plonky2::plonk::config::GenericConfig<D>>::Hasher:
-            plonky2::plonk::config::AlgebraicHasher<L::Field>,
+    <<L as PlonkParameters<D>>::Config as plonky2x::prelude::plonky2::plonk::config::GenericConfig<D>>::Hasher:
+    plonky2x::prelude::plonky2::plonk::config::AlgebraicHasher<L::Field>,
     {
         generator_registry.register_async_hint::<DataCommitmentOffchainInputs<BATCH_SIZE>>();
 

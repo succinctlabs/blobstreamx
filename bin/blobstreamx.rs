@@ -1,4 +1,5 @@
 use std::env;
+use std::str::FromStr;
 
 use alloy_primitives::{Address, Bytes, B256};
 use alloy_sol_types::{sol, SolType};
@@ -6,6 +7,7 @@ use anyhow::Result;
 use ethers::abi::AbiEncode;
 use ethers::contract::abigen;
 use ethers::providers::{Http, Provider};
+use ethers::signers::LocalWallet;
 use log::{error, info};
 use subtle_encoding::hex;
 use succinct_client::request::SuccinctClient;
@@ -19,6 +21,8 @@ struct BlobstreamXConfig {
     chain_id: u32,
     next_header_function_id: B256,
     header_range_function_id: B256,
+    local_prove_mode: bool,
+    local_relay_mode: bool,
 }
 
 type NextHeaderInputTuple = sol! { tuple(uint64, bytes32) };
@@ -27,6 +31,8 @@ type HeaderRangeInputTuple = sol! { tuple(uint64, bytes32, uint64) };
 
 struct BlobstreamXOperator {
     config: BlobstreamXConfig,
+    ethereum_rpc_url: String,
+    wallet: Option<LocalWallet>,
     contract: BlobstreamX<Provider<Http>>,
     client: SuccinctClient,
     data_fetcher: InputDataFetcher,
@@ -37,8 +43,8 @@ impl BlobstreamXOperator {
         let config = Self::get_config();
 
         let ethereum_rpc_url = env::var("RPC_URL").expect("RPC_URL must be set");
-        let provider =
-            Provider::<Http>::try_from(ethereum_rpc_url).expect("could not connect to client");
+        let provider = Provider::<Http>::try_from(ethereum_rpc_url.clone())
+            .expect("could not connect to client");
 
         let contract = BlobstreamX::new(config.address.0 .0, provider.into());
 
@@ -48,10 +54,31 @@ impl BlobstreamXOperator {
 
         let succinct_rpc_url = env::var("SUCCINCT_RPC_URL").expect("SUCCINCT_RPC_URL must be set");
         let succinct_api_key = env::var("SUCCINCT_API_KEY").expect("SUCCINCT_API_KEY must be set");
-        let client = SuccinctClient::new(succinct_rpc_url, succinct_api_key);
+
+        let private_key: Option<String>;
+        let wallet: Option<LocalWallet>;
+
+        if config.local_relay_mode {
+            // If true, set the variables with the required values
+            private_key = Some(env::var("PRIVATE_KEY").expect("PRIVATE_KEY must be set"));
+            wallet = Some(
+                LocalWallet::from_str(private_key.as_ref().unwrap()).expect("invalid private key"),
+            );
+        } else {
+            wallet = None;
+        }
+
+        let client = SuccinctClient::new(
+            succinct_rpc_url,
+            succinct_api_key,
+            config.local_prove_mode,
+            config.local_relay_mode,
+        );
 
         Self {
             config,
+            ethereum_rpc_url,
+            wallet,
             contract,
             client,
             data_fetcher,
@@ -64,6 +91,14 @@ impl BlobstreamXOperator {
         let address = contract_address
             .parse::<Address>()
             .expect("invalid address");
+
+        // Local prove mode and local relay mode are optional and default to false.
+        let local_prove_mode: String =
+            env::var("LOCAL_PROVE_MODE").unwrap_or(String::from("false"));
+        let local_prove_mode_bool = local_prove_mode.parse::<bool>().unwrap();
+        let local_relay_mode: String =
+            env::var("LOCAL_RELAY_MODE").unwrap_or(String::from("false"));
+        let local_relay_mode_bool = local_relay_mode.parse::<bool>().unwrap();
 
         // Load the function IDs.
         let next_header_id_env =
@@ -92,6 +127,8 @@ impl BlobstreamXOperator {
             chain_id: chain_id.parse::<u32>().expect("invalid chain id"),
             next_header_function_id,
             header_range_function_id,
+            local_prove_mode: local_prove_mode_bool,
+            local_relay_mode: local_relay_mode_bool,
         }
     }
 
@@ -109,7 +146,7 @@ impl BlobstreamXOperator {
 
         let request_id = self
             .client
-            .submit_platform_request(
+            .submit_request(
                 self.config.chain_id,
                 self.config.address,
                 function_data.into(),
@@ -142,7 +179,7 @@ impl BlobstreamXOperator {
 
         let request_id = self
             .client
-            .submit_platform_request(
+            .submit_request(
                 self.config.chain_id,
                 self.config.address,
                 function_data.into(),
@@ -206,7 +243,21 @@ impl BlobstreamXOperator {
                     // Request the next header if the target block is the next block.
                     match self.request_next_header(current_block).await {
                         Ok(request_id) => {
-                            info!("Next header request submitted: {}", request_id)
+                            info!("Next header request submitted: {}", request_id);
+
+                            // If in local mode, this will submit the request on-chain.
+                            let res = self
+                                .client
+                                .relay_proof(
+                                    request_id,
+                                    Some(self.ethereum_rpc_url.as_ref()),
+                                    self.wallet.clone(),
+                                    None,
+                                )
+                                .await;
+                            if res.is_err() {
+                                error!("Relaying next header request failed: {:?}", res);
+                            }
                         }
                         Err(e) => {
                             error!("Next header request failed: {}", e);
@@ -217,7 +268,21 @@ impl BlobstreamXOperator {
                     // Request a header range if the target block is not the next block.
                     match self.request_header_range(current_block, target_block).await {
                         Ok(request_id) => {
-                            info!("Header range request submitted: {}", request_id)
+                            info!("Header range request submitted: {}", request_id);
+
+                            // If in local mode, this will submit the request on-chain.
+                            let res = self
+                                .client
+                                .relay_proof(
+                                    request_id,
+                                    Some(self.ethereum_rpc_url.as_ref()),
+                                    self.wallet.clone(),
+                                    None,
+                                )
+                                .await;
+                            if res.is_err() {
+                                error!("Relaying header range request failed: {:?}", res);
+                            }
                         }
                         Err(e) => {
                             error!("Header range request failed: {}", e);
