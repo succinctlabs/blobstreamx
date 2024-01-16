@@ -68,4 +68,3 @@ tendermintx = { git = "https://github.com/succinctlabs/tendermintx.git" }
 async-trait = "0.1.73"
 alloy-sol-types = "0.4.2"
 alloy-primitives = "0.4.2"
-regex = "1.10.2"

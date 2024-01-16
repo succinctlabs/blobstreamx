@@ -507,7 +507,6 @@ dependencies = [
  "num",
  "plonky2x",
  "rand",
- "regex",
  "reqwest",
  "serde",
  "serde_json",
