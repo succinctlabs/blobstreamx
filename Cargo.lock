@@ -2423,9 +2423,9 @@ dependencies = [
 
 [[package]]
 name = "linux-raw-sys"
-version = "0.4.12"
+version = "0.4.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c4cd1a83af159aa67994778be9070f0ae1bd732942279cabb14f86f986a21456"
+checksum = "01cda141df6706de531b6c46c3a33ecca755538219bd484262fa09410c13539c"
 
 [[package]]
 name = "lock_api"
@@ -4310,7 +4310,7 @@ dependencies = [
 [[package]]
 name = "tendermintx"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/tendermintx.git#c78ae3065972f4fa22abc6821ab1a172da68f4ce"
+source = "git+https://github.com/succinctlabs/tendermintx.git#477c70453f38b44568b4f7a0be81c28ef27b4271"
 dependencies = [
  "alloy-primitives",
  "alloy-sol-types",
