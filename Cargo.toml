@@ -7,6 +7,10 @@ edition = "2021"
 path = "circuits/lib.rs"
 
 [[bin]]
+name = "local_relay"
+path = "bin/local_relay.rs"
+
+[[bin]]
 name = "next_header"
 path = "bin/next_header.rs"
 
