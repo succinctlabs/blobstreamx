@@ -42,6 +42,8 @@ pub trait DataCommitmentInputs {
     );
 }
 
+const MAX_NUM_RETRIES: usize = 5;
+
 #[async_trait]
 impl DataCommitmentInputs for InputDataFetcher {
     async fn get_data_commitment(&self, start_block: u64, end_block: u64) -> [u8; 32] {
@@ -57,16 +59,15 @@ impl DataCommitmentInputs for InputDataFetcher {
             start_block.to_string().as_str(),
             end_block.to_string().as_str()
         );
+        let query_url = format!(
+            "{}/data_commitment?start={}&end={}",
+            self.url,
+            start_block.to_string().as_str(),
+            end_block.to_string().as_str()
+        );
         let fetched_result = match &self.mode {
             InputDataMode::Rpc => {
-                let query_url = format!(
-                    "{}/data_commitment?start={}&end={}",
-                    self.url,
-                    start_block.to_string().as_str(),
-                    end_block.to_string().as_str()
-                );
-                info!("Querying url: {}", query_url);
-                let res = reqwest::get(query_url).await.unwrap().text().await.unwrap();
+                let res = self.request_from_rpc(&query_url, MAX_NUM_RETRIES).await;
                 if self.save {
                     // Ensure the directory exists
                     if let Some(parent) = Path::new(&file_name).parent() {
