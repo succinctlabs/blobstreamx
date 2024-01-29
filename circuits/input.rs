@@ -42,6 +42,8 @@ pub trait DataCommitmentInputs {
     );
 }
 
+const MAX_NUM_RETRIES: usize = 5;
+
 #[async_trait]
 impl DataCommitmentInputs for InputDataFetcher {
     async fn get_data_commitment(&self, start_block: u64, end_block: u64) -> [u8; 32] {
