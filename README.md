@@ -26,9 +26,9 @@ The circuits are currently available on Succinct X [here](https://alpha.succinct
 
 Blobstream X is currently deployed for Celestia Mainnet on Sepolia [here](https://sepolia.etherscan.io/address/0x48B257EC1610d04191cC2c528d0c940AdbE1E439#events).
 
-# Run Blobstream X Operator
+## Run Blobstream X Operator
 
-## Operator with Hosted Proving
+### Operator with Hosted Proving
 
 Add env variables to `.env`, following `.env.example`.
 
@@ -40,7 +40,7 @@ In `/`, run
 cargo run --bin blobstreamx --release
 ```
 
-## Local Proving & Relaying
+### Local Proving & Relaying
 
 To enable local proving & local relaying of proofs with the Blobstream X operator, download the proving binaries by following the instructions [here](https://hackmd.io/Q6CsiGOjTrCjD7UCAgiDBA#Download-artifacts).
 
@@ -56,7 +56,7 @@ PROVE_BINARY_0xFILL_IN_HEADER_RANGE_FUNCTION_ID=
 WRAPPER_BINARY=
 ```
 
-### Relay an Existing Proof
+#### Relay an Existing Proof
 
 If you want to relay an existing proof in `/proofs`, run the following command:
 
@@ -64,7 +64,7 @@ If you want to relay an existing proof in `/proofs`, run the following command:
 cargo run --bin local_relay --release -- --request-id {REQUEST_ID}
 ```
 
-# Deploy Blobstream X Contract
+## Deploy Blobstream X Contract
 
 Get the genesis parameters for a `BlobstreamX` contract from a specific Celestia block.
 
