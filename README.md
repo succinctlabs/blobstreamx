@@ -30,7 +30,7 @@ Blobstream X is currently deployed for Celestia Mainnet on Sepolia [here](https:
 
 ### Operator with Hosted Proving
 
-Add env variables to `.env`, following `.env.example`.
+Add env variables to `.env`, following the `.env.example`. You do not need to fill out the local configuration, unless you're planning on doing local proving.
 
 Run `BlobstreamX` script to request updates to the specified light client continuously. For the cadence of requesting updates, update `LOOP_DELAY_MINUTES`.
 
@@ -57,6 +57,8 @@ WRAPPER_BINARY=
 ```
 
 #### Relay an Existing Proof
+
+Add env variables to `.env`, following the `.env.example`.
 
 If you want to relay an existing proof in `/proofs`, run the following command:
 
