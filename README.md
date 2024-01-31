@@ -24,7 +24,7 @@ This is rarely used, as `nextHeader` will only be invoked when the validator set
 
 The circuits are currently available on Succinct X [here](https://alpha.succinct.xyz/celestia/blobstreamx/releases).
 
-Blobstream X is currently deployed for Celestia Mainnet on Sepolia [here](https://goerli.etherscan.io/address/0x046120E6c6C48C05627FB369756F5f44858950a5#events).
+Blobstream X is currently deployed for Celestia Mainnet on Sepolia [here](https://sepolia.etherscan.io/address/0x48B257EC1610d04191cC2c528d0c940AdbE1E439#events).
 
 # Run Blobstream X Operator
 
@@ -50,7 +50,7 @@ Then, simply add the following to your `.env`:
 LOCAL_PROVE_MODE=true
 LOCAL_RELAY_MODE=true
 
-# Add the path to each binary (ex. blobstream-artifacts/header_range)
+# Add the path to each binary (ex. PROVE_BINARY_0x6d...=blobstream-artifacts/header_range)
 PROVE_BINARY_0xFILL_IN_NEXT_HEADER_FUNCTION_ID=
 PROVE_BINARY_0xFILL_IN_HEADER_RANGE_FUNCTION_ID=
 WRAPPER_BINARY=
@@ -66,7 +66,7 @@ cargo run --bin local_relay --release -- --request-id {REQUEST_ID}
 
 # Deploy Blobstream X Contract
 
-Get the genesis parameters for the `BlobstreamX` contract with a specific Celestia block (with no input defaults to block 1).
+Get the genesis parameters for a `BlobstreamX` contract from a specific Celestia block.
 
 ```
 cargo run --bin genesis -- --block 100
