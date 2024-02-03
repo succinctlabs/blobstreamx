@@ -6,11 +6,13 @@ import "@blobstream/lib/tree/binary/BinaryMerkleTree.sol";
 
 import {IBlobstreamX} from "./interfaces/IBlobstreamX.sol";
 import {IDAOracle} from "@blobstream/IDAOracle.sol";
-import {ITendermintX} from "@tendermintx/interfaces/ITendermintX.sol";
 import {TimelockedUpgradeable} from "@succinctx/upgrades/TimelockedUpgradeable.sol";
 import {ISuccinctGateway} from "@succinctx/interfaces/ISuccinctGateway.sol";
 
-contract BlobstreamX is ITendermintX, IBlobstreamX, IDAOracle, TimelockedUpgradeable {
+contract BlobstreamX is IBlobstreamX, IDAOracle, TimelockedUpgradeable {
+    /// @notice Indicator of if the contract is frozen.
+    bool public frozen;
+
     /// @notice The address of the gateway contract.
     address public gateway;
 
@@ -45,10 +47,16 @@ contract BlobstreamX is ITendermintX, IBlobstreamX, IDAOracle, TimelockedUpgrade
         bytes32 headerRangeFunctionId;
     }
 
+    function VERSION() external pure override returns (string memory) {
+        return "0.1.0";
+    }
+
     /// @dev Initializes the contract.
     /// @param _params The initialization parameters.
     function initialize(InitParameters calldata _params) external initializer {
         __TimelockedUpgradeable_init(_params.guardian, _params.guardian);
+
+        frozen = false;
 
         gateway = _params.gateway;
 
@@ -60,19 +68,9 @@ contract BlobstreamX is ITendermintX, IBlobstreamX, IDAOracle, TimelockedUpgrade
         state_proofNonce = 1;
     }
 
-    /// @notice Update the address of the gateway contract.
-    function updateGateway(address _gateway) external onlyGuardian {
-        gateway = _gateway;
-    }
-
-    /// @notice Update the function ID for header range.
-    function updateHeaderRangeId(bytes32 _functionId) external onlyGuardian {
-        headerRangeFunctionId = _functionId;
-    }
-
-    /// @notice Update the function ID for next header.
-    function updateNextHeaderId(bytes32 _functionId) external onlyGuardian {
-        nextHeaderFunctionId = _functionId;
+    /// @notice Update the freeze parameter.
+    function updateFreeze(bool _freeze) external override onlyGuardian {
+        frozen = _freeze;
     }
 
     /// @notice Prove the validity of the header at the target block and a data commitment for the block range [latestBlock, _targetBlock).
@@ -104,6 +102,10 @@ contract BlobstreamX is ITendermintX, IBlobstreamX, IDAOracle, TimelockedUpgrade
     /// @param _trustedBlock The latest block when the request was made.
     /// @param _targetBlock The end block of the header range request.
     function commitHeaderRange(uint64 _trustedBlock, uint64 _targetBlock) external {
+        if (frozen) {
+            revert ContractFrozen();
+        }
+
         bytes32 trustedHeader = blockHeightToHeaderHash[_trustedBlock];
         if (trustedHeader == bytes32(0)) {
             revert TrustedHeaderNotFound();
@@ -158,6 +160,10 @@ contract BlobstreamX is ITendermintX, IBlobstreamX, IDAOracle, TimelockedUpgrade
     /// @notice Stores the new header for _trustedBlock + 1 and the data commitment for the block range [_trustedBlock, _trustedBlock + 1).
     /// @param _trustedBlock The latest block when the request was made.
     function commitNextHeader(uint64 _trustedBlock) external {
+        if (frozen) {
+            revert ContractFrozen();
+        }
+
         bytes32 trustedHeader = blockHeightToHeaderHash[_trustedBlock];
         if (trustedHeader == bytes32(0)) {
             revert TrustedHeaderNotFound();
