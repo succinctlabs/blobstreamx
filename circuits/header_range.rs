@@ -210,11 +210,11 @@ mod tests {
 
     #[test]
     #[cfg_attr(feature = "ci", ignore)]
-    fn test_header_range_large() {
+    fn test_header_range_medium() {
         // Test variable length NUM_BLOCKS.
-        const MAX_VALIDATOR_SET_SIZE: usize = 100;
-        const NB_MAP_JOBS: usize = 16;
-        const BATCH_SIZE: usize = 64;
+        const MAX_VALIDATOR_SET_SIZE: usize = 32;
+        const NB_MAP_JOBS: usize = 8;
+        const BATCH_SIZE: usize = 32;
 
         // These blocks are on Mocha-4 testnet.
         let start_block = 500u64;
@@ -235,11 +235,11 @@ mod tests {
 
     #[test]
     #[cfg_attr(feature = "ci", ignore)]
-    fn test_header_range_medium() {
+    fn test_header_range_large() {
         // Test variable length NUM_BLOCKS.
-        const MAX_VALIDATOR_SET_SIZE: usize = 32;
-        const NB_MAP_JOBS: usize = 8;
-        const BATCH_SIZE: usize = 32;
+        const MAX_VALIDATOR_SET_SIZE: usize = 100;
+        const NB_MAP_JOBS: usize = 16;
+        const BATCH_SIZE: usize = 64;
 
         // These blocks are on Mocha-4 testnet.
         let start_block = 500u64;
