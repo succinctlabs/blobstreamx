@@ -24,7 +24,7 @@ pub async fn main() {
     env::set_var("RUST_LOG", "info");
     dotenv::dotenv().ok();
     env_logger::init();
-    let data_fetcher = InputDataFetcher {
+    let mut data_fetcher = InputDataFetcher {
         save: true,
         fixture_path: "./fixtures/celestia".to_string(),
         ..Default::default()

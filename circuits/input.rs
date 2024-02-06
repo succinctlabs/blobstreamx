@@ -26,7 +26,7 @@ pub struct DataCommitment {
 
 #[async_trait]
 pub trait DataCommitmentInputs {
-    async fn get_data_commitment(&self, start_block: u64, end_block: u64) -> [u8; 32];
+    async fn get_data_commitment(&mut self, start_block: u64, end_block: u64) -> [u8; 32];
 
     async fn get_data_commitment_inputs<const MAX_LEAVES: usize, F: RichField>(
         &mut self,
@@ -46,7 +46,7 @@ const MAX_NUM_RETRIES: usize = 3;
 
 #[async_trait]
 impl DataCommitmentInputs for InputDataFetcher {
-    async fn get_data_commitment(&self, start_block: u64, end_block: u64) -> [u8; 32] {
+    async fn get_data_commitment(&mut self, start_block: u64, end_block: u64) -> [u8; 32] {
         // If start_block == end_block, then return a dummy commitment.
         // This will occur in the context of data commitment's map reduce when leaves that contain blocks beyond the end_block.
         if end_block <= start_block {

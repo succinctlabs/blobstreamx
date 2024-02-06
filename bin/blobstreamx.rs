@@ -189,7 +189,7 @@ impl BlobstreamXOperator {
         Ok(request_id)
     }
 
-    async fn run(&self) {
+    async fn run(&mut self) {
         info!("Starting BlobstreamX operator");
         // Check every 20 minutes.
         // Note: This should be longer than the time to generate a proof to avoid concurrent proof
@@ -303,6 +303,6 @@ async fn main() {
     dotenv::dotenv().ok();
     env_logger::init();
 
-    let operator = BlobstreamXOperator::new();
+    let mut operator = BlobstreamXOperator::new();
     operator.run().await;
 }
