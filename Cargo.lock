@@ -4321,7 +4321,7 @@ dependencies = [
 [[package]]
 name = "tendermintx"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/tendermintx.git?branch=ratan/harden-rpc#27a0393bac8cb32536a47a7bdb64814e3119e48e"
+source = "git+https://github.com/succinctlabs/tendermintx.git?branch=ratan/harden-rpc#d69a85f27d397a8b350db479ad1c741c666847e3"
 dependencies = [
  "alloy-primitives",
  "alloy-sol-types",
@@ -4544,7 +4544,7 @@ dependencies = [
  "serde",
  "serde_spanned",
  "toml_datetime",
- "toml_edit 0.22.2",
+ "toml_edit 0.22.4",
 ]
 
 [[package]]
@@ -4591,9 +4591,9 @@ dependencies = [
 
 [[package]]
 name = "toml_edit"
-version = "0.22.2"
+version = "0.22.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "25fdc42b34281459f8223cd861512dcdc19bd272fcc73308d7235ff615b76704"
+checksum = "0c9ffdf896f8daaabf9b66ba8e77ea1ed5ed0f72821b398aba62352e95062951"
 dependencies = [
  "indexmap 2.2.2",
  "serde",
