@@ -154,8 +154,8 @@ mod tests {
 
     #[test]
     #[cfg_attr(feature = "ci", ignore)]
-    fn test_next_header_large() {
-        const MAX_VALIDATOR_SET_SIZE: usize = 100;
+    fn test_next_header_medium() {
+        const MAX_VALIDATOR_SET_SIZE: usize = 32;
 
         // This block is on Mocha-4 testnet.
         let start_block = 500u64;
@@ -171,8 +171,8 @@ mod tests {
 
     #[test]
     #[cfg_attr(feature = "ci", ignore)]
-    fn test_next_header_medium() {
-        const MAX_VALIDATOR_SET_SIZE: usize = 32;
+    fn test_next_header_large() {
+        const MAX_VALIDATOR_SET_SIZE: usize = 100;
 
         // This block is on Mocha-4 testnet.
         let start_block = 500u64;
