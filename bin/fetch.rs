@@ -24,11 +24,11 @@ pub async fn main() {
     env::set_var("RUST_LOG", "info");
     dotenv::dotenv().ok();
     env_logger::init();
-    let tendermint_rpc_url =
-        env::var("TENDERMINT_RPC_URL").expect("TENDERMINT_RPC_URL must be set");
-    let mut data_fetcher = InputDataFetcher::new(&tendermint_rpc_url, "");
-    data_fetcher.save = true;
-    data_fetcher.fixture_path = "./fixtures/celestia".to_string();
+    let data_fetcher = InputDataFetcher {
+        save: true,
+        fixture_path: "./fixtures/celestia".to_string(),
+        ..Default::default()
+    };
 
     let args = FetchArgs::parse();
     let fetch_block = args.block;

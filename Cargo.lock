@@ -4309,7 +4309,7 @@ dependencies = [
 [[package]]
 name = "tendermintx"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/tendermintx.git#03e141336608f07616373cf4ea661c5ef4cf79f7"
+source = "git+https://github.com/succinctlabs/tendermintx.git?branch=ratan/harden-rpc#4f188c0c3773e3c246fbee435d4854cd5640a1b8"
 dependencies = [
  "alloy-primitives",
  "alloy-sol-types",

@@ -42,7 +42,7 @@ pub trait DataCommitmentInputs {
     );
 }
 
-const MAX_NUM_RETRIES: usize = 5;
+const MAX_NUM_RETRIES: usize = 3;
 
 #[async_trait]
 impl DataCommitmentInputs for InputDataFetcher {
@@ -59,15 +59,14 @@ impl DataCommitmentInputs for InputDataFetcher {
             start_block.to_string().as_str(),
             end_block.to_string().as_str()
         );
-        let query_url = format!(
-            "{}/data_commitment?start={}&end={}",
-            self.url,
+        let route = format!(
+            "data_commitment?start={}&end={}",
             start_block.to_string().as_str(),
             end_block.to_string().as_str()
         );
         let fetched_result = match &self.mode {
             InputDataMode::Rpc => {
-                let res = self.request_from_rpc(&query_url, MAX_NUM_RETRIES).await;
+                let res = self.request_from_rpc(&route, MAX_NUM_RETRIES).await;
                 if self.save {
                     // Ensure the directory exists
                     if let Some(parent) = Path::new(&file_name).parent() {
