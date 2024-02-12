@@ -36,6 +36,7 @@ impl<
 
         let target_header_hash = builder.skip::<MAX_VALIDATOR_SET_SIZE, CHAIN_ID_SIZE_BYTES>(
             C::CHAIN_ID_BYTES,
+            C::SKIP_MAX,
             trusted_block,
             trusted_header_hash,
             target_block,
