@@ -26,7 +26,7 @@ pub struct DataCommitment {
 
 #[async_trait]
 pub trait DataCommitmentInputs {
-    async fn get_data_commitment(&self, start_block: u64, end_block: u64) -> [u8; 32];
+    async fn get_data_commitment(&mut self, start_block: u64, end_block: u64) -> [u8; 32];
 
     async fn get_data_commitment_inputs<const MAX_LEAVES: usize, F: RichField>(
         &mut self,
@@ -42,11 +42,11 @@ pub trait DataCommitmentInputs {
     );
 }
 
-const MAX_NUM_RETRIES: usize = 5;
+const MAX_NUM_RETRIES: usize = 3;
 
 #[async_trait]
 impl DataCommitmentInputs for InputDataFetcher {
-    async fn get_data_commitment(&self, start_block: u64, end_block: u64) -> [u8; 32] {
+    async fn get_data_commitment(&mut self, start_block: u64, end_block: u64) -> [u8; 32] {
         // If start_block == end_block, then return a dummy commitment.
         // This will occur in the context of data commitment's map reduce when leaves that contain blocks beyond the end_block.
         if end_block <= start_block {
@@ -59,15 +59,14 @@ impl DataCommitmentInputs for InputDataFetcher {
             start_block.to_string().as_str(),
             end_block.to_string().as_str()
         );
-        let query_url = format!(
-            "{}/data_commitment?start={}&end={}",
-            self.url,
+        let route = format!(
+            "data_commitment?start={}&end={}",
             start_block.to_string().as_str(),
             end_block.to_string().as_str()
         );
         let fetched_result = match &self.mode {
             InputDataMode::Rpc => {
-                let res = self.request_from_rpc(&query_url, MAX_NUM_RETRIES).await;
+                let res = self.request_from_rpc(&route, MAX_NUM_RETRIES).await;
                 if self.save {
                     // Ensure the directory exists
                     if let Some(parent) = Path::new(&file_name).parent() {

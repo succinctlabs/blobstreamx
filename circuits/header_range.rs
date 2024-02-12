@@ -36,6 +36,7 @@ impl<
 
         let target_header_hash = builder.skip::<MAX_VALIDATOR_SET_SIZE, CHAIN_ID_SIZE_BYTES>(
             C::CHAIN_ID_BYTES,
+            C::SKIP_MAX,
             trusted_block,
             trusted_header_hash,
             target_block,
@@ -144,6 +145,7 @@ mod tests {
         start_header_hash: [u8; 32],
         end_block: usize,
     ) {
+        // Note: This will request via RPC, as it is not tagged with #[test].
         env::set_var("RUST_LOG", "debug");
         env_logger::try_init().unwrap_or_default();
 
@@ -210,11 +212,11 @@ mod tests {
 
     #[test]
     #[cfg_attr(feature = "ci", ignore)]
-    fn test_header_range_large() {
+    fn test_header_range_medium() {
         // Test variable length NUM_BLOCKS.
-        const MAX_VALIDATOR_SET_SIZE: usize = 100;
-        const NB_MAP_JOBS: usize = 16;
-        const BATCH_SIZE: usize = 64;
+        const MAX_VALIDATOR_SET_SIZE: usize = 32;
+        const NB_MAP_JOBS: usize = 8;
+        const BATCH_SIZE: usize = 32;
 
         // These blocks are on Mocha-4 testnet.
         let start_block = 500u64;
@@ -235,11 +237,11 @@ mod tests {
 
     #[test]
     #[cfg_attr(feature = "ci", ignore)]
-    fn test_header_range_medium() {
+    fn test_header_range_large() {
         // Test variable length NUM_BLOCKS.
-        const MAX_VALIDATOR_SET_SIZE: usize = 32;
-        const NB_MAP_JOBS: usize = 8;
-        const BATCH_SIZE: usize = 32;
+        const MAX_VALIDATOR_SET_SIZE: usize = 100;
+        const NB_MAP_JOBS: usize = 16;
+        const BATCH_SIZE: usize = 64;
 
         // These blocks are on Mocha-4 testnet.
         let start_block = 500u64;

@@ -25,9 +25,7 @@ pub async fn main() {
     env::set_var("RUST_LOG", "info");
     dotenv::dotenv().ok();
     env_logger::init();
-    let tendermint_rpc_url =
-        env::var("TENDERMINT_RPC_URL").expect("TENDERMINT_RPC_URL must be set");
-    let data_fetcher = InputDataFetcher::new(&tendermint_rpc_url, "");
+    let mut data_fetcher = InputDataFetcher::default();
     let args = GenesisArgs::parse();
 
     let genesis_block = args.block;

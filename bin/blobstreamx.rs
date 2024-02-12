@@ -48,9 +48,7 @@ impl BlobstreamXOperator {
 
         let contract = BlobstreamX::new(config.address.0 .0, provider.into());
 
-        let tendermint_rpc_url =
-            env::var("TENDERMINT_RPC_URL").expect("TENDERMINT_RPC_URL must be set");
-        let data_fetcher = InputDataFetcher::new(&tendermint_rpc_url, "");
+        let data_fetcher = InputDataFetcher::default();
 
         let succinct_rpc_url = env::var("SUCCINCT_RPC_URL").expect("SUCCINCT_RPC_URL must be set");
         let succinct_api_key = env::var("SUCCINCT_API_KEY").expect("SUCCINCT_API_KEY must be set");
@@ -191,7 +189,7 @@ impl BlobstreamXOperator {
         Ok(request_id)
     }
 
-    async fn run(&self) {
+    async fn run(&mut self) {
         info!("Starting BlobstreamX operator");
         // Check every 20 minutes.
         // Note: This should be longer than the time to generate a proof to avoid concurrent proof
@@ -305,6 +303,6 @@ async fn main() {
     dotenv::dotenv().ok();
     env_logger::init();
 
-    let operator = BlobstreamXOperator::new();
+    let mut operator = BlobstreamXOperator::new();
     operator.run().await;
 }

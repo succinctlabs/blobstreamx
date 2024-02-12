@@ -26,6 +26,14 @@ The circuits are currently available on Succinct X [here](https://alpha.succinct
 
 Blobstream X is currently deployed for Celestia Mainnet on Sepolia [here](https://sepolia.etherscan.io/address/0x48B257EC1610d04191cC2c528d0c940AdbE1E439#events).
 
+### Configuration
+
+Add the following to the environment variable configuration (hosted proving) or `.env` (local proving & relaying) for the Blobstream X operator:
+
+```
+TENDERMINT_RPC_URL=(comma-separated list of tendermint rpc urls)
+```
+
 ## Run Blobstream X Operator
 
 ### Operator with Hosted Proving
@@ -37,7 +45,9 @@ Run `BlobstreamX` script to request updates to the specified light client contin
 In `/`, run
 
 ```
+
 cargo run --bin blobstreamx --release
+
 ```
 
 ### Local Proving & Relaying
@@ -47,13 +57,16 @@ To enable local proving & local relaying of proofs with the Blobstream X operato
 Then, simply add the following to your `.env`:
 
 ```
+
 LOCAL_PROVE_MODE=true
 LOCAL_RELAY_MODE=true
 
 # Add the path to each binary (ex. PROVE_BINARY_0x6d...=blobstream-artifacts/header_range)
+
 PROVE_BINARY_0xFILL_IN_NEXT_HEADER_FUNCTION_ID=
 PROVE_BINARY_0xFILL_IN_HEADER_RANGE_FUNCTION_ID=
 WRAPPER_BINARY=
+
 ```
 
 #### Relay an Existing Proof
@@ -63,7 +76,9 @@ Add env variables to `.env`, following the `.env.example`.
 If you want to relay an existing proof in `/proofs`, run the following command:
 
 ```
+
 cargo run --bin local_relay --release -- --request-id {REQUEST_ID}
+
 ```
 
 ## Deploy Blobstream X Contract
@@ -71,7 +86,9 @@ cargo run --bin local_relay --release -- --request-id {REQUEST_ID}
 Get the genesis parameters for a `BlobstreamX` contract from a specific Celestia block.
 
 ```
+
 cargo run --bin genesis -- --block 100
+
 ```
 
 Add .env variables to `contracts/.env`, following `contracts/.env.example`.
@@ -81,9 +98,11 @@ Initialize `BlobstreamX` contract with genesis parameters.
 In `contracts/`, run
 
 ```
+
 forge install
 
 source .env
 
 forge script script/Deploy.s.sol --rpc-url $RPC_URL --private-key $PRIVATE_KEY --broadcast --verify --verifier etherscan --etherscan-api-key $ETHERSCAN_API_KEY
+
 ```
