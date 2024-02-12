@@ -26,7 +26,6 @@ pub async fn main() {
     env_logger::init();
     let mut data_fetcher = InputDataFetcher {
         save: true,
-        fixture_path: "./fixtures/celestia".to_string(),
         ..Default::default()
     };
 

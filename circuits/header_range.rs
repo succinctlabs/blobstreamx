@@ -145,6 +145,7 @@ mod tests {
         start_header_hash: [u8; 32],
         end_block: usize,
     ) {
+        // Note: This will request via RPC, as it is not tagged with #[test].
         env::set_var("RUST_LOG", "debug");
         env_logger::try_init().unwrap_or_default();
 
