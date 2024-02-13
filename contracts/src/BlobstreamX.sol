@@ -38,7 +38,6 @@ contract BlobstreamX is IBlobstreamX, IDAOracle, TimelockedUpgradeable {
     /// @notice Indicator of if the contract is frozen.
     bool public frozen;
 
-
     struct InitParameters {
         address guardian;
         address gateway;
