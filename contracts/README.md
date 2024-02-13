@@ -8,6 +8,7 @@ Fill out the following fields in `.env` in `contracts` folder:
 - `RPC_URL` - URL of the Ethereum RPC node
 - `ETHERSCAN_API_KEY` - API key for Etherscan
 - `CREATE2_SALT` - Salt for CREATE2 deployment (determinstic deployment)
+- `GUARDIAN_ADDRESS` - Address of the guardian (multi-sig/Gnosis Safe).
 - `GATEWAY_ADDRESS` - Address of the gateway contract
 - `GENESIS_HEIGHT` - Height of the block at which the contract will be deployed
 - `GENESIS_HEADER` - Header of the block at which the contract will be deployed
