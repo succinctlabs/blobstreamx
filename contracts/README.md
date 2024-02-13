@@ -28,9 +28,9 @@ In addition to the fields in `.env` for deployment, fill out the following field
 
 - `CONTRACT_ADDRESS` - Address of the contract to upgrade
 - `UPGRADE` - Set to `true` to upgrade the contract
-- `UPDATE_GENESIS_STATE` - Updates the genesis state of the contract using `GENESIS_HEIGHT` and `GENESIS_HEADER`.
-- `UPDATE_GATEWAY` - Updates the gateway address of the contract using `GATEWAY_ADDRESS`.
-- `UPDATE_FUNCTION_IDS` - Updates the function IDs of the contract using `NEXT_HEADER_FUNCTION_ID` and `HEADER_RANGE_FUNCTION_ID`.
+- `UPDATE_GENESIS_STATE` - Set to true to update the genesis state of the contract using `GENESIS_HEIGHT` and `GENESIS_HEADER`.
+- `UPDATE_GATEWAY` - Set to true to update the gateway address of the contract using `GATEWAY_ADDRESS`.
+- `UPDATE_FUNCTION_IDS` - Set to true to update the function IDs of the contract using `NEXT_HEADER_FUNCTION_ID` and `HEADER_RANGE_FUNCTION_ID`.
   Then run the following command:
 
 ```bash
