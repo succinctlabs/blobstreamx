@@ -11,6 +11,8 @@ Fill out the following fields in `.env` in `contracts` folder:
 - `GATEWAY_ADDRESS` - Address of the gateway contract
 - `GENESIS_HEIGHT` - Height of the block at which the contract will be deployed
 - `GENESIS_HEADER` - Header of the block at which the contract will be deployed
+- `NEXT_HEADER_FUNCTION_ID` - Function ID for `nextHeader` function
+- `HEADER_RANGE_FUNCTION_ID` - Function ID for `headerRange` function
 
 Then run the following command:
 
