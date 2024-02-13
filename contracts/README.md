@@ -1,7 +1,5 @@
 # Blobstream X Contracts
 
-This folder contains the smart contracts for Blobstream X.
-
 ## Deploy new Blobstream X contract
 
 Fill out the following fields in `.env` in `contracts` folder:
