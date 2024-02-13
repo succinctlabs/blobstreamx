@@ -5,6 +5,22 @@ import "@blobstream/DataRootTuple.sol";
 import "@blobstream/lib/tree/binary/BinaryMerkleTree.sol";
 
 interface IBlobstreamX {
+    /// @notice Emits event with the new head update.
+    event HeadUpdate(uint64 blockNumber, bytes32 headerHash);
+
+    /// @notice Trusted header not found.
+    error TrustedHeaderNotFound();
+
+    /// @notice Latest header not found.
+    error LatestHeaderNotFound();
+
+    /// @notice Target block for proof must be greater than latest block and less than the
+    /// latest block plus the maximum number of skipped blocks.
+    error TargetBlockNotInRange();
+
+    /// @notice Contract is frozen.
+    error ContractFrozen();
+
     /// @notice Data commitment stored for the block range [startBlock, endBlock) with proof nonce.
     /// @param proofNonce The nonce of the proof.
     /// @param startBlock The start block of the block range.

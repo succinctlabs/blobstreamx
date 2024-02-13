@@ -11,32 +11,66 @@ contract DeployScript is Script {
     function run() public {
         vm.startBroadcast();
 
+        bytes32 headerRangeFunctionId = vm.envBytes32(
+            "HEADER_RANGE_FUNCTION_ID"
+        );
         bytes32 nextHeaderFunctionId = vm.envBytes32("NEXT_HEADER_FUNCTION_ID");
-        bytes32 headerRangeFunctionId = vm.envBytes32("HEADER_RANGE_FUNCTION_ID");
-        uint64 height = uint64(vm.envUint("GENESIS_HEIGHT"));
+        uint32 height = uint32(vm.envUint("GENESIS_HEIGHT"));
         bytes32 header = vm.envBytes32("GENESIS_HEADER");
 
         address gateway = vm.envAddress("GATEWAY_ADDRESS");
-        address guardian = msg.sender;
 
-        bytes32 CREATE2_SALT = bytes32(vm.envBytes("CREATE2_SALT"));
+        bytes32 create2Salt = bytes32(vm.envBytes("CREATE2_SALT"));
+
+        bool upgrade = vm.envBool("UPGRADE");
 
         // Deploy contract
-        BlobstreamX lightClientImpl = new BlobstreamX{salt: bytes32(CREATE2_SALT)}();
-        BlobstreamX lightClient;
-        lightClient = BlobstreamX(address(new ERC1967Proxy{salt: bytes32(CREATE2_SALT)}(address(lightClientImpl), "")));
-        console.logAddress(address(lightClient));
+        BlobstreamX lightClientImpl = new BlobstreamX{salt: bytes32(create2Salt)}();
+
         console.logAddress(address(lightClientImpl));
 
-        lightClient.initialize(
-            BlobstreamX.InitParameters({
-                guardian: guardian,
-                gateway: gateway,
-                height: height,
-                header: header,
-                nextHeaderFunctionId: nextHeaderFunctionId,
-                headerRangeFunctionId: headerRangeFunctionId
-            })
-        );
+        BlobstreamX lightClient;
+        if (!upgrade) {
+            lightClient = BlobstreamX(
+                address(
+                    new ERC1967Proxy{salt: bytes32(create2Salt)}(
+                        address(lightClientImpl),
+                        ""
+                    )
+                )
+            );
+
+            // Initialize the Blobstream X light client.
+            lightClient.initialize(
+                BlobstreamX.InitParameters({
+                    guardian: msg.sender,
+                    gateway: gateway,
+                    height: height,
+                    header: header,
+                    headerRangeFunctionId: headerRangeFunctionId,
+                    nextHeaderFunctionId: nextHeaderFunctionId
+                })
+            );
+        } else {
+            bool updateGateway = vm.envBool("UPDATE_GATEWAY");
+            bool updateGenesisState = vm.envBool("UPDATE_GENESIS_STATE");
+            bool updateFunctionIds = vm.envBool("UPDATE_FUNCTION_IDS");
+            address existingProxyAddress = vm.envAddress("CONTRACT_ADDRESS");
+
+            lightClient = BlobstreamX(existingProxyAddress);
+            lightClient.upgradeTo(address(lightClientImpl));
+
+            if (updateGateway) {
+                lightClient.updateGateway(gateway);
+            }
+            if (updateGenesisState) {
+                lightClient.updateGenesisState(height, header);
+            }
+            if (updateFunctionIds) {
+                lightClient.updateFunctionIds(headerRangeFunctionId, nextHeaderFunctionId);
+            }
+        }
+
+        console.logAddress(address(lightClient));
     }
 }
