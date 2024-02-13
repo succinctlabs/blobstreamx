@@ -69,7 +69,7 @@ contract BlobstreamX is IBlobstreamX, IDAOracle, TimelockedUpgradeable {
     }
 
     /// @notice Update the freeze parameter.
-    function updateFreeze(bool _freeze) external override onlyGuardian {
+    function updateFreeze(bool _freeze) external onlyGuardian {
         frozen = _freeze;
     }
 
