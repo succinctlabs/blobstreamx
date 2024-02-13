@@ -73,6 +73,29 @@ contract BlobstreamX is IBlobstreamX, IDAOracle, TimelockedUpgradeable {
         frozen = _freeze;
     }
 
+    /// @notice Update the address of the gateway contract.
+    function updateGateway(address _gateway) external onlyGuardian {
+        gateway = _gateway;
+    }
+
+    /// @notice Update the function IDs.
+    function updateFunctionIds(
+        bytes32 _headerRangeFunctionId,
+        bytes32 _nextHeaderFunctionId
+    ) external onlyGuardian {
+        headerRangeFunctionId = _headerRangeFunctionId;
+        nextHeaderFunctionId = _nextHeaderFunctionId;
+    }
+
+    /// @notice Update the genesis state of the light client.
+    function updateGenesisState(
+        uint32 _height,
+        bytes32 _header
+    ) external onlyGuardian {
+        blockHeightToHeaderHash[_height] = _header;
+        latestBlock = _height;
+    }
+
     /// @notice Prove the validity of the header at the target block and a data commitment for the block range [latestBlock, _targetBlock).
     /// @param _targetBlock The end block of the header range proof.
     /// @dev requestHeaderRange is used to skip from the latest block to the target block.
@@ -206,6 +229,10 @@ contract BlobstreamX is IBlobstreamX, IDAOracle, TimelockedUpgradeable {
         view
         returns (bool)
     {
+        if (frozen) {
+            revert ContractFrozen();
+        }
+
         // Note: state_proofNonce slightly differs from Blobstream.sol because it is incremented
         //   after each commit.
         if (_proofNonce >= state_proofNonce) {
