@@ -169,10 +169,7 @@ impl BlobstreamXOperator {
             target_block,
         ));
 
-        let commit_header_range_call = CommitHeaderRangeCall {
-            trusted_block,
-            target_block,
-        };
+        let commit_header_range_call = CommitHeaderRangeCall { target_block };
         let function_data = commit_header_range_call.encode();
 
         let request_id = self

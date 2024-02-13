@@ -121,28 +121,25 @@ contract BlobstreamX is IBlobstreamX, IDAOracle, TimelockedUpgradeable {
         emit HeaderRangeRequested(latestBlock, latestHeader, _targetBlock);
     }
 
-    /// @notice Commits the new header at targetBlock and the data commitment for the block range [trustedBlock, targetBlock).
-    /// @param _trustedBlock The latest block when the request was made.
+    /// @notice Commits the new header at targetBlock and the data commitment for the block range [latestBlock, targetBlock).
     /// @param _targetBlock The end block of the header range request.
-    function commitHeaderRange(uint64 _trustedBlock, uint64 _targetBlock) external {
+    function commitHeaderRange(uint64 _targetBlock) external {
         if (frozen) {
             revert ContractFrozen();
         }
 
-        bytes32 trustedHeader = blockHeightToHeaderHash[_trustedBlock];
+        bytes32 trustedHeader = blockHeightToHeaderHash[latestBlock];
         if (trustedHeader == bytes32(0)) {
             revert TrustedHeaderNotFound();
         }
 
         // Encode the circuit input.
-        bytes memory input = abi.encodePacked(_trustedBlock, trustedHeader, _targetBlock);
+        bytes memory input = abi.encodePacked(latestBlock, trustedHeader, _targetBlock);
 
         // Call gateway to get the proof result.
         bytes memory requestResult = ISuccinctGateway(gateway).verifiedCall(headerRangeFunctionId, input);
 
         // Read the target header and data commitment from request result.
-        // Note: Don't need implementation of decodePacked because abi.encode(bytes32, bytes32)
-        //  is the same as abi.encodePacked(bytes32, bytes32).
         (bytes32 targetHeader, bytes32 dataCommitment) = abi.decode(requestResult, (bytes32, bytes32));
 
         if (_targetBlock <= latestBlock || _targetBlock - latestBlock > DATA_COMMITMENT_MAX) {
@@ -155,7 +152,7 @@ contract BlobstreamX is IBlobstreamX, IDAOracle, TimelockedUpgradeable {
 
         emit HeadUpdate(_targetBlock, targetHeader);
 
-        emit DataCommitmentStored(state_proofNonce, _trustedBlock, _targetBlock, dataCommitment);
+        emit DataCommitmentStored(state_proofNonce, latestBlock, _targetBlock, dataCommitment);
 
         state_proofNonce++;
         latestBlock = _targetBlock;
