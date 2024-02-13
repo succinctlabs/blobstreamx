@@ -10,9 +10,6 @@ import {TimelockedUpgradeable} from "@succinctx/upgrades/TimelockedUpgradeable.s
 import {ISuccinctGateway} from "@succinctx/interfaces/ISuccinctGateway.sol";
 
 contract BlobstreamX is IBlobstreamX, IDAOracle, TimelockedUpgradeable {
-    /// @notice Indicator of if the contract is frozen.
-    bool public frozen;
-
     /// @notice The address of the gateway contract.
     address public gateway;
 
@@ -37,6 +34,10 @@ contract BlobstreamX is IBlobstreamX, IDAOracle, TimelockedUpgradeable {
 
     /// @notice Next header function id.
     bytes32 public nextHeaderFunctionId;
+
+    /// @notice Indicator of if the contract is frozen.
+    bool public frozen;
+
 
     struct InitParameters {
         address guardian;
