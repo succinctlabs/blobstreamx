@@ -43,7 +43,6 @@ contract DeployScript is Script {
             // Initialize the Blobstream X light client.
             lightClient.initialize(
                 BlobstreamX.InitParameters({
-                    // TODO: Migrate to using upgrade scripts in SuccinctX that work with Gnosis Safe.
                     guardian: vm.envAddress("GUARDIAN_ADDRESS"),
                     gateway: gateway,
                     height: height,
