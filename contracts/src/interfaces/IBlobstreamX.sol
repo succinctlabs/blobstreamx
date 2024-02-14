@@ -21,6 +21,9 @@ interface IBlobstreamX {
     /// @notice Contract is frozen.
     error ContractFrozen();
 
+    /// @notice Trusted block mismatch.
+    error TrustedBlockMismatch();
+
     /// @notice Data commitment stored for the block range [startBlock, endBlock) with proof nonce.
     /// @param proofNonce The nonce of the proof.
     /// @param startBlock The start block of the block range.
