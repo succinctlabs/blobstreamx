@@ -100,6 +100,10 @@ contract BlobstreamX is IBlobstreamX, IDAOracle, TimelockedUpgradeable {
     /// @param _targetBlock The end block of the header range proof.
     /// @dev requestHeaderRange is used to skip from the latest block to the target block.
     function requestHeaderRange(uint64 _targetBlock) external payable {
+        if (frozen) {
+            revert ContractFrozen();
+        }
+
         bytes32 latestHeader = blockHeightToHeaderHash[latestBlock];
         if (latestHeader == bytes32(0)) {
             revert LatestHeaderNotFound();
@@ -161,6 +165,10 @@ contract BlobstreamX is IBlobstreamX, IDAOracle, TimelockedUpgradeable {
     /// @notice Prove the validity of the next header and a data commitment for the block range [latestBlock, latestBlock + 1).
     /// @dev Rarely used, only if the validator set changes by more than 2/3 in a single block.
     function requestNextHeader() external payable {
+        if (frozen) {
+            revert ContractFrozen();
+        }
+        
         bytes32 latestHeader = blockHeightToHeaderHash[latestBlock];
         if (latestHeader == bytes32(0)) {
             revert LatestHeaderNotFound();
