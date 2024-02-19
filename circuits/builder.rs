@@ -39,7 +39,7 @@ pub trait DataCommitmentBuilder<L: PlonkParameters<D>, const D: usize> {
     ) -> Bytes32Variable;
 
     /// Verify the chain of headers is linked for the subrange in the data commitment proof & generate the subrange's data_merkle_root.
-    /// Verify the header at global_end_block is the global_end_header_hash and don't verify blocks after global_end_block.
+    /// Verify the header at global_end_block is the global_end_header_hash and don't include blocks after global_end_block in the merkle root computation.
     ///
     /// Specifically, a MapReduce circuit with <NB_MAP_JOBS=4, BATCH_SIZE=4> over blocks [0, 16) will invoke prove_subchain 4 times. Each of the 4 prove_subchain calls
     /// over [0, 4), [4, 8), [8, 12), [12, 16) will 1) prove the subchain of headers are linked and 2) output their corresponding data_merkle_root.
@@ -64,6 +64,15 @@ pub trait DataCommitmentBuilder<L: PlonkParameters<D>, const D: usize> {
     where
         <<L as PlonkParameters<D>>::Config as GenericConfig<D>>::Hasher:
             AlgebraicHasher<<L as PlonkParameters<D>>::Field>;
+
+    /// Prove the data commitment for the next header. This is a special case of prove_data_commitment where the range is always 1 block (only
+    /// the prev header's data hash is included in the data commitment).
+    fn prove_next_header_data_commitment(
+        &mut self,
+        prev_block_number: U64Variable,
+        prev_header_hash: Bytes32Variable,
+        next_block_number: U64Variable,
+    ) -> Bytes32Variable;
 }
 
 impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for CircuitBuilder<L, D> {
@@ -103,8 +112,12 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
         self.watch(&nb_blocks_in_batch, "nb_blocks_in_batch");
 
         // Note: nb_blocks_in_batch is assumed to be less than 2^32 (which is a reasonable
-        // assumption for any data commitment).
-        let nb_blocks_in_batch = nb_blocks_in_batch.limbs[0].variable;
+        // assumption for any data commitment as in practice, the number of blocks in a data
+        // commitment range will be much smaller than 2^32).
+        let zero = self.zero();
+        let nb_enabled_leaves = nb_blocks_in_batch.limbs[0].variable;
+        self.assert_is_equal(nb_blocks_in_batch.limbs[1].variable, zero);
+
         let mut leaves = Vec::new();
 
         // Compute the leaves of the merkle tree.
@@ -117,11 +130,11 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
         }
 
         // Compute the root of the merkle tree over the first num_blocks leaves.
-        // Note: If nb_blocks_in_batch is larger than MAX_LEAVES, this function will
+        // Note: If nb_enabled_leaves is larger than MAX_LEAVES, this function will
         // mark all leaves as enabled and compute the root of the merkle tree over all leaves.
         self.compute_root_from_leaves::<MAX_LEAVES, ENC_DATA_ROOT_TUPLE_SIZE_BYTES>(
             ArrayVariable::<BytesVariable<64>, MAX_LEAVES>::from(leaves),
-            nb_blocks_in_batch,
+            nb_enabled_leaves,
         )
     }
 
@@ -147,7 +160,8 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
             self.constant::<ArrayVariable<BoolVariable, 4>>(vec![false, false, true, false]);
 
         // If batch_start_block < global_end_block, this batch has headers that need to be verified.
-        // If is_batch_enabled is false, in the reduce stage the batch will be considered empty and skipped.
+        // If is_batch_enabled is false, in the reduce stage the batch will be considered empty, and
+        // the right subchain's tree will be disabled in the Tendermint Merkle tree computation.
         let is_batch_enabled = self.lt(batch_start_block, *global_end_block);
         let mut curr_block_enabled = is_batch_enabled;
         let mut curr_header = batch_start_header_hash;
@@ -162,13 +176,13 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
             let is_last_block = self.is_equal(last_block_to_process, curr_idx);
             let is_not_last_block = self.not(is_last_block);
 
-            // Root of data_hash_proofs[i] should be the hash of block curr_idx.
+            // The computed root of data_hash_proofs[i] should be the hash of block curr_idx.
             let data_hash_proof_root = self
                 .get_root_from_merkle_proof::<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES>(
                     &data_comm_proof.data_hash_proofs[i],
                     &data_hash_path,
                 );
-            // Root of last_block_id_proofs[i] should be the hash of block curr_idx+1.
+            // The computed root of last_block_id_proofs[i] should be the hash of block curr_idx+1.
             let last_block_id_proof_root = self
                 .get_root_from_merkle_proof::<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES>(
                     &data_comm_proof.last_block_id_proofs[i],
@@ -177,7 +191,7 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
 
             // Extract the previous header hash from the leaf of last_block_id_proof, and verify it is equal to the header hash of block curr_idx.
             // Note: The leaf of the last_block_id_proof against block curr_idx+1 is the protobuf-encoded last_block_id, which contains the header hash of block curr_idx at [2..2+HASH_SIZE].
-            // Always passes if curr_block >= last_block_to_process (curr_block_disabled).
+            // This check is skipped if curr_block >= last_block_to_process (which is marked by the flag curr_block_disabled).
             let header_hash = &data_comm_proof.last_block_id_proofs[i].leaf[2..2 + HASH_SIZE];
             let is_valid_prev_header = self.is_equal(curr_header, header_hash.into());
             let prev_header_check = self.or(curr_block_disabled, is_valid_prev_header);
@@ -250,7 +264,7 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
                     // The following logic handles the map stage of the mapreduce.
                     //  1) Fetch the data commitment inputs for the batch.
                     //  2) Verify the chain of headers is linked for the batch.
-                    //  3) Compute the corresponding data_merkle_root.
+                    //  3) Compute the corresponding data_merkle_root for the batch.
 
                     let one = builder.constant::<U64Variable>(1u64);
                     let global_end_header_hash = map_ctx.end_header_hash;
@@ -279,7 +293,6 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
                         .async_hint(input_stream, data_comm_fetcher);
                     let data_comm_proof = output_stream
                         .read::<DataCommitmentProofVariable<BATCH_SIZE>>(builder);
-                    let _ = output_stream.read::<Bytes32Variable>(builder);
 
                     // Verify the chain of headers is linked for the batch & compute the corresponding data_merkle_root.
                     builder.prove_subchain(&data_comm_proof, &global_end_block, &global_end_header_hash)
@@ -288,6 +301,8 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
                     // The following logic handles the reduce stage of the mapreduce.
                     //  1) Verify the left and right subchains are correctly linked.
                     //  2) Compute the combined data_merkle_root of the left and right subchains.
+                    //  3) If the right subchain is disabled, then the data_merkle_root is the left subchain's data_merkle_root.
+                    //  4) If both are disabled, then this "combined" subchain is disabled.
 
                     let false_var = builder._false();
                     let true_var = builder._true();
@@ -302,7 +317,8 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
                     let link_check = builder.or(is_right_subchain_disabled, subchains_linked);
                     builder.assert_is_equal(link_check, true_var);
 
-                    // Compute Tendermint inner_hash(left_subchain.data_merkle_root, right_subchain.data_merkle_root).
+                    // Compute Tendermint merkle tree inner_hash(left_subchain.data_merkle_root, right_subchain.data_merkle_root).
+                    // 0x01 || left_subchain.data_merkle_root || right_subchain.data_merkle_root
                     let one_byte = ByteVariable::constant(builder, 1u8);
                     let mut encoded_leaf = vec![one_byte];
                     encoded_leaf.extend(left_subchain.data_merkle_root.as_bytes().to_vec());
@@ -318,7 +334,8 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
                     );
 
                     MapReduceSubchainVariable {
-                        // If the left_subchain is disabled, then the right_subchain is disabled.
+                        // If the left_subchain is disabled, then the right_subchain is disabled and
+                        // this combined subchain is disabled (and the data_merkle_root is not used).
                         is_enabled: left_subchain.is_enabled,
                         start_block: left_subchain.start_block,
                         start_header: left_subchain.start_header,
@@ -330,6 +347,38 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
             );
 
         result.data_merkle_root
+    }
+
+    fn prove_next_header_data_commitment(
+        &mut self,
+        prev_block_number: U64Variable,
+        prev_header_hash: Bytes32Variable,
+        next_block_number: U64Variable,
+    ) -> Bytes32Variable {
+        // Compute data commitment (always for 1 leaf).
+        let mut input_stream = VariableStream::new();
+        input_stream.write(&prev_block_number);
+        input_stream.write(&next_block_number);
+        let data_comm_fetcher = DataCommitmentOffchainInputs::<1> {};
+        let output_stream = self.async_hint(input_stream, data_comm_fetcher);
+        let data_comm_proof = output_stream.read::<DataCommitmentProofVariable<1>>(self);
+
+        // Path of the data_hash against the Tendermint header.
+        let data_hash_path =
+            self.constant::<ArrayVariable<BoolVariable, 4>>(vec![false, true, true, false]);
+        // Confirm the data_comm_proof corresponds to the prev_block_number.
+        let data_hash_proof_root = self
+            .get_root_from_merkle_proof::<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES>(
+                &data_comm_proof.data_hash_proofs[0],
+                &data_hash_path,
+            );
+        self.assert_is_equal(data_hash_proof_root, prev_header_hash);
+
+        let encoded_tuple =
+            self.encode_data_root_tuple(&data_comm_proof.data_hashes[0], &prev_block_number);
+
+        // Return the data_commitment for the range (which is only 1 block: prev_block_number).
+        self.leaf_hash(&encoded_tuple.0)
     }
 }
 
