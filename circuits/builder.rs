@@ -67,6 +67,8 @@ pub trait DataCommitmentBuilder<L: PlonkParameters<D>, const D: usize> {
 
     /// Prove the data commitment for the next header. This is a special case of prove_data_commitment where the range is always 1 block (only
     /// the prev header's data hash is included in the data commitment).
+    /// Note: Assumes that prev_block_number and prev_header_hash are valid & linked. Specifically,
+    /// this is only called when prev_block_number and prev_header_hash are inputs to the circuit.
     fn prove_next_header_data_commitment(
         &mut self,
         prev_block_number: U64Variable,
@@ -366,7 +368,7 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
         // Path of the data_hash against the Tendermint header.
         let data_hash_path =
             self.constant::<ArrayVariable<BoolVariable, 4>>(vec![false, true, true, false]);
-        // Confirm the data_comm_proof corresponds to the prev_block_number.
+        // Confirm the data_comm_proof corresponds to the prev_header_hash.
         let data_hash_proof_root = self
             .get_root_from_merkle_proof::<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES>(
                 &data_comm_proof.data_hash_proofs[0],
@@ -377,7 +379,7 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
         let encoded_tuple =
             self.encode_data_root_tuple(&data_comm_proof.data_hashes[0], &prev_block_number);
 
-        // Return the data_commitment for the range (which is only 1 block: prev_block_number).
+        // Return the data_commitment for the range (which only includes 1 block: prev_block_number).
         self.leaf_hash(&encoded_tuple.0)
     }
 }
