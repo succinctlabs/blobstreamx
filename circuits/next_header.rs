@@ -1,13 +1,11 @@
 use plonky2x::backend::circuit::Circuit;
-use plonky2x::frontend::merkle::tendermint::TendermintMerkleTree;
 use plonky2x::frontend::uint::uint64::U64Variable;
-use plonky2x::prelude::{Bytes32Variable, CircuitBuilder, PlonkParameters, VariableStream};
+use plonky2x::prelude::{Bytes32Variable, CircuitBuilder, PlonkParameters};
 use tendermintx::config::TendermintConfig;
 use tendermintx::step::{StepOffchainInputs, TendermintStepCircuit};
 
 use crate::builder::DataCommitmentBuilder;
 use crate::data_commitment::DataCommitmentOffchainInputs;
-use crate::vars::DataCommitmentProofVariable;
 
 #[derive(Debug, Clone)]
 pub struct CombinedStepCircuit<
@@ -37,18 +35,12 @@ impl<
             prev_header_hash,
         );
 
-        // Compute data commitment (always for 1 leaf).
-        let mut input_stream = VariableStream::new();
-        input_stream.write(&prev_block_number);
-        input_stream.write(&next_block_number);
-        let data_comm_fetcher = DataCommitmentOffchainInputs::<1> {};
-        let output_stream = builder.async_hint(input_stream, data_comm_fetcher);
-        let data_comm_proof = output_stream.read::<DataCommitmentProofVariable<1>>(builder);
-        let _ = output_stream.read::<Bytes32Variable>(builder);
-
-        let encoded_tuple =
-            builder.encode_data_root_tuple(&data_comm_proof.data_hashes[0], &prev_block_number);
-        let data_commitment = builder.leaf_hash(&encoded_tuple.0);
+        // Prove the data commitment (which only includes the prev_block_number's data hash).
+        let data_commitment = builder.prove_next_header_data_commitment(
+            prev_block_number,
+            prev_header_hash,
+            next_block_number,
+        );
 
         builder.evm_write(next_header_hash);
         builder.evm_write(data_commitment);
