@@ -68,17 +68,17 @@ contract BlobstreamX is IBlobstreamX, IDAOracle, TimelockedUpgradeable {
         state_proofNonce = 1;
     }
 
-    /// @notice Update the freeze parameter.
+    /// @notice Only the guardian can set the contract to a frozen state.
     function updateFreeze(bool _freeze) external onlyGuardian {
         frozen = _freeze;
     }
 
-    /// @notice Update the address of the gateway contract.
+    /// @notice Only the guardian can update the gateway address.
     function updateGateway(address _gateway) external onlyGuardian {
         gateway = _gateway;
     }
 
-    /// @notice Update the function IDs.
+    /// @notice Only the guardian can update the function ids if there is a change in the circuits.
     function updateFunctionIds(
         bytes32 _headerRangeFunctionId,
         bytes32 _nextHeaderFunctionId
@@ -87,7 +87,7 @@ contract BlobstreamX is IBlobstreamX, IDAOracle, TimelockedUpgradeable {
         nextHeaderFunctionId = _nextHeaderFunctionId;
     }
 
-    /// @notice Update the genesis state of the light client.
+    /// @notice Only the guardian can update the genesis state of the light client.
     function updateGenesisState(
         uint32 _height,
         bytes32 _header
@@ -96,7 +96,7 @@ contract BlobstreamX is IBlobstreamX, IDAOracle, TimelockedUpgradeable {
         latestBlock = _height;
     }
 
-    /// @notice Prove the validity of the header at the target block and a data commitment for the block range [latestBlock, _targetBlock).
+    /// @notice Request a headerRange proof for the next header hash and a data commitment for the block range [latestBlock, _targetBlock).
     /// @param _targetBlock The end block of the header range proof.
     /// @dev requestHeaderRange is used to skip from the latest block to the target block.
     function requestHeaderRange(uint64 _targetBlock) external payable {
@@ -182,7 +182,7 @@ contract BlobstreamX is IBlobstreamX, IDAOracle, TimelockedUpgradeable {
         latestBlock = _targetBlock;
     }
 
-    /// @notice Prove the validity of the next header and a data commitment for the block range [latestBlock, latestBlock + 1).
+    /// @notice Request a nextHeader proof for the next header hash and a data commitment for the block range [latestBlock, latestBlock + 1).
     /// @dev Rarely used, only if the validator set changes by more than 2/3 in a single block.
     function requestNextHeader() external payable {
         bytes32 latestHeader = blockHeightToHeaderHash[latestBlock];
@@ -250,12 +250,9 @@ contract BlobstreamX is IBlobstreamX, IDAOracle, TimelockedUpgradeable {
         latestBlock = nextBlock;
     }
 
-    /// @notice Get the header hash for a block height.
-    function getHeaderHash(uint64 _height) external view returns (bytes32) {
-        return blockHeightToHeaderHash[_height];
-    }
-
-    /// @dev See "./IDAOracle.sol"
+    /// @dev Verify the attestation for the given proof nonce, tuple, and proof. This is taken from
+    /// the existing Blobstream contract and is used to verify the data hash for a specific block
+    /// against a posted data commitment.
     function verifyAttestation(
         uint256 _proofNonce,
         DataRootTuple memory _tuple,
