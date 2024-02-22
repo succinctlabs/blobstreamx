@@ -1,7 +1,7 @@
 use std::env;
 use std::str::FromStr;
 
-use alloy_primitives::{Address, Bytes, B256};
+use alloy_primitives::{Address, Bytes, FixedBytes, B256};
 use alloy_sol_types::{sol, SolType};
 use anyhow::Result;
 use ethers::abi::AbiEncode;
@@ -9,7 +9,6 @@ use ethers::contract::abigen;
 use ethers::providers::{Http, Provider};
 use ethers::signers::LocalWallet;
 use log::{error, info};
-use subtle_encoding::hex;
 use succinct_client::request::SuccinctClient;
 use tendermintx::input::InputDataFetcher;
 
@@ -39,14 +38,40 @@ struct BlobstreamXOperator {
 }
 
 impl BlobstreamXOperator {
-    pub fn new() -> Self {
-        let config = Self::get_config();
+    pub async fn new() -> Self {
+        let contract_address = env::var("CONTRACT_ADDRESS").expect("CONTRACT_ADDRESS must be set");
+        let chain_id = env::var("CHAIN_ID").expect("CHAIN_ID must be set");
+        let address = contract_address
+            .parse::<Address>()
+            .expect("invalid address");
+
+        // Local prove mode and local relay mode are optional and default to false.
+        let local_prove_mode: String =
+            env::var("LOCAL_PROVE_MODE").unwrap_or(String::from("false"));
+        let local_prove_mode_bool = local_prove_mode.parse::<bool>().unwrap();
+        let local_relay_mode: String =
+            env::var("LOCAL_RELAY_MODE").unwrap_or(String::from("false"));
+        let local_relay_mode_bool = local_relay_mode.parse::<bool>().unwrap();
 
         let ethereum_rpc_url = env::var("RPC_URL").expect("RPC_URL must be set");
         let provider = Provider::<Http>::try_from(ethereum_rpc_url.clone())
             .expect("could not connect to client");
 
-        let contract = BlobstreamX::new(config.address.0 .0, provider.into());
+        let contract = BlobstreamX::new(address.0 .0, provider.into());
+
+        // Fetch the function IDs from the contract.
+        let next_header_function_id = FixedBytes(contract.next_header_function_id().await.unwrap());
+        let header_range_function_id =
+            FixedBytes(contract.header_range_function_id().await.unwrap());
+
+        let config = BlobstreamXConfig {
+            address,
+            chain_id: chain_id.parse::<u32>().expect("invalid chain id"),
+            next_header_function_id,
+            header_range_function_id,
+            local_prove_mode: local_prove_mode_bool,
+            local_relay_mode: local_relay_mode_bool,
+        };
 
         let data_fetcher = InputDataFetcher::default();
 
@@ -80,53 +105,6 @@ impl BlobstreamXOperator {
             contract,
             client,
             data_fetcher,
-        }
-    }
-
-    fn get_config() -> BlobstreamXConfig {
-        let contract_address = env::var("CONTRACT_ADDRESS").expect("CONTRACT_ADDRESS must be set");
-        let chain_id = env::var("CHAIN_ID").expect("CHAIN_ID must be set");
-        let address = contract_address
-            .parse::<Address>()
-            .expect("invalid address");
-
-        // Local prove mode and local relay mode are optional and default to false.
-        let local_prove_mode: String =
-            env::var("LOCAL_PROVE_MODE").unwrap_or(String::from("false"));
-        let local_prove_mode_bool = local_prove_mode.parse::<bool>().unwrap();
-        let local_relay_mode: String =
-            env::var("LOCAL_RELAY_MODE").unwrap_or(String::from("false"));
-        let local_relay_mode_bool = local_relay_mode.parse::<bool>().unwrap();
-
-        // Load the function IDs.
-        let next_header_id_env =
-            env::var("NEXT_HEADER_FUNCTION_ID").expect("NEXT_HEADER_FUNCTION_ID must be set");
-        let next_header_function_id = B256::from_slice(
-            &hex::decode(
-                next_header_id_env
-                    .strip_prefix("0x")
-                    .unwrap_or(&next_header_id_env),
-            )
-            .expect("invalid hex for next_header_function_id, expected 0x prefix"),
-        );
-        let header_range_id_env =
-            env::var("HEADER_RANGE_FUNCTION_ID").expect("HEADER_RANGE_FUNCTION_ID must be set");
-        let header_range_function_id = B256::from_slice(
-            &hex::decode(
-                header_range_id_env
-                    .strip_prefix("0x")
-                    .unwrap_or(&header_range_id_env),
-            )
-            .expect("invalid hex for header_range_function_id, expected 0x prefix"),
-        );
-
-        BlobstreamXConfig {
-            address,
-            chain_id: chain_id.parse::<u32>().expect("invalid chain id"),
-            next_header_function_id,
-            header_range_function_id,
-            local_prove_mode: local_prove_mode_bool,
-            local_relay_mode: local_relay_mode_bool,
         }
     }
 
@@ -300,6 +278,6 @@ async fn main() {
     dotenv::dotenv().ok();
     env_logger::init();
 
-    let mut operator = BlobstreamXOperator::new();
+    let mut operator = BlobstreamXOperator::new().await;
     operator.run().await;
 }
