@@ -137,25 +137,6 @@
     },
     {
         "type": "function",
-        "name": "getHeaderHash",
-        "inputs": [
-            {
-                "name": "_height",
-                "type": "uint64",
-                "internalType": "uint64"
-            }
-        ],
-        "outputs": [
-            {
-                "name": "",
-                "type": "bytes32",
-                "internalType": "bytes32"
-            }
-        ],
-        "stateMutability": "view"
-    },
-    {
-        "type": "function",
         "name": "getRoleAdmin",
         "inputs": [
             {
