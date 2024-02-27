@@ -13,7 +13,7 @@ echo "OUTPUT_FOLDER: ${OUTPUT_FOLDER}"
 mkdir -p ./${OUTPUT_FOLDER}
 
 # Copy the release from R2 to local
-AWS_PROFILE=r2 aws s3 cp -r --endpoint-url ${R2_ENDPOINT} s3://platform-artifacts/main/releases/${RELEASE_ID} ./${OUTPUT_FOLDER}
+AWS_PROFILE=r2 aws s3 cp --endpoint-url ${R2_ENDPOINT} s3://platform-artifacts/main/releases/${RELEASE_ID} ./${OUTPUT_FOLDER}
 
 # tar the release folder
 tar -czvf ${RELEASE_ID}.tar.gz ${OUTPUT_FOLDER}
