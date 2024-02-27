@@ -79,19 +79,16 @@ contract BlobstreamX is IBlobstreamX, IDAOracle, TimelockedUpgradeable {
     }
 
     /// @notice Only the guardian can update the function ids if there is a change in the circuits.
-    function updateFunctionIds(
-        bytes32 _headerRangeFunctionId,
-        bytes32 _nextHeaderFunctionId
-    ) external onlyGuardian {
+    function updateFunctionIds(bytes32 _headerRangeFunctionId, bytes32 _nextHeaderFunctionId)
+        external
+        onlyGuardian
+    {
         headerRangeFunctionId = _headerRangeFunctionId;
         nextHeaderFunctionId = _nextHeaderFunctionId;
     }
 
     /// @notice Only the guardian can update the genesis state of the light client.
-    function updateGenesisState(
-        uint32 _height,
-        bytes32 _header
-    ) external onlyGuardian {
+    function updateGenesisState(uint32 _height, bytes32 _header) external onlyGuardian {
         blockHeightToHeaderHash[_height] = _header;
         latestBlock = _height;
     }
@@ -106,10 +103,7 @@ contract BlobstreamX is IBlobstreamX, IDAOracle, TimelockedUpgradeable {
         }
 
         // A request can be at most DATA_COMMITMENT_MAX blocks ahead of the latest block.
-        if (
-            _targetBlock <= latestBlock ||
-            _targetBlock - latestBlock > DATA_COMMITMENT_MAX
-        ) {
+        if (_targetBlock <= latestBlock || _targetBlock - latestBlock > DATA_COMMITMENT_MAX) {
             revert TargetBlockNotInRange();
         }
 
@@ -117,10 +111,7 @@ contract BlobstreamX is IBlobstreamX, IDAOracle, TimelockedUpgradeable {
             headerRangeFunctionId,
             abi.encodePacked(latestBlock, latestHeader, _targetBlock),
             address(this),
-            abi.encodeWithSelector(
-                this.commitHeaderRange.selector,
-                _targetBlock
-            ),
+            abi.encodeWithSelector(this.commitHeaderRange.selector, _targetBlock),
             500000
         );
 
@@ -140,28 +131,17 @@ contract BlobstreamX is IBlobstreamX, IDAOracle, TimelockedUpgradeable {
         }
 
         // Encode the circuit input.
-        bytes memory input = abi.encodePacked(
-            latestBlock,
-            trustedHeader,
-            _targetBlock
-        );
+        bytes memory input = abi.encodePacked(latestBlock, trustedHeader, _targetBlock);
 
         // Call gateway to get the proof result.
-        bytes memory requestResult = ISuccinctGateway(gateway).verifiedCall(
-            headerRangeFunctionId,
-            input
-        );
+        bytes memory requestResult =
+            ISuccinctGateway(gateway).verifiedCall(headerRangeFunctionId, input);
 
         // Read the target header and data commitment from request result.
-        (bytes32 targetHeader, bytes32 dataCommitment) = abi.decode(
-            requestResult,
-            (bytes32, bytes32)
-        );
+        (bytes32 targetHeader, bytes32 dataCommitment) =
+            abi.decode(requestResult, (bytes32, bytes32));
 
-        if (
-            _targetBlock <= latestBlock ||
-            _targetBlock - latestBlock > DATA_COMMITMENT_MAX
-        ) {
+        if (_targetBlock <= latestBlock || _targetBlock - latestBlock > DATA_COMMITMENT_MAX) {
             revert TargetBlockNotInRange();
         }
 
@@ -171,12 +151,7 @@ contract BlobstreamX is IBlobstreamX, IDAOracle, TimelockedUpgradeable {
 
         emit HeadUpdate(_targetBlock, targetHeader);
 
-        emit DataCommitmentStored(
-            state_proofNonce,
-            latestBlock,
-            _targetBlock,
-            dataCommitment
-        );
+        emit DataCommitmentStored(state_proofNonce, latestBlock, _targetBlock, dataCommitment);
 
         state_proofNonce++;
         latestBlock = _targetBlock;
@@ -216,16 +191,11 @@ contract BlobstreamX is IBlobstreamX, IDAOracle, TimelockedUpgradeable {
         bytes memory input = abi.encodePacked(_trustedBlock, trustedHeader);
 
         // Call gateway to get the proof result.
-        bytes memory requestResult = ISuccinctGateway(gateway).verifiedCall(
-            nextHeaderFunctionId,
-            input
-        );
+        bytes memory requestResult =
+            ISuccinctGateway(gateway).verifiedCall(nextHeaderFunctionId, input);
 
         // Read the new header and data commitment from request result.
-        (bytes32 nextHeader, bytes32 dataCommitment) = abi.decode(
-            requestResult,
-            (bytes32, bytes32)
-        );
+        (bytes32 nextHeader, bytes32 dataCommitment) = abi.decode(requestResult, (bytes32, bytes32));
 
         uint64 nextBlock = _trustedBlock + 1;
         if (nextBlock <= latestBlock) {
@@ -239,12 +209,7 @@ contract BlobstreamX is IBlobstreamX, IDAOracle, TimelockedUpgradeable {
 
         emit HeadUpdate(nextBlock, nextHeader);
 
-        emit DataCommitmentStored(
-            state_proofNonce,
-            _trustedBlock,
-            nextBlock,
-            dataCommitment
-        );
+        emit DataCommitmentStored(state_proofNonce, _trustedBlock, nextBlock, dataCommitment);
 
         state_proofNonce++;
         latestBlock = nextBlock;
@@ -272,11 +237,7 @@ contract BlobstreamX is IBlobstreamX, IDAOracle, TimelockedUpgradeable {
         bytes32 root = state_dataCommitments[_proofNonce];
 
         // Verify the proof.
-        bool isProofValid = BinaryMerkleTree.verify(
-            root,
-            _proof,
-            abi.encode(_tuple)
-        );
+        bool isProofValid = BinaryMerkleTree.verify(root, _proof, abi.encode(_tuple));
 
         return isProofValid;
     }

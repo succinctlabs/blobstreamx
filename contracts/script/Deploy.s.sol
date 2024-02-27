@@ -11,9 +11,7 @@ contract DeployScript is Script {
     function run() public {
         vm.startBroadcast();
 
-        bytes32 headerRangeFunctionId = vm.envBytes32(
-            "HEADER_RANGE_FUNCTION_ID"
-        );
+        bytes32 headerRangeFunctionId = vm.envBytes32("HEADER_RANGE_FUNCTION_ID");
         bytes32 nextHeaderFunctionId = vm.envBytes32("NEXT_HEADER_FUNCTION_ID");
         uint32 height = uint32(vm.envUint("GENESIS_HEIGHT"));
         bytes32 header = vm.envBytes32("GENESIS_HEADER");
@@ -30,12 +28,7 @@ contract DeployScript is Script {
             console.logAddress(address(lightClientImpl));
 
             lightClient = BlobstreamX(
-                address(
-                    new ERC1967Proxy{salt: bytes32(create2Salt)}(
-                        address(lightClientImpl),
-                        ""
-                    )
-                )
+                address(new ERC1967Proxy{salt: bytes32(create2Salt)}(address(lightClientImpl), ""))
             );
 
             // Initialize the Blobstream X light client.
@@ -53,7 +46,7 @@ contract DeployScript is Script {
             // Deploy contract
             BlobstreamX lightClientImpl = new BlobstreamX{salt: bytes32(create2Salt)}();
             console.logAddress(address(lightClientImpl));
-            
+
             address existingProxyAddress = vm.envAddress("CONTRACT_ADDRESS");
 
             lightClient = BlobstreamX(existingProxyAddress);
@@ -73,6 +66,5 @@ contract DeployScript is Script {
         if (vm.envBool("UPDATE_FUNCTION_IDS")) {
             lightClient.updateFunctionIds(headerRangeFunctionId, nextHeaderFunctionId);
         }
-
     }
 }
