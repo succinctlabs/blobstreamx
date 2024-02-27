@@ -4,6 +4,7 @@
 
 Fill out the following fields in `.env` in `contracts` folder:
 
+- `DEPLOY` - Set to `true` to deploy the contract
 - `PRIVATE_KEY` - Private key of the account that will deploy the contract
 - `RPC_URL` - URL of the Ethereum RPC node
 - `ETHERSCAN_API_KEY` - API key for Etherscan
@@ -14,8 +15,6 @@ Fill out the following fields in `.env` in `contracts` folder:
 - `GENESIS_HEADER` - Header of the block at which the contract will be deployed
 - `NEXT_HEADER_FUNCTION_ID` - Function ID for `nextHeader` function
 - `HEADER_RANGE_FUNCTION_ID` - Function ID for `headerRange` function
-
-Set `DEPLOY` to `true` in `.env` in `contracts` folder.
 
 Then run the following command:
 
