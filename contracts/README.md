@@ -15,6 +15,8 @@ Fill out the following fields in `.env` in `contracts` folder:
 - `NEXT_HEADER_FUNCTION_ID` - Function ID for `nextHeader` function
 - `HEADER_RANGE_FUNCTION_ID` - Function ID for `headerRange` function
 
+Set `DEPLOY` to `true` in `.env` in `contracts` folder.
+
 Then run the following command:
 
 ```bash
