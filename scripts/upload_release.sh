@@ -23,5 +23,6 @@ tar -czvf ${RELEASE_ID}.tar.gz ${OUTPUT_FOLDER}
 # Upload the tar to s3
 AWS_PROFILE=default aws s3 cp ${RELEASE_ID}.tar.gz s3://public-blobstreamx-circuits/${RELEASE_ID}.tar.gz --endpoint-url ${S3_ENDPOINT}
 
-# TODO: Clean up the tar file
+# TODO: Clean up the tar file and the release folder
 rm -f ${RELEASE_ID}.tar.gz
+rm -rf ./${OUTPUT_FOLDER}
