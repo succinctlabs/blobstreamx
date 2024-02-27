@@ -4,6 +4,7 @@
 
 Fill out the following fields in `.env` in `contracts` folder:
 
+- `DEPLOY` - Set to `true` to deploy the contract
 - `PRIVATE_KEY` - Private key of the account that will deploy the contract
 - `RPC_URL` - URL of the Ethereum RPC node
 - `ETHERSCAN_API_KEY` - API key for Etherscan

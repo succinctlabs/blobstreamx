@@ -30,7 +30,10 @@ interface IBlobstreamX {
     /// @param endBlock The end block of the block range.
     /// @param dataCommitment The data commitment for the block range.
     event DataCommitmentStored(
-        uint256 proofNonce, uint64 indexed startBlock, uint64 indexed endBlock, bytes32 indexed dataCommitment
+        uint256 proofNonce,
+        uint64 indexed startBlock,
+        uint64 indexed endBlock,
+        bytes32 indexed dataCommitment
     );
 
     /// @notice Emits event with the inputs of a next header request.
@@ -42,7 +45,9 @@ interface IBlobstreamX {
     /// @param trustedBlock The trusted block for the header range request.
     /// @param trustedHeader The header hash of the trusted block.
     /// @param targetBlock The target block of the header range request.
-    event HeaderRangeRequested(uint64 indexed trustedBlock, bytes32 indexed trustedHeader, uint64 indexed targetBlock);
+    event HeaderRangeRequested(
+        uint64 indexed trustedBlock, bytes32 indexed trustedHeader, uint64 indexed targetBlock
+    );
 
     /// @notice Data commitment for specified block range does not exist.
     error DataCommitmentNotFound();

@@ -1,6 +1,7 @@
 /target
 .DS_STORE
-.env
+*.env
+*.tar.gz
 build/
 proofs/
 artifacts/
