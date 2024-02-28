@@ -18,8 +18,6 @@ abigen!(BlobstreamX, "./abi/BlobstreamX.abi.json");
 struct BlobstreamXConfig {
     address: Address,
     chain_id: u32,
-    next_header_function_id: B256,
-    header_range_function_id: B256,
     local_prove_mode: bool,
     local_relay_mode: bool,
 }
@@ -59,16 +57,9 @@ impl BlobstreamXOperator {
 
         let contract = BlobstreamX::new(address.0 .0, provider.into());
 
-        // Fetch the function IDs from the contract.
-        let next_header_function_id = FixedBytes(contract.next_header_function_id().await.unwrap());
-        let header_range_function_id =
-            FixedBytes(contract.header_range_function_id().await.unwrap());
-
         let config = BlobstreamXConfig {
             address,
             chain_id: chain_id.parse::<u32>().expect("invalid chain id"),
-            next_header_function_id,
-            header_range_function_id,
             local_prove_mode: local_prove_mode_bool,
             local_relay_mode: local_relay_mode_bool,
         };
@@ -108,7 +99,11 @@ impl BlobstreamXOperator {
         }
     }
 
-    async fn request_next_header(&self, trusted_block: u64) -> Result<String> {
+    async fn request_next_header(
+        &self,
+        trusted_block: u64,
+        next_header_function_id: B256,
+    ) -> Result<String> {
         let trusted_header_hash = self
             .contract
             .block_height_to_header_hash(trusted_block)
@@ -126,7 +121,7 @@ impl BlobstreamXOperator {
                 self.config.chain_id,
                 self.config.address,
                 function_data.into(),
-                self.config.next_header_function_id,
+                next_header_function_id,
                 Bytes::copy_from_slice(&input),
             )
             .await?;
@@ -134,7 +129,12 @@ impl BlobstreamXOperator {
         Ok(request_id)
     }
 
-    async fn request_header_range(&self, trusted_block: u64, target_block: u64) -> Result<String> {
+    async fn request_header_range(
+        &self,
+        trusted_block: u64,
+        target_block: u64,
+        header_range_function_id: B256,
+    ) -> Result<String> {
         let trusted_header_hash = self
             .contract
             .block_height_to_header_hash(trusted_block)
@@ -156,7 +156,7 @@ impl BlobstreamXOperator {
                 self.config.chain_id,
                 self.config.address,
                 function_data.into(),
-                self.config.header_range_function_id,
+                header_range_function_id,
                 Bytes::copy_from_slice(&input),
             )
             .await?;
@@ -188,6 +188,12 @@ impl BlobstreamXOperator {
         }
 
         loop {
+            // Get the function IDs from the contract (they can change if the contract is updated).
+            let next_header_function_id =
+                FixedBytes(self.contract.next_header_function_id().await.unwrap());
+            let header_range_function_id =
+                FixedBytes(self.contract.header_range_function_id().await.unwrap());
+
             let current_block = self.contract.latest_block().await.unwrap();
             info!("The latest block stored the contract is: {}", current_block);
 
@@ -214,7 +220,10 @@ impl BlobstreamXOperator {
 
                 if target_block - current_block == 1 {
                     // Request the next header if the target block is the next block.
-                    match self.request_next_header(current_block).await {
+                    match self
+                        .request_next_header(current_block, next_header_function_id)
+                        .await
+                    {
                         Ok(request_id) => {
                             info!("Next header request submitted: {}", request_id);
 
@@ -239,7 +248,10 @@ impl BlobstreamXOperator {
                     };
                 } else {
                     // Request a header range if the target block is not the next block.
-                    match self.request_header_range(current_block, target_block).await {
+                    match self
+                        .request_header_range(current_block, target_block, header_range_function_id)
+                        .await
+                    {
                         Ok(request_id) => {
                             info!("Header range request submitted: {}", request_id);
 
