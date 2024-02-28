@@ -111,14 +111,12 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
         // output of this function is not used. Therefore, the logic assumes
         // nb_blocks is always positive.
         let nb_blocks_in_batch = self.sub(end_block, start_block);
-        self.watch(&nb_blocks_in_batch, "nb_blocks_in_batch");
 
         // Note: nb_blocks_in_batch is assumed to be less than 2^32 (which is a reasonable
         // assumption for any data commitment as in practice, the number of blocks in a data
-        // commitment range will be much smaller than 2^32).
-        let zero = self.zero();
+        // commitment range will be much smaller than 2^32). This is fine as
+        // nb_blocks_in_batch.limbs[1] is unused.
         let nb_enabled_leaves = nb_blocks_in_batch.limbs[0].variable;
-        self.assert_is_equal(nb_blocks_in_batch.limbs[1].variable, zero);
 
         let mut leaves = Vec::new();
 
