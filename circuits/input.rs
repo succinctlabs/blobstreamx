@@ -112,7 +112,7 @@ impl DataCommitmentInputs for InputDataFetcher {
         while curr_block <= end_block_number {
             let batch_end_block =
                 std::cmp::min(curr_block + MAX_BATCH_SIZE as u64, end_block_number + 1);
-            // Request asynchronously all the signed headers in the range [start_block_number, end_block_number].
+            // Batch request the headers in the range [curr_block, batch_end_block).
             let batch_signed_header_futures = (curr_block..batch_end_block)
                 .map(|i| self.get_signed_header_from_number(i))
                 .collect::<Vec<_>>();
