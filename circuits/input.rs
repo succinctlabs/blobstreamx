@@ -8,6 +8,7 @@ use plonky2x::frontend::merkle::tree::InclusionProof;
 use plonky2x::prelude::RichField;
 use serde::Deserialize;
 use subtle_encoding::hex;
+use tendermint::block::signed_header::SignedHeader;
 use tendermint_proto::types::BlockId as RawBlockId;
 use tendermint_proto::Protobuf;
 use tendermintx::input::{InputDataFetcher, InputDataMode};
@@ -27,6 +28,13 @@ pub struct DataCommitment {
 #[async_trait]
 pub trait DataCommitmentInputs {
     async fn get_data_commitment(&mut self, start_block: u64, end_block: u64) -> [u8; 32];
+
+    /// Get signed headers in the range [start_block_number, end_block_number] inclusive.
+    async fn get_signed_header_range(
+        &self,
+        start_block_number: u64,
+        end_block_number: u64,
+    ) -> Vec<SignedHeader>;
 
     async fn get_data_commitment_inputs<const MAX_LEAVES: usize, F: RichField>(
         &mut self,
@@ -91,6 +99,33 @@ impl DataCommitmentInputs for InputDataFetcher {
             .unwrap()
     }
 
+    async fn get_signed_header_range(
+        &self,
+        start_block_number: u64,
+        end_block_number: u64,
+    ) -> Vec<SignedHeader> {
+        // Note: Handles 500+ concurrent requests well, but monitor for any issues.
+        const MAX_BATCH_SIZE: usize = 200;
+
+        let mut signed_headers = Vec::new();
+        let mut curr_block = start_block_number;
+        while curr_block <= end_block_number {
+            let batch_end_block =
+                std::cmp::min(curr_block + MAX_BATCH_SIZE as u64, end_block_number + 1);
+            // Request asynchronously all the signed headers in the range [start_block_number, end_block_number].
+            let batch_signed_header_futures = (curr_block..batch_end_block)
+                .map(|i| self.get_signed_header_from_number(i))
+                .collect::<Vec<_>>();
+            let batch_signed_headers: Vec<SignedHeader> =
+                futures::future::join_all(batch_signed_header_futures).await;
+            signed_headers.extend(batch_signed_headers);
+
+            curr_block += MAX_BATCH_SIZE as u64;
+        }
+
+        signed_headers
+    }
+
     async fn get_data_commitment_inputs<const MAX_LEAVES: usize, F: RichField>(
         &mut self,
         start_block_number: u64,
@@ -106,8 +141,18 @@ impl DataCommitmentInputs for InputDataFetcher {
         let mut data_hashes = Vec::new();
         let mut data_hash_proofs = Vec::new();
         let mut last_block_id_proofs = Vec::new();
+        let signed_headers = self
+            .get_signed_header_range(start_block_number, end_block_number)
+            .await;
+
+        if end_block_number >= start_block_number {
+            assert_eq!(
+                signed_headers.len(),
+                (end_block_number - start_block_number + 1) as usize
+            );
+        }
         for i in start_block_number..end_block_number + 1 {
-            let signed_header = self.get_signed_header_from_number(i).await;
+            let signed_header = &signed_headers[(i - start_block_number) as usize];
 
             // Don't include the data hash and corresponding proof of end_block, as the circuit's
             // data_commitment is computed over the range [start_block, end_block - 1].
@@ -190,17 +235,13 @@ impl DataCommitmentInputs for InputDataFetcher {
         let mut end_header = [0u8; 32];
         // If start_block_number >= end_block_number, then start_header and end_header are dummy values.
         if start_block_number < end_block_number {
-            start_header = self
-                .get_signed_header_from_number(start_block_number)
-                .await
+            start_header = signed_headers[0]
                 .header
                 .hash()
                 .as_bytes()
                 .try_into()
                 .unwrap();
-            end_header = self
-                .get_signed_header_from_number(end_block_number)
-                .await
+            end_header = signed_headers[signed_headers.len() - 1]
                 .header
                 .hash()
                 .as_bytes()
