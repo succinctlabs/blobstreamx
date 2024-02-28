@@ -104,7 +104,7 @@ impl DataCommitmentInputs for InputDataFetcher {
         start_block_number: u64,
         end_block_number: u64,
     ) -> Vec<SignedHeader> {
-        // Note: Handles 500+ concurrent requests well, but monitor for any issues.
+        // Note: Tested with 500+ concurrent requests, but monitor for any issues.
         const MAX_BATCH_SIZE: usize = 200;
 
         let mut signed_headers = Vec::new();
