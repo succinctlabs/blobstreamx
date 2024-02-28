@@ -25,7 +25,7 @@ pub async fn main() {
     env::set_var("RUST_LOG", "info");
     dotenv::dotenv().ok();
     env_logger::init();
-    let mut data_fetcher = InputDataFetcher::default();
+    let data_fetcher = InputDataFetcher::default();
     let args = GenesisArgs::parse();
 
     let genesis_block = args.block;
