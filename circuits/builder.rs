@@ -400,7 +400,7 @@ pub(crate) mod tests {
     use tokio::runtime::Runtime;
 
     use super::*;
-    use crate::input::DataCommitmentInputs;
+    use crate::input::DataCommitmentInputFetcher;
     use crate::vars::*;
 
     type L = DefaultParameters;
@@ -425,13 +425,13 @@ pub(crate) mod tests {
         (
             DataCommitmentProofValueType {
                 start_block_height: (start_height as u64),
-                start_header: H256::from_slice(&result.0),
+                start_header: H256::from_slice(&result.start_header_hash),
                 end_block_height: (end_height as u64),
-                end_header: H256::from_slice(&result.1),
-                data_hash_proofs: result.3,
-                last_block_id_proofs: result.4,
+                end_header: H256::from_slice(&result.end_header_hash),
+                data_hash_proofs: result.data_hash_proofs,
+                last_block_id_proofs: result.last_block_id_proofs,
             },
-            H256(result.5),
+            H256(result.expected_data_commitment),
         )
     }
 

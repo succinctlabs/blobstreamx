@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use tendermintx::input::InputDataFetcher;
 
 use crate::builder::{DataCommitmentBuilder, DataCommitmentSharedCtx};
-use crate::input::DataCommitmentInputs;
+use crate::input::DataCommitmentInputFetcher;
 use crate::vars::*;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -35,11 +35,11 @@ impl<const MAX_LEAVES: usize, L: PlonkParameters<D>, const D: usize> AsyncHint<L
 
         let data_comm_proof = DataCommitmentProofValueType {
             start_block_height: start_block,
-            start_header: H256(result.0),
+            start_header: H256(result.start_header_hash),
             end_block_height: end_block,
-            end_header: H256(result.1),
-            data_hash_proofs: result.3,
-            last_block_id_proofs: result.4,
+            end_header: H256(result.end_header_hash),
+            data_hash_proofs: result.data_hash_proofs,
+            last_block_id_proofs: result.last_block_id_proofs,
         };
         // Write the inputs to the data commitment circuit.
         output_stream.write_value::<DataCommitmentProofVariable<MAX_LEAVES>>(data_comm_proof);

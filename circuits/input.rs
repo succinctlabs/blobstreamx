@@ -25,8 +25,18 @@ pub struct DataCommitment {
     pub data_commitment: String,
 }
 
+#[derive(Debug, Clone)]
+pub struct DataCommitmentInputs<F: RichField> {
+    pub start_header_hash: [u8; 32],
+    pub end_header_hash: [u8; 32],
+    pub data_hash_proofs: Vec<InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES, F>>,
+    pub last_block_id_proofs:
+        Vec<InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, F>>,
+    pub expected_data_commitment: [u8; 32],
+}
+
 #[async_trait]
-pub trait DataCommitmentInputs {
+pub trait DataCommitmentInputFetcher {
     async fn get_data_commitment(&mut self, start_block: u64, end_block: u64) -> [u8; 32];
 
     /// Get signed headers in the range [start_block_number, end_block_number] inclusive.
@@ -40,20 +50,13 @@ pub trait DataCommitmentInputs {
         &mut self,
         start_block_number: u64,
         end_block_number: u64,
-    ) -> (
-        [u8; 32],                                                             // start_header_hash
-        [u8; 32],                                                             // end_header_hash
-        Vec<[u8; 32]>,                                                        // data_hashes
-        Vec<InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES, F>>, // data_hash_proofs
-        Vec<InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, F>>, // last_block_id_proofs
-        [u8; 32], // expected_data_commitment
-    );
+    ) -> DataCommitmentInputs<F>;
 }
 
 const MAX_NUM_RETRIES: usize = 3;
 
 #[async_trait]
-impl DataCommitmentInputs for InputDataFetcher {
+impl DataCommitmentInputFetcher for InputDataFetcher {
     async fn get_data_commitment(&mut self, start_block: u64, end_block: u64) -> [u8; 32] {
         // If start_block == end_block, then return a dummy commitment.
         // This will occur in the context of data commitment's map reduce when leaves that contain blocks beyond the end_block.
@@ -130,15 +133,7 @@ impl DataCommitmentInputs for InputDataFetcher {
         &mut self,
         start_block_number: u64,
         end_block_number: u64,
-    ) -> (
-        [u8; 32],                                                             // start_header_hash
-        [u8; 32],                                                             // end_header_hash
-        Vec<[u8; 32]>,                                                        // data_hashes
-        Vec<InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES, F>>, // data_hash_proofs
-        Vec<InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, F>>, // last_block_id_proofs
-        [u8; 32], // expected_data_commitment
-    ) {
-        let mut data_hashes = Vec::new();
+    ) -> DataCommitmentInputs<F> {
         let mut data_hash_proofs = Vec::new();
         let mut last_block_id_proofs = Vec::new();
         let signed_headers = self
@@ -158,12 +153,11 @@ impl DataCommitmentInputs for InputDataFetcher {
             // data_commitment is computed over the range [start_block, end_block - 1].
             if i < end_block_number {
                 let data_hash = signed_header.header.data_hash.unwrap();
-                data_hashes.push(data_hash.as_bytes().try_into().unwrap());
 
                 let data_hash_proof = self.get_inclusion_proof::<PROTOBUF_HASH_SIZE_BYTES, F>(
                     &signed_header.header,
                     DATA_HASH_INDEX as u64,
-                    signed_header.header.data_hash.unwrap().encode_vec(),
+                    data_hash.encode_vec(),
                 );
                 data_hash_proofs.push(data_hash_proof);
             }
@@ -205,10 +199,9 @@ impl DataCommitmentInputs for InputDataFetcher {
             )
             .collect::<Vec<_>>();
 
-        let num_so_far = data_hashes.len();
-        // Extend data_hashes, data_hash_proofs, and last_block_id_proofs to MAX_LEAVES.
+        let num_so_far = data_hash_proofs_formatted.len();
+        // Extend data_hash_proofs, and last_block_id_proofs to MAX_LEAVES.
         for _ in num_so_far..MAX_LEAVES {
-            data_hashes.push([0u8; 32]);
             data_hash_proofs_formatted.push(InclusionProof::<
                 HEADER_PROOF_DEPTH,
                 PROTOBUF_HASH_SIZE_BYTES,
@@ -249,13 +242,12 @@ impl DataCommitmentInputs for InputDataFetcher {
                 .unwrap();
         }
 
-        (
-            start_header,
-            end_header,
-            data_hashes,
-            data_hash_proofs_formatted,
-            last_block_id_proofs_formatted,
+        DataCommitmentInputs {
+            start_header_hash: start_header,
+            end_header_hash: end_header,
+            data_hash_proofs: data_hash_proofs_formatted,
+            last_block_id_proofs: last_block_id_proofs_formatted,
             expected_data_commitment,
-        )
+        }
     }
 }
