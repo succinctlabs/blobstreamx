@@ -200,7 +200,7 @@ impl DataCommitmentInputFetcher for InputDataFetcher {
             .collect::<Vec<_>>();
 
         let num_so_far = data_hash_proofs_formatted.len();
-        // Extend data_hash_proofs, and last_block_id_proofs to MAX_LEAVES.
+        // Extend data_hash_proofs and last_block_id_proofs to length MAX_LEAVES.
         for _ in num_so_far..MAX_LEAVES {
             data_hash_proofs_formatted.push(InclusionProof::<
                 HEADER_PROOF_DEPTH,
