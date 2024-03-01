@@ -215,15 +215,21 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
             curr_block_enabled = self.and(curr_block_enabled, is_not_last_block);
         }
 
+        let data_hashes = ArrayVariable::<Bytes32Variable, BATCH_SIZE>::from(
+            data_comm_proof
+                .data_hash_proofs
+                .data
+                .iter()
+                .map(|proof| Bytes32Variable::from(&proof.leaf[2..2 + HASH_SIZE]))
+                .collect::<Vec<_>>(),
+        );
+
         // The end block of the batch's data_merkle_root is min(batch_end_block, global_end_block).
         // Compute the data_merkle_root for the batch.
         let is_less_than_target = self.lte(batch_end_block, *global_end_block);
         let end_block_num = self.select(is_less_than_target, batch_end_block, *global_end_block);
-        let data_merkle_root = self.get_data_commitment::<BATCH_SIZE>(
-            &data_comm_proof.data_hashes,
-            batch_start_block,
-            end_block_num,
-        );
+        let data_merkle_root =
+            self.get_data_commitment::<BATCH_SIZE>(&data_hashes, batch_start_block, end_block_num);
 
         MapReduceSubchainVariable {
             is_enabled: is_batch_enabled,
@@ -374,8 +380,10 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
             );
         self.assert_is_equal(data_hash_proof_root, prev_header_hash);
 
-        let encoded_tuple =
-            self.encode_data_root_tuple(&data_comm_proof.data_hashes[0], &prev_block_number);
+        let leaf =
+            Bytes32Variable::from(&data_comm_proof.data_hash_proofs.data[0].leaf[2..2 + HASH_SIZE]);
+
+        let encoded_tuple = self.encode_data_root_tuple(&leaf, &prev_block_number);
 
         // Return the data_commitment for the range (which only includes 1 block: prev_block_number).
         self.leaf_hash(&encoded_tuple.0)
@@ -388,7 +396,6 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
 pub(crate) mod tests {
     use ethers::types::H256;
     use plonky2x::backend::circuit::DefaultParameters;
-    use tendermintx::input::utils::convert_to_h256;
     use tendermintx::input::InputDataFetcher;
     use tokio::runtime::Runtime;
 
@@ -417,7 +424,6 @@ pub(crate) mod tests {
 
         (
             DataCommitmentProofValueType {
-                data_hashes: convert_to_h256(result.2),
                 start_block_height: (start_height as u64),
                 start_header: H256::from_slice(&result.0),
                 end_block_height: (end_height as u64),
@@ -447,11 +453,18 @@ pub(crate) mod tests {
 
         let start_block = builder.constant::<U64Variable>(START_BLOCK as u64);
         let end_block = builder.constant::<U64Variable>(END_BLOCK as u64);
-        let root_hash_target = builder.get_data_commitment::<MAX_LEAVES>(
-            &data_commitment_var.data_hashes,
-            start_block,
-            end_block,
+
+        let data_hashes = ArrayVariable::<Bytes32Variable, MAX_LEAVES>::from(
+            data_commitment_var
+                .data_hash_proofs
+                .data
+                .iter()
+                .map(|proof| Bytes32Variable::from(&proof.leaf[2..2 + HASH_SIZE]))
+                .collect::<Vec<_>>(),
         );
+
+        let root_hash_target =
+            builder.get_data_commitment::<MAX_LEAVES>(&data_hashes, start_block, end_block);
         builder.assert_is_equal(root_hash_target, expected_data_commitment);
 
         let circuit = builder.build();

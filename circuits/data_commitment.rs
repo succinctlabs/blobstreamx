@@ -6,7 +6,6 @@ use plonky2x::frontend::mapreduce::generator::MapReduceGenerator;
 use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::prelude::{Bytes32Variable, CircuitBuilder, PlonkParameters, ValueStream};
 use serde::{Deserialize, Serialize};
-use tendermintx::input::utils::convert_to_h256;
 use tendermintx::input::InputDataFetcher;
 
 use crate::builder::{DataCommitmentBuilder, DataCommitmentSharedCtx};
@@ -35,7 +34,6 @@ impl<const MAX_LEAVES: usize, L: PlonkParameters<D>, const D: usize> AsyncHint<L
             .await;
 
         let data_comm_proof = DataCommitmentProofValueType {
-            data_hashes: convert_to_h256(result.2),
             start_block_height: start_block,
             start_header: H256(result.0),
             end_block_height: end_block,
