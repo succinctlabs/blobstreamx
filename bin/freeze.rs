@@ -10,6 +10,8 @@ use ethers::providers::{Middleware, Provider, Ws};
 use ethers::types::Filter;
 use futures::StreamExt;
 use log::{debug, error};
+use reqwest::Client;
+use serde::{Deserialize, Serialize};
 use subtle_encoding::hex;
 use tendermintx::input::InputDataFetcher;
 
@@ -31,7 +33,121 @@ struct ChainConfig {
 type DataCommitmentStoredTuple = sol! { tuple(uint256, uint64, uint64, bytes32) };
 type HeadUpdateTuple = sol! { tuple(uint64, bytes32) };
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub enum PagerDutyMode {
+    General,
+    Integrations, // Add other modes as necessary
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub enum PagerDutySeverity {
+    Critical,
+    // Add other severities as necessary
+}
+
+pub struct MonitorClient {
+    http_client: Client,
+    page: bool,
+    // page_mode: PagerDutyMode,
+    api_key: String,
+    service: String,
+}
+
+const PAGERDUTY_API: &str = "https://events.pagerduty.com";
+const PAGERDUTY_V2_EVENTS_ROUTE: &str = "/v2/enqueue";
+// const PAGER_DUTY_API_KEY_ENV_VAR: &str = "PAGERDUTY_API_KEY";
+
+const PAGER_DUTY_API_KEY_GENERAL_ENV_VAR: &str = "PAGERDUTY_API_KEY_GENERAL";
+const PAGER_DUTY_API_KEY_INTEGRATIONS_ENV_VAR: &str = "PAGERDUTY_API_KEY_INTEGRATIONS";
+
+impl MonitorClient {
+    pub fn new(page: bool, page_mode: PagerDutyMode) -> Self {
+        let api_key_env = match page_mode {
+            PagerDutyMode::General => PAGER_DUTY_API_KEY_GENERAL_ENV_VAR,
+            PagerDutyMode::Integrations => PAGER_DUTY_API_KEY_INTEGRATIONS_ENV_VAR,
+        };
+
+        let api_key =
+            env::var(api_key_env).unwrap_or_else(|_| panic!("{} must be set!", api_key_env));
+        Self {
+            http_client: Client::new(),
+            page,
+            // page_mode,
+            api_key,
+            service: "Blobstream X Freeze Alert".to_string(),
+        }
+    }
+
+    pub async fn alert(&self, message: &str) {
+        self.send_slack_message(message).await;
+        if self.page {
+            self.send_pagerduty_alert(
+                &self.service,
+                message,
+                PagerDutySeverity::Critical,
+                serde_json::Value::Null,
+            )
+            .await;
+        }
+    }
+
+    async fn send_slack_message(&self, message: &str) {
+        let slack_token = env::var("SLACK_TOKEN").expect("SLACK_TOKEN must be set");
+        let channel = "#seal";
+        let text = format!("*{} Monitor*: {}", "Blobstream X", message);
+
+        let payload = serde_json::json!({
+            "channel": channel,
+            "text": text,
+        });
+
+        let _res = self
+            .http_client
+            .post("https://slack.com/api/chat.postMessage")
+            .bearer_auth(slack_token)
+            .json(&payload)
+            .send()
+            .await
+            .expect("Failed to send message to Slack");
+    }
+
+    async fn send_pagerduty_alert(
+        &self,
+        source: &str,
+        summary: &str,
+        severity: PagerDutySeverity,
+        context: serde_json::Value,
+    ) {
+        // Implement PagerDuty API call similarly
+        // This example does not include a real PagerDuty API call for brevity
+        const ACTION: &str = "trigger";
+        let internal_paylaod = serde_json::json!({
+            "source": source,
+            "summary": summary,
+            "severity": severity,
+            "custom_details": context
+        });
+        let payload = serde_json::json!({
+            "payload": internal_paylaod,
+            // If an existing incident with the same dedup_key exists, a new incident will not be created.
+            "dedup_key": source,
+            "routing_key": self.api_key,
+            "event_action": ACTION
+        });
+
+        let _res = self
+            .http_client
+            .post(format!("{}{}", PAGERDUTY_API, PAGERDUTY_V2_EVENTS_ROUTE))
+            .json(&payload)
+            .send()
+            .await
+            .expect("Failed to send message to Slack");
+    }
+}
+
 async fn launch_monitor(config: &ChainConfig) {
+    let monitor_client = MonitorClient::new(true, PagerDutyMode::Integrations);
+
     // Read WS_{chain_id} from .env
     let ws_url = format!("WS_{}", config.chain_id);
 
@@ -95,6 +211,13 @@ async fn launch_monitor(config: &ChainConfig) {
                 "Data commitment mismatch for data commitment over range {}-{}",
                 start_block, end_block
             );
+
+            monitor_client
+                .alert(&format!(
+                    "Data commitment mismatch for Blobstream X light client on chain {} tracking chain {}. Data commitment over range {}-{}",
+                    config.chain_id, config.celestia_chain, start_block, end_block
+                ))
+                .await;
         }
 
         // Fetch all HeadUpdate events emitted on the block of this log (as they are always emitted on the same block).
@@ -130,6 +253,13 @@ async fn launch_monitor(config: &ChainConfig) {
         if contract_target_header_hash != expected_header_hash {
             // TODO: Send alert.
             error!("Header hash mismatch for block {}", target_block);
+
+            monitor_client
+                .alert(&format!(
+                    "Header hash mismatch for block for Blobstream X light client on chain {} tracking chain {}. Header hash incorrect for block {}.",
+                    config.chain_id, config.celestia_chain, target_block
+                ))
+                .await;
         }
     }
 }
