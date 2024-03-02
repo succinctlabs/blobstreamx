@@ -9,7 +9,8 @@ use ethers::core::types::Address;
 use ethers::providers::{Middleware, Provider, Ws};
 use ethers::types::Filter;
 use futures::StreamExt;
-use log::error;
+use log::{debug, error};
+use subtle_encoding::hex;
 use tendermintx::input::InputDataFetcher;
 
 // Note: Update ABI when updating contract.
@@ -34,8 +35,14 @@ async fn launch_monitor(config: &ChainConfig) {
     // Read WS_{chain_id} from .env
     let ws_url = format!("WS_{}", config.chain_id);
 
+    let ws_url =
+        env::var(ws_url).unwrap_or_else(|_| panic!("WS for chain {} not found", config.chain_id));
+
     // Read TENDERMINT_RPC_{celestia_chain} from .env
     let tendermint_rpc = format!("TENDERMINT_RPC_{}", config.celestia_chain);
+
+    let tendermint_rpc = env::var(tendermint_rpc)
+        .unwrap_or_else(|_| panic!("Tendermint RPC for {} not found", config.celestia_chain));
 
     // Split the url's by commas.
     let urls = tendermint_rpc
@@ -74,6 +81,13 @@ async fn launch_monitor(config: &ChainConfig) {
         let expected_data_commitment = input_data_fetcher
             .get_data_commitment(start_block, end_block)
             .await;
+
+        debug!(
+            "Data commitment for range {}-{}: {:?}",
+            start_block,
+            end_block,
+            hex::encode(contract_data_commitment.clone())
+        );
 
         if contract_data_commitment != expected_data_commitment {
             // TODO: Send alert.
@@ -135,13 +149,20 @@ const CONFIGS: [ChainConfig; 2] = [
 
 #[tokio::main]
 async fn main() {
-    env::set_var("RUST_LOG", "info");
+    env::set_var("RUST_LOG", "debug");
     dotenv::dotenv().ok();
     env_logger::init();
 
+    let mut handles = Vec::new();
+
     for config in CONFIGS.iter() {
-        tokio::spawn(async move {
+        let handle = tokio::spawn(async move {
             launch_monitor(config).await;
         });
+        handles.push(handle);
+    }
+
+    for handle in handles {
+        handle.await.expect("Thread panicked.")
     }
 }
