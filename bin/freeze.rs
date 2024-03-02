@@ -39,29 +39,23 @@ pub enum PagerDutyMode {
     Integrations, // Add other modes as necessary
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub enum PagerDutySeverity {
-    Critical,
-    // Add other severities as necessary
-}
-
 pub struct MonitorClient {
     http_client: Client,
     page: bool,
-    // page_mode: PagerDutyMode,
     api_key: String,
     service: String,
 }
 
 const PAGERDUTY_API: &str = "https://events.pagerduty.com";
 const PAGERDUTY_V2_EVENTS_ROUTE: &str = "/v2/enqueue";
-// const PAGER_DUTY_API_KEY_ENV_VAR: &str = "PAGERDUTY_API_KEY";
 
 const PAGER_DUTY_API_KEY_GENERAL_ENV_VAR: &str = "PAGERDUTY_API_KEY_GENERAL";
 const PAGER_DUTY_API_KEY_INTEGRATIONS_ENV_VAR: &str = "PAGERDUTY_API_KEY_INTEGRATIONS";
 
+const PAGERDUTY_CRITICAL_SEVERITY: &str = "critical";
+
 impl MonitorClient {
-    pub fn new(page: bool, page_mode: PagerDutyMode) -> Self {
+    pub fn new(page: bool, page_mode: PagerDutyMode, chain_id: u64, address: &str) -> Self {
         let api_key_env = match page_mode {
             PagerDutyMode::General => PAGER_DUTY_API_KEY_GENERAL_ENV_VAR,
             PagerDutyMode::Integrations => PAGER_DUTY_API_KEY_INTEGRATIONS_ENV_VAR,
@@ -72,9 +66,11 @@ impl MonitorClient {
         Self {
             http_client: Client::new(),
             page,
-            // page_mode,
             api_key,
-            service: "Blobstream X Freeze Alert".to_string(),
+            service: format!(
+                "BlobstreamX Freeze Monitor for chain {} at address {}",
+                chain_id, address
+            ),
         }
     }
 
@@ -84,7 +80,7 @@ impl MonitorClient {
             self.send_pagerduty_alert(
                 &self.service,
                 message,
-                PagerDutySeverity::Critical,
+                PAGERDUTY_CRITICAL_SEVERITY,
                 serde_json::Value::Null,
             )
             .await;
@@ -115,38 +111,58 @@ impl MonitorClient {
         &self,
         source: &str,
         summary: &str,
-        severity: PagerDutySeverity,
+        severity: &str,
         context: serde_json::Value,
     ) {
-        // Implement PagerDuty API call similarly
-        // This example does not include a real PagerDuty API call for brevity
+        // Trigger an incident.
         const ACTION: &str = "trigger";
-        let internal_paylaod = serde_json::json!({
+        let internal_payload = serde_json::json!({
             "source": source,
             "summary": summary,
             "severity": severity,
             "custom_details": context
         });
         let payload = serde_json::json!({
-            "payload": internal_paylaod,
+            "payload": internal_payload,
             // If an existing incident with the same dedup_key exists, a new incident will not be created.
+            // Specifically, if there is another alert for the same contract address on the same chain, it will not create a new incident.
             "dedup_key": source,
             "routing_key": self.api_key,
             "event_action": ACTION
         });
 
-        let _res = self
-            .http_client
-            .post(format!("{}{}", PAGERDUTY_API, PAGERDUTY_V2_EVENTS_ROUTE))
-            .json(&payload)
-            .send()
-            .await
-            .expect("Failed to send message to Slack");
+        let endpoint = format!("{}{}", PAGERDUTY_API, PAGERDUTY_V2_EVENTS_ROUTE);
+
+        let res = self.http_client.post(&endpoint).json(&payload).send().await;
+
+        match res {
+            Ok(response) => {
+                if response.status().is_success() {
+                } else {
+                    let error_body = response
+                        .text()
+                        .await
+                        .unwrap_or_else(|_| "Failed to read response body".into());
+                    debug!("PagerDuty API error response: {}", error_body);
+                }
+            }
+            Err(e) => debug!("Failed to send message to Pagerduty: {:?}", e),
+        }
     }
 }
 
 async fn launch_monitor(config: &ChainConfig) {
-    let monitor_client = MonitorClient::new(true, PagerDutyMode::Integrations);
+    debug!(
+        "Starting {} monitor for chain {}",
+        config.celestia_chain.to_lowercase(),
+        config.chain_id
+    );
+    let monitor_client = MonitorClient::new(
+        true,
+        PagerDutyMode::Integrations,
+        config.chain_id,
+        config.contract_address,
+    );
 
     // Read WS_{chain_id} from .env
     let ws_url = format!("WS_{}", config.chain_id);
@@ -206,7 +222,6 @@ async fn launch_monitor(config: &ChainConfig) {
         );
 
         if contract_data_commitment != expected_data_commitment {
-            // TODO: Send alert.
             error!(
                 "Data commitment mismatch for data commitment over range {}-{}",
                 start_block, end_block
@@ -215,7 +230,7 @@ async fn launch_monitor(config: &ChainConfig) {
             monitor_client
                 .alert(&format!(
                     "Data commitment mismatch for Blobstream X light client on chain {} tracking chain {}. Data commitment over range {}-{}",
-                    config.chain_id, config.celestia_chain, start_block, end_block
+                    config.chain_id, config.celestia_chain.to_lowercase(), start_block, end_block
                 ))
                 .await;
         }
@@ -251,13 +266,12 @@ async fn launch_monitor(config: &ChainConfig) {
             target_header.header.hash().as_bytes().try_into().unwrap();
 
         if contract_target_header_hash != expected_header_hash {
-            // TODO: Send alert.
             error!("Header hash mismatch for block {}", target_block);
 
             monitor_client
                 .alert(&format!(
                     "Header hash mismatch for block for Blobstream X light client on chain {} tracking chain {}. Header hash incorrect for block {}.",
-                    config.chain_id, config.celestia_chain, target_block
+                    config.chain_id, config.celestia_chain.to_lowercase(), target_block
                 ))
                 .await;
         }
