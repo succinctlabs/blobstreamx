@@ -136,8 +136,8 @@ async fn launch_monitor(config: &ChainConfig) {
 
 const CONFIGS: [ChainConfig; 2] = [
     ChainConfig {
-        chain_id: 11155111,
-        contract_address: "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+        chain_id: 421614,
+        contract_address: "0xf6b3239143d33aeFC893fa5411cdc056F8080418",
         celestia_chain: CelestiaChain::MOCHA4,
     },
     ChainConfig {
