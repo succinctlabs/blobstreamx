@@ -215,6 +215,12 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
             curr_block_enabled = self.and(curr_block_enabled, is_not_last_block);
         }
 
+        // The last block is either disabled or it matches the batch_end_header_hash.
+        let is_last_block_disabled = self.not(curr_block_enabled);
+        let last_block_matches_end_header = self.is_equal(curr_header, batch_end_header_hash);
+        let end_header_check = self.or(is_last_block_disabled, last_block_matches_end_header);
+        self.assert_is_equal(end_header_check, true_bool);
+
         // The end block of the batch's data_merkle_root is min(batch_end_block, global_end_block).
         // Compute the data_merkle_root for the batch.
         let is_less_than_target = self.lte(batch_end_block, *global_end_block);
