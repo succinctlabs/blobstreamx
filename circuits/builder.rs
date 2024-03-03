@@ -30,6 +30,7 @@ pub trait DataCommitmentBuilder<L: PlonkParameters<D>, const D: usize> {
 
     /// Compute the data commitment from start_block to end_block. Each leaf in the merkle tree is abi.encode(data_hash, height).
     /// Note: Data commitment is exclusive of end_block.
+    /// Note: end_block should be >= start_block.
     /// MAX_LEAVES is the maximum range of blocks that can be included in the data commitment.
     fn get_data_commitment<const MAX_LEAVES: usize>(
         &mut self,
@@ -107,6 +108,11 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
         start_block: U64Variable,
         end_block: U64Variable,
     ) -> Bytes32Variable {
+        let true_var = self._true();
+        // Assert end_block >= start_block.
+        let end_block_ge_start_block = self.gte(end_block, start_block);
+        self.assert_is_equal(end_block_ge_start_block, true_var);
+
         // If end_block < start_block, then this data commitment will be marked as disabled, and the
         // output of this function is not used. Therefore, the logic assumes
         // nb_blocks is always positive.
@@ -114,9 +120,12 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
 
         // Note: nb_blocks_in_batch is assumed to be less than 2^32 (which is a reasonable
         // assumption for any data commitment as in practice, the number of blocks in a data
-        // commitment range will be much smaller than 2^32). This is fine as
-        // nb_blocks_in_batch.limbs[1] is unused.
+        // commitment range will be much smaller than 2^32).
         let nb_enabled_leaves = nb_blocks_in_batch.limbs[0].variable;
+        let zero = self.zero();
+
+        // Constrain nb_blocks_in_batch.limbs[1] to be zero. (i.e. nb_blocks_in_batch < 2^32)
+        self.assert_is_equal(nb_blocks_in_batch.limbs[1], zero);
 
         let mut leaves = Vec::new();
 
@@ -215,10 +224,18 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
             curr_block_enabled = self.and(curr_block_enabled, is_not_last_block);
         }
 
-        // The end block of the batch's data_merkle_root is min(batch_end_block, global_end_block).
+        // The end block of the batch's data_merkle_root is max(start_block, min(batch_end_block, global_end_block)).
+        let is_batch_end_lt_global_end = self.lte(batch_end_block, *global_end_block);
+        let end_block_num = self.select(
+            is_batch_end_lt_global_end,
+            batch_end_block,
+            *global_end_block,
+        );
+
+        let is_end_block_lt_start = self.lt(end_block_num, batch_start_block);
+        let end_block_num = self.select(is_end_block_lt_start, batch_start_block, end_block_num);
+
         // Compute the data_merkle_root for the batch.
-        let is_less_than_target = self.lte(batch_end_block, *global_end_block);
-        let end_block_num = self.select(is_less_than_target, batch_end_block, *global_end_block);
         let data_merkle_root = self.get_data_commitment::<BATCH_SIZE>(
             &data_comm_proof.data_hashes,
             batch_start_block,
@@ -345,6 +362,14 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
                     }
                 },
             );
+
+        // Assert the start_block and start_header_hash are valid.
+        self.assert_is_equal(result.start_block, start_block);
+        self.assert_is_equal(result.start_header, start_header_hash);
+
+        // Assert the end_block and end_header_hash are valid.
+        self.assert_is_equal(result.end_block, end_block);
+        self.assert_is_equal(result.end_header, end_header_hash);
 
         result.data_merkle_root
     }
