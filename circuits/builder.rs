@@ -228,14 +228,14 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
 
         // The end block of the batch's data_merkle_root is max(start_block, min(batch_end_block, global_end_block)).
         let is_batch_end_lt_global_end = self.lte(batch_end_block, global_end_block);
-        let end_block_num = self.select(
+        let temp_end_block_num = self.select(
             is_batch_end_lt_global_end,
             batch_end_block,
             global_end_block,
         );
-
-        let is_end_block_lt_start = self.lt(end_block_num, batch_start_block);
-        let end_block_num = self.select(is_end_block_lt_start, batch_start_block, end_block_num);
+        let is_end_block_lt_start = self.lt(temp_end_block_num, batch_start_block);
+        let end_block_num =
+            self.select(is_end_block_lt_start, batch_start_block, temp_end_block_num);
 
         // Compute the data_merkle_root for the batch.
         let data_merkle_root = self.get_data_commitment::<BATCH_SIZE>(
@@ -289,7 +289,7 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
                     let global_end_header_hash = map_ctx.end_header_hash;
                     let global_end_block = map_ctx.end_block;
 
-                    let start_block =
+                    let batch_start_block =
                         builder.add(map_ctx.start_block, map_relative_block_nums.as_vec()[0]);
                     let last_block = builder.add(
                         map_ctx.start_block,
@@ -298,9 +298,9 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
 
                     let batch_end_block = builder.add(last_block, one);
 
-                    // Fetch and read the data commitment inputs.
+                    // Fetch and read the data commitment inputs for the batch.
                     let mut input_stream = VariableStream::new();
-                    input_stream.write(&start_block);
+                    input_stream.write(&batch_start_block);
                     input_stream.write(&batch_end_block);
                     let data_comm_fetcher = DataCommitmentOffchainInputs::<BATCH_SIZE> {};
                     let output_stream = builder
@@ -309,7 +309,7 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
                         .read::<DataCommitmentProofVariable<BATCH_SIZE>>(builder);
 
                     // Verify the chain of headers is linked for the batch & compute the corresponding data_merkle_root.
-                    builder.prove_subchain(&data_comm_proof, start_block, batch_end_block, global_end_block, global_end_header_hash)
+                    builder.prove_subchain(&data_comm_proof, batch_start_block, batch_end_block, global_end_block, global_end_header_hash)
                 },
                 |_, left_subchain, right_subchain, builder| {
                     // The following logic handles the reduce stage of the mapreduce.
@@ -359,6 +359,8 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
                     }
                 },
             );
+
+        // The following assertions are validate the computation over the intermediate chain of headers.
 
         // Assert the start_block and start_header_hash are valid.
         self.assert_is_equal(result.start_block, start_block);
