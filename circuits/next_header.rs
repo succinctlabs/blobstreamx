@@ -90,6 +90,7 @@ mod tests {
         circuit.test_serializers(&gate_registry, &hint_registry);
     }
 
+    #[cfg(test)]
     fn test_next_header_template<const MAX_VALIDATOR_SET_SIZE: usize>(
         prev_block: usize,
         prev_header_hash: [u8; 32],

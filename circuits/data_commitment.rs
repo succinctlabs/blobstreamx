@@ -134,6 +134,7 @@ mod tests {
         circuit.test_serializers(&gate_registry, &hint_registry);
     }
 
+    #[cfg(test)]
     fn test_data_commitment_template<const NB_MAP_JOBS: usize, const BATCH_SIZE: usize>(
         start_block: usize,
         start_header_hash: [u8; 32],

@@ -136,6 +136,7 @@ mod tests {
         circuit.test_serializers(&gate_registry, &hint_registry);
     }
 
+    #[cfg(test)]
     fn test_header_range_template<
         const MAX_VALIDATOR_SET_SIZE: usize,
         const NB_MAP_JOBS: usize,
