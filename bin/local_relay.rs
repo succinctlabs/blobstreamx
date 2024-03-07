@@ -16,6 +16,7 @@ struct BlobstreamXRelayer {
     client: SuccinctClient,
     ethereum_rpc_url: String,
     wallet: LocalWallet,
+    gateway_address: Option<String>,
 }
 
 impl BlobstreamXRelayer {
@@ -27,6 +28,11 @@ impl BlobstreamXRelayer {
 
         let succinct_rpc_url = env::var("SUCCINCT_RPC_URL").expect("SUCCINCT_RPC_URL must be set");
         let succinct_api_key = env::var("SUCCINCT_API_KEY").expect("SUCCINCT_API_KEY must be set");
+        let gateway_address: Option<String> = if env::var("GATEWAY_ADDRESS").is_ok() {
+            Some(env::var("GATEWAY_ADDRESS").unwrap())
+        } else {
+            None
+        };
 
         // Local prove mode and local relay mode are optional and default to false.
         let local_prove_mode: String =
@@ -47,6 +53,7 @@ impl BlobstreamXRelayer {
             client,
             ethereum_rpc_url,
             wallet,
+            gateway_address,
         }
     }
 
@@ -60,7 +67,7 @@ impl BlobstreamXRelayer {
                 request_id,
                 Some(self.ethereum_rpc_url.as_ref()),
                 Some(self.wallet.clone()),
-                None,
+                self.gateway_address.as_deref(),
             )
             .await;
 
