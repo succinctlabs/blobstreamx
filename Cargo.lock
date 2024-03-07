@@ -3042,7 +3042,7 @@ source = "git+https://github.com/mir-protocol/plonky2.git#62ffe11a984dbc0e6fe92d
 [[package]]
 name = "plonky2x"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git#258da12ac021de8b9cf57feba1fa5bef937db309"
+source = "git+https://github.com/succinctlabs/succinctx.git#98373274acb5609c74e2b09d1741d6abddc173ef"
 dependencies = [
  "anyhow",
  "array-macro",
@@ -3084,7 +3084,7 @@ dependencies = [
 [[package]]
 name = "plonky2x-derive"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git#258da12ac021de8b9cf57feba1fa5bef937db309"
+source = "git+https://github.com/succinctlabs/succinctx.git#98373274acb5609c74e2b09d1741d6abddc173ef"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4156,7 +4156,7 @@ checksum = "734676eb262c623cec13c3155096e08d1f8f29adce39ba17948b18dad1e54142"
 [[package]]
 name = "succinct-client"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git#258da12ac021de8b9cf57feba1fa5bef937db309"
+source = "git+https://github.com/succinctlabs/succinctx.git#98373274acb5609c74e2b09d1741d6abddc173ef"
 dependencies = [
  "alloy-primitives",
  "anyhow",
