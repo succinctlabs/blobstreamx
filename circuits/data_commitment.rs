@@ -105,7 +105,6 @@ impl<const NB_MAP_JOBS: usize, const BATCH_SIZE: usize> Circuit
 mod tests {
     use std::env;
 
-    use ethers::types::H256;
     use plonky2x::prelude::{DefaultBuilder, GateRegistry, HintRegistry};
     use subtle_encoding::hex;
 
