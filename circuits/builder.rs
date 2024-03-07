@@ -1,10 +1,8 @@
-use plonky2x::backend::circuit::{Circuit, PlonkParameters};
+use plonky2x::backend::circuit::Circuit;
 use plonky2x::frontend::merkle::tendermint::TendermintMerkleTree;
-use plonky2x::frontend::uint::uint64::U64Variable;
-use plonky2x::frontend::vars::{ArrayVariable, Bytes32Variable, EvmVariable};
+use plonky2x::frontend::vars::EvmVariable;
 use plonky2x::prelude::plonky2::plonk::config::{AlgebraicHasher, GenericConfig};
 use plonky2x::prelude::*;
-use tendermint::merkle::HASH_SIZE;
 
 use crate::consts::*;
 use crate::data_commitment::DataCommitmentOffchainInputs;
@@ -387,7 +385,6 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
 #[cfg(test)]
 pub(crate) mod tests {
     use ethers::types::H256;
-    use plonky2x::backend::circuit::DefaultParameters;
     use tendermintx::input::utils::convert_to_h256;
     use tendermintx::input::InputDataFetcher;
     use tokio::runtime::Runtime;

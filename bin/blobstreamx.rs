@@ -30,6 +30,7 @@ struct BlobstreamXOperator {
     config: BlobstreamXConfig,
     ethereum_rpc_url: String,
     wallet: Option<LocalWallet>,
+    gateway_address: Option<String>,
     contract: BlobstreamX<Provider<Http>>,
     client: SuccinctClient,
     data_fetcher: InputDataFetcher,
@@ -71,15 +72,21 @@ impl BlobstreamXOperator {
 
         let private_key: Option<String>;
         let wallet: Option<LocalWallet>;
+        let gateway_address: Option<String>;
 
         if config.local_relay_mode {
             // If true, set the variables with the required values
             private_key = Some(env::var("PRIVATE_KEY").expect("PRIVATE_KEY must be set"));
+
             wallet = Some(
                 LocalWallet::from_str(private_key.as_ref().unwrap()).expect("invalid private key"),
             );
+
+            // Set gateway_address if it exists in the environment
+            gateway_address = env::var("GATEWAY_ADDRESS").ok();
         } else {
             wallet = None;
+            gateway_address = None;
         }
 
         let client = SuccinctClient::new(
@@ -94,6 +101,7 @@ impl BlobstreamXOperator {
             ethereum_rpc_url,
             wallet,
             contract,
+            gateway_address,
             client,
             data_fetcher,
         }
@@ -234,11 +242,14 @@ impl BlobstreamXOperator {
                                     request_id,
                                     Some(self.ethereum_rpc_url.as_ref()),
                                     self.wallet.clone(),
-                                    None,
+                                    self.gateway_address.as_deref(),
                                 )
                                 .await;
-                            if res.is_err() {
-                                error!("Relaying next header request failed: {:?}", res);
+                            match res {
+                                Ok(_) => info!("Relayed successfully!"),
+                                Err(e) => {
+                                    error!("Relay failed: {}", e);
+                                }
                             }
                         }
                         Err(e) => {
@@ -262,11 +273,14 @@ impl BlobstreamXOperator {
                                     request_id,
                                     Some(self.ethereum_rpc_url.as_ref()),
                                     self.wallet.clone(),
-                                    None,
+                                    self.gateway_address.as_deref(),
                                 )
                                 .await;
-                            if res.is_err() {
-                                error!("Relaying header range request failed: {:?}", res);
+                            match res {
+                                Ok(_) => info!("Relayed successfully!"),
+                                Err(e) => {
+                                    error!("Relay failed: {}", e);
+                                }
                             }
                         }
                         Err(e) => {
