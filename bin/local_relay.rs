@@ -6,7 +6,7 @@ use std::str::FromStr;
 use clap::Parser;
 use ethers::contract::abigen;
 use ethers::signers::LocalWallet;
-use log::info;
+use log::{error, info};
 use succinct_client::request::SuccinctClient;
 
 // Note: Update ABI when updating contract.
@@ -63,7 +63,13 @@ impl BlobstreamXRelayer {
                 None,
             )
             .await;
-        info!("Relay result: {:?}", res);
+
+        match res {
+            Ok(_) => info!("Relayed successfully!"),
+            Err(e) => {
+                error!("Relay failed: {}", e);
+            }
+        }
     }
 }
 

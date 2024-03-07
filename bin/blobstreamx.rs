@@ -245,8 +245,11 @@ impl BlobstreamXOperator {
                                     self.gateway_address.as_deref(),
                                 )
                                 .await;
-                            if res.is_err() {
-                                error!("Relaying next header request failed: {:?}", res);
+                            match res {
+                                Ok(_) => info!("Relayed successfully!"),
+                                Err(e) => {
+                                    error!("Relay failed: {}", e);
+                                }
                             }
                         }
                         Err(e) => {
@@ -273,8 +276,11 @@ impl BlobstreamXOperator {
                                     self.gateway_address.as_deref(),
                                 )
                                 .await;
-                            if res.is_err() {
-                                error!("Relaying header range request failed: {:?}", res);
+                            match res {
+                                Ok(_) => info!("Relayed successfully!"),
+                                Err(e) => {
+                                    error!("Relay failed: {}", e);
+                                }
                             }
                         }
                         Err(e) => {
