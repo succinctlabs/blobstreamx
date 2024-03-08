@@ -36,9 +36,7 @@ impl<const MAX_LEAVES: usize, L: PlonkParameters<D>, const D: usize> AsyncHint<L
 
         let data_comm_proof = DataCommitmentProofValueType {
             data_hashes: convert_to_h256(result.2),
-            start_block_height: start_block,
             start_header: H256(result.0),
-            end_block_height: end_block,
             end_header: H256(result.1),
             data_hash_proofs: result.3,
             last_block_id_proofs: result.4,
