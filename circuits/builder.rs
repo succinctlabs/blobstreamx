@@ -28,6 +28,7 @@ pub trait DataCommitmentBuilder<L: PlonkParameters<D>, const D: usize> {
 
     /// Compute the data commitment from start_block to end_block. Each leaf in the merkle tree is abi.encode(data_hash, height).
     /// Note: Data commitment is exclusive of end_block.
+    /// Note: end_block should be >= start_block.
     /// MAX_LEAVES is the maximum range of blocks that can be included in the data commitment.
     fn get_data_commitment<const MAX_LEAVES: usize>(
         &mut self,
@@ -44,8 +45,10 @@ pub trait DataCommitmentBuilder<L: PlonkParameters<D>, const D: usize> {
     fn prove_subchain<const BATCH_SIZE: usize>(
         &mut self,
         data_comm_proof: &DataCommitmentProofVariable<BATCH_SIZE>,
-        global_end_block: &U64Variable,
-        global_end_header_hash: &Bytes32Variable,
+        batch_start_block: U64Variable,
+        batch_end_block: U64Variable,
+        global_end_block: U64Variable,
+        global_end_header_hash: Bytes32Variable,
     ) -> MapReduceSubchainVariable;
 
     /// Verify the chain of headers is linked from start_block to end_block, and generate the corresponding data_merkle_root.
@@ -105,6 +108,11 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
         start_block: U64Variable,
         end_block: U64Variable,
     ) -> Bytes32Variable {
+        let true_var = self._true();
+        // Assert end_block >= start_block.
+        let end_block_gte_start_block = self.gte(end_block, start_block);
+        self.assert_is_equal(end_block_gte_start_block, true_var);
+
         // If end_block < start_block, then this data commitment will be marked as disabled, and the
         // output of this function is not used. Therefore, the logic assumes
         // nb_blocks is always positive.
@@ -112,9 +120,12 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
 
         // Note: nb_blocks_in_batch is assumed to be less than 2^32 (which is a reasonable
         // assumption for any data commitment as in practice, the number of blocks in a data
-        // commitment range will be much smaller than 2^32). This is fine as
-        // nb_blocks_in_batch.limbs[1] is unused.
+        // commitment range will be much smaller than 2^32).
         let nb_enabled_leaves = nb_blocks_in_batch.limbs[0].variable;
+        let zero = self.zero();
+
+        // Constrain nb_blocks_in_batch.limbs[1] to be zero. (i.e. nb_blocks_in_batch < 2^32)
+        self.assert_is_equal(nb_blocks_in_batch.limbs[1], zero);
 
         let mut leaves = Vec::new();
 
@@ -139,16 +150,16 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
     fn prove_subchain<const BATCH_SIZE: usize>(
         &mut self,
         data_comm_proof: &DataCommitmentProofVariable<BATCH_SIZE>,
-        global_end_block: &U64Variable,
-        global_end_header_hash: &Bytes32Variable,
+        batch_start_block: U64Variable,
+        batch_end_block: U64Variable,
+        global_end_block: U64Variable,
+        global_end_header_hash: Bytes32Variable,
     ) -> MapReduceSubchainVariable {
         let one = self.constant::<U64Variable>(1u64);
         let true_bool = self._true();
 
-        // Get the start block, start header, end block, and end header from the data_comm_proof.
-        let batch_start_block = data_comm_proof.start_block_height;
+        // Get the start header and end header from the data_comm_proof.
         let batch_start_header_hash = data_comm_proof.start_header;
-        let batch_end_block = data_comm_proof.end_block_height;
         let batch_end_header_hash = data_comm_proof.end_header;
 
         // Path of the data_hash and last_block_id against the Tendermint header.
@@ -160,10 +171,10 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
         // If batch_start_block < global_end_block, this batch has headers that need to be verified.
         // If is_batch_enabled is false, in the reduce stage the batch will be considered empty, and
         // the right subchain's tree will be disabled in the Tendermint Merkle tree computation.
-        let is_batch_enabled = self.lt(batch_start_block, *global_end_block);
+        let is_batch_enabled = self.lt(batch_start_block, global_end_block);
         let mut curr_block_enabled = is_batch_enabled;
         let mut curr_header = batch_start_header_hash;
-        let last_block_to_process = self.sub(*global_end_block, one);
+        let last_block_to_process = self.sub(global_end_block, one);
 
         // Verify all headers in the batch. If last_block_to_process < batch_end_block, stop verifying at last_block_to_process.
         for i in 0..BATCH_SIZE {
@@ -203,7 +214,7 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
             // If this is the last valid block, verify the last_block_id_proof_root (header hash of block curr_idx+1) is equal to the global_end_header_hash.
             // This is the final step in the verification that global_start_block -> global_end_block is linked.
             let root_matches_end_header =
-                self.is_equal(last_block_id_proof_root, *global_end_header_hash);
+                self.is_equal(last_block_id_proof_root, global_end_header_hash);
             let end_header_check = self.or(is_not_last_block, root_matches_end_header);
             self.assert_is_equal(end_header_check, true_bool);
 
@@ -213,15 +224,35 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
             curr_block_enabled = self.and(curr_block_enabled, is_not_last_block);
         }
 
-        // The end block of the batch's data_merkle_root is min(batch_end_block, global_end_block).
-        // Compute the data_merkle_root for the batch.
-        let is_less_than_target = self.lte(batch_end_block, *global_end_block);
-        let end_block_num = self.select(is_less_than_target, batch_end_block, *global_end_block);
-        let data_merkle_root = self.get_data_commitment::<BATCH_SIZE>(
-            &data_comm_proof.data_hashes,
-            batch_start_block,
-            end_block_num,
+        // The last block is either disabled or it matches the batch_end_header_hash.
+        let is_last_block_disabled = self.not(curr_block_enabled);
+        let last_block_matches_end_header = self.is_equal(curr_header, batch_end_header_hash);
+        let end_header_check = self.or(is_last_block_disabled, last_block_matches_end_header);
+        self.assert_is_equal(end_header_check, true_bool);
+
+        // The end block of the batch's data_merkle_root is max(start_block, min(batch_end_block, global_end_block)).
+        let is_batch_end_lt_global_end = self.lte(batch_end_block, global_end_block);
+        let temp_end_block_num = self.select(
+            is_batch_end_lt_global_end,
+            batch_end_block,
+            global_end_block,
         );
+        let is_end_block_lt_start = self.lt(temp_end_block_num, batch_start_block);
+        let end_block_num =
+            self.select(is_end_block_lt_start, batch_start_block, temp_end_block_num);
+
+        let data_hashes = ArrayVariable::<Bytes32Variable, BATCH_SIZE>::from(
+            data_comm_proof
+                .data_hash_proofs
+                .data
+                .iter()
+                .map(|proof| Bytes32Variable::from(&proof.leaf[2..2 + HASH_SIZE]))
+                .collect::<Vec<_>>(),
+        );
+
+        // Compute the data_merkle_root for the batch.
+        let data_merkle_root =
+            self.get_data_commitment::<BATCH_SIZE>(&data_hashes, batch_start_block, end_block_num);
 
         MapReduceSubchainVariable {
             is_enabled: is_batch_enabled,
@@ -252,6 +283,13 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
         };
 
         let max_num_blocks = NB_MAP_JOBS * BATCH_SIZE;
+        // Assert end_block <= start_block + NB_MAP_JOBS * BATCH_SIZE.
+        let true_v = self._true();
+        let max_num_blocks_v = self.constant::<U64Variable>(max_num_blocks as u64);
+        let start_plus_max_num_blocks = self.add(start_block, max_num_blocks_v);
+        let end_block_check = self.lte(end_block, start_plus_max_num_blocks);
+        self.assert_is_equal(end_block_check, true_v);
+
         let relative_block_nums = (0u64..(max_num_blocks as u64)).collect::<Vec<_>>();
 
         let result = self
@@ -268,24 +306,19 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
                     let global_end_header_hash = map_ctx.end_header_hash;
                     let global_end_block = map_ctx.end_block;
 
-                    let start_block =
+                    let batch_start_block =
                         builder.add(map_ctx.start_block, map_relative_block_nums.as_vec()[0]);
                     let last_block = builder.add(
                         map_ctx.start_block,
                         map_relative_block_nums.as_vec()[BATCH_SIZE - 1],
                     );
 
-                    // The query_end_block = min(batch_end_block, global_end_block) for fetching the data commitment inputs.
-                    // If batch_end_block > global_end_block, data_comm_proof will be filled with dummy values.
-                    // This is because prove_subchain only checks up to global_end_block, and doing so reduces RPC calls.
                     let batch_end_block = builder.add(last_block, one);
-                    let past_global_end = builder.gt(batch_end_block, global_end_block);
-                    let query_end_block = builder.select(past_global_end, global_end_block, batch_end_block);
 
-                    // Fetch and read the data commitment inputs.
+                    // Fetch and read the data commitment inputs for the batch.
                     let mut input_stream = VariableStream::new();
-                    input_stream.write(&start_block);
-                    input_stream.write(&query_end_block);
+                    input_stream.write(&batch_start_block);
+                    input_stream.write(&batch_end_block);
                     let data_comm_fetcher = DataCommitmentOffchainInputs::<BATCH_SIZE> {};
                     let output_stream = builder
                         .async_hint(input_stream, data_comm_fetcher);
@@ -293,7 +326,7 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
                         .read::<DataCommitmentProofVariable<BATCH_SIZE>>(builder);
 
                     // Verify the chain of headers is linked for the batch & compute the corresponding data_merkle_root.
-                    builder.prove_subchain(&data_comm_proof, &global_end_block, &global_end_header_hash)
+                    builder.prove_subchain(&data_comm_proof, batch_start_block, batch_end_block, global_end_block, global_end_header_hash)
                 },
                 |_, left_subchain, right_subchain, builder| {
                     // The following logic handles the reduce stage of the mapreduce.
@@ -344,6 +377,16 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
                 },
             );
 
+        // The following assertions are validate the computation over the intermediate chain of headers.
+
+        // Assert the start_block and start_header_hash are valid.
+        self.assert_is_equal(result.start_block, start_block);
+        self.assert_is_equal(result.start_header, start_header_hash);
+
+        // Assert the end_block and end_header_hash are valid.
+        self.assert_is_equal(result.end_block, end_block);
+        self.assert_is_equal(result.end_header, end_header_hash);
+
         result.data_merkle_root
     }
 
@@ -372,8 +415,10 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
             );
         self.assert_is_equal(data_hash_proof_root, prev_header_hash);
 
-        let encoded_tuple =
-            self.encode_data_root_tuple(&data_comm_proof.data_hashes[0], &prev_block_number);
+        let leaf =
+            Bytes32Variable::from(&data_comm_proof.data_hash_proofs.data[0].leaf[2..2 + HASH_SIZE]);
+
+        let encoded_tuple = self.encode_data_root_tuple(&leaf, &prev_block_number);
 
         // Return the data_commitment for the range (which only includes 1 block: prev_block_number).
         self.leaf_hash(&encoded_tuple.0)
@@ -385,12 +430,11 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
 #[cfg(test)]
 pub(crate) mod tests {
     use ethers::types::H256;
-    use tendermintx::input::utils::convert_to_h256;
     use tendermintx::input::InputDataFetcher;
     use tokio::runtime::Runtime;
 
     use super::*;
-    use crate::input::DataCommitmentInputs;
+    use crate::input::DataCommitmentInputFetcher;
     use crate::vars::*;
 
     type L = DefaultParameters;
@@ -414,15 +458,12 @@ pub(crate) mod tests {
 
         (
             DataCommitmentProofValueType {
-                data_hashes: convert_to_h256(result.2),
-                start_block_height: (start_height as u64),
-                start_header: H256::from_slice(&result.0),
-                end_block_height: (end_height as u64),
-                end_header: H256::from_slice(&result.1),
-                data_hash_proofs: result.3,
-                last_block_id_proofs: result.4,
+                start_header: H256::from_slice(&result.start_header_hash),
+                end_header: H256::from_slice(&result.end_header_hash),
+                data_hash_proofs: result.data_hash_proofs,
+                last_block_id_proofs: result.last_block_id_proofs,
             },
-            H256(result.5),
+            H256(result.expected_data_commitment),
         )
     }
 
@@ -444,11 +485,18 @@ pub(crate) mod tests {
 
         let start_block = builder.constant::<U64Variable>(START_BLOCK as u64);
         let end_block = builder.constant::<U64Variable>(END_BLOCK as u64);
-        let root_hash_target = builder.get_data_commitment::<MAX_LEAVES>(
-            &data_commitment_var.data_hashes,
-            start_block,
-            end_block,
+
+        let data_hashes = ArrayVariable::<Bytes32Variable, MAX_LEAVES>::from(
+            data_commitment_var
+                .data_hash_proofs
+                .data
+                .iter()
+                .map(|proof| Bytes32Variable::from(&proof.leaf[2..2 + HASH_SIZE]))
+                .collect::<Vec<_>>(),
         );
+
+        let root_hash_target =
+            builder.get_data_commitment::<MAX_LEAVES>(&data_hashes, start_block, end_block);
         builder.assert_is_equal(root_hash_target, expected_data_commitment);
 
         let circuit = builder.build();
@@ -471,14 +519,18 @@ pub(crate) mod tests {
 
         const MAX_LEAVES: usize = 4;
         const START_BLOCK: usize = 10000;
+        let start_block = builder.constant::<U64Variable>(START_BLOCK as u64);
         const END_BLOCK: usize = START_BLOCK + MAX_LEAVES;
+        let end_block = builder.constant::<U64Variable>(END_BLOCK as u64);
 
         let data_commitment_var = builder.read::<DataCommitmentProofVariable<MAX_LEAVES>>();
 
         builder.prove_subchain::<MAX_LEAVES>(
             &data_commitment_var,
-            &data_commitment_var.end_block_height,
-            &data_commitment_var.end_header,
+            start_block,
+            end_block,
+            end_block,
+            data_commitment_var.end_header,
         );
 
         let circuit = builder.build();

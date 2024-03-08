@@ -549,9 +549,9 @@ dependencies = [
 
 [[package]]
 name = "bumpalo"
-version = "3.15.3"
+version = "3.15.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8ea184aa71bb362a1157c896979544cc23974e08fd265f29ea96b59f0b4a555b"
+checksum = "7ff69b9dd49fd426c69a0db9fc04dd934cdb6645ff000864d98f7e2af8830eaa"
 
 [[package]]
 name = "byte-slice-cast"
@@ -3042,7 +3042,7 @@ source = "git+https://github.com/mir-protocol/plonky2.git#62ffe11a984dbc0e6fe92d
 [[package]]
 name = "plonky2x"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git#98373274acb5609c74e2b09d1741d6abddc173ef"
+source = "git+https://github.com/succinctlabs/succinctx.git#18611dc4ff59ac53f895cd45588d562f0c088758"
 dependencies = [
  "anyhow",
  "array-macro",
@@ -3084,7 +3084,7 @@ dependencies = [
 [[package]]
 name = "plonky2x-derive"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git#98373274acb5609c74e2b09d1741d6abddc173ef"
+source = "git+https://github.com/succinctlabs/succinctx.git#18611dc4ff59ac53f895cd45588d562f0c088758"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4156,7 +4156,7 @@ checksum = "734676eb262c623cec13c3155096e08d1f8f29adce39ba17948b18dad1e54142"
 [[package]]
 name = "succinct-client"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git#98373274acb5609c74e2b09d1741d6abddc173ef"
+source = "git+https://github.com/succinctlabs/succinctx.git#18611dc4ff59ac53f895cd45588d562f0c088758"
 dependencies = [
  "alloy-primitives",
  "anyhow",
@@ -4319,7 +4319,7 @@ dependencies = [
 [[package]]
 name = "tendermintx"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/tendermintx.git#32cae3738142101d36ce1678a6e3ce994094581b"
+source = "git+https://github.com/succinctlabs/tendermintx.git?tag=v0.1.0#920d874c7d81953c9a14f0676a8759628fe8e338"
 dependencies = [
  "alloy-primitives",
  "alloy-sol-types",
