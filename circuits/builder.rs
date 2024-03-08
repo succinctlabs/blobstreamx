@@ -430,7 +430,6 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
 #[cfg(test)]
 pub(crate) mod tests {
     use ethers::types::H256;
-    use plonky2x::backend::circuit::DefaultParameters;
     use tendermintx::input::InputDataFetcher;
     use tokio::runtime::Runtime;
 
