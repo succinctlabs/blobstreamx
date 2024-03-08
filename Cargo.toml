@@ -71,5 +71,5 @@ subtle-encoding = "0.5.1"
 succinct-client = { git = "https://github.com/succinctlabs/succinctx.git" }
 tendermint = "0.33.0"
 tendermint-proto = "0.33.0"
-tendermintx = { git = "https://github.com/succinctlabs/tendermintx.git" }
+tendermintx = { git = "https://github.com/succinctlabs/tendermintx.git", tag = "v0.1.0" }
 tokio = { version = "1.29.1", features = ["full"] }
