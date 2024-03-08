@@ -51,7 +51,7 @@ alloy-primitives = "0.4.2"
 alloy-sol-types = "0.4.2"
 anyhow = "1.0.71"
 async-trait = "0.1.73"
-clap = {version = "4.3.18", features = ["derive"]}
+clap = { version = "4.3.18", features = ["derive"] }
 digest = "0.10.7"
 dotenv = "0.15.0"
 ed25519-consensus = "2.1.0"
@@ -61,15 +61,15 @@ futures = "0.3.30"
 itertools = "0.11.0"
 log = "0.4.19"
 num = "0.4.1"
-plonky2x = {git = "https://github.com/succinctlabs/succinctx.git"}
+plonky2x = { git = "https://github.com/succinctlabs/succinctx.git" }
 rand = "0.8.5"
 reqwest = "0.11.18"
 serde = "1.0.175"
 serde_json = "1.0.103"
 sha2 = "0.10.7"
 subtle-encoding = "0.5.1"
-succinct-client = {git = "https://github.com/succinctlabs/succinctx.git"}
+succinct-client = { git = "https://github.com/succinctlabs/succinctx.git" }
 tendermint = "0.33.0"
 tendermint-proto = "0.33.0"
-tendermintx = {git = "https://github.com/succinctlabs/tendermintx.git"}
-tokio = {version = "1.29.1", features = ["full"]}
+tendermintx = { git = "https://github.com/succinctlabs/tendermintx.git" }
+tokio = { version = "1.29.1", features = ["full"] }
