@@ -254,7 +254,7 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
         };
 
         let max_num_blocks = NB_MAP_JOBS * BATCH_SIZE;
-        // Assert end_block <= start_block + NB_MAP_JOBS + BATCH_SIZE.
+        // Assert end_block <= start_block + NB_MAP_JOBS * BATCH_SIZE.
         let true_v = self._true();
         let max_num_blocks_v = self.constant::<U64Variable>(max_num_blocks as u64);
         let start_plus_max_num_blocks = self.add(start_block, max_num_blocks_v);
