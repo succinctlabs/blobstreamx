@@ -13,7 +13,6 @@ use crate::consts::*;
 #[derive(Clone, Debug, CircuitVariable)]
 #[value_name(DataCommitmentProofValueType)]
 pub struct DataCommitmentProofVariable<const MAX_LEAVES: usize> {
-    pub data_hashes: ArrayVariable<Bytes32Variable, MAX_LEAVES>,
     pub start_header: Bytes32Variable,
     pub end_header: Bytes32Variable,
     pub data_hash_proofs: ArrayVariable<
