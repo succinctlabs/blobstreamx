@@ -191,7 +191,7 @@ mod tests {
         // Test variable length NUM_BLOCKS.
         const MAX_VALIDATOR_SET_SIZE: usize = 8;
         const NB_MAP_JOBS: usize = 2;
-        const BATCH_SIZE: usize = 2;
+        const BATCH_SIZE: usize = 4;
 
         // These blocks are on Mocha-4 testnet.
         let start_block = 500u64;

@@ -218,8 +218,9 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
             let end_header_check = self.or(is_not_last_block, root_matches_end_header);
             self.assert_is_equal(end_header_check, true_bool);
 
-            // Set current header to the hash of block curr_idx+1.
-            curr_header = last_block_id_proof_root;
+            // Set current header to the hash of block curr_idx+1. If past the global end block, no-op.
+            // Therefore, in the last enabled batch curr_header will be the global_end_header_hash.
+            curr_header = self.select(curr_block_enabled, last_block_id_proof_root, curr_header);
             // If this is the last valid block, set curr_block_enabled to false.
             curr_block_enabled = self.and(curr_block_enabled, is_not_last_block);
         }
@@ -254,12 +255,17 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
         let data_merkle_root =
             self.get_data_commitment::<BATCH_SIZE>(&data_hashes, batch_start_block, end_block_num);
 
+        // There are n batches total. The last enabled batch (which contains the global_end_block) is m.
+        // The reduce stage checks that batches i <= m are linked correctly. For this to work correctly, the map stage does the following:
+        //    - For batches i < m, the end_header & end_block is the batch_end_header_hash & batch_end_block.
+        //    - For batch m, the end_header & end_block is the global_end_header_hash & global_end_block.
+        //    - For batches i > m, the end_header & end_block returned doesn't matter.
         MapReduceSubchainVariable {
             is_enabled: is_batch_enabled,
             start_block: batch_start_block,
             start_header: batch_start_header_hash,
-            end_block: batch_end_block,
-            end_header: batch_end_header_hash,
+            end_block: end_block_num,
+            end_header: curr_header,
             data_merkle_root,
         }
     }
