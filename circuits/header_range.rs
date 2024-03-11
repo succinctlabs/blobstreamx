@@ -34,6 +34,11 @@ impl<
         let trusted_header_hash = builder.evm_read::<Bytes32Variable>();
         let target_block = builder.evm_read::<U64Variable>();
 
+        assert!(
+            NB_MAP_JOBS * BATCH_SIZE <= C::SKIP_MAX,
+            "NB_MAP_JOBS * BATCH_SIZE must be <= than SKIP_MAX"
+        );
+
         let target_header_hash = builder.skip::<MAX_VALIDATOR_SET_SIZE, CHAIN_ID_SIZE_BYTES>(
             C::CHAIN_ID_BYTES,
             C::SKIP_MAX,
