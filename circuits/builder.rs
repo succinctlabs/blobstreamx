@@ -370,14 +370,26 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
                         computed_data_merkle_root,
                     );
 
+                    // If the right_subchain is disabled, use left_subchain end_block & end_header.
+                    let end_block = builder.select(
+                        is_right_subchain_disabled,
+                        left_subchain.end_block,
+                        right_subchain.end_block,
+                    );
+                    let end_header = builder.select(
+                        is_right_subchain_disabled,
+                        left_subchain.end_header,
+                        right_subchain.end_header,
+                    );
+
                     MapReduceSubchainVariable {
-                        // If the left_subchain is disabled, then the right_subchain is disabled and
-                        // this combined subchain is disabled (and the data_merkle_root is not used).
+                        // If the left_subchain is disabled, then the right_subchain is also disabled. 
+                        // So, use the left_subchain's is_enabled.
                         is_enabled: left_subchain.is_enabled,
                         start_block: left_subchain.start_block,
                         start_header: left_subchain.start_header,
-                        end_block: right_subchain.end_block,
-                        end_header: right_subchain.end_header,
+                        end_block,
+                        end_header,
                         data_merkle_root,
                     }
                 },
