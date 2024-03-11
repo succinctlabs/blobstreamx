@@ -231,7 +231,7 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
         self.assert_is_equal(end_header_check, true_bool);
 
         // The end block of the batch's data_merkle_root is max(start_block, min(batch_end_block, global_end_block)).
-        let is_batch_end_lt_global_end = self.lte(batch_end_block, global_end_block);
+        let is_batch_end_lt_global_end = self.lt(batch_end_block, global_end_block);
         let temp_end_block_num = self.select(
             is_batch_end_lt_global_end,
             batch_end_block,
