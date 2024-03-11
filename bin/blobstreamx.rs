@@ -195,8 +195,7 @@ impl BlobstreamXOperator {
             let latest_signed_header = self.data_fetcher.get_latest_signed_header().await;
             let latest_block = latest_signed_header.header.height.value();
 
-            // Subtract 5 blocks to account for the time it takes for a block to be processed by
-            // consensus.
+            // Subtract 1 block to ensure the block is stable.
             let latest_stable_block = latest_block - 1;
             info!("The latest stable block is: {}", latest_stable_block);
 
