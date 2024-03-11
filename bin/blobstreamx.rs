@@ -172,22 +172,8 @@ impl BlobstreamXOperator {
         Ok(request_id)
     }
 
-    async fn run(&mut self) {
+    async fn run(&mut self, loop_delay_mins: u64, update_delay_blocks: u64) {
         info!("Starting BlobstreamX operator");
-        // Check every 20 minutes.
-        // Note: This should be longer than the time to generate a proof to avoid concurrent proof
-        // requests.
-        const LOOP_DELAY: u64 = 20;
-
-        let post_delay_minutes = env::var("POST_DELAY_MINUTES")
-            .expect("POST_DELAY_MINUTES must be set")
-            .parse::<u64>()
-            .expect("invalid POST_DELAY_MINUTES");
-
-        // Attempt to update the contract if it is more than post_delay_minutes behind the head of
-        // the chain.
-        let post_delay_blocks = post_delay_minutes * 5;
-
         let header_range_max = self.contract.data_commitment_max().await.unwrap();
 
         // Something is wrong with the contract if this is true.
@@ -211,15 +197,14 @@ impl BlobstreamXOperator {
 
             // Subtract 5 blocks to account for the time it takes for a block to be processed by
             // consensus.
-            let latest_stable_block = latest_block - 5;
+            let latest_stable_block = latest_block - 1;
             info!("The latest stable block is: {}", latest_stable_block);
 
             let delay = latest_stable_block - current_block;
 
-            if delay >= post_delay_blocks {
-                // The block with the greatest height that the contract can step to.
-                let max_end_block =
-                    std::cmp::min(latest_stable_block, current_block + header_range_max);
+            if delay >= update_delay_blocks {
+                // The next block the operator should request.
+                let max_end_block = current_block + update_delay_blocks;
 
                 let target_block = self
                     .data_fetcher
@@ -293,7 +278,7 @@ impl BlobstreamXOperator {
                 info!("The delay between the contract and the chain is {}, less than set delay of {} blocks. Sleeping.", delay, post_delay_blocks);
             }
 
-            tokio::time::sleep(tokio::time::Duration::from_secs(60 * LOOP_DELAY)).await;
+            tokio::time::sleep(tokio::time::Duration::from_secs(60 * loop_delay_mins)).await;
         }
     }
 }
@@ -304,6 +289,24 @@ async fn main() {
     dotenv::dotenv().ok();
     env_logger::init();
 
+    let loop_delay_mins_env = env::var("LOOP_DELAY_MINS");
+    let mut loop_delay_mins = 5;
+    if loop_delay_mins_env.is_ok() {
+        loop_delay_mins = loop_delay_mins_env
+            .unwrap()
+            .parse::<u64>()
+            .expect("invalid LOOP_DELAY_MINS");
+    }
+
+    let update_delay_blocks_env = env::var("UPDATE_DELAY_BLOCKS");
+    let mut update_delay_blocks = 300;
+    if update_delay_blocks_env.is_ok() {
+        update_delay_blocks = update_delay_blocks_env
+            .unwrap()
+            .parse::<u64>()
+            .expect("invalid UPDATE_DELAY_BLOCKS");
+    }
+
     let mut operator = BlobstreamXOperator::new().await;
-    operator.run().await;
+    operator.run(loop_delay_mins, update_delay_blocks).await;
 }
