@@ -105,18 +105,18 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
     fn get_data_commitment<const MAX_LEAVES: usize>(
         &mut self,
         data_hashes: &ArrayVariable<Bytes32Variable, MAX_LEAVES>,
-        start_block: U64Variable,
-        end_block: U64Variable,
+        start_block_nb: U64Variable,
+        end_block_nb: U64Variable,
     ) -> Bytes32Variable {
         let true_var = self._true();
         // Assert end_block >= start_block.
-        let end_block_gte_start_block = self.gte(end_block, start_block);
-        self.assert_is_equal(end_block_gte_start_block, true_var);
+        let end_block_nb_gte_start_block_nb = self.gte(end_block_nb, start_block_nb);
+        self.assert_is_equal(end_block_nb_gte_start_block_nb, true_var);
 
         // If end_block < start_block, then this data commitment will be marked as disabled, and the
         // output of this function is not used. Therefore, the logic assumes
         // nb_blocks is always positive.
-        let nb_blocks_in_batch = self.sub(end_block, start_block);
+        let nb_blocks_in_batch = self.sub(end_block_nb, start_block_nb);
 
         // Note: nb_blocks_in_batch is assumed to be less than 2^32 (which is a reasonable
         // assumption for any data commitment as in practice, the number of blocks in a data
@@ -173,7 +173,7 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
         // the right subchain's tree will be disabled in the Tendermint Merkle tree computation.
         let is_batch_enabled = self.lt(batch_start_block, global_end_block);
         let mut curr_block_enabled = is_batch_enabled;
-        let mut curr_header = batch_start_header_hash;
+        let mut curr_header_hash = batch_start_header_hash;
         let last_block_to_process = self.sub(global_end_block, one);
 
         // Verify all headers in the batch. If last_block_to_process < batch_end_block, stop verifying at last_block_to_process.
@@ -202,7 +202,7 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
             // Note: The leaf of the last_block_id_proof against block curr_idx+1 is the protobuf-encoded last_block_id, which contains the header hash of block curr_idx at [2..2+HASH_SIZE].
             // This check is skipped if curr_block >= last_block_to_process (which is marked by the flag curr_block_disabled).
             let header_hash = &data_comm_proof.last_block_id_proofs[i].leaf[2..2 + HASH_SIZE];
-            let is_valid_prev_header = self.is_equal(curr_header, header_hash.into());
+            let is_valid_prev_header = self.is_equal(curr_header_hash, header_hash.into());
             let prev_header_check = self.or(curr_block_disabled, is_valid_prev_header);
             self.assert_is_equal(prev_header_check, true_bool);
 
@@ -219,14 +219,14 @@ impl<L: PlonkParameters<D>, const D: usize> DataCommitmentBuilder<L, D> for Circ
             self.assert_is_equal(end_header_check, true_bool);
 
             // Set current header to the hash of block curr_idx+1.
-            curr_header = last_block_id_proof_root;
+            curr_header_hash = last_block_id_proof_root;
             // If this is the last valid block, set curr_block_enabled to false.
             curr_block_enabled = self.and(curr_block_enabled, is_not_last_block);
         }
 
         // The last block is either disabled or it matches the batch_end_header_hash.
         let is_last_block_disabled = self.not(curr_block_enabled);
-        let last_block_matches_end_header = self.is_equal(curr_header, batch_end_header_hash);
+        let last_block_matches_end_header = self.is_equal(curr_header_hash, batch_end_header_hash);
         let end_header_check = self.or(is_last_block_disabled, last_block_matches_end_header);
         self.assert_is_equal(end_header_check, true_bool);
 
