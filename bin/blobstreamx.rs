@@ -275,7 +275,7 @@ impl BlobstreamXOperator {
                     };
                 }
             } else {
-                info!("The delay between the contract and the chain is {}, less than set delay of {} blocks. Sleeping.", delay, post_delay_blocks);
+                info!("The delay between the contract and the chain is {}, less than gap {} blocks. Sleeping.", delay, update_delay_blocks);
             }
 
             tokio::time::sleep(tokio::time::Duration::from_secs(60 * loop_delay_mins)).await;
