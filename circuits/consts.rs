@@ -24,4 +24,4 @@ pub const DATA_HASH_INDEX: usize = 6;
 
 // Constants for the header range circuit.
 pub const NB_MAP_JOBS: usize = 64;
-pub const BATCH_SIZE: usize = 16;
+pub const BATCH_SIZE: usize = 32;
