@@ -8,7 +8,7 @@ use ethers::abi::AbiEncode;
 use ethers::contract::abigen;
 use ethers::providers::{Http, Provider};
 use ethers::signers::LocalWallet;
-use log::{error, info};
+use log::{debug, error, info};
 use succinct_client::request::SuccinctClient;
 use tendermintx::input::InputDataFetcher;
 
@@ -172,7 +172,7 @@ impl BlobstreamXOperator {
         Ok(request_id)
     }
 
-    async fn run(&mut self, loop_delay_mins: u64, update_delay_blocks: u64) {
+    async fn run(&mut self, loop_delay_mins: u64, block_interval: u64) {
         info!("Starting BlobstreamX operator");
         let header_range_max = self.contract.data_commitment_max().await.unwrap();
 
@@ -189,26 +189,31 @@ impl BlobstreamXOperator {
                 FixedBytes(self.contract.header_range_function_id().await.unwrap());
 
             let current_block = self.contract.latest_block().await.unwrap();
-            info!("The latest block stored the contract is: {}", current_block);
 
             // Get the head of the chain.
-            let latest_signed_header = self.data_fetcher.get_latest_signed_header().await;
-            let latest_block = latest_signed_header.header.height.value();
+            let latest_tendermint_signed_header =
+                self.data_fetcher.get_latest_signed_header().await;
+            let latest_tendermint_block_nb = latest_tendermint_signed_header.header.height.value();
+
+            // Get the next multiple of block_interval after the current block.
+            let block_to_request =
+                current_block + block_interval - (current_block % block_interval);
 
             // Subtract 1 block to ensure the block is stable.
-            let latest_stable_block = latest_block - 1;
-            info!("The latest stable block is: {}", latest_stable_block);
+            let latest_stable_block = latest_tendermint_block_nb - 1;
 
-            let delay = latest_stable_block - current_block;
-
-            if delay >= update_delay_blocks {
+            if latest_stable_block >= block_to_request {
                 // The next block the operator should request.
-                let max_end_block = current_block + update_delay_blocks;
+                let max_end_block = block_to_request;
+
+                debug!("The next block to request is: {}", block_to_request);
 
                 let target_block = self
                     .data_fetcher
                     .find_block_to_request(current_block, max_end_block)
                     .await;
+
+                info!("Attempting to step to block {}", target_block);
 
                 if target_block - current_block == 1 {
                     // Request the next header if the target block is the next block.
@@ -274,7 +279,7 @@ impl BlobstreamXOperator {
                     };
                 }
             } else {
-                info!("Current delay: {} blocks, which is below the threshold of {} blocks. Sleeping.", delay, update_delay_blocks);
+                info!("Next block to request is {} which is > the head of the Tendermint chain which is {}. Sleeping.", block_to_request, latest_stable_block);
             }
 
             tokio::time::sleep(tokio::time::Duration::from_secs(60 * loop_delay_mins)).await;
