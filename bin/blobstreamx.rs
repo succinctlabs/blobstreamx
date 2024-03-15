@@ -8,7 +8,7 @@ use ethers::abi::AbiEncode;
 use ethers::contract::abigen;
 use ethers::providers::{Http, Provider};
 use ethers::signers::LocalWallet;
-use log::{debug, error, info};
+use log::{error, info};
 use succinct_client::request::SuccinctClient;
 use tendermintx::input::InputDataFetcher;
 
