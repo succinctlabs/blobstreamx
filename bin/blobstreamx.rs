@@ -206,8 +206,6 @@ impl BlobstreamXOperator {
                 // The next block the operator should request.
                 let max_end_block = block_to_request;
 
-                debug!("The next block to request is: {}", block_to_request);
-
                 let target_block = self
                     .data_fetcher
                     .find_block_to_request(current_block, max_end_block)
