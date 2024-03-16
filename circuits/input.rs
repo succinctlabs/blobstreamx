@@ -265,3 +265,31 @@ impl DataCommitmentInputFetcher for InputDataFetcher {
         }
     }
 }
+#[cfg(test)]
+mod tests {
+
+    use std::env;
+
+    use plonky2x::backend::circuit::{DefaultParameters, PlonkParameters};
+
+    use super::*;
+
+    const D: usize = 2;
+    type L = DefaultParameters;
+    type F = <L as PlonkParameters<D>>::Field;
+
+    // Ensure that get_data_commitment_inputs doesn't fail with inputs greater than the latest block.
+    #[cfg_attr(feature = "ci", ignore)]
+    #[tokio::test]
+    async fn test_get_data_commitment_inputs() {
+        env_logger::init();
+        env::set_var("RUST_LOG", "debug");
+        dotenv::dotenv().ok();
+        let mut fetcher = InputDataFetcher::default();
+        let start_block = 3000000;
+        let end_block = 3000010;
+        let data_commitment_inputs = fetcher
+            .get_data_commitment_inputs::<32, F>(start_block, end_block)
+            .await;
+    }
+}
