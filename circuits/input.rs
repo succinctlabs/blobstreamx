@@ -151,7 +151,7 @@ impl DataCommitmentInputFetcher for InputDataFetcher {
         start_block_number: u64,
         end_block_number: u64,
     ) -> DataCommitmentInputs<F> {
-        assert!(end_block_number - start_block_number < MAX_LEAVES as u64);
+        assert!(end_block_number - start_block_number <= MAX_LEAVES as u64);
 
         let mut data_hash_proofs = Vec::new();
         let mut last_block_id_proofs = Vec::new();
