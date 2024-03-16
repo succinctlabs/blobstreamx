@@ -16,9 +16,8 @@ contract BlobstreamX is IBlobstreamX, IDAOracle, TimelockedUpgradeable {
     /// @notice The block is the first one in the next data commitment.
     uint64 public latestBlock;
 
-    /// @notice The maximum number of blocks that can be skipped in a single request. Should be
-    /// large enough to skip forward at least 4 hours.
-    uint64 public constant DATA_COMMITMENT_MAX = 2048;
+    /// @notice The maximum number of blocks that can be skipped in a single request.
+    uint64 public constant DATA_COMMITMENT_MAX = 10000;
 
     /// @notice Nonce for proof events. Must be incremented sequentially.
     uint256 public state_proofNonce;
