@@ -44,6 +44,8 @@ pub trait DataCommitmentInputFetcher {
     async fn get_latest_block_number(&self) -> u64;
 
     /// Get signed headers in the range [start_block_number, end_block_number] inclusive.
+    /// Note: Assumes start_block_number and end_block_number are less than or equal to the latest
+    /// block number.
     async fn get_signed_header_range(
         &self,
         start_block_number: u64,
@@ -287,7 +289,7 @@ mod tests {
         let mut fetcher = InputDataFetcher::default();
         let start_block = 3000000;
         let end_block = 3000010;
-        let data_commitment_inputs = fetcher
+        let _ = fetcher
             .get_data_commitment_inputs::<32, F>(start_block, end_block)
             .await;
     }
