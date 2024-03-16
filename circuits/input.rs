@@ -11,6 +11,7 @@ use subtle_encoding::hex;
 use tendermint::block::signed_header::SignedHeader;
 use tendermint_proto::types::BlockId as RawBlockId;
 use tendermint_proto::Protobuf;
+use tendermintx::input::tendermint_utils::CommitResponse;
 use tendermintx::input::{InputDataFetcher, InputDataMode};
 
 use crate::consts::*;
@@ -38,6 +39,9 @@ pub struct DataCommitmentInputs<F: RichField> {
 #[async_trait]
 pub trait DataCommitmentInputFetcher {
     async fn get_data_commitment(&mut self, start_block: u64, end_block: u64) -> [u8; 32];
+
+    /// Get the latest block number.
+    async fn get_latest_block_number(&self) -> u64;
 
     /// Get signed headers in the range [start_block_number, end_block_number] inclusive.
     async fn get_signed_header_range(
@@ -102,6 +106,15 @@ impl DataCommitmentInputFetcher for InputDataFetcher {
             .unwrap()
     }
 
+    async fn get_latest_block_number(&self) -> u64 {
+        let route = "commit";
+        let res = self.request_from_rpc(route, MAX_NUM_RETRIES).await;
+        let v: CommitResponse = serde_json::from_str(&res).expect("Failed to parse JSON");
+        v.result.signed_header.header.height.into()
+    }
+
+    // start_block_number and end_block_number aren't guaranteed to be less than the latest_signed_header.
+    // Fetch the latest signed header, and use it to determine the actual range of signed headers to fetch.
     async fn get_signed_header_range(
         &self,
         start_block_number: u64,
@@ -129,6 +142,8 @@ impl DataCommitmentInputFetcher for InputDataFetcher {
         signed_headers
     }
 
+    // start_block_number and end_block_number are not guaranteed to be less than the latest_block.
+    // Fetch the latest block number, and use it to determine the actual range of signed headers to fetch.
     async fn get_data_commitment_inputs<const MAX_LEAVES: usize, F: RichField>(
         &mut self,
         start_block_number: u64,
@@ -136,22 +151,20 @@ impl DataCommitmentInputFetcher for InputDataFetcher {
     ) -> DataCommitmentInputs<F> {
         let mut data_hash_proofs = Vec::new();
         let mut last_block_id_proofs = Vec::new();
+
+        // Only request up to latest_block_number.
+        let latest_block_number = self.get_latest_block_number().await;
+        let request_end_block_number = std::cmp::min(end_block_number, latest_block_number);
         let signed_headers = self
-            .get_signed_header_range(start_block_number, end_block_number)
+            .get_signed_header_range(start_block_number, request_end_block_number)
             .await;
 
-        if end_block_number >= start_block_number {
-            assert_eq!(
-                signed_headers.len(),
-                (end_block_number - start_block_number + 1) as usize
-            );
-        }
-        for i in start_block_number..end_block_number + 1 {
+        for i in start_block_number..request_end_block_number + 1 {
             let signed_header = &signed_headers[(i - start_block_number) as usize];
 
             // Don't include the data hash and corresponding proof of end_block, as the circuit's
             // data_commitment is computed over the range [start_block, end_block - 1].
-            if i < end_block_number {
+            if i < request_end_block_number {
                 let data_hash = signed_header.header.data_hash.unwrap();
 
                 let data_hash_proof = self.get_inclusion_proof::<PROTOBUF_HASH_SIZE_BYTES, F>(
@@ -220,14 +233,15 @@ impl DataCommitmentInputFetcher for InputDataFetcher {
             });
         }
 
+        // Fetch the expected data commitment.
         let expected_data_commitment = self
-            .get_data_commitment(start_block_number, end_block_number)
+            .get_data_commitment(start_block_number, request_end_block_number)
             .await;
 
         let mut start_header = [0u8; 32];
         let mut end_header = [0u8; 32];
         // If start_block_number >= end_block_number, then start_header and end_header are dummy values.
-        if start_block_number < end_block_number {
+        if start_block_number < request_end_block_number {
             start_header = signed_headers[0]
                 .header
                 .hash()
