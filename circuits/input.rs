@@ -113,8 +113,7 @@ impl DataCommitmentInputFetcher for InputDataFetcher {
         v.result.signed_header.header.height.into()
     }
 
-    // start_block_number and end_block_number aren't guaranteed to be less than the latest_signed_header.
-    // Fetch the latest signed header, and use it to determine the actual range of signed headers to fetch.
+    // Assumes start_block_number and end_block_number are less than or equal to the latest block number.
     async fn get_signed_header_range(
         &self,
         start_block_number: u64,
