@@ -52,6 +52,7 @@ pub trait DataCommitmentInputFetcher {
         end_block_number: u64,
     ) -> Vec<SignedHeader>;
 
+    /// start_block_number and end_block_number are not guaranteed to be less than the latest_block.
     async fn get_data_commitment_inputs<const MAX_LEAVES: usize, F: RichField>(
         &mut self,
         start_block_number: u64,
@@ -150,6 +151,8 @@ impl DataCommitmentInputFetcher for InputDataFetcher {
         start_block_number: u64,
         end_block_number: u64,
     ) -> DataCommitmentInputs<F> {
+        assert!(end_block_number - start_block_number < MAX_LEAVES as u64);
+
         let mut data_hash_proofs = Vec::new();
         let mut last_block_id_proofs = Vec::new();
 
