@@ -6,11 +6,10 @@ use plonky2x::frontend::mapreduce::generator::MapReduceGenerator;
 use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::prelude::{Bytes32Variable, CircuitBuilder, PlonkParameters, ValueStream};
 use serde::{Deserialize, Serialize};
-use tendermintx::input::utils::convert_to_h256;
 use tendermintx::input::InputDataFetcher;
 
 use crate::builder::{DataCommitmentBuilder, DataCommitmentSharedCtx};
-use crate::input::DataCommitmentInputs;
+use crate::input::DataCommitmentInputFetcher;
 use crate::vars::*;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -35,13 +34,10 @@ impl<const MAX_LEAVES: usize, L: PlonkParameters<D>, const D: usize> AsyncHint<L
             .await;
 
         let data_comm_proof = DataCommitmentProofValueType {
-            data_hashes: convert_to_h256(result.2),
-            start_block_height: start_block,
-            start_header: H256(result.0),
-            end_block_height: end_block,
-            end_header: H256(result.1),
-            data_hash_proofs: result.3,
-            last_block_id_proofs: result.4,
+            start_header: H256(result.start_header_hash),
+            end_header: H256(result.end_header_hash),
+            data_hash_proofs: result.data_hash_proofs,
+            last_block_id_proofs: result.last_block_id_proofs,
         };
         // Write the inputs to the data commitment circuit.
         output_stream.write_value::<DataCommitmentProofVariable<MAX_LEAVES>>(data_comm_proof);
@@ -105,7 +101,6 @@ impl<const NB_MAP_JOBS: usize, const BATCH_SIZE: usize> Circuit
 mod tests {
     use std::env;
 
-    use ethers::types::H256;
     use plonky2x::prelude::{DefaultBuilder, GateRegistry, HintRegistry};
     use subtle_encoding::hex;
 

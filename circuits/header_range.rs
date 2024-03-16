@@ -34,6 +34,11 @@ impl<
         let trusted_header_hash = builder.evm_read::<Bytes32Variable>();
         let target_block = builder.evm_read::<U64Variable>();
 
+        assert!(
+            NB_MAP_JOBS * BATCH_SIZE <= C::SKIP_MAX,
+            "NB_MAP_JOBS * BATCH_SIZE must be <= than SKIP_MAX"
+        );
+
         let target_header_hash = builder.skip::<MAX_VALIDATOR_SET_SIZE, CHAIN_ID_SIZE_BYTES>(
             C::CHAIN_ID_BYTES,
             C::SKIP_MAX,
@@ -191,7 +196,7 @@ mod tests {
         // Test variable length NUM_BLOCKS.
         const MAX_VALIDATOR_SET_SIZE: usize = 8;
         const NB_MAP_JOBS: usize = 2;
-        const BATCH_SIZE: usize = 2;
+        const BATCH_SIZE: usize = 4;
 
         // These blocks are on Mocha-4 testnet.
         let start_block = 500u64;
