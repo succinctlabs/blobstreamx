@@ -15,6 +15,8 @@ contract DeployScript is Script {
             "HEADER_RANGE_FUNCTION_ID"
         );
         bytes32 nextHeaderFunctionId = vm.envBytes32("NEXT_HEADER_FUNCTION_ID");
+        uint32 height = uint32(vm.envUint("GENESIS_HEIGHT"));
+        bytes32 header = vm.envBytes32("GENESIS_HEADER");
 
         address gateway = vm.envAddress("GATEWAY_ADDRESS");
 
@@ -43,8 +45,8 @@ contract DeployScript is Script {
                 BlobstreamX.InitParameters({
                     guardian: vm.envAddress("GUARDIAN_ADDRESS"),
                     gateway: gateway,
-                    height: uint32(vm.envUint("GENESIS_HEIGHT")),
-                    header: vm.envBytes32("GENESIS_HEADER"),
+                    height: height,
+                    header: header,
                     headerRangeFunctionId: headerRangeFunctionId,
                     nextHeaderFunctionId: nextHeaderFunctionId
                 })
@@ -70,10 +72,7 @@ contract DeployScript is Script {
             lightClient.updateGateway(gateway);
         }
         if (vm.envBool("UPDATE_GENESIS_STATE")) {
-            lightClient.updateGenesisState(
-                uint32(vm.envUint("GENESIS_HEIGHT")),
-                vm.envBytes32("GENESIS_HEADER")
-            );
+            lightClient.updateGenesisState(height, header);
         }
         if (vm.envBool("UPDATE_FUNCTION_IDS")) {
             lightClient.updateFunctionIds(
