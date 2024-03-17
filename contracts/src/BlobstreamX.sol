@@ -271,7 +271,7 @@ contract BlobstreamX is IBlobstreamX, IDAOracle, TimelockedUpgradeable {
         bytes32 root = state_dataCommitments[_proofNonce];
 
         // Verify the proof.
-        bool isProofValid = BinaryMerkleTree.verify(
+        (bool isProofValid, ) = BinaryMerkleTree.verify(
             root,
             _proof,
             abi.encode(_tuple)

@@ -1,5 +1,12 @@
 # Blobstream X Contracts
 
+## Deploy Blobstream X contract with Custom Prover
+
+```shell
+forge script script/DeployWithCustomProver.s.sol --rpc-url $RPC_{CHAIN_ID} --private-key $PRIVATE_KEY --broadcast --verify --verifier etherscan --etherscan-api-key $ETHERSCAN_API_KEY_{CHAIN_ID}
+```
+
+
 ## Deploy new Blobstream X contract
 
 Fill out the following fields in `.env` in `contracts` folder:
