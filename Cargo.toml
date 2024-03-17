@@ -19,8 +19,12 @@ name = "header_range"
 path = "bin/header_range.rs"
 
 [[bin]]
-name = "data_commitment"
-path = "bin/data_commitment.rs"
+name = "next_header_mocha"
+path = "bin/next_header_mocha.rs"
+
+[[bin]]
+name = "header_range_mocha"
+path = "bin/header_range_mocha.rs"
 
 [[bin]]
 name = "blobstreamx"
