@@ -1,6 +1,6 @@
 //! To build the binary:
 //!
-//!     `cargo build --release --bin next_header`
+//!     `cargo build --release --bin header_range_mocha`
 //!
 //! To build the circuit:
 //!
@@ -14,11 +14,19 @@
 //!
 //!
 //!
-use blobstreamx::next_header::CombinedStepCircuit;
+use blobstreamx::config::Mocha4BlobstreamXConfig;
+use blobstreamx::consts::{BATCH_SIZE, NB_MAP_JOBS};
+use blobstreamx::header_range::CombinedSkipCircuit;
 use plonky2x::backend::function::Plonky2xFunction;
-use tendermintx::config::{CelestiaConfig, CELESTIA_CHAIN_ID_SIZE_BYTES};
+use tendermintx::config::MOCHA_4_CHAIN_ID_SIZE_BYTES;
 
 fn main() {
     const VALIDATOR_SET_SIZE_MAX: usize = 100;
-    CombinedStepCircuit::<VALIDATOR_SET_SIZE_MAX, CELESTIA_CHAIN_ID_SIZE_BYTES, CelestiaConfig>::entrypoint();
+    CombinedSkipCircuit::<
+        VALIDATOR_SET_SIZE_MAX,
+        MOCHA_4_CHAIN_ID_SIZE_BYTES,
+        Mocha4BlobstreamXConfig,
+        NB_MAP_JOBS,
+        BATCH_SIZE,
+    >::entrypoint();
 }
