@@ -205,7 +205,8 @@ impl BlobstreamXOperator {
             // Subtract 1 block to ensure the block is stable.
             let latest_stable_block = latest_tendermint_block_nb - 1;
 
-            if latest_stable_block >= block_to_request {
+            // If block_to_request is less than head and greater than the current block in the contract, attempt to request.
+            if latest_stable_block >= block_to_request && block_to_request > current_block {
                 // The next block the operator should request.
                 let max_end_block = block_to_request;
 
