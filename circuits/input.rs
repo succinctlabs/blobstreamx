@@ -156,9 +156,10 @@ impl DataCommitmentInputFetcher for InputDataFetcher {
         let mut data_hash_proofs = Vec::new();
         let mut last_block_id_proofs = Vec::new();
 
-        // Only request up to latest_block_number.
+        // Only request up to latest_block_number - 2 (avoid RPC inconsistency).
         let latest_block_number = self.get_latest_block_number().await;
-        let request_end_block_number = std::cmp::min(end_block_number, latest_block_number);
+        let latest_safe_block_number = latest_block_number - 2;
+        let request_end_block_number = std::cmp::min(end_block_number, latest_safe_block_number);
         let signed_headers = self
             .get_signed_header_range(start_block_number, request_end_block_number)
             .await;
