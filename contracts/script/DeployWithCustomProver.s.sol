@@ -37,7 +37,7 @@ contract DeployWithCustomProver is Script {
 
         BlobstreamX lightClient;
 
-        // Deploy contract
+        // Deploy contract.
         BlobstreamX lightClientImpl = new BlobstreamX{
             salt: bytes32(create2Salt)
         }();
