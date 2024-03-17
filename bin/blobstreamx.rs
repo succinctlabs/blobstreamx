@@ -312,7 +312,14 @@ async fn main() {
             .expect("invalid UPDATE_DELAY_BLOCKS");
     }
 
-    let data_commitment_max = 2048;
+    let data_commitment_max_env = env::var("DATA_COMMITMENT_MAX");
+    let mut data_commitment_max = 1000;
+    if data_commitment_max_env.is_ok() {
+        data_commitment_max = data_commitment_max_env
+            .unwrap()
+            .parse::<u64>()
+            .expect("invalid DATA_COMMITMENT_MAX");
+    }
 
     let mut operator = BlobstreamXOperator::new().await;
     operator
