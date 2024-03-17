@@ -172,7 +172,7 @@ impl BlobstreamXOperator {
         Ok(request_id)
     }
 
-    async fn run(&mut self, loop_delay_mins: u64, block_interval: u64) {
+    async fn run(&mut self, loop_delay_mins: u64, block_interval: u64, data_commitment_max: u64) {
         info!("Starting BlobstreamX operator");
         let header_range_max = self.contract.data_commitment_max().await.unwrap();
 
@@ -195,9 +195,12 @@ impl BlobstreamXOperator {
                 self.data_fetcher.get_latest_signed_header().await;
             let latest_tendermint_block_nb = latest_tendermint_signed_header.header.height.value();
 
-            // Get the next multiple of block_interval after the current block.
-            let block_to_request =
-                current_block + block_interval - (current_block % block_interval);
+            // block_to_request is the closest interval of block_interval less than min(latest_tendermint_block_nb, data_commitment_max + current_block)
+            let max_block = std::cmp::min(
+                latest_tendermint_block_nb,
+                data_commitment_max + current_block,
+            );
+            let block_to_request = max_block - (max_block % block_interval);
 
             // Subtract 1 block to ensure the block is stable.
             let latest_stable_block = latest_tendermint_block_nb - 1;
@@ -309,6 +312,17 @@ async fn main() {
             .expect("invalid UPDATE_DELAY_BLOCKS");
     }
 
+    let data_commitment_max_env = env::var("DATA_COMMITMENT_MAX");
+    let mut data_commitment_max = 1000;
+    if data_commitment_max_env.is_ok() {
+        data_commitment_max = data_commitment_max_env
+            .unwrap()
+            .parse::<u64>()
+            .expect("invalid DATA_COMMITMENT_MAX");
+    }
+
     let mut operator = BlobstreamXOperator::new().await;
-    operator.run(loop_delay_mins, update_delay_blocks).await;
+    operator
+        .run(loop_delay_mins, update_delay_blocks, data_commitment_max)
+        .await;
 }
