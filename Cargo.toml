@@ -65,7 +65,7 @@ futures = "0.3.30"
 itertools = "0.11.0"
 log = "0.4.19"
 num = "0.4.1"
-plonky2x = { git = "https://github.com/succinctlabs/succinctx.git" }
+plonky2x = { git = "https://github.com/succinctlabs/succinctx.git", tag = "v1.0.3" }
 rand = "0.8.5"
 reqwest = "0.11.18"
 serde = "1.0.175"
@@ -75,5 +75,5 @@ subtle-encoding = "0.5.1"
 succinct-client = { git = "https://github.com/succinctlabs/succinctx.git" }
 tendermint = "0.33.0"
 tendermint-proto = "0.33.0"
-tendermintx = { git = "https://github.com/succinctlabs/tendermintx.git", tag = "v0.1.1" }
+tendermintx = { git = "https://github.com/succinctlabs/tendermintx.git", tag = "v0.1.2" }
 tokio = { version = "1.29.1", features = ["full"] }
