@@ -20,7 +20,7 @@ import {ISuccinctGateway, WhitelistStatus} from "@succinctx/interfaces/ISuccinct
 contract DeployWithCustomProver is Script {
     function setUp() public {}
 
-    function deployLightClient() internal {
+    function updateLightClientFunctionIds() internal {
         vm.startBroadcast();
 
         bytes32 headerRangeFunctionId = vm.envBytes32(
@@ -28,39 +28,14 @@ contract DeployWithCustomProver is Script {
         );
         bytes32 nextHeaderFunctionId = vm.envBytes32("NEXT_HEADER_FUNCTION_ID");
 
-        uint32 height = uint32(vm.envUint("GENESIS_HEIGHT"));
-        bytes32 header = vm.envBytes32("GENESIS_HEADER");
-
-        address gateway = vm.envAddress("GATEWAY_ADDRESS");
-
-        bytes32 create2Salt = bytes32(vm.envBytes("CREATE2_SALT"));
-
-        BlobstreamX lightClient;
-
-        // Deploy contract.
-        BlobstreamX lightClientImpl = new BlobstreamX{
-            salt: bytes32(create2Salt)
-        }();
-
-        lightClient = BlobstreamX(
-            address(
-                new ERC1967Proxy{salt: bytes32(create2Salt)}(
-                    address(lightClientImpl),
-                    ""
-                )
-            )
+        BlobstreamX lightClient = BlobstreamX(
+            vm.envAddress("LIGHT_CLIENT_ADDRESS")
         );
 
         // Initialize the Blobstream X light client.
-        lightClient.initialize(
-            BlobstreamX.InitParameters({
-                guardian: vm.envAddress("GUARDIAN_ADDRESS"),
-                gateway: gateway,
-                height: height,
-                header: header,
-                headerRangeFunctionId: headerRangeFunctionId,
-                nextHeaderFunctionId: nextHeaderFunctionId
-            })
+        lightClient.updateFunctionIds(
+            headerRangeFunctionId,
+            nextHeaderFunctionId
         );
 
         console.logAddress(address(lightClient));
@@ -99,8 +74,8 @@ contract DeployWithCustomProver is Script {
     }
 
     function run() public {
-        deployLightClient();
-
         addCustomProver();
+
+        updateLightClientFunctionIds();
     }
 }
