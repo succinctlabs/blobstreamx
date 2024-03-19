@@ -196,6 +196,7 @@ impl DataCommitmentInputFetcher for InputDataFetcher {
                 last_block_id_proofs.push(last_block_id_proof);
             }
         }
+        // Hello
 
         let mut data_hash_proofs_formatted = data_hash_proofs
             .into_iter()
