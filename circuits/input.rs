@@ -153,6 +153,9 @@ impl DataCommitmentInputFetcher for InputDataFetcher {
     ) -> DataCommitmentInputs<F> {
         assert!(end_block_number - start_block_number <= MAX_LEAVES as u64);
 
+        println!("start_block_number: {}", start_block_number);
+        println!("end_block_number: {}", end_block_number);
+
         let mut data_hash_proofs = Vec::new();
         let mut last_block_id_proofs = Vec::new();
 
@@ -196,7 +199,6 @@ impl DataCommitmentInputFetcher for InputDataFetcher {
                 last_block_id_proofs.push(last_block_id_proof);
             }
         }
-        // Hello
 
         let mut data_hash_proofs_formatted = data_hash_proofs
             .into_iter()
