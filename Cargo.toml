@@ -15,8 +15,8 @@ name = "next_header"
 path = "bin/next_header.rs"
 
 [[bin]]
-name = "header_range"
-path = "bin/header_range.rs"
+name = "header_range_1024"
+path = "bin/header_range_1024.rs"
 
 [[bin]]
 name = "header_range_2048"
