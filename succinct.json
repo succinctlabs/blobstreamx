@@ -9,13 +9,23 @@
             "proveCommand": "RUST_LOG=debug ./build/next_header prove input.json"
         },
         {
-            "name": "header_range",
+            "name": "header_range_1024",
             "framework": "plonky2x",
             "baseDir": ".",
-            "buildCommand": "mkdir -p build && RUST_LOG=debug cargo run --bin header_range --release build && mv ./target/release/header_range ./build/header_range",
-            "proveCommand": "RUST_LOG=debug ./build/header_range prove input.json",
+            "buildCommand": "mkdir -p build && RUST_LOG=debug cargo run --bin header_range_1024 --release build && mv ./target/release/header_range_1024 ./build/header_range_1024",
+            "proveCommand": "RUST_LOG=debug ./build/header_range_1024 prove input.json",
             "requiredArtifacts": [
-                "header_range"
+                "header_range_1024"
+            ]
+        },
+        {
+            "name": "header_range_2048",
+            "framework": "plonky2x",
+            "baseDir": ".",
+            "buildCommand": "mkdir -p build && RUST_LOG=debug cargo run --bin header_range_2048 --release build && mv ./target/release/header_range_2048 ./build/header_range_2048",
+            "proveCommand": "RUST_LOG=debug ./build/header_range_2048 prove input.json",
+            "requiredArtifacts": [
+                "header_range_2048"
             ]
         },
         {
