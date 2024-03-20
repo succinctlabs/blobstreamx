@@ -16,6 +16,7 @@ import {ISuccinctGateway, WhitelistStatus} from "@succinctx/interfaces/ISuccinct
 // - NEXT_HEADER_FUNCTION_ID
 // - CREATE2_SALT
 // - CUSTOM_PROVER_ADDRESS
+// - CONTRACT_ADDRESS
 
 contract DeployWithCustomProver is Script {
     function setUp() public {}
