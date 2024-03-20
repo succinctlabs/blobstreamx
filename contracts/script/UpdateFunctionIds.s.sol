@@ -54,6 +54,8 @@ contract UpdateFunctionIds is Script {
     }
 
     function updateFunctionIds() public {
+        vm.startBroadcast();
+
         address contractAddress = vm.envAddress("CONTRACT_ADDRESS");
         bytes32 headerRangeFunctionId = vm.envBytes32(
             "HEADER_RANGE_FUNCTION_ID"
@@ -64,6 +66,8 @@ contract UpdateFunctionIds is Script {
             headerRangeFunctionId,
             nextHeaderFunctionId
         );
+
+        vm.stopBroadcast();
     }
 
     function run() public {
