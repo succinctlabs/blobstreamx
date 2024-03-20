@@ -9,15 +9,13 @@ import {ISuccinctGateway, WhitelistStatus} from "@succinctx/interfaces/ISuccinct
 
 // Required environment variables:
 // - GATEWAY_ADDRESS
-// - GENESIS_HEIGHT
-// - GENESIS_HEADER
-// - GUARDIAN_ADDRESS
 // - HEADER_RANGE_FUNCTION_ID
 // - NEXT_HEADER_FUNCTION_ID
-// - CREATE2_SALT
 // - CUSTOM_PROVER_ADDRESS
 // - CONTRACT_ADDRESS
 
+// Updates the whitelist status of NEXT_HEADER_FUNCTION_ID and HEADER_RANGE_FUNCTION_ID at the
+// gateway at GATEWAY_ADDRESS and calls updateFunctionIds on the BlobstreamX contract at CONTRACT_ADDRESS
 contract UpdateFunctionIds is Script {
     function setUp() public {}
 
