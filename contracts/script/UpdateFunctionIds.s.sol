@@ -9,20 +9,20 @@ import {ISuccinctGateway, WhitelistStatus} from "@succinctx/interfaces/ISuccinct
 
 // Required environment variables:
 // - GATEWAY_ADDRESS
-// - GENESIS_HEIGHT
-// - GENESIS_HEADER
-// - GUARDIAN_ADDRESS
 // - HEADER_RANGE_FUNCTION_ID
 // - NEXT_HEADER_FUNCTION_ID
-// - CREATE2_SALT
 // - CUSTOM_PROVER_ADDRESS
 // - CONTRACT_ADDRESS
 
-contract DeployWithCustomProver is Script {
+// Updates the whitelist status of NEXT_HEADER_FUNCTION_ID and HEADER_RANGE_FUNCTION_ID at the
+// gateway at GATEWAY_ADDRESS and calls updateFunctionIds on the BlobstreamX contract at CONTRACT_ADDRESS
+contract UpdateFunctionIds is Script {
     function setUp() public {}
 
     function addCustomProver() public {
         vm.startBroadcast();
+
+        console.log(msg.sender);
 
         address gateway = vm.envAddress("GATEWAY_ADDRESS");
         SuccinctGateway succinctGateway = SuccinctGateway(gateway);
@@ -52,6 +52,8 @@ contract DeployWithCustomProver is Script {
     }
 
     function updateFunctionIds() public {
+        vm.startBroadcast();
+
         address contractAddress = vm.envAddress("CONTRACT_ADDRESS");
         bytes32 headerRangeFunctionId = vm.envBytes32(
             "HEADER_RANGE_FUNCTION_ID"
@@ -62,6 +64,8 @@ contract DeployWithCustomProver is Script {
             headerRangeFunctionId,
             nextHeaderFunctionId
         );
+
+        vm.stopBroadcast();
     }
 
     function run() public {
