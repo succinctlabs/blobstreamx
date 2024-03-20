@@ -21,7 +21,3 @@ pub const ENC_DATA_ROOT_TUPLE_SIZE_BYTES: usize = 64;
 pub const BLOCK_HEIGHT_INDEX: usize = 2;
 pub const LAST_BLOCK_ID_INDEX: usize = 4;
 pub const DATA_HASH_INDEX: usize = 6;
-
-// Constants for the header range circuit.
-pub const NB_MAP_JOBS: usize = 64;
-pub const BATCH_SIZE: usize = 32;

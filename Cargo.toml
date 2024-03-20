@@ -19,6 +19,10 @@ name = "header_range"
 path = "bin/header_range.rs"
 
 [[bin]]
+name = "header_range_2048"
+path = "bin/header_range_2048.rs"
+
+[[bin]]
 name = "next_header_mocha"
 path = "bin/next_header_mocha.rs"
 

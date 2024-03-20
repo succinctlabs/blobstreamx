@@ -19,6 +19,16 @@
             ]
         },
         {
+            "name": "header_range_2048",
+            "framework": "plonky2x",
+            "baseDir": ".",
+            "buildCommand": "mkdir -p build && RUST_LOG=debug cargo run --bin header_range_2048 --release build && mv ./target/release/header_range_2048 ./build/header_range_2048",
+            "proveCommand": "RUST_LOG=debug ./build/header_range_2048 prove input.json",
+            "requiredArtifacts": [
+                "header_range_2048"
+            ]
+        },
+        {
             "name": "next_header_mocha",
             "framework": "plonky2x",
             "baseDir": ".",
