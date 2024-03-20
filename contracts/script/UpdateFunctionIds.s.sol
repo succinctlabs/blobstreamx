@@ -18,11 +18,13 @@ import {ISuccinctGateway, WhitelistStatus} from "@succinctx/interfaces/ISuccinct
 // - CUSTOM_PROVER_ADDRESS
 // - CONTRACT_ADDRESS
 
-contract DeployWithCustomProver is Script {
+contract UpdateFunctionIds is Script {
     function setUp() public {}
 
     function addCustomProver() public {
         vm.startBroadcast();
+
+        console.log(msg.sender);
 
         address gateway = vm.envAddress("GATEWAY_ADDRESS");
         SuccinctGateway succinctGateway = SuccinctGateway(gateway);
