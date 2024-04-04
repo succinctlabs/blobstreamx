@@ -24,32 +24,7 @@ cargo run --bin blobstreamx --release
 
 ```
 
-### Generate & Relay Proofs Locally
-
-To enable local proving & local relaying of proofs with the Blobstream X operator, download the proving binaries by following the instructions [here](https://hackmd.io/Q6CsiGOjTrCjD7UCAgiDBA#Download-artifacts).
-
-Then, simply add the following to your `.env`:
-
-```
-LOCAL_PROVE_MODE=true
-LOCAL_RELAY_MODE=true
-
-# Add the path to each binary (ex. PROVE_BINARY_0x6d...=blobstream-artifacts/header_range)
-
-PROVE_BINARY_0xFILL_IN_NEXT_HEADER_FUNCTION_ID=
-PROVE_BINARY_0xFILL_IN_HEADER_RANGE_FUNCTION_ID=
-WRAPPER_BINARY=
-```
-
-#### Relay an Existing Proof
-
-Add env variables to `.env`, following the `.env.example`.
-
-If you want to relay an existing proof in `/proofs`, run the following command:
-
-```shell
-cargo run --bin local_relay --release -- --request-id {REQUEST_ID}
-```
+### [Generate & Relay Proofs Locally](https://hackmd.io/@succinctlabs/HJE7XRrup)
 
 ## BlobstreamX Contract Overview
 
