@@ -195,18 +195,18 @@ impl BlobstreamXOperator {
                 self.data_fetcher.get_latest_signed_header().await;
             let latest_tendermint_block_nb = latest_tendermint_signed_header.header.height.value();
 
-            // block_to_request is the closest interval of block_interval less than min(latest_tendermint_block_nb, data_commitment_max + current_block)
+            // Subtract 1 block to ensure the block is stable.
+            let latest_stable_tendermint_block = latest_tendermint_block_nb - 1;
+
+            // block_to_request is the closest interval of block_interval less than min(latest_stable_tendermint_block, data_commitment_max + current_block)
             let max_block = std::cmp::min(
-                latest_tendermint_block_nb,
+                latest_stable_tendermint_block,
                 data_commitment_max + current_block,
             );
             let block_to_request = max_block - (max_block % block_interval);
 
-            // Subtract 1 block to ensure the block is stable.
-            let latest_stable_block = latest_tendermint_block_nb - 1;
-
-            // If block_to_request is less than head and greater than the current block in the contract, attempt to request.
-            if latest_stable_block >= block_to_request && block_to_request > current_block {
+            // If block_to_request is greater than the current block in the contract, attempt to request.
+            if block_to_request > current_block {
                 // The next block the operator should request.
                 let max_end_block = block_to_request;
 
@@ -281,7 +281,7 @@ impl BlobstreamXOperator {
                     };
                 }
             } else {
-                info!("Next block to request is {} which is > the head of the Tendermint chain which is {}. Sleeping.", block_to_request, latest_stable_block);
+                info!("Next block to request is {} which is > the head of the Tendermint chain which is {}. Sleeping.", block_to_request + block_interval, latest_stable_tendermint_block);
             }
 
             tokio::time::sleep(tokio::time::Duration::from_secs(60 * loop_delay_mins)).await;
