@@ -18,10 +18,8 @@ Run `BlobstreamX` script to request updates to the specified light client contin
 
 In `/`, run
 
-```
-
+```shell
 cargo run --bin blobstreamx --release
-
 ```
 
 ### [Generate & Relay Proofs Locally](https://hackmd.io/@succinctlabs/HJE7XRrup)
@@ -34,20 +32,20 @@ To deploy the `BlobstreamX` contract:
 
 1. Get the genesis parameters for a `BlobstreamX` contract from a specific Celestia block.
 
-   ```shell
-   cargo run --bin genesis -- --block <genesis_block>
-   ```
+```shell
+cargo run --bin genesis -- --block <genesis_block>
+```
 
 2. Add .env variables to `contracts/.env`, following `contracts/.env.example`.
 3. Initialize `BlobstreamX` contract with genesis parameters. In `contracts`, run
 
-   ```shell
-   forge install
+```shell
+forge install
 
-   source .env
+source .env
 
-   forge script script/Deploy.s.sol --rpc-url $RPC_URL --private-key $PRIVATE_KEY --broadcast --verify --verifier etherscan --etherscan-api-key $ETHERSCAN_API_KEY
-   ```
+forge script script/Deploy.s.sol --rpc-url $RPC_URL --private-key $PRIVATE_KEY --broadcast --verify --verifier etherscan --etherscan-api-key $ETHERSCAN_API_KEY
+```
 
 ### Succinct Gateway Prover Whitelist
 
@@ -66,3 +64,20 @@ Add a custom prover for a specific functionID.
 ```shell
 cast calldata "addCustomProver(bytes32,address)" <FUNCTION_ID> <CUSTOM_PROVER_ADDRESS>
 ```
+
+### Deployed contracts
+
+You can interact with the Blobstream X contracts today. The
+Blobstream X Solidity smart contracts are currently deployed on
+the following chains:
+
+| Contract     | EVM network      | Contract address                                                                                                                | Attested data on Celestia |
+| ------------ | ---------------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| Blobstream X  | Ethereum Mainnet          | [`Not yet deployed`](https://etherscan.io/address/0xTODO) | [Mainnet Beta](../nodes/mainnet.md) |
+| Blobstream X | Arbitrum One | [`0xA83ca7775Bc2889825BcDeDfFa5b758cf69e8794`](https://arbiscan.io/address/0xA83ca7775Bc2889825BcDeDfFa5b758cf69e8794#events)  | [Mainnet Beta](../nodes/mainnet.md) |
+| Blobstream X | Base           | [`0xA83ca7775Bc2889825BcDeDfFa5b758cf69e8794`](https://basescan.org/address/0xA83ca7775Bc2889825BcDeDfFa5b758cf69e8794#events)  | [Mainnet Beta](../nodes/mainnet.md) |
+| Blobstream X  | Sepolia          | [`0xf0c6429ebab2e7dc6e05dafb61128be21f13cb1e`](https://sepolia.etherscan.io/address/0xf0c6429ebab2e7dc6e05dafb61128be21f13cb1e#events) | [Mocha testnet](../nodes/mocha-testnet.md) |
+| Blobstream X | Arbitrum Sepolia           | [`0xc3e209eb245Fd59c8586777b499d6A665DF3ABD2`](https://sepolia.arbiscan.io/address/0xc3e209eb245Fd59c8586777b499d6A665DF3ABD2#events)  | [Mocha testnet](../nodes/mocha-testnet.md) |
+| Blobstream X | Base Sepolia           | [`0xc3e209eb245Fd59c8586777b499d6A665DF3ABD2`](https://sepolia.basescan.org/address/0xc3e209eb245Fd59c8586777b499d6A665DF3ABD2#events)  | [Mocha testnet](../nodes/mocha-testnet.md) |
+
+For more information, please refer to the [documentation](https://docs.celestia.org/developers/blobstream). And if you're planning on building a rollup that uses Blobstream, check out the [blobstream rollups](https://docs.celestia.org/developers/blobstream-rollups) docs.
