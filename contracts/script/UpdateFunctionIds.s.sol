@@ -42,11 +42,15 @@ contract UpdateFunctionIds is Script {
             WhitelistStatus.Custom
         );
 
-        address customProver = vm.envAddress("CUSTOM_PROVER_ADDRESS");
+        address customProver = vm.envAddress("CUSTOM_PROVER_ADDRESS_1");
+        address customProver2 = vm.envAddress("CUSTOM_PROVER_ADDRESS_2");
 
         // Add custom prover.
         succinctGateway.addCustomProver(headerRangeFunctionId, customProver);
         succinctGateway.addCustomProver(nextHeaderFunctionId, customProver);
+
+        succinctGateway.addCustomProver(headerRangeFunctionId, customProver2);
+        succinctGateway.addCustomProver(nextHeaderFunctionId, customProver2);
 
         vm.stopBroadcast();
     }
@@ -70,6 +74,6 @@ contract UpdateFunctionIds is Script {
 
     function run() public {
         addCustomProver();
-        updateFunctionIds();
+        // updateFunctionIds();
     }
 }
