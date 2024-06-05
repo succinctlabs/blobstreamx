@@ -5,6 +5,20 @@ import "forge-std/Script.sol";
 import {BlobstreamX} from "../src/BlobstreamX.sol";
 import {ERC1967Proxy} from "@openzeppelin/proxy/ERC1967/ERC1967Proxy.sol";
 
+// Required environment variables:
+// - GATEWAY_ADDRESS
+// - DEPLOY
+// - UPGRADE
+// - CREATE2_SALT
+// - GUARDIAN_ADDRESS
+// - GENESIS_HEIGHT
+// - GENESIS_HEADER
+// - HEADER_RANGE_FUNCTION_ID
+// - NEXT_HEADER_FUNCTION_ID
+// - UPDATE_GATEWAY
+// - UPDATE_GENESIS_STATE
+// - UPDATE_FUNCTION_IDS
+
 contract DeployScript is Script {
     function setUp() public {}
 
