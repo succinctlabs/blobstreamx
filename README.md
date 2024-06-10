@@ -67,17 +67,7 @@ cast calldata "addCustomProver(bytes32,address)" <FUNCTION_ID> <CUSTOM_PROVER_AD
 
 ### Deployed contracts
 
-You can interact with the Blobstream X contracts today. The
-Blobstream X Solidity smart contracts are currently deployed on
-the following chains:
-
-| Contract     | EVM network      | Contract address                                                                                                                | Attested data on Celestia |
-| ------------ | ---------------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------- |
-| Blobstream X  | Ethereum Mainnet          | [`Not yet deployed`](https://etherscan.io/address/0xTODO) | [Mainnet Beta](https://docs.celestia.org/nodes/mainnet) |
-| Blobstream X | Arbitrum One | [`0xA83ca7775Bc2889825BcDeDfFa5b758cf69e8794`](https://arbiscan.io/address/0xA83ca7775Bc2889825BcDeDfFa5b758cf69e8794#events)  | [Mainnet Beta](https://docs.celestia.org/nodes/mainnet) |
-| Blobstream X | Base           | [`0xA83ca7775Bc2889825BcDeDfFa5b758cf69e8794`](https://basescan.org/address/0xA83ca7775Bc2889825BcDeDfFa5b758cf69e8794#events)  | [Mainnet Beta](https://docs.celestia.org/nodes/mainnet) |
-| Blobstream X  | Sepolia          | [`0xf0c6429ebab2e7dc6e05dafb61128be21f13cb1e`](https://sepolia.etherscan.io/address/0xf0c6429ebab2e7dc6e05dafb61128be21f13cb1e#events) | [Mocha testnet](https://docs.celestia.org/nodes/mocha-testnet) |
-| Blobstream X | Arbitrum Sepolia           | [`0xc3e209eb245Fd59c8586777b499d6A665DF3ABD2`](https://sepolia.arbiscan.io/address/0xc3e209eb245Fd59c8586777b499d6A665DF3ABD2#events)  | [Mocha testnet](https://docs.celestia.org/nodes/mocha-testnet) |
-| Blobstream X | Base Sepolia           | [`0xc3e209eb245Fd59c8586777b499d6A665DF3ABD2`](https://sepolia.basescan.org/address/0xc3e209eb245Fd59c8586777b499d6A665DF3ABD2#events)  | [Mocha testnet](https://docs.celestia.org/nodes/mocha-testnet) |
+You can interact with the Blobstream X contracts today. The list of the deployed
+Blobstream X Solidity smart contracts can be found the this [list](https://docs.celestia.org/developers/blobstream#deployed-contracts).
 
 For more information, please refer to the [documentation](https://docs.celestia.org/developers/blobstream). And if you're planning on building a rollup that uses Blobstream, check out the [blobstream rollups](https://docs.celestia.org/developers/blobstream-rollups) docs.
