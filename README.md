@@ -68,6 +68,6 @@ cast calldata "addCustomProver(bytes32,address)" <FUNCTION_ID> <CUSTOM_PROVER_AD
 ### Deployed contracts
 
 You can interact with the Blobstream X contracts today. The list of the deployed
-Blobstream X Solidity smart contracts can be found the this [list](https://docs.celestia.org/developers/blobstream#deployed-contracts).
+Blobstream X Solidity smart contracts can be found [here](https://docs.celestia.org/developers/blobstream#deployed-contracts).
 
 For more information, please refer to the [documentation](https://docs.celestia.org/developers/blobstream). And if you're planning on building a rollup that uses Blobstream, check out the [blobstream rollups](https://docs.celestia.org/developers/blobstream-rollups) docs.
