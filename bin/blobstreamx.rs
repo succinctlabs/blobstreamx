@@ -4,13 +4,13 @@ use std::str::FromStr;
 use alloy_primitives::{Address, Bytes, FixedBytes, B256};
 use alloy_sol_types::{sol, SolType};
 use anyhow::Result;
+use blobstreamx::fetcher::BlobstreamOperatorDataFetcher;
 use ethers::abi::AbiEncode;
 use ethers::contract::abigen;
 use ethers::providers::{Http, Provider};
 use ethers::signers::LocalWallet;
 use log::{error, info};
 use succinct_client::request::SuccinctClient;
-use tendermintx::input::InputDataFetcher;
 
 // Note: Update ABI when updating contract.
 abigen!(BlobstreamX, "./abi/BlobstreamX.abi.json");
@@ -33,7 +33,7 @@ struct BlobstreamXOperator {
     gateway_address: Option<String>,
     contract: BlobstreamX<Provider<Http>>,
     client: SuccinctClient,
-    data_fetcher: InputDataFetcher,
+    data_fetcher: BlobstreamOperatorDataFetcher,
 }
 
 impl BlobstreamXOperator {
@@ -65,7 +65,7 @@ impl BlobstreamXOperator {
             local_relay_mode: local_relay_mode_bool,
         };
 
-        let data_fetcher = InputDataFetcher::default();
+        let data_fetcher = BlobstreamOperatorDataFetcher::default();
 
         let succinct_rpc_url = env::var("SUCCINCT_RPC_URL").expect("SUCCINCT_RPC_URL must be set");
         let succinct_api_key = env::var("SUCCINCT_API_KEY").expect("SUCCINCT_API_KEY must be set");
@@ -191,8 +191,11 @@ impl BlobstreamXOperator {
             let current_block = self.contract.latest_block().await.unwrap();
 
             // Get the head of the chain.
-            let latest_tendermint_signed_header =
-                self.data_fetcher.get_latest_signed_header().await;
+            let latest_tendermint_signed_header = self
+                .data_fetcher
+                .get_latest_signed_header()
+                .await
+                .expect("Failed to get latest signed header");
             let latest_tendermint_block_nb = latest_tendermint_signed_header.header.height.value();
 
             // Subtract 1 block to ensure the block is stable.
@@ -213,7 +216,8 @@ impl BlobstreamXOperator {
                 let target_block = self
                     .data_fetcher
                     .find_block_to_request(current_block, max_end_block)
-                    .await;
+                    .await
+                    .expect("Failed to get target block to request.");
 
                 info!("Attempting to step to block {}", target_block);
 
