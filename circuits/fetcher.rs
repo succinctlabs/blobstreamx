@@ -1,5 +1,7 @@
+use std::time::Duration;
+
 use anyhow::Result;
-use reqwest_middleware::reqwest::Client;
+use reqwest_middleware::reqwest::ClientBuilder as ReqwestClientBuilder;
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
 use reqwest_retry::policies::ExponentialBackoff;
 use reqwest_retry::RetryTransientMiddleware;
@@ -13,6 +15,7 @@ pub struct BlobstreamOperatorDataFetcher {
 }
 
 const MAX_NUM_RETRIES: usize = 3;
+const DEFAULT_TIMEOUT: u64 = 10; // 10 second timeout.
 
 impl Default for BlobstreamOperatorDataFetcher {
     fn default() -> Self {
@@ -27,9 +30,14 @@ impl BlobstreamOperatorDataFetcher {
         let retry_policy =
             ExponentialBackoff::builder().build_with_max_retries(MAX_NUM_RETRIES as u32);
 
-        let client: ClientWithMiddleware = ClientBuilder::new(Client::new())
-            .with(RetryTransientMiddleware::new_with_policy(retry_policy))
-            .build();
+        let client: ClientWithMiddleware = ClientBuilder::new(
+            ReqwestClientBuilder::new()
+                .timeout(Duration::from_secs(DEFAULT_TIMEOUT))
+                .build()
+                .expect("Failed to build reqwest Client"),
+        )
+        .with(RetryTransientMiddleware::new_with_policy(retry_policy))
+        .build();
         Self { rpc_url, client }
     }
 
