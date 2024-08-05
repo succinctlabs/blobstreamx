@@ -36,6 +36,8 @@ struct BlobstreamXOperator {
     data_fetcher: BlobstreamOperatorDataFetcher,
 }
 
+const OPERATOR_LOOP_TIMEOUT_SECS: u64 = 3 * 60;
+
 impl BlobstreamXOperator {
     pub async fn new() -> Self {
         let contract_address = env::var("CONTRACT_ADDRESS").expect("CONTRACT_ADDRESS must be set");
@@ -172,8 +174,13 @@ impl BlobstreamXOperator {
         Ok(request_id)
     }
 
-    async fn run(&mut self, loop_delay_mins: u64, block_interval: u64, data_commitment_max: u64) {
-        info!("Starting BlobstreamX operator");
+    /// Process an iteration of the operator loop.
+    async fn process_loop_iteration(
+        &self,
+        loop_delay_mins: u64,
+        block_interval: u64,
+        data_commitment_max: u64,
+    ) -> Result<()> {
         let header_range_max = self.contract.data_commitment_max().await.unwrap();
 
         // Something is wrong with the contract if this is true.
@@ -181,111 +188,131 @@ impl BlobstreamXOperator {
             panic!("header_range_max must be greater than 0");
         }
 
-        loop {
-            // Get the function IDs from the contract (they can change if the contract is updated).
-            let next_header_function_id =
-                FixedBytes(self.contract.next_header_function_id().await.unwrap());
-            let header_range_function_id =
-                FixedBytes(self.contract.header_range_function_id().await.unwrap());
+        // Get the function IDs from the contract (they can change if the contract is updated).
+        let next_header_function_id =
+            FixedBytes(self.contract.next_header_function_id().await.unwrap());
+        let header_range_function_id =
+            FixedBytes(self.contract.header_range_function_id().await.unwrap());
 
-            let current_block = self.contract.latest_block().await.unwrap();
+        let current_block = self.contract.latest_block().await.unwrap();
 
-            // Get the head of the chain.
-            let latest_tendermint_signed_header = self
+        // Get the head of the chain.
+        let latest_tendermint_signed_header = self
+            .data_fetcher
+            .get_latest_signed_header()
+            .await
+            .expect("Failed to get latest signed header");
+        let latest_tendermint_block_nb = latest_tendermint_signed_header.header.height.value();
+
+        // Subtract 1 block to ensure the block is stable.
+        let latest_stable_tendermint_block = latest_tendermint_block_nb - 1;
+
+        // block_to_request is the closest interval of block_interval less than min(latest_stable_tendermint_block, data_commitment_max + current_block)
+        let max_block = std::cmp::min(
+            latest_stable_tendermint_block,
+            data_commitment_max + current_block,
+        );
+        let block_to_request = max_block - (max_block % block_interval);
+
+        // If block_to_request is greater than the current block in the contract, attempt to request.
+        if block_to_request > current_block {
+            // The next block the operator should request.
+            let max_end_block = block_to_request;
+
+            let target_block = self
                 .data_fetcher
-                .get_latest_signed_header()
+                .find_block_to_request(current_block, max_end_block)
                 .await
-                .expect("Failed to get latest signed header");
-            let latest_tendermint_block_nb = latest_tendermint_signed_header.header.height.value();
+                .expect("Failed to get target block to request.");
 
-            // Subtract 1 block to ensure the block is stable.
-            let latest_stable_tendermint_block = latest_tendermint_block_nb - 1;
+            info!("Attempting to step to block {}", target_block);
 
-            // block_to_request is the closest interval of block_interval less than min(latest_stable_tendermint_block, data_commitment_max + current_block)
-            let max_block = std::cmp::min(
-                latest_stable_tendermint_block,
-                data_commitment_max + current_block,
-            );
-            let block_to_request = max_block - (max_block % block_interval);
-
-            // If block_to_request is greater than the current block in the contract, attempt to request.
-            if block_to_request > current_block {
-                // The next block the operator should request.
-                let max_end_block = block_to_request;
-
-                let target_block = self
-                    .data_fetcher
-                    .find_block_to_request(current_block, max_end_block)
+            if target_block - current_block == 1 {
+                // Request the next header if the target block is the next block.
+                match self
+                    .request_next_header(current_block, next_header_function_id)
                     .await
-                    .expect("Failed to get target block to request.");
+                {
+                    Ok(request_id) => {
+                        info!("Next header request submitted: {}", request_id);
 
-                info!("Attempting to step to block {}", target_block);
-
-                if target_block - current_block == 1 {
-                    // Request the next header if the target block is the next block.
-                    match self
-                        .request_next_header(current_block, next_header_function_id)
-                        .await
-                    {
-                        Ok(request_id) => {
-                            info!("Next header request submitted: {}", request_id);
-
-                            // If in local mode, this will submit the request on-chain.
-                            let res = self
-                                .client
-                                .relay_proof(
-                                    request_id,
-                                    Some(self.ethereum_rpc_url.as_ref()),
-                                    self.wallet.clone(),
-                                    self.gateway_address.as_deref(),
-                                )
-                                .await;
-                            match res {
-                                Ok(_) => info!("Relayed successfully!"),
-                                Err(e) => {
-                                    error!("Relay failed: {}", e);
-                                }
+                        // If in local mode, this will submit the request on-chain.
+                        let res = self
+                            .client
+                            .relay_proof(
+                                request_id,
+                                Some(self.ethereum_rpc_url.as_ref()),
+                                self.wallet.clone(),
+                                self.gateway_address.as_deref(),
+                            )
+                            .await;
+                        match res {
+                            Ok(_) => info!("Relayed successfully!"),
+                            Err(e) => {
+                                error!("Relay failed: {}", e);
                             }
                         }
-                        Err(e) => {
-                            error!("Next header request failed: {}", e);
-                            continue;
-                        }
-                    };
-                } else {
-                    // Request a header range if the target block is not the next block.
-                    match self
-                        .request_header_range(current_block, target_block, header_range_function_id)
-                        .await
-                    {
-                        Ok(request_id) => {
-                            info!("Header range request submitted: {}", request_id);
-
-                            // If in local mode, this will submit the request on-chain.
-                            let res = self
-                                .client
-                                .relay_proof(
-                                    request_id,
-                                    Some(self.ethereum_rpc_url.as_ref()),
-                                    self.wallet.clone(),
-                                    self.gateway_address.as_deref(),
-                                )
-                                .await;
-                            match res {
-                                Ok(_) => info!("Relayed successfully!"),
-                                Err(e) => {
-                                    error!("Relay failed: {}", e);
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            error!("Header range request failed: {}", e);
-                            continue;
-                        }
-                    };
-                }
+                    }
+                    Err(e) => {
+                        error!("Next header request failed: {}", e);
+                        return Err(e);
+                    }
+                };
             } else {
-                info!("Next block to request is {} which is > the head of the Tendermint chain which is {}. Sleeping.", block_to_request + block_interval, latest_stable_tendermint_block);
+                // Request a header range if the target block is not the next block.
+                match self
+                    .request_header_range(current_block, target_block, header_range_function_id)
+                    .await
+                {
+                    Ok(request_id) => {
+                        info!("Header range request submitted: {}", request_id);
+
+                        // If in local mode, this will submit the request on-chain.
+                        let res = self
+                            .client
+                            .relay_proof(
+                                request_id,
+                                Some(self.ethereum_rpc_url.as_ref()),
+                                self.wallet.clone(),
+                                self.gateway_address.as_deref(),
+                            )
+                            .await;
+                        match res {
+                            Ok(_) => info!("Relayed successfully!"),
+                            Err(e) => {
+                                error!("Relay failed: {}", e);
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        error!("Header range request failed: {}", e);
+                        return Err(e);
+                    }
+                };
+            }
+        } else {
+            info!(
+                "Next block to request is {} which is > the head of the Tendermint chain which is {}. Sleeping.",
+                block_to_request + block_interval,
+                latest_stable_tendermint_block
+            );
+        }
+
+        Ok(())
+    }
+
+    /// Run the operator loop. If the loop iteration takes longer than the timeout, the loop will restart.
+    async fn run(&mut self, loop_delay_mins: u64, block_interval: u64, data_commitment_max: u64) {
+        info!("Starting BlobstreamX operator");
+
+        loop {
+            if let Err(_) = tokio::time::timeout(
+                tokio::time::Duration::from_secs(OPERATOR_LOOP_TIMEOUT_SECS),
+                self.process_loop_iteration(loop_delay_mins, block_interval, data_commitment_max),
+            )
+            .await
+            {
+                error!("Loop iteration timed out after 3 minutes. Restarting...");
             }
 
             tokio::time::sleep(tokio::time::Duration::from_secs(60 * loop_delay_mins)).await;
