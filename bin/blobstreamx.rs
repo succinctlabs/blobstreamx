@@ -177,7 +177,6 @@ impl BlobstreamXOperator {
     /// Process an iteration of the operator loop.
     async fn process_loop_iteration(
         &self,
-        loop_delay_mins: u64,
         block_interval: u64,
         data_commitment_max: u64,
     ) -> Result<()> {
@@ -306,11 +305,12 @@ impl BlobstreamXOperator {
         info!("Starting BlobstreamX operator");
 
         loop {
-            if let Err(_) = tokio::time::timeout(
+            if tokio::time::timeout(
                 tokio::time::Duration::from_secs(OPERATOR_LOOP_TIMEOUT_SECS),
-                self.process_loop_iteration(loop_delay_mins, block_interval, data_commitment_max),
+                self.process_loop_iteration(block_interval, data_commitment_max),
             )
             .await
+            .is_err()
             {
                 error!("Loop iteration timed out after 3 minutes. Restarting...");
             }
